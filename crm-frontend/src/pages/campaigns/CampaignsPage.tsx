@@ -3,17 +3,14 @@ import {
   FaChartLine,
   FaChevronLeft,
   FaChevronRight,
-  FaCopy,
   FaDownload,
-  FaEdit,
   FaFacebook,
   FaGoogle,
   FaInstagram,
   FaLinkedin,
   FaPlay,
-  FaPlus,
+
   FaSearch,
-  FaTrash,
   FaTwitter,
 } from "react-icons/fa";
 import { MdAccessTime, MdCheckCircle } from "react-icons/md";
@@ -25,11 +22,13 @@ type CampaignStatus = "ACTIVE" | "COMPLETED" | "DRAFT";
 type Campaign = {
   id: string;
   name: string;
+  country: string;
   source: string;
   budget: number;
   actualSpend: number;
   leadsGenerated: number;
   revenueGenerated: number;
+  revenueCurrency: string;
   metaCampaignId?: string;
   metaAdsetId?: string;
   metaAdId?: string;
@@ -40,6 +39,7 @@ type Campaign = {
 
 type CampaignPayload = {
   name: string;
+  country?: string;
   source?: string;
   budget?: number;
   actualSpend?: number;
@@ -52,7 +52,17 @@ type CampaignPayload = {
   endDate?: string;
 };
 
+type CampaignSummary = {
+  campaignsCount: number;
+  budget: number;
+  actualSpend: number;
+  leadsGenerated: number;
+  revenueGenerated: number;
+  revenueCurrency: string;
+};
+
 const pageSize = 5;
+const revenueCurrencyOptions = ["AED", "INR"] as const;
 
 const sourceOptions = [
   { value: "META", label: "Meta (Facebook/Instagram)" },
@@ -63,10 +73,21 @@ const sourceOptions = [
   { value: "OTHER", label: "Other" },
 ];
 
+const countryOptions = [
+  { value: "India", label: "India" },
+  { value: "UAE", label: "UAE" },
+  { value: "Other", label: "Other" },
+] as const;
+
+const countryFilterOptions = [
+  { value: "all", label: "All" },
+  ...countryOptions,
+] as const;
+
 const emptyForm = {
   name: "",
+  country: "India",
   source: "META",
-  budget: "",
   actualSpend: "",
   leadsGenerated: "",
   revenueGenerated: "",
@@ -87,14 +108,24 @@ const formatDateValue = (value?: string | null) => {
   return String(value).slice(0, 10);
 };
 
+const normalizeCampaignCountry = (value?: unknown) => {
+  const normalized = String(value || "").trim();
+  if (!normalized) return "Other";
+  if (/^india$/i.test(normalized)) return "India";
+  if (/^(uae|united arab emirates)$/i.test(normalized)) return "UAE";
+  return normalized;
+};
+
 const normalizeCampaign = (item: any): Campaign => ({
   id: String(item.id),
   name: item.name || "Untitled Campaign",
+  country: normalizeCampaignCountry(item.country),
   source: item.source || "OTHER",
   budget: Number(item.budget || 0),
   actualSpend: Number(item.actualSpend || 0),
   leadsGenerated: Number(item.leadsGenerated || 0),
   revenueGenerated: Number(item.revenueGenerated || 0),
+  revenueCurrency: String(item.revenueCurrency || "AED").toUpperCase(),
   metaCampaignId: item.metaCampaignId || "",
   metaAdsetId: item.metaAdsetId || "",
   metaAdId: item.metaAdId || "",
@@ -128,6 +159,56 @@ const getCampaignRoi = (campaign: Campaign) => {
   return campaign.revenueGenerated / campaign.actualSpend;
 };
 
+const getRevenueLabel = (campaign: Campaign) => {
+  return formatCurrency(campaign.revenueGenerated, campaign.revenueCurrency);
+};
+
+const getRoiLabel = (campaign: Campaign) => {
+  return `${getCampaignRoi(campaign).toFixed(1)}x`;
+};
+
+const getCostPerLead = (campaign: Campaign) => {
+  if (!campaign.leadsGenerated || campaign.leadsGenerated <= 0) {
+    return 0;
+  }
+  return campaign.actualSpend / campaign.leadsGenerated;
+};
+
+const getCampaignRunDays = (campaign: Campaign) => {
+  const startSource = campaign.startDate || campaign.createdAt;
+  if (!startSource) {
+    return 0;
+  }
+
+  const start = new Date(startSource);
+  const end = campaign.endDate ? new Date(campaign.endDate) : new Date();
+  const diff = end.getTime() - start.getTime();
+
+  if (Number.isNaN(diff) || diff < 0) {
+    return 0;
+  }
+
+  return Math.max(1, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+};
+
+const getAvgDailySpend = (campaign: Campaign) => {
+  const runDays = getCampaignRunDays(campaign);
+  if (!runDays) {
+    return 0;
+  }
+  return campaign.actualSpend / runDays;
+};
+
+const getAvgDailyLeads = (campaign: Campaign) => {
+  const runDays = getCampaignRunDays(campaign);
+  if (!runDays) {
+    return 0;
+  }
+  return campaign.leadsGenerated / runDays;
+};
+
+const getDisplayMetricId = (value?: string) => value || "0";
+
 const getSourceIcon = (source: string) => {
   switch (source) {
     case "META":
@@ -142,6 +223,17 @@ const getSourceIcon = (source: string) => {
       return <FaTwitter className="text-sky-500" />;
     default:
       return <FaChartLine className="text-gray-500" />;
+  }
+};
+
+const getCountryClass = (country: string) => {
+  switch (normalizeCampaignCountry(country)) {
+    case "India":
+      return "bg-amber-100 text-amber-700 border-amber-200";
+    case "UAE":
+      return "bg-emerald-100 text-emerald-700 border-emerald-200";
+    default:
+      return "bg-slate-100 text-slate-700 border-slate-200";
   }
 };
 
@@ -169,10 +261,10 @@ const getStatusIcon = (status: CampaignStatus) => {
   }
 };
 
-const formatCurrency = (amount: number) =>
+const formatCurrency = (amount: number, currency = "INR") =>
   new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "USD",
+    currency,
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(amount);
@@ -186,25 +278,42 @@ const formatDisplayDate = (date: string) => {
   });
 };
 
+const emptySummary: CampaignSummary = {
+  campaignsCount: 0,
+  budget: 0,
+  actualSpend: 0,
+  leadsGenerated: 0,
+  revenueGenerated: 0,
+  revenueCurrency: "AED",
+};
+
 const CampaignsPage: React.FC = () => {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [search, setSearch] = useState("");
+  const [countryFilter, setCountryFilter] = useState("all");
   const [sourceFilter, setSourceFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
+  const [selectedCampaignId, setSelectedCampaignId] = useState("");
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [page, setPage] = useState(1);
   const [showModal, setShowModal] = useState(false);
-  const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
   const [formData, setFormData] = useState(emptyForm);
+  const [summary, setSummary] = useState<CampaignSummary>(emptySummary);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [summaryLoading, setSummaryLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [selectedRevenueCurrency, setSelectedRevenueCurrency] = useState("INR");
+  
 
   const loadCampaigns = async () => {
     setLoading(true);
     setError("");
     try {
-      const response = (await campaignsApi.list()) as { data?: unknown[] };
+      const response = (await campaignsApi.list({
+        targetCurrency: selectedRevenueCurrency,
+      })) as { data?: unknown[] };
       const next = Array.isArray(response?.data)
         ? response.data.map(normalizeCampaign)
         : [];
@@ -218,17 +327,75 @@ const CampaignsPage: React.FC = () => {
 
   useEffect(() => {
     loadCampaigns();
-  }, []);
+  }, [selectedRevenueCurrency]);
+
+  const summaryFilters = useMemo(
+    () => ({
+      ...(search.trim() ? { search: search.trim() } : {}),
+      ...(countryFilter !== "all" ? { country: countryFilter } : {}),
+      ...(sourceFilter !== "all" ? { source: sourceFilter } : {}),
+      ...(statusFilter !== "all" ? { status: statusFilter } : {}),
+      targetCurrency: selectedRevenueCurrency,
+      ...(dateRange.start ? { startDate: dateRange.start } : {}),
+      ...(dateRange.end ? { endDate: dateRange.end } : {}),
+    }),
+    [countryFilter, dateRange.end, dateRange.start, search, selectedRevenueCurrency, sourceFilter, statusFilter],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadSummary = async () => {
+      setSummaryLoading(true);
+      try {
+        const response = (await campaignsApi.summary(summaryFilters)) as {
+          data?: Partial<CampaignSummary>;
+        };
+
+        if (cancelled) {
+          return;
+        }
+
+        setSummary({
+          campaignsCount: Number(response?.data?.campaignsCount || 0),
+          budget: Number(response?.data?.budget || 0),
+          actualSpend: Number(response?.data?.actualSpend || 0),
+          leadsGenerated: Number(response?.data?.leadsGenerated || 0),
+          revenueGenerated: Number(response?.data?.revenueGenerated || 0),
+          revenueCurrency: String(response?.data?.revenueCurrency || "AED").toUpperCase(),
+        });
+      } catch (err) {
+        if (!cancelled) {
+          setSummary(emptySummary);
+          reportApiError(err, "Failed to load campaign summary");
+        }
+      } finally {
+        if (!cancelled) {
+          setSummaryLoading(false);
+        }
+      }
+    };
+
+    void loadSummary();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [summaryFilters]);
 
   const filteredCampaigns = useMemo(() => {
     return campaigns.filter((campaign) => {
       const status = getCampaignStatus(campaign);
       const matchesSearch =
         campaign.name.toLowerCase().includes(search.toLowerCase()) ||
+        campaign.country.toLowerCase().includes(search.toLowerCase()) ||
         campaign.source.toLowerCase().includes(search.toLowerCase()) ||
         String(campaign.metaCampaignId || "")
           .toLowerCase()
           .includes(search.toLowerCase());
+      const matchesCountry =
+        countryFilter === "all" ||
+        normalizeCampaignCountry(campaign.country) === countryFilter;
       const matchesSource =
         sourceFilter === "all" || campaign.source === sourceFilter;
       const matchesStatus =
@@ -237,26 +404,43 @@ const CampaignsPage: React.FC = () => {
         (!dateRange.start || (campaign.startDate && campaign.startDate >= dateRange.start)) &&
         (!dateRange.end || (campaign.endDate && campaign.endDate <= dateRange.end));
 
-      return matchesSearch && matchesSource && matchesStatus && matchesDate;
+      return (
+        matchesSearch &&
+        matchesCountry &&
+        matchesSource &&
+        matchesStatus &&
+        matchesDate
+      );
     });
-  }, [campaigns, search, sourceFilter, statusFilter, dateRange]);
+  }, [campaigns, countryFilter, search, sourceFilter, statusFilter, dateRange]);
 
-  const totals = useMemo(
+  const sortedCampaigns = useMemo(
     () =>
-      filteredCampaigns.reduce(
-        (acc, campaign) => ({
-          budget: acc.budget + campaign.budget,
-          spend: acc.spend + campaign.actualSpend,
-          leads: acc.leads + campaign.leadsGenerated,
-          revenue: acc.revenue + campaign.revenueGenerated,
-        }),
-        { budget: 0, spend: 0, leads: 0, revenue: 0 },
-      ),
+      [...filteredCampaigns].sort((left, right) => {
+        const countryCompare = normalizeCampaignCountry(left.country).localeCompare(
+          normalizeCampaignCountry(right.country),
+        );
+        if (countryCompare !== 0) return countryCompare;
+        return left.name.localeCompare(right.name);
+      }),
     [filteredCampaigns],
   );
 
-  const totalPages = Math.max(1, Math.ceil(filteredCampaigns.length / pageSize));
-  const paginatedCampaigns = filteredCampaigns.slice(
+  const countryCounts = useMemo(
+    () =>
+      campaigns.reduce(
+        (acc, campaign) => {
+          const normalized = normalizeCampaignCountry(campaign.country);
+          acc[normalized] = (acc[normalized] || 0) + 1;
+          return acc;
+        },
+        { India: 0, UAE: 0, Other: 0 } as Record<string, number>,
+      ),
+    [campaigns],
+  );
+
+  const totalPages = Math.max(1, Math.ceil(sortedCampaigns.length / pageSize));
+  const paginatedCampaigns = sortedCampaigns.slice(
     (page - 1) * pageSize,
     page * pageSize,
   );
@@ -267,36 +451,36 @@ const CampaignsPage: React.FC = () => {
     }
   }, [page, totalPages]);
 
-  const openCreateModal = () => {
-    setEditingCampaign(null);
-    setFormData(emptyForm);
-    setError("");
-    setShowModal(true);
-  };
+  useEffect(() => {
+    if (!sortedCampaigns.length) {
+      setSelectedCampaignId("");
+      return;
+    }
 
-  const openEditModal = (campaign: Campaign) => {
-    setEditingCampaign(campaign);
-    setFormData({
-      name: campaign.name,
-      source: campaign.source,
-      budget: String(campaign.budget || ""),
-      actualSpend: String(campaign.actualSpend || ""),
-      leadsGenerated: String(campaign.leadsGenerated || ""),
-      revenueGenerated: String(campaign.revenueGenerated || ""),
-      metaCampaignId: campaign.metaCampaignId || "",
-      metaAdsetId: campaign.metaAdsetId || "",
-      metaAdId: campaign.metaAdId || "",
-      startDate: campaign.startDate || "",
-      endDate: campaign.endDate || "",
+    setSelectedCampaignId((current) => {
+      if (current && sortedCampaigns.some((campaign) => campaign.id === current)) {
+        return current;
+      }
+      return sortedCampaigns[0].id;
     });
-    setError("");
-    setShowModal(true);
+  }, [sortedCampaigns]);
+
+  const selectedCampaign = useMemo(
+    () => sortedCampaigns.find((campaign) => campaign.id === selectedCampaignId) || null,
+    [selectedCampaignId, sortedCampaigns],
+  );
+
+ 
+
+  const handleSelectCampaign = (campaignId: string) => {
+    setSelectedCampaignId(campaignId);
+    setShowDetailsModal(true);
   };
 
   const buildPayload = (): CampaignPayload => ({
     name: formData.name.trim(),
+    country: normalizeCampaignCountry(formData.country),
     source: formData.source,
-    budget: toNumber(formData.budget),
     actualSpend: toNumber(formData.actualSpend),
     leadsGenerated: Math.trunc(toNumber(formData.leadsGenerated)),
     revenueGenerated: toNumber(formData.revenueGenerated),
@@ -310,6 +494,11 @@ const CampaignsPage: React.FC = () => {
   const validateForm = () => {
     if (!formData.name.trim()) {
       setError("Campaign name is required");
+      return false;
+    }
+
+    if (!formData.country.trim()) {
+      setError("Campaign country is required");
       return false;
     }
 
@@ -329,15 +518,8 @@ const CampaignsPage: React.FC = () => {
 
     try {
       const payload = buildPayload();
-
-      if (editingCampaign) {
-        await campaignsApi.update(editingCampaign.id, payload);
-      } else {
-        await campaignsApi.create(payload);
-      }
-
+      await campaignsApi.create(payload);
       setShowModal(false);
-      setEditingCampaign(null);
       await loadCampaigns();
     } catch (err) {
       reportApiError(err, "Failed to save campaign", setError);
@@ -346,48 +528,15 @@ const CampaignsPage: React.FC = () => {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm("Delete this campaign?")) return;
-
-    try {
-      await campaignsApi.delete(id);
-      await loadCampaigns();
-    } catch (err) {
-      reportApiError(err, "Failed to delete campaign", setError);
-    }
-  };
-
-  const handleDuplicate = async (campaign: Campaign) => {
-    try {
-      const payload: CampaignPayload = {
-        name: `${campaign.name} (Copy)`,
-        source: campaign.source,
-        budget: campaign.budget,
-        actualSpend: 0,
-        leadsGenerated: 0,
-        revenueGenerated: 0,
-        metaCampaignId: undefined,
-        metaAdsetId: undefined,
-        metaAdId: undefined,
-        startDate: campaign.startDate || undefined,
-        endDate: campaign.endDate || undefined,
-      };
-      await campaignsApi.create(payload);
-      await loadCampaigns();
-    } catch (err) {
-      reportApiError(err, "Failed to duplicate campaign", setError);
-    }
-  };
-
   const handleExport = () => {
     const headers = [
       "Campaign Name",
+      "Country",
       "Source",
       "Status",
-      "Budget",
       "Actual Spend",
-      "Leads Generated",
-      "Revenue Generated",
+      "Meta Leads",
+      "CRM Revenue",
       "Meta Campaign ID",
       "Meta Adset ID",
       "Meta Ad ID",
@@ -397,9 +546,9 @@ const CampaignsPage: React.FC = () => {
 
     const rows = filteredCampaigns.map((campaign) => [
       campaign.name,
+      campaign.country,
       campaign.source,
       getCampaignStatus(campaign),
-      campaign.budget,
       campaign.actualSpend,
       campaign.leadsGenerated,
       campaign.revenueGenerated,
@@ -430,75 +579,131 @@ const CampaignsPage: React.FC = () => {
 
   return (
     <main className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100">
-      <div className="mx-auto max-w-7xl">
-        <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-          <div>
-            <p className="mb-1 text-sm text-gray-500 dark:text-gray-400">Campaigns</p>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-              Marketing Campaigns
-            </h1>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              Live CRM campaigns data.
-            </p>
+      <div className="mx-auto max-w-7xl space-y-6">
+        <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.18),_transparent_35%),linear-gradient(135deg,#ffffff_0%,#f8fbff_45%,#eef4ff_100%)] p-6 shadow-[0_18px_50px_rgba(15,23,42,0.06)] dark:border-slate-800 dark:bg-slate-900">
+          <div className="mb-6 flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
+            <div className="max-w-2xl">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.28em] text-slate-500 dark:text-slate-400">
+                Campaigns Overview
+              </p>
+              <h1 className="text-3xl font-semibold tracking-tight text-slate-950 dark:text-white">
+                Marketing Campaigns
+              </h1>
+              <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                Cleaner Meta dashboard. Click row for full campaign context.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white/90 px-3 py-2 text-sm font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200">
+                <span>CRM Currency</span>
+                <select
+                  value={selectedRevenueCurrency}
+                  onChange={(event) => setSelectedRevenueCurrency(event.target.value)}
+                  className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-sm text-slate-700 outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                >
+                  {revenueCurrencyOptions.map((currency) => (
+                    <option key={currency} value={currency}>
+                      {currency}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                onClick={handleExport}
+                className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white/90 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-white dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
+              >
+                <FaDownload />
+                Export
+              </button>
+              {/* <button
+                onClick={openCreateModal}
+                className="inline-flex items-center gap-2 rounded-2xl bg-slate-950 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800 dark:bg-blue-600 dark:hover:bg-blue-500"
+              >
+                <FaPlus />
+                New Campaign
+              </button> */}
+            </div>
           </div>
-          <div className="flex flex-wrap gap-3">
-            <button
-              onClick={handleExport}
-              className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-            >
-              <FaDownload />
-              Export
-            </button>
-            <button
-              onClick={openCreateModal}
-              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-            >
-              <FaPlus />
-              New Campaign
-            </button>
-          </div>
-        </div>
 
-        {error ? (
-          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
-            {error}
-          </div>
-        ) : null}
+          {error ? (
+            <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
+              {error}
+            </div>
+          ) : null}
 
-        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-            <p className="mb-1 text-xs uppercase tracking-wide text-gray-500">Total Budget</p>
-            <p className="text-2xl font-bold">{formatCurrency(totals.budget)}</p>
-            <p className="mt-1 text-xs text-gray-500">
-              Across {filteredCampaigns.length} campaigns
-            </p>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-[24px] border border-white/70 bg-white/85 p-5 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-950">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Meta Spend</p>
+              <p className="text-3xl font-semibold text-slate-950 dark:text-white">{formatCurrency(summary.actualSpend)}</p>
+              <p className="mt-2 text-sm text-slate-500">
+                {summaryLoading ? "Refreshing totals" : `${summary.campaignsCount} campaigns tracked`}
+              </p>
+            </div>
+            <div className="rounded-[24px] border border-white/70 bg-white/85 p-5 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-950">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Meta Leads</p>
+              <p className="text-3xl font-semibold text-slate-950 dark:text-white">{summary.leadsGenerated}</p>
+              <p className="mt-2 text-sm text-slate-500">
+                Live Meta lead volume
+              </p>
+            </div>
+            <div className="rounded-[24px] border border-white/70 bg-white/85 p-5 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-950">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">{`CRM Revenue (${summary.revenueCurrency})`}</p>
+              <p className="text-3xl font-semibold text-slate-950 dark:text-white">{formatCurrency(summary.revenueGenerated, summary.revenueCurrency)}</p>
+              <p className="mt-2 text-sm text-slate-500">{`Booking revenue in ${summary.revenueCurrency}`}</p>
+            </div>
+            <div className="rounded-[24px] border border-white/70 bg-white/85 p-5 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-950">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">{`Avg Revenue Per Lead (${summary.revenueCurrency})`}</p>
+              <p className="text-3xl font-semibold text-slate-950 dark:text-white">
+                {formatCurrency(
+                  summary.leadsGenerated > 0
+                    ? summary.revenueGenerated / summary.leadsGenerated
+                    : 0,
+                  summary.revenueCurrency,
+                )}
+              </p>
+              <p className="mt-2 text-sm text-slate-500">
+                {`Lead value in ${summary.revenueCurrency}`}
+              </p>
+            </div>
           </div>
-          <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-            <p className="mb-1 text-xs uppercase tracking-wide text-gray-500">Actual Spend</p>
-            <p className="text-2xl font-bold">{formatCurrency(totals.spend)}</p>
-            <p className="mt-1 text-xs text-gray-500">
-              {totals.budget > 0 ? `${((totals.spend / totals.budget) * 100).toFixed(1)}% of budget` : "No budget"}
-            </p>
-          </div>
-          <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-            <p className="mb-1 text-xs uppercase tracking-wide text-gray-500">Leads Generated</p>
-            <p className="text-2xl font-bold">{totals.leads}</p>
-            <p className="mt-1 text-xs text-gray-500">CRM stored count</p>
-          </div>
-          <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-            <p className="mb-1 text-xs uppercase tracking-wide text-gray-500">Revenue</p>
-            <p className="text-2xl font-bold">{formatCurrency(totals.revenue)}</p>
-            <p className="mt-1 text-xs text-gray-500">
-              {totals.spend > 0 ? `ROI ${((totals.revenue / totals.spend) || 0).toFixed(1)}x` : "No spend yet"}
-            </p>
-          </div>
-        </div>
+        </section>
 
-        <div className="mb-6 rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
-          <div className="border-b border-gray-100 p-4 dark:border-gray-800">
-            <div className="flex flex-col gap-4 lg:flex-row">
-              <div className="relative flex-1">
-                <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400" />
+      
+
+        <div className="mb-6 rounded-[28px] border border-slate-200 bg-white shadow-[0_12px_30px_rgba(15,23,42,0.05)] dark:border-slate-800 dark:bg-slate-900">
+	          <div className="border-b border-gray-100 p-4 dark:border-gray-800">
+	            <div className="flex flex-col gap-4">
+	              <div className="flex flex-wrap gap-2">
+	                {countryFilterOptions.map((option) => {
+	                  const count =
+	                    option.value === "all" ?
+	                      campaigns.length
+	                    : countryCounts[option.value] || 0;
+	                  const active = countryFilter === option.value;
+	                  return (
+	                    <button
+	                      key={option.value}
+	                      onClick={() => {
+	                        setCountryFilter(option.value);
+	                        setPage(1);
+	                      }}
+	                      className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+	                        active ?
+	                          "border-blue-200 bg-blue-50 text-blue-700"
+	                        : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300 dark:hover:bg-gray-800"
+	                      }`}
+	                    >
+	                      <span>{option.label}</span>
+	                      <span className="rounded-full bg-black/5 px-2 py-0.5 text-xs dark:bg-white/10">
+	                        {count}
+	                      </span>
+	                    </button>
+	                  );
+	                })}
+	              </div>
+	              <div className="flex flex-col gap-4 lg:flex-row">
+	              <div className="relative flex-1">
+	                <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400" />
                 <input
                   type="text"
                   placeholder="Search campaigns..."
@@ -511,21 +716,21 @@ const CampaignsPage: React.FC = () => {
                 />
               </div>
 
-              <select
-                value={sourceFilter}
-                onChange={(event) => {
-                  setSourceFilter(event.target.value);
-                  setPage(1);
-                }}
-                className="rounded-lg border border-gray-300 px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-950"
-              >
-                <option value="all">All Sources</option>
-                {sourceOptions.map((source) => (
-                  <option key={source.value} value={source.value}>
-                    {source.label}
-                  </option>
-                ))}
-              </select>
+	              <select
+	                value={sourceFilter}
+	                onChange={(event) => {
+	                  setSourceFilter(event.target.value);
+	                  setPage(1);
+	                }}
+	                className="rounded-lg border border-gray-300 px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-950"
+	              >
+	                <option value="all">All Sources</option>
+	                {sourceOptions.map((source) => (
+	                  <option key={source.value} value={source.value}>
+	                    {source.label}
+	                  </option>
+	                ))}
+	              </select>
 
               <select
                 value={statusFilter}
@@ -541,8 +746,8 @@ const CampaignsPage: React.FC = () => {
                 <option value="DRAFT">Draft</option>
               </select>
 
-              <div className="flex gap-2">
-                <input
+	              <div className="flex gap-2">
+	                <input
                   type="date"
                   value={dateRange.start}
                   onChange={(event) =>
@@ -558,9 +763,10 @@ const CampaignsPage: React.FC = () => {
                   }
                   className="rounded-lg border border-gray-300 px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-950"
                 />
-              </div>
-            </div>
-          </div>
+	              </div>
+	              </div>
+	            </div>
+	          </div>
 
           {loading ? (
             <div className="p-8 text-center text-sm text-gray-500">Loading campaigns...</div>
@@ -568,22 +774,25 @@ const CampaignsPage: React.FC = () => {
             <>
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-gray-50 dark:bg-gray-950/50">
-                    <tr>
+	                  <thead className="bg-gray-50 dark:bg-gray-950/50">
+	                    <tr>
+	                      <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+	                        Campaign
+	                      </th>
+	                      <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+	                        Country
+	                      </th>
+	                      <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+	                        Source
+	                      </th>
                       <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                        Campaign
+                         Spend
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                        Source
+                        Meta Leads
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                        Budget / Spend
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                        Leads
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                        Revenue
+                        CRM Revenue
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                         ROI
@@ -591,114 +800,134 @@ const CampaignsPage: React.FC = () => {
                       <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                         Status
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                        Dates
-                      </th>
-                      <th className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                    {paginatedCampaigns.length === 0 ? (
-                      <tr>
-                        <td colSpan={9} className="px-6 py-10 text-center text-sm text-gray-500">
-                          No campaigns found.
-                        </td>
-                      </tr>
-                    ) : (
-                      paginatedCampaigns.map((campaign) => {
-                        const status = getCampaignStatus(campaign);
-                        const roi = getCampaignRoi(campaign);
+	                      <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+	                        Dates
+	                      </th>
+	                    </tr>
+	                  </thead>
+		                  <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+		                    {paginatedCampaigns.length === 0 ? (
+		                      <tr>
+		                        <td colSpan={9} className="px-6 py-10 text-center text-sm text-gray-500">
+		                          No campaigns found.
+		                        </td>
+		                      </tr>
+			                    ) : (
+		                      paginatedCampaigns.map((campaign, index) => {
+		                        const status = getCampaignStatus(campaign);
+		                        const normalizedCountry = normalizeCampaignCountry(campaign.country);
+	                        const previousCountry =
+	                          index > 0 ?
+	                            normalizeCampaignCountry(paginatedCampaigns[index - 1].country)
+	                          : null;
+	                        const showCountryDivider = normalizedCountry !== previousCountry;
 
-                        return (
-                          <tr key={campaign.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
-                            <td className="px-6 py-4">
-                              <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                                {campaign.name}
-                              </p>
-                              {campaign.metaCampaignId ? (
-                                <p className="text-xs text-gray-500">
-                                  ID: {campaign.metaCampaignId}
-                                </p>
-                              ) : null}
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="flex items-center gap-2">
-                                {getSourceIcon(campaign.source)}
-                                <span className="text-sm text-gray-700 dark:text-gray-200">
-                                  {campaign.source}
-                                </span>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4">
-                              <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                                {formatCurrency(campaign.budget)}
-                              </p>
-                              <p className="text-xs text-gray-500">
-                                Spent: {formatCurrency(campaign.actualSpend)}
-                              </p>
-                            </td>
-                            <td className="px-6 py-4">
-                              <p className="text-sm text-gray-900 dark:text-gray-100">
-                                {campaign.leadsGenerated}
-                              </p>
-                              <p className="text-xs text-gray-500">CRM tracked</p>
-                            </td>
-                            <td className="px-6 py-4">
-                              <p className="text-sm font-medium text-green-600">
-                                {formatCurrency(campaign.revenueGenerated)}
-                              </p>
-                            </td>
-                            <td className="px-6 py-4">
-                              <span className="text-sm font-medium text-blue-600">
-                                {roi.toFixed(1)}x
-                              </span>
-                            </td>
-                            <td className="px-6 py-4">
-                              <span
-                                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium ${getStatusClass(status)}`}
-                              >
-                                {getStatusIcon(status)}
-                                {status}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4">
-                              <p className="text-xs text-gray-700 dark:text-gray-200">
-                                {formatDisplayDate(campaign.startDate)}
-                              </p>
-                              <p className="text-xs text-gray-500">
-                                to {formatDisplayDate(campaign.endDate)}
-                              </p>
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="flex justify-end gap-2">
-                                <button
-                                  onClick={() => openEditModal(campaign)}
-                                  className="rounded-lg p-2 text-gray-500 transition-colors hover:bg-blue-50 hover:text-blue-600"
-                                  title="Edit"
+		                        return (
+		                          <React.Fragment key={campaign.id}>
+		                            {showCountryDivider ? (
+		                              <tr className="bg-gray-50/80 dark:bg-gray-950/80">
+		                                <td colSpan={9} className="px-6 py-3">
+		                                  <div className="flex items-center justify-between gap-3">
+	                                    <div className="flex items-center gap-3">
+	                                      <span
+	                                        className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide ${getCountryClass(normalizedCountry)}`}
+	                                      >
+	                                        {normalizedCountry}
+	                                      </span>
+	                                      <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
+	                                        {normalizedCountry} Campaigns
+	                                      </span>
+	                                    </div>
+	                                  </div>
+	                                </td>
+	                              </tr>
+	                            ) : null}
+		                            <tr
+                                  onClick={() => handleSelectCampaign(campaign.id)}
+                                  onKeyDown={(event) => {
+                                    if (event.key === "Enter" || event.key === " ") {
+                                      event.preventDefault();
+                                      handleSelectCampaign(campaign.id);
+                                    }
+                                  }}
+                                  tabIndex={0}
+                                  role="button"
+                                  aria-pressed={selectedCampaignId === campaign.id}
+                                  className={`cursor-pointer transition hover:bg-blue-50/60 dark:hover:bg-slate-800/60 ${
+                                    selectedCampaignId === campaign.id ? "bg-blue-50/70 dark:bg-slate-800/70" : ""
+                                  }`}
                                 >
-                                  <FaEdit />
-                                </button>
-                                <button
-                                  onClick={() => handleDuplicate(campaign)}
-                                  className="rounded-lg p-2 text-gray-500 transition-colors hover:bg-green-50 hover:text-green-600"
-                                  title="Duplicate"
-                                >
-                                  <FaCopy />
-                                </button>
-                                <button
-                                  onClick={() => handleDelete(campaign.id)}
-                                  className="rounded-lg p-2 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600"
-                                  title="Delete"
-                                >
-                                  <FaTrash />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })
+		                              <td className="px-6 py-4">
+		                                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+		                                  {campaign.name}
+		                                </p>
+                                        <p className="mt-1 text-xs font-medium text-blue-600">
+                                          Click for details
+                                        </p>
+		                                {campaign.metaCampaignId ? (
+		                                  <p className="text-xs text-gray-500">
+		                                    ID: {campaign.metaCampaignId}
+	                                  </p>
+	                                ) : null}
+	                              </td>
+	                              <td className="px-6 py-4">
+	                                <span
+	                                  className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${getCountryClass(campaign.country)}`}
+	                                >
+	                                  {campaign.country}
+	                                </span>
+	                              </td>
+	                              <td className="px-6 py-4">
+	                                <div className="flex items-center gap-2">
+	                                  {getSourceIcon(campaign.source)}
+	                                  <span className="text-sm text-gray-700 dark:text-gray-200">
+	                                    {campaign.source}
+	                                  </span>
+	                                </div>
+	                              </td>
+	                              <td className="px-6 py-4">
+	                                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+	                                  {formatCurrency(campaign.actualSpend)}
+	                                </p>
+	                               
+	                              </td>
+		                              <td className="px-6 py-4">
+		                                <p className="text-sm text-gray-900 dark:text-gray-100">
+		                                  {campaign.leadsGenerated}
+		                                </p>
+		                                <p className="text-xs text-gray-500">Meta tracked</p>
+		                              </td>
+		                              <td className="px-6 py-4">
+		                                <p className="text-sm font-medium text-green-600">
+		                                  {getRevenueLabel(campaign)}
+		                                </p>
+		                                <p className="text-xs text-gray-500">{`CRM revenue ${campaign.revenueCurrency}`}</p>
+		                              </td>
+		                              <td className="px-6 py-4">
+		                                <span className="text-sm font-medium text-blue-600">
+		                                  {getRoiLabel(campaign)}
+		                                </span>
+		                              </td>
+	                              <td className="px-6 py-4">
+	                                <span
+	                                  className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium ${getStatusClass(status)}`}
+	                                >
+	                                  {getStatusIcon(status)}
+	                                  {status}
+	                                </span>
+	                              </td>
+		                              <td className="px-6 py-4">
+		                                <p className="text-xs text-gray-700 dark:text-gray-200">
+		                                  {formatDisplayDate(campaign.startDate)}
+		                                </p>
+		                                <p className="text-xs text-gray-500">
+		                                  to {formatDisplayDate(campaign.endDate)}
+		                                </p>
+		                              </td>
+		                            </tr>
+	                          </React.Fragment>
+	                        );
+	                      })
                     )}
                   </tbody>
                 </table>
@@ -733,13 +962,107 @@ const CampaignsPage: React.FC = () => {
           )}
         </div>
 
+        {showDetailsModal && selectedCampaign ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4">
+            <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-[28px] border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+              <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5 dark:border-slate-800">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Campaign Details</p>
+                  <h2 className="mt-2 text-2xl font-semibold text-slate-950 dark:text-white">{selectedCampaign.name}</h2>
+                </div>
+                <button
+                  onClick={() => setShowDetailsModal(false)}
+                  className="rounded-full border border-slate-200 px-3 py-1 text-sm font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                >
+                  Close
+                </button>
+              </div>
+
+              <div className="space-y-6 p-6">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide ${getCountryClass(selectedCampaign.country)}`}>
+                    {selectedCampaign.country}
+                  </span>
+                  <span className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold ${getStatusClass(getCampaignStatus(selectedCampaign))}`}>
+                    {getStatusIcon(getCampaignStatus(selectedCampaign))}
+                    {getCampaignStatus(selectedCampaign)}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+                  <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-950">
+                    <p className="text-xs uppercase tracking-wide text-slate-400">Meta Spend</p>
+                    <p className="mt-2 text-xl font-semibold text-slate-950 dark:text-white">{formatCurrency(selectedCampaign.actualSpend)}</p>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-950">
+                    <p className="text-xs uppercase tracking-wide text-slate-400">Meta Leads</p>
+                    <p className="mt-2 text-xl font-semibold text-slate-950 dark:text-white">{selectedCampaign.leadsGenerated}</p>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-950">
+                    <p className="text-xs uppercase tracking-wide text-slate-400">{`CRM Revenue (${selectedCampaign.revenueCurrency})`}</p>
+                    <p className="mt-2 text-xl font-semibold text-emerald-600">{getRevenueLabel(selectedCampaign)}</p>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-950">
+                    <p className="text-xs uppercase tracking-wide text-slate-400">ROI</p>
+                    <p className="mt-2 text-xl font-semibold text-blue-600">{getRoiLabel(selectedCampaign)}</p>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-950">
+                    <p className="text-xs uppercase tracking-wide text-slate-400">Cost Per Lead</p>
+                    <p className="mt-2 text-xl font-semibold text-slate-950 dark:text-white">{formatCurrency(getCostPerLead(selectedCampaign))}</p>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-950">
+                    <p className="text-xs uppercase tracking-wide text-slate-400">Run Days</p>
+                    <p className="mt-2 text-xl font-semibold text-slate-950 dark:text-white">{getCampaignRunDays(selectedCampaign)}</p>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-950">
+                    <p className="text-xs uppercase tracking-wide text-slate-400">Daily Spend</p>
+                    <p className="mt-2 text-xl font-semibold text-slate-950 dark:text-white">{formatCurrency(getAvgDailySpend(selectedCampaign))}</p>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-950">
+                    <p className="text-xs uppercase tracking-wide text-slate-400">Daily Leads</p>
+                    <p className="mt-2 text-xl font-semibold text-slate-950 dark:text-white">{getAvgDailyLeads(selectedCampaign).toFixed(1)}</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+                  <div className="rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
+                    <p className="text-xs uppercase tracking-wide text-slate-400">Meta Campaign ID</p>
+                    <p className="mt-2 break-all text-sm font-medium text-slate-950 dark:text-white">
+                      {getDisplayMetricId(selectedCampaign.metaCampaignId)}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
+                    <p className="text-xs uppercase tracking-wide text-slate-400">Source</p>
+                    <div className="mt-2 flex items-center gap-2 text-sm font-medium text-slate-950 dark:text-white">
+                      {getSourceIcon(selectedCampaign.source)}
+                      <span>{selectedCampaign.source}</span>
+                    </div>
+                  </div>
+               
+               
+                  <div className="rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
+                    <p className="text-xs uppercase tracking-wide text-slate-400">Start Date</p>
+                    <p className="mt-2 text-sm font-medium text-slate-950 dark:text-white">{formatDisplayDate(selectedCampaign.startDate)}</p>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
+                    <p className="text-xs uppercase tracking-wide text-slate-400">End Date</p>
+                    <p className="mt-2 text-sm font-medium text-slate-950 dark:text-white">{formatDisplayDate(selectedCampaign.endDate)}</p>
+                  </div>
+               
+             
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         {showModal ? (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
             <div className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-xl dark:border-gray-800 dark:bg-gray-900">
-              <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-gray-800">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                  {editingCampaign ? "Edit Campaign" : "Create Campaign"}
-                </h2>
+	              <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-gray-800">
+	                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+	                  Create Campaign
+	                </h2>
                 <button
                   onClick={() => setShowModal(false)}
                   className="text-gray-400 hover:text-gray-600"
@@ -748,8 +1071,8 @@ const CampaignsPage: React.FC = () => {
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 gap-4 p-6 md:grid-cols-2">
-                <div className="md:col-span-2">
+	              <div className="grid grid-cols-1 gap-4 p-6 md:grid-cols-2">
+	                <div className="md:col-span-2">
                   <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
                     Campaign Name
                   </label>
@@ -764,10 +1087,29 @@ const CampaignsPage: React.FC = () => {
                   />
                 </div>
 
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                    Source
-                  </label>
+	                <div>
+	                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+	                    Country
+	                  </label>
+	                  <select
+	                    value={formData.country}
+	                    onChange={(event) =>
+	                      setFormData((prev) => ({ ...prev, country: event.target.value }))
+	                    }
+	                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-950"
+	                  >
+	                    {countryOptions.map((country) => (
+	                      <option key={country.value} value={country.value}>
+	                        {country.label}
+	                      </option>
+	                    ))}
+	                  </select>
+	                </div>
+
+	                <div>
+	                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+	                    Source
+	                  </label>
                   <select
                     value={formData.source}
                     onChange={(event) =>
@@ -784,25 +1126,9 @@ const CampaignsPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                    Budget
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={formData.budget}
-                    onChange={(event) =>
-                      setFormData((prev) => ({ ...prev, budget: event.target.value }))
-                    }
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-950"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                    Actual Spend
-                  </label>
+	                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+	                    Meta Spend
+	                  </label>
                   <input
                     type="number"
                     min="0"
@@ -816,9 +1142,9 @@ const CampaignsPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                    Leads Generated
-                  </label>
+	                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+	                    Meta Leads
+	                  </label>
                   <input
                     type="number"
                     min="0"
@@ -832,9 +1158,9 @@ const CampaignsPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                    Revenue Generated
-                  </label>
+	                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+	                    CRM Revenue
+	                  </label>
                   <input
                     type="number"
                     min="0"
@@ -931,13 +1257,13 @@ const CampaignsPage: React.FC = () => {
                 >
                   Cancel
                 </button>
-                <button
-                  onClick={handleSubmit}
-                  disabled={saving}
-                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-                >
-                  {saving ? "Saving..." : editingCampaign ? "Update Campaign" : "Create Campaign"}
-                </button>
+	                <button
+	                  onClick={handleSubmit}
+	                  disabled={saving}
+	                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+	                >
+	                  {saving ? "Saving..." : "Create Campaign"}
+	                </button>
               </div>
             </div>
           </div>

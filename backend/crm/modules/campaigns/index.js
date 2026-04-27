@@ -6,7 +6,7 @@ import { CampaignsValidation } from "./campaigns.validation.js";
 import { CampaignsSchema } from "./campaigns.schema.js";
 import { createCampaignsEvents } from "./campaigns.events.js";
 
-function createCampaignsModule({ dependencies }) {
+function createCampaignsModule({ dependencies, repositories = {} }) {
   const repository = createCampaignsRepository({
     db: dependencies.db,
     logger: dependencies.logger,
@@ -20,8 +20,10 @@ function createCampaignsModule({ dependencies }) {
 
   const service = createCampaignsService({
     repository,
+    leadsRepository: repositories.leads,
     logger: dependencies.logger,
     events,
+    currencyService: dependencies.services?.currency,
   });
 
   const controller = createCampaignsController({ service });

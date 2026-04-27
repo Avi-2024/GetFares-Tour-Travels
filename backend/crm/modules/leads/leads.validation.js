@@ -158,7 +158,7 @@ const list = z.object({
   query: z
     .object({
       page: z.coerce.number().int().positive().optional(),
-      limit: z.coerce.number().int().positive().optional(),
+      limit: z.coerce.number().int().positive().max(50).optional(),
       search: z.string().trim().max(150).optional(),
       quickFilter: z
         .enum(["ALL", "ACTIVE", "FOLLOW_UP", "CLOSED", "LATE_RESPONSE"])
@@ -181,8 +181,30 @@ const list = z.object({
       toDate: optionalDateOnly,
       sla: z.enum(["WITHIN_SLA", "OVERDUE", "PENDING"]).optional(),
       sortBy: z
-        .enum(["NEWEST_FIRST", "OLDEST_FIRST", "NAME_A_Z", "STATUS"])
+        .enum([
+          "NEWEST_FIRST",
+          "OLDEST_FIRST",
+          "NAME_A_Z",
+          "STATUS",
+          "CREATED_AT_DESC",
+          "CREATED_AT_ASC",
+          "NAME_ASC",
+          "STATUS_ASC",
+          "COUNTRY_ASC",
+        ])
         .optional(),
+    })
+    .optional(),
+});
+
+const listDestinations = z.object({
+  body: z.object({}).optional(),
+  params: z.object({}).optional(),
+  query: z
+    .object({
+      search: z.string().trim().max(150).optional(),
+      country: z.string().trim().max(100).optional(),
+      limit: z.coerce.number().int().positive().max(500).optional(),
     })
     .optional(),
 });
@@ -348,6 +370,7 @@ const LeadsValidation = {
   update,
   byId,
   list,
+  listDestinations,
   assign,
   distribute,
   reassignInactive,

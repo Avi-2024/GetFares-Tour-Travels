@@ -18,6 +18,13 @@ function createCampaignsRoutes({
     asyncHandler(controller.list),
   );
   router.get(
+    "/summary",
+    requireAuth,
+    authorize("campaigns:read"),
+    validateRequest(validation.summary),
+    asyncHandler(controller.summary),
+  );
+  router.get(
     "/:id",
     requireAuth,
     authorize("campaigns:read"),

@@ -158,11 +158,11 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
                     {/* PACKAGE SECTION */}
                     <div className="package-section">
                         <div>
-                            <h3>PACKAGE NAME :-</h3>
-                            <p>{data.packageName}</p>
-                            <strong>Guest Email: {data.email}</strong>
+                            <h3>PACKAGE NAME : {data.packageName} </h3>
+                            
+                            <strong>Guest Email : {data.email}</strong>
                             {data.packageType && (
-                                <p className="package-type">
+                                <p >
                                     <b>Package Type :   {data.packageType}    </b>
                                 </p>
                             )}
@@ -316,7 +316,7 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
                             {section('Footer Disclaimer', data.footerDisclaimer)}
                             {section('Hotel Details', data.hotelDetails)}
 
-                            <div className="pdf-block">
+                            {/* <div className="pdf-block">
                                 <div className="pdf-block-title">Trip Summary</div>
                                 <div className="pdf-block-body">
                                     <div className="pdf-kv"><b>Quote Reference:</b> {data.quoteReference || 'N/A'}</div>
@@ -330,7 +330,7 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
                                     <div className="pdf-kv"><b>Package Type:</b> {data.packageType || 'N/A'}</div>
                                     <div className="pdf-kv"><b>Supplier:</b> {data.supplierName || 'N/A'}</div>
                                 </div>
-                            </div>
+                            </div> */}
 
                             <div className="pdf-block">
                                 <div className="pdf-block-title">Enabled Services</div>

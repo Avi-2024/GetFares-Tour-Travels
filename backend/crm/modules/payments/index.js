@@ -6,7 +6,7 @@ import { PaymentsValidation } from "./payments.validation.js";
 import { PaymentsSchema } from "./payments.schema.js";
 import { createPaymentsEvents } from "./payments.events.js";
 
-function createPaymentsModule({ dependencies }) {
+function createPaymentsModule({ dependencies, repositories = {} }) {
   const repository = createPaymentsRepository({
     db: dependencies.db,
     logger: dependencies.logger,
@@ -20,6 +20,8 @@ function createPaymentsModule({ dependencies }) {
 
   const service = createPaymentsService({
     repository,
+    bookingsRepository: repositories.bookings,
+    leadsRepository: repositories.leads,
     logger: dependencies.logger,
     events,
     currencyService: dependencies.services?.currency,

@@ -204,7 +204,7 @@ function buildQuoteNumber() {
   return `QT-${stamp}-${randomPart}`;
 }
 
-function createQuotationsService({ repository, logger, events, config, s3, mailService }) {
+function createQuotationsService({ repository, leadsRepository, logger, events, config, s3, mailService }) {
   function assertAuthenticatedUser(user) {
     if (!user?.id) {
       throw new AppError(401, "Authentication required", "AUTH_REQUIRED");
@@ -983,7 +983,6 @@ function createQuotationsService({ repository, logger, events, config, s3, mailS
     if (!quotation) {
       throw new AppError(404, "Quotation not found", "QUOTATION_NOT_FOUND");
     }
-
     let response = quotation;
 
     if (options.includeItems !== false) {

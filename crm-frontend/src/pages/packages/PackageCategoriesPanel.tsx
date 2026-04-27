@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import SurfaceCard from "../../components/ui/SurfaceCard";
 import StatusBadge from "../../components/ui/StatusBadge";
+import EmptyState from "../../components/ui/EmptyState";
 import { reportApiError } from "../../lib/notify";
 import { usePackageCategoriesService } from "../../hooks/usePackageCategoriesService";
 import type {
@@ -67,6 +68,28 @@ const parseLinesList = (value: string) =>
     .map((line) => line.trim())
     .filter(Boolean);
 
+const formatMoney = (value: unknown) => {
+  const parsed = Number(value ?? 0);
+  if (!Number.isFinite(parsed)) {
+    return "0";
+  }
+  return new Intl.NumberFormat("en-IN", {
+    maximumFractionDigits: parsed % 1 === 0 ? 0 : 2,
+  }).format(parsed);
+};
+
+const buildMainMeta = (item: MainPackageRecord) =>
+  [String(item.destination || "").trim(), String(item.country || "").trim()]
+    .filter(Boolean)
+    .join(" | ");
+
+const buildSubMeta = (item: SubPackageRecord) => {
+  const duration =
+    item.duration || `${item.durationNights ?? 0}N/${item.durationDays ?? 0}D`;
+  const location = String(item.location || "").trim();
+  return [duration, location].filter(Boolean).join(" | ");
+};
+
 const Kv: React.FC<{ label: string; value: React.ReactNode }> = ({
   label,
   value,
@@ -77,169 +100,319 @@ const Kv: React.FC<{ label: string; value: React.ReactNode }> = ({
   </div>
 );
 
+const MetaTile: React.FC<{ label: string; value: React.ReactNode }> = ({
+  label,
+  value,
+}) => (
+  <div className="rounded-xl border border-gray-200 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-900">
+    <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500">
+      {label}
+    </p>
+    <div className="mt-1 break-words text-sm text-gray-900 dark:text-gray-100">
+      {value}
+    </div>
+  </div>
+);
+
+const DetailSection: React.FC<{
+  title: string;
+  children: React.ReactNode;
+  className?: string;
+}> = ({ title, children, className = "" }) => (
+  <SurfaceCard className={`p-4 ${className}`.trim()}>
+    <h4 className="mb-2 font-semibold text-gray-900 dark:text-gray-100">
+      {title}
+    </h4>
+    {children}
+  </SurfaceCard>
+);
+
+const ImagePreviewCard: React.FC<{
+  title: string;
+  url?: string | null;
+}> = ({ title, url }) => (
+  <SurfaceCard className="overflow-hidden p-0">
+    <div className="border-b border-gray-200 px-4 py-3 text-sm font-semibold text-gray-800 dark:border-gray-700 dark:text-gray-200">
+      {title}
+    </div>
+    {url ? (
+      <div className="p-4">
+        <img
+          src={url}
+          alt={title}
+          className="h-40 w-full rounded-xl border border-gray-200 object-cover dark:border-gray-700"
+          onError={(event) => {
+            (event.currentTarget as HTMLImageElement).style.display = "none";
+          }}
+        />
+      </div>
+    ) : (
+      <div className="p-4 text-sm text-gray-500">No image</div>
+    )}
+  </SurfaceCard>
+);
+
+const toObjectSummary = (value: unknown) => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => {
+      if (!item || typeof item !== "object") {
+        return String(item ?? "").trim();
+      }
+      const record = item as Record<string, unknown>;
+      return [
+        String(
+          record.title ?? record.iconName ?? record.icon_name ?? record.day ?? "",
+        ).trim(),
+        String(record.description ?? "").trim(),
+      ]
+        .filter(Boolean)
+        .join(": ");
+    })
+    .filter(Boolean);
+};
+
 const SubViewModal: React.FC<{
   sub: SubPackageRecord;
   onClose: () => void;
   onEdit: () => void;
-}> = ({ sub, onClose, onEdit }) => (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-    <div className="w-full max-w-4xl overflow-hidden rounded-xl bg-white shadow-xl dark:bg-gray-900">
-      <div className="flex items-center justify-between border-b border-gray-200 p-4 dark:border-gray-700">
-        <div>
-          <p className="text-xs text-gray-500">Sub package</p>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-            {sub.title || sub.name || "Sub"}
-          </h3>
+}> = ({ sub, onClose, onEdit }) => {
+  const heroImage = sub.bannerImageUrl || sub.image || "";
+  const featureLines = sub.featuresDisplay?.length
+    ? sub.featuresDisplay
+    : toObjectSummary(sub.features);
+  const itineraryLines = sub.itinerariesDisplay?.length
+    ? sub.itinerariesDisplay
+    : toObjectSummary(sub.itineraries);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="w-full max-w-5xl overflow-hidden rounded-xl bg-white shadow-xl dark:bg-gray-900">
+        <div className="flex items-center justify-between border-b border-gray-200 p-4 dark:border-gray-700">
+          <div>
+            <p className="text-xs text-gray-500">Sub package</p>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+              {sub.title || sub.name || "Sub"}
+            </h3>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={onEdit}
+              className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+            >
+              Edit
+            </button>
+            <button
+              onClick={onClose}
+              className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
+            >
+              Close
+            </button>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <button
-            onClick={onEdit}
-            className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700"
-          >
-            Edit
-          </button>
-          <button
-            onClick={onClose}
-            className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
-          >
-            Close
-          </button>
-        </div>
-      </div>
-      <div className="max-h-[80vh] overflow-y-auto p-4 space-y-4">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <SurfaceCard className="p-4">
-            <h4 className="mb-2 font-semibold">Website</h4>
-            <div className="space-y-2 text-gray-700 dark:text-gray-300">
-              <Kv
-                label="Published"
-                value={
-                  <span className={sub.publishToWebsite ? "text-green-600" : ""}>
-                    {sub.publishToWebsite ? "Yes" : "No"}
-                  </span>
-                }
-              />
-              <Kv
-                label="Slug"
-                value={<span className="font-mono text-xs">{sub.websiteSlug || "—"}</span>}
-              />
-              <Kv
-                label="Deleted"
-                value={
-                  <span className={sub.isDeleted ? "text-red-600" : ""}>
-                    {sub.isDeleted ? "Yes" : "No"}
-                  </span>
-                }
-              />
+        <div className="max-h-[86vh] overflow-y-auto p-4 space-y-4">
+          <header className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-950">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+                  {sub.title || sub.name || "Sub package"}
+                </h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  {sub.duration ||
+                    `${sub.durationDays ?? 0}D/${sub.durationNights ?? 0}N`}
+                </p>
+              </div>
+              <StatusBadge status={sub.status || "DRAFT"} />
             </div>
-          </SurfaceCard>
-          <SurfaceCard className="p-4">
-            <h4 className="mb-2 font-semibold">Pricing</h4>
-            <div className="space-y-2 text-gray-700 dark:text-gray-300">
-              <Kv
-                label="Starting"
-                value={
-                  <span className="font-semibold text-blue-600">
-                    {sub.startingPrice}{" "}
-                    {toUpper(sub.startingPriceCurrency, "INR")}
-                  </span>
-                }
+            {sub.description ? (
+              <p className="mt-3 whitespace-pre-wrap text-sm text-gray-600 dark:text-gray-300">
+                {sub.description}
+              </p>
+            ) : null}
+          </header>
+
+          {heroImage ? (
+            <button
+              type="button"
+              className="w-full overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-700"
+            >
+              <img
+                src={heroImage}
+                alt={sub.title || sub.name || "Sub package"}
+                className="h-56 w-full object-cover"
               />
-              <Kv
-                label="Duration"
-                value={
-                  sub.duration ||
-                  `${sub.durationNights ?? 0}N/${sub.durationDays ?? 0}D`
-                }
+            </button>
+          ) : null}
+
+          <DetailSection title="Metadata">
+            <div className="grid gap-2 md:grid-cols-2">
+              <MetaTile label="Parent package" value={sub.parentPackageName || "-"} />
+              <MetaTile label="Title" value={sub.title || sub.name || "-"} />
+              <MetaTile label="Rating" value={sub.rating ?? "-"} />
+              <MetaTile label="Location" value={sub.location || "-"} />
+              <MetaTile label="Duration days" value={sub.durationDays ?? "-"} />
+              <MetaTile label="Duration nights" value={sub.durationNights ?? "-"} />
+              <MetaTile
+                label="Currency"
+                value={toUpper(sub.startingPriceCurrency, "INR")}
               />
-              <Kv label="Status" value={sub.status || "—"} />
-              <Kv
-                label="Sold out"
-                value={
-                  <span className={sub.isSoldOut ? "text-red-600" : ""}>
-                    {sub.isSoldOut ? "Yes" : "No"}
-                  </span>
-                }
+              <MetaTile
+                label="Starting price"
+                value={`${formatMoney(sub.startingPrice)} ${toUpper(
+                  sub.startingPriceCurrency,
+                  "INR",
+                )}`}
               />
-              <Kv label="Rating" value={String((sub as any).rating ?? "—")} />
-              <Kv label="Transport" value={sub.transport || "—"} />
-              <Kv label="Hotel details" value={sub.hotelDetails || "—"} />
+              <MetaTile label="Transport" value={sub.transport || "-"} />
+              <MetaTile label="Display order" value={sub.displayOrder ?? "-"} />
+              <MetaTile label="Slug" value={sub.websiteSlug || "-"} />
             </div>
-          </SurfaceCard>
+          </DetailSection>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {featureLines.length ? (
+              <DetailSection title="Features">
+                <pre className="whitespace-pre-wrap text-xs text-gray-700 dark:text-gray-300">
+                  {featureLines.join("\n")}
+                </pre>
+              </DetailSection>
+            ) : null}
+            {sub.highlights?.length ? (
+              <DetailSection title="Highlights">
+                <pre className="whitespace-pre-wrap text-xs text-gray-700 dark:text-gray-300">
+                  {sub.highlights.join("\n")}
+                </pre>
+              </DetailSection>
+            ) : null}
+          </div>
+
+          {itineraryLines.length ? (
+            <DetailSection title="Itineraries">
+              <pre className="whitespace-pre-wrap text-xs text-gray-700 dark:text-gray-300">
+                {itineraryLines.join("\n")}
+              </pre>
+            </DetailSection>
+          ) : null}
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <DetailSection title="Inclusions">
+              <pre className="whitespace-pre-wrap text-xs text-gray-700 dark:text-gray-300">
+                {sub.inclusions?.length ? sub.inclusions.join("\n") : "-"}
+              </pre>
+            </DetailSection>
+            <DetailSection title="Exclusions">
+              <pre className="whitespace-pre-wrap text-xs text-gray-700 dark:text-gray-300">
+                {sub.exclusions?.length ? sub.exclusions.join("\n") : "-"}
+              </pre>
+            </DetailSection>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <DetailSection title="Payment terms">
+              <pre className="whitespace-pre-wrap text-xs text-gray-700 dark:text-gray-300">
+                {sub.paymentTerms?.length ? sub.paymentTerms.join("\n") : "-"}
+              </pre>
+            </DetailSection>
+            <DetailSection title="Cancellation policy">
+              <pre className="whitespace-pre-wrap text-xs text-gray-700 dark:text-gray-300">
+                {sub.cancellationPolicy?.length
+                  ? sub.cancellationPolicy.join("\n")
+                  : "-"}
+              </pre>
+            </DetailSection>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <DetailSection title="T&C">
+              <pre className="whitespace-pre-wrap text-xs text-gray-700 dark:text-gray-300">
+                {sub.tnc?.length ? sub.tnc.join("\n") : "-"}
+              </pre>
+            </DetailSection>
+            <DetailSection title="Important notes">
+              <pre className="whitespace-pre-wrap text-xs text-gray-700 dark:text-gray-300">
+                {sub.impNotes?.length ? sub.impNotes.join("\n") : "-"}
+              </pre>
+            </DetailSection>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <DetailSection title="Website">
+              <div className="space-y-2 text-gray-700 dark:text-gray-300">
+                <Kv
+                  label="Published"
+                  value={
+                    <span className={sub.publishToWebsite ? "text-green-600" : ""}>
+                      {sub.publishToWebsite ? "Yes" : "No"}
+                    </span>
+                  }
+                />
+                <Kv label="Slug" value={sub.websiteSlug || "-"} />
+                <Kv
+                  label="Deleted"
+                  value={
+                    <span className={sub.isDeleted ? "text-red-600" : ""}>
+                      {sub.isDeleted ? "Yes" : "No"}
+                    </span>
+                  }
+                />
+              </div>
+            </DetailSection>
+            <DetailSection title="Commercial">
+              <div className="space-y-2 text-gray-700 dark:text-gray-300">
+                <Kv
+                  label="Starting"
+                  value={`${formatMoney(sub.startingPrice)} ${toUpper(
+                    sub.startingPriceCurrency,
+                    "INR",
+                  )}`}
+                />
+                <Kv
+                  label="Duration"
+                  value={
+                    sub.duration ||
+                    `${sub.durationNights ?? 0}N/${sub.durationDays ?? 0}D`
+                  }
+                />
+                <Kv label="Transport" value={sub.transport || "-"} />
+                <Kv label="Hotel details" value={sub.hotelDetails || "-"} />
+              </div>
+            </DetailSection>
+          </div>
+
+          {sub.snapshot ? (
+            <DetailSection title="Snapshot">
+              <pre className="whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300">
+                {sub.snapshot}
+              </pre>
+            </DetailSection>
+          ) : null}
+
+          {sub.galleryImageUrls?.length ? (
+            <DetailSection title="Media gallery">
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                {sub.galleryImageUrls.map((url, index) => (
+                  <div
+                    key={`${url}-${index}`}
+                    className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700"
+                  >
+                    <img
+                      src={url}
+                      alt={`Gallery ${index + 1}`}
+                      className="h-28 w-full object-cover"
+                      onError={(event) => {
+                        (event.currentTarget as HTMLImageElement).style.display = "none";
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+            </DetailSection>
+          ) : null}
         </div>
-
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <SurfaceCard className="p-4">
-            <h4 className="mb-2 font-semibold text-green-700 dark:text-green-300">
-              Inclusions
-            </h4>
-            <pre className="whitespace-pre-wrap text-xs text-gray-700 dark:text-gray-300">
-              {sub.inclusions?.length ? sub.inclusions.join("\n") : "—"}
-            </pre>
-          </SurfaceCard>
-          <SurfaceCard className="p-4">
-            <h4 className="mb-2 font-semibold text-red-700 dark:text-red-300">
-              Exclusions
-            </h4>
-            <pre className="whitespace-pre-wrap text-xs text-gray-700 dark:text-gray-300">
-              {sub.exclusions?.length ? sub.exclusions.join("\n") : "—"}
-            </pre>
-          </SurfaceCard>
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <SurfaceCard className="p-4">
-            <h4 className="mb-2 font-semibold">Payment terms</h4>
-            <pre className="whitespace-pre-wrap text-xs text-gray-700 dark:text-gray-300">
-              {sub.paymentTerms?.length ? sub.paymentTerms.join("\n") : "—"}
-            </pre>
-          </SurfaceCard>
-          <SurfaceCard className="p-4">
-            <h4 className="mb-2 font-semibold">Cancellation policy</h4>
-            <pre className="whitespace-pre-wrap text-xs text-gray-700 dark:text-gray-300">
-              {sub.cancellationPolicy?.length
-                ? sub.cancellationPolicy.join("\n")
-                : "—"}
-            </pre>
-          </SurfaceCard>
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <SurfaceCard className="p-4">
-            <h4 className="mb-2 font-semibold">T&C</h4>
-            <pre className="whitespace-pre-wrap text-xs text-gray-700 dark:text-gray-300">
-              {sub.tnc?.length ? sub.tnc.join("\n") : "—"}
-            </pre>
-          </SurfaceCard>
-          <SurfaceCard className="p-4">
-            <h4 className="mb-2 font-semibold">Important notes</h4>
-            <pre className="whitespace-pre-wrap text-xs text-gray-700 dark:text-gray-300">
-              {sub.impNotes?.length ? sub.impNotes.join("\n") : "—"}
-            </pre>
-          </SurfaceCard>
-        </div>
-
-        {sub.description ? (
-          <SurfaceCard className="p-4">
-            <h4 className="mb-2 font-semibold">Description</h4>
-            <pre className="whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300">
-              {sub.description}
-            </pre>
-          </SurfaceCard>
-        ) : null}
-
-        {sub.snapshot ? (
-          <SurfaceCard className="p-4">
-            <h4 className="mb-2 font-semibold">Snapshot</h4>
-            <pre className="whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300">
-              {sub.snapshot}
-            </pre>
-          </SurfaceCard>
-        ) : null}
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 const PackageCategoriesPanel: React.FC = () => {
   const api = usePackageCategoriesService();
@@ -257,10 +430,50 @@ const PackageCategoriesPanel: React.FC = () => {
   const [subLoading, setSubLoading] = useState(false);
   const [subPackages, setSubPackages] = useState<SubPackageRecord[]>([]);
   const [selectedSubId, setSelectedSubId] = useState("");
+  const [mainSearch, setMainSearch] = useState("");
+  const [subSearch, setSubSearch] = useState("");
   const selectedSub = useMemo(
     () => subPackages.find((s) => s.id === selectedSubId) || null,
     [subPackages, selectedSubId],
   );
+  const filteredMainPackages = useMemo(() => {
+    const query = mainSearch.trim().toLowerCase();
+    if (!query) {
+      return mainPackages;
+    }
+    return mainPackages.filter((item) =>
+      [
+        item.title,
+        item.destination,
+        item.country,
+        item.amountCurrency,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(query),
+    );
+  }, [mainPackages, mainSearch]);
+  const filteredSubPackages = useMemo(() => {
+    const query = subSearch.trim().toLowerCase();
+    if (!query) {
+      return subPackages;
+    }
+    return subPackages.filter((item) =>
+      [
+        item.title,
+        item.name,
+        item.location,
+        item.status,
+        item.websiteSlug,
+        item.startingPriceCurrency,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(query),
+    );
+  }, [subPackages, subSearch]);
 
   const [mode, setMode] = useState<Mode>("LIST");
   const [saving, setSaving] = useState(false);
@@ -316,7 +529,7 @@ const PackageCategoriesPanel: React.FC = () => {
     } finally {
       setMainLoading(false);
     }
-  }, [api, selectedMainId]);
+  }, [api]);
 
   const loadSub = useCallback(
     async (mainId: string) => {
@@ -336,7 +549,7 @@ const PackageCategoriesPanel: React.FC = () => {
         setSubLoading(false);
       }
     },
-    [api, selectedSubId],
+    [api],
   );
 
   useEffect(() => {
@@ -350,7 +563,7 @@ const PackageCategoriesPanel: React.FC = () => {
       return;
     }
     void loadSub(selectedMainId);
-  }, [loadSub, selectedMainId]);
+  }, [selectedMainId]);
 
   const openNewSub = () => {
     if (!selectedMainId) {
@@ -504,14 +717,16 @@ const PackageCategoriesPanel: React.FC = () => {
         </div>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-        <SurfaceCard>
-          <div className="mb-3 flex items-center justify-between">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+        <SurfaceCard className="overflow-hidden">
+          <div className="mb-3 flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-800">
             <div>
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                 Main packages
               </h2>
-              <p className="text-xs text-gray-500">Select main to manage subs.</p>
+              <p className="text-xs text-gray-500">
+                Select main package to manage subs.
+              </p>
             </div>
             <button
               onClick={() => void loadMain()}
@@ -520,13 +735,42 @@ const PackageCategoriesPanel: React.FC = () => {
               Refresh
             </button>
           </div>
+          <div className="px-5 pb-4">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto]">
+              <input
+                className="field-input"
+                placeholder="Search main packages"
+                value={mainSearch}
+                onChange={(event) => setMainSearch(event.target.value)}
+              />
+              <div className="rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300">
+                {mainPackages.length} total
+              </div>
+              <div className="rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300">
+                {selectedMain ? "1 selected" : "No selection"}
+              </div>
+            </div>
+          </div>
+          <div className="max-h-[720px] overflow-y-auto px-5 pb-5">
           {mainLoading ? (
-            <p className="text-sm text-gray-500">Loading...</p>
-          ) : mainPackages.length === 0 ? (
-            <p className="text-sm text-gray-500">No main packages.</p>
+            <div className="space-y-3">
+              {Array.from({ length: 6 }).map((_, index) => (
+                <div
+                  key={index}
+                  className="h-24 animate-pulse rounded-2xl bg-gray-100 dark:bg-gray-800"
+                />
+              ))}
+            </div>
+          ) : filteredMainPackages.length === 0 ? (
+            <EmptyState
+              title="No main packages"
+              description={
+                mainSearch.trim() ? "Try different search." : "Create main package first."
+              }
+            />
           ) : (
-            <div className="space-y-2">
-              {mainPackages.map((m) => (
+            <div className="space-y-3">
+              {filteredMainPackages.map((m) => (
                 <button
                   key={m.id}
                   onClick={() => {
@@ -536,27 +780,30 @@ const PackageCategoriesPanel: React.FC = () => {
                     setMode("LIST");
                     setSubLoading(true);
                   }}
-                  className={`w-full rounded-xl border p-3 text-left ${
+                  className={`w-full rounded-2xl border px-4 py-4 text-left transition ${
                     selectedMainId === m.id
-                      ? "border-blue-500 bg-blue-50/60 dark:bg-blue-900/10"
-                      : "border-gray-200 dark:border-gray-700"
+                      ? "border-blue-500 bg-blue-50/70 shadow-sm dark:bg-blue-900/10"
+                      : "border-gray-200 bg-white hover:border-blue-200 hover:bg-gray-50 dark:border-gray-700 dark:bg-transparent dark:hover:bg-gray-800/60"
                   }`}
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-semibold text-gray-900 dark:text-gray-100">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="truncate text-lg font-semibold text-gray-900 dark:text-gray-100">
                         {m.title}
                       </p>
-                      <p className="text-xs text-gray-500">
-                        {m.destination} • {m.country || "—"}
+                      <p className="mt-1 text-sm text-gray-500">
+                        {buildMainMeta(m) || "Package details available"}
                       </p>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-semibold text-blue-600">
-                        {m.amount} {toUpper(m.amountCurrency, "INR")}
+                    <div className="shrink-0 text-right">
+                      <p className="text-lg font-semibold text-blue-600">
+                        {formatMoney(m.amount)} {toUpper(m.amountCurrency, "INR")}
+                      </p>
+                      <p className="mt-1 text-xs text-gray-500">
+                        {selectedMainId === m.id ? "Selected" : "Select"}
                       </p>
                       {m.isFeatured ? (
-                        <span className="mt-1 inline-flex rounded-md bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
+                        <span className="mt-1 inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
                           Featured
                         </span>
                       ) : null}
@@ -566,10 +813,12 @@ const PackageCategoriesPanel: React.FC = () => {
               ))}
             </div>
           )}
+          </div>
         </SurfaceCard>
 
-        <SurfaceCard>
-          <div className="mb-3 flex items-center justify-between">
+        <SurfaceCard className="overflow-hidden">
+          <div className="mb-3 border-b border-gray-200 px-5 py-4 dark:border-gray-800">
+            <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                 Sub packages
@@ -586,22 +835,58 @@ const PackageCategoriesPanel: React.FC = () => {
               <FaPlus />
               New
             </button>
+            </div>
+            <div className="mt-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <input
+                className="field-input md:max-w-sm"
+                placeholder="Search sub packages"
+                value={subSearch}
+                onChange={(event) => setSubSearch(event.target.value)}
+                disabled={!selectedMainId}
+              />
+              <div className="rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300">
+                {selectedMainId ? `${subPackages.length} total` : "Select main first"}
+              </div>
+            </div>
           </div>
 
+          <div className="max-h-[720px] overflow-y-auto px-5 pb-5">
           {!selectedMainId ? (
-            <p className="text-sm text-gray-500">No main selected.</p>
+            <EmptyState
+              title="No main selected"
+              description="Select main package from left panel."
+            />
           ) : subLoading ? (
-            <div className="space-y-2">
-              {Array.from({ length: 3 }).map((_, i) => (
+            <div className="space-y-3">
+              {Array.from({ length: 5 }).map((_, i) => (
                 <div
                   key={i}
-                  className="h-10 rounded-lg bg-gray-100 animate-pulse dark:bg-gray-800"
+                  className="h-24 rounded-2xl bg-gray-100 animate-pulse dark:bg-gray-800"
                 />
               ))}
-              <p className="text-xs text-gray-500">Loading sub packages...</p>
             </div>
-          ) : subPackages.length === 0 ? (
-            <p className="text-sm text-gray-500">No sub packages.</p>
+          ) : filteredSubPackages.length === 0 ? (
+            <EmptyState
+              title="No sub packages"
+              description={
+                subSearch.trim() ? "Try different search." : "Create first sub package."
+              }
+              action={
+                subSearch.trim() ?
+                  <button
+                    onClick={() => setSubSearch("")}
+                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                  >
+                    Clear Search
+                  </button>
+                : <button
+                    onClick={openNewSub}
+                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                  >
+                    Create Sub Package
+                  </button>
+              }
+            />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
@@ -615,16 +900,14 @@ const PackageCategoriesPanel: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                  {subPackages.map((s) => (
+                  {filteredSubPackages.map((s) => (
                     <tr key={s.id}>
                       <td className="py-3">
                         <div className="font-medium text-gray-900 dark:text-gray-100">
                           {s.title || s.name}
                         </div>
-                        <div className="text-xs text-gray-500">
-                          {s.duration ||
-                            `${s.durationNights ?? 0}N/${s.durationDays ?? 0}D`}
-                          {s.location ? ` • ${s.location}` : ""}
+                        <div className="mt-1 text-xs text-gray-500">
+                          {buildSubMeta(s) || "Sub package details available"}
                         </div>
                         {s.websiteSlug ? (
                           <div className="mt-1 font-mono text-[11px] text-gray-500">
@@ -632,8 +915,8 @@ const PackageCategoriesPanel: React.FC = () => {
                           </div>
                         ) : null}
                       </td>
-                      <td className="py-3 tabular-nums">
-                        {s.startingPrice}{" "}
+                      <td className="py-3 tabular-nums font-semibold text-blue-600">
+                        {formatMoney(s.startingPrice)}{" "}
                         {toUpper(s.startingPriceCurrency, "INR")}
                       </td>
                       <td className="py-3">
@@ -723,6 +1006,7 @@ const PackageCategoriesPanel: React.FC = () => {
               </table>
             </div>
           )}
+          </div>
         </SurfaceCard>
       </div>
 
@@ -896,9 +1180,9 @@ const PackageCategoriesPanel: React.FC = () => {
                     }
                   />
                 </div>
-                <div className="md:col-span-2">
-                  <label className="field-label">Upload image / banner</label>
-                  <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+	                <div className="md:col-span-2">
+	                  <label className="field-label">Upload image / banner</label>
+	                  <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
                     <div className="rounded-xl border border-gray-200 p-3 dark:border-gray-700">
                       <div className="text-xs font-semibold text-gray-700 dark:text-gray-200">
                         Main image
@@ -967,11 +1251,18 @@ const PackageCategoriesPanel: React.FC = () => {
                         {uploading ? "Uploading..." : "Saved to backend on Save"}
                       </div>
                     </div>
-                  </div>
-                </div>
-                <div className="md:col-span-2 grid grid-cols-1 gap-2 md:grid-cols-3">
-                  <div>
-                    <label className="field-label">Rating</label>
+	                  </div>
+	                </div>
+	                <div className="md:col-span-2 grid grid-cols-1 gap-4 md:grid-cols-2">
+	                  <ImagePreviewCard title="Main image preview" url={subForm.image} />
+	                  <ImagePreviewCard
+	                    title="Banner preview"
+	                    url={subForm.bannerImageUrl}
+	                  />
+	                </div>
+	                <div className="md:col-span-2 grid grid-cols-1 gap-2 md:grid-cols-3">
+	                  <div>
+	                    <label className="field-label">Rating</label>
                     <input
                       className="field-input"
                       value={subForm.rating}
@@ -1118,9 +1409,9 @@ const PackageCategoriesPanel: React.FC = () => {
                     }
                   />
                 </div>
-                <div className="md:col-span-2">
-                  <label className="field-label">Gallery image URLs (one per line)</label>
-                  <textarea
+	                <div className="md:col-span-2">
+	                  <label className="field-label">Gallery image URLs (one per line)</label>
+	                  <textarea
                     className="field-input"
                     rows={4}
                     value={subForm.galleryImageUrlsText}
@@ -1129,11 +1420,33 @@ const PackageCategoriesPanel: React.FC = () => {
                         ...p,
                         galleryImageUrlsText: e.target.value,
                       }))
-                    }
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="field-label">Description</label>
+	                    }
+	                  />
+	                </div>
+	                {parseLinesList(subForm.galleryImageUrlsText).length ? (
+	                  <div className="md:col-span-2">
+	                    <label className="field-label">Gallery preview</label>
+	                    <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+	                      {parseLinesList(subForm.galleryImageUrlsText).map((url, index) => (
+	                        <div
+	                          key={`${url}-${index}`}
+	                          className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700"
+	                        >
+	                          <img
+	                            src={url}
+	                            alt={`Gallery preview ${index + 1}`}
+	                            className="h-28 w-full object-cover"
+	                            onError={(event) => {
+	                              (event.currentTarget as HTMLImageElement).style.display = "none";
+	                            }}
+	                          />
+	                        </div>
+	                      ))}
+	                    </div>
+	                  </div>
+	                ) : null}
+	                <div className="md:col-span-2">
+	                  <label className="field-label">Description</label>
                   <textarea
                     className="field-input"
                     rows={4}

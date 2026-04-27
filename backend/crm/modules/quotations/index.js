@@ -6,7 +6,7 @@ import { QuotationsValidation } from "./quotations.validation.js";
 import { QuotationsSchema } from "./quotations.schema.js";
 import { createQuotationsEvents } from "./quotations.events.js";
 
-function createQuotationsModule({ dependencies }) {
+function createQuotationsModule({ dependencies, repositories = {} }) {
   const repository = createQuotationsRepository({
     db: dependencies.db,
     logger: dependencies.logger,
@@ -20,6 +20,7 @@ function createQuotationsModule({ dependencies }) {
 
   const service = createQuotationsService({
     repository,
+    leadsRepository: repositories.leads,
     logger: dependencies.logger,
     events,
     config: dependencies.config,
