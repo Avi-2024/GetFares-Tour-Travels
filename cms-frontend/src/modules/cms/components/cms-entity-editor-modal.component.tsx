@@ -1590,13 +1590,7 @@ class CmsEntityEditorModalComponent extends Component<
 
   render() {
     const definition = CmsEntityFormCatalog.get(this.props.sectionKey);
-    const isCopySupported =
-      this.props.sectionKey === "landing-places" ||
-      this.props.sectionKey === "destinations" ||
-      this.props.sectionKey === "main-packages" ||
-      this.props.sectionKey === "sub-packages" ||
-      this.props.sectionKey === "visa-destinations" ||
-      this.props.sectionKey === "creative-toolkit";
+    const isCopySupported = false;
     return (
       <>
         <CmsModalShellComponent
