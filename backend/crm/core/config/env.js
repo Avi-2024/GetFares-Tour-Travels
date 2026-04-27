@@ -67,13 +67,15 @@ const envSchema = z.object({
   METRICS_TOKEN: z.string().optional(),
   META_VERIFY_TOKEN: z.string().optional(),
   META_ACCESS_TOKEN: z.string().optional(),
+  META_APP_SECRET: z.string().optional(),
   META_GRAPH_BASE_URL: z.string().url().default("https://graph.facebook.com"),
   META_GRAPH_VERSION: z.string().default("v20.0"),
   META_GRAPH_FIELDS: z
     .string()
     .default(
-      "id,created_time,field_data,ad_id,adset_id,campaign_id,form_id,page_id",
+      "id,created_time,field_data,ad_id,adset_id,campaign_id,form_id",
     ),
+  META_ALLOW_INSECURE_WEBHOOKS: z.coerce.boolean().default(false),
   WHATSAPP_VERIFY_TOKEN: z.string().optional(),
   WHATSAPP_ACCESS_TOKEN: z.string().optional(),
   WHATSAPP_APP_SECRET: z.string().optional(),

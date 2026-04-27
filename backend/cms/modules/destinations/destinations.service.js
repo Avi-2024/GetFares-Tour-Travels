@@ -1,5 +1,7 @@
 import { AppError } from "../../core/middlewares/errorHandler.js";
 import {
+  findDisplayOrderConflict,
+  normalizeDisplayOrderInput,
   normalizeText,
   toBoolean,
   toNumber,
@@ -7,6 +9,36 @@ import {
 } from "../../core/utils/index.js";
 
 function createDestinationsService({ repository }) {
+  function parseCountryIds(value) {
+    const parsed = parseJsonValue(value, value);
+    const source =
+      Array.isArray(parsed) ? parsed
+      : typeof parsed === "string" ? parsed.split(",")
+      : [];
+
+    return Array.from(
+      new Set(
+        source
+          .map((item) => normalizeText(item))
+          .filter((item) => Boolean(item)),
+      ),
+    );
+  }
+
+  function includesCountryId(countryIds, countryId) {
+    if (!countryId) return true;
+    if (!Array.isArray(countryIds) || countryIds.length === 0) return true;
+    return countryIds.some(
+      (id) =>
+        String(id).trim().toLowerCase() ===
+        String(countryId).trim().toLowerCase(),
+    );
+  }
+
+  function toDisplayTextList(items = [], formatter) {
+    return items.map((item) => formatter(item)).filter((item) => Boolean(item));
+  }
+
   function parseJsonValue(value, fallback) {
     if (value === null || value === undefined) {
       return fallback;
@@ -80,7 +112,9 @@ function createDestinationsService({ repository }) {
       normalizeText(value.titleImage) ||
       null;
     const gallerySource =
-      Array.isArray(value.gallery) ? value.gallery : Array.isArray(value.galary) ? value.galary : [];
+      Array.isArray(value.gallery) ? value.gallery
+      : Array.isArray(value.galary) ? value.galary
+      : [];
     const gallery = gallerySource
       .map((item) => normalizeText(item))
       .filter((item) => Boolean(item))
@@ -104,33 +138,19 @@ function createDestinationsService({ repository }) {
       normalizeText(row.thumbnail_url) ||
       normalizeText(row.hero_image_url) ||
       null;
-    return {
-      id: row.id,
-      name: row.name,
-      slug: row.slug,
-      description: row.description,
-      shortDescription: row.short_description,
-      country: row.country,
-      region: row.region,
-      category: categories[0] || normalizeText(row.category),
-      categories,
-      rating: parseFloat(row.rating) || 0,
-      isPopular: row.is_popular,
-      isNew: row.is_new,
-      travelType: row.travel_type,
-      season: seasonFocus[0] || normalizeText(row.season),
-      seasonFocus,
-      keyHighlights: normalizeStringList(row.key_highlights),
-      services: normalizeObjectList(row.services, (item) => {
-        if (!item || typeof item !== "object") {
-          return null;
-        }
-        return {
-          title: normalizeText(item.title),
-          description: normalizeText(item.description),
-        };
-      }),
-      bestTimeToVisit: normalizeObjectList(row.best_time_to_visit, (item) => {
+    const countryIds = parseCountryIds(row.country_ids);
+    const services = normalizeObjectList(row.services, (item) => {
+      if (!item || typeof item !== "object") {
+        return null;
+      }
+      return {
+        title: normalizeText(item.title),
+        description: normalizeText(item.description),
+      };
+    });
+    const bestTimeToVisit = normalizeObjectList(
+      row.best_time_to_visit,
+      (item) => {
         if (!item || typeof item !== "object") {
           return null;
         }
@@ -143,9 +163,44 @@ function createDestinationsService({ repository }) {
           description: normalizeText(item.description),
           suggestion: normalizeText(item.suggestion),
         };
+      },
+    );
+    return {
+      id: row.id,
+      name: row.name,
+      slug: row.slug,
+      description: row.description,
+      shortDescription: row.short_description,
+      country: row.country,
+      countryIds,
+      region: row.region,
+      category: categories[0] || normalizeText(row.category),
+      categories,
+      rating: parseFloat(row.rating) || 0,
+      isPopular: row.is_popular,
+      isNew: row.is_new,
+      travelType: row.travel_type,
+      season: seasonFocus[0] || normalizeText(row.season),
+      seasonFocus,
+      keyHighlights: normalizeStringList(row.key_highlights),
+      services,
+      servicesDisplay: toDisplayTextList(services, (item) =>
+        [item.title, item.description]
+          .filter((part) => Boolean(part))
+          .join(": "),
+      ),
+      bestTimeToVisit,
+      bestTimeToVisitDisplay: toDisplayTextList(bestTimeToVisit, (item) => {
+        const monthRange = [item.from, item.to]
+          .filter((part) => Boolean(part))
+          .join("-");
+        return [item.title, monthRange, item.description]
+          .filter((part) => Boolean(part))
+          .join(" | ");
       }),
       metaTitle: row.meta_title,
       metaDescription: row.meta_description,
+      displayOrder: toNumber(row.display_order, -1),
       isActive: row.is_active,
       isDeleted: row.is_deleted,
       is_deleted: row.is_deleted,
@@ -199,19 +254,46 @@ function createDestinationsService({ repository }) {
     const urls = [
       ...inlineGallery,
       ...mediaRows
-      .sort(
-        (a, b) => toNumber(a.display_order, 0) - toNumber(b.display_order, 0),
-      )
-      .map((item) => normalizeText(item.media_url))
-      .filter((url) => Boolean(url) && url !== titleUrl),
+        .sort(
+          (a, b) => toNumber(a.display_order, 0) - toNumber(b.display_order, 0),
+        )
+        .map((item) => normalizeText(item.media_url))
+        .filter((url) => Boolean(url) && url !== titleUrl),
     ];
     return Array.from(new Set(urls)).slice(0, 4);
   }
 
+  async function reassignDestinationDisplayOrder({
+    displayOrder,
+    excludeId = null,
+  }) {
+    const normalizedOrder = normalizeDisplayOrderInput(displayOrder, -1);
+    if (normalizedOrder < 0) {
+      return normalizedOrder;
+    }
+    const rows = await repository.findAll({ includeDeleted: true });
+    const duplicate = findDisplayOrderConflict(
+      normalizedOrder,
+      rows,
+      excludeId,
+    );
+    if (duplicate) {
+      await repository.update(duplicate.id, { display_order: -1 });
+    }
+    return normalizedOrder;
+  }
+
   return Object.freeze({
     async list(filters = {}) {
-      const rows = await repository.findAll(filters);
-      const destinations = rows.map(toDestination);
+      const { countryId, countryIds, ...repositoryFilters } = filters;
+      const rows = await repository.findAll(repositoryFilters);
+      const requestedCountryId =
+        normalizeText(countryId) || parseCountryIds(countryIds)[0] || null;
+      const destinations = rows
+        .map(toDestination)
+        .filter((destination) =>
+          includesCountryId(destination.countryIds || [], requestedCountryId),
+        );
       return Promise.all(
         destinations.map(async (destination) => {
           const mediaRows = await repository.findMedia(destination.id);
@@ -232,8 +314,18 @@ function createDestinationsService({ repository }) {
     },
 
     async listDeleted(filters = {}) {
-      const rows = await repository.findAll({ ...filters, is_deleted: true });
-      const destinations = rows.map(toDestination);
+      const { countryId, countryIds, ...repositoryFilters } = filters;
+      const rows = await repository.findAll({
+        ...repositoryFilters,
+        is_deleted: true,
+      });
+      const requestedCountryId =
+        normalizeText(countryId) || parseCountryIds(countryIds)[0] || null;
+      const destinations = rows
+        .map(toDestination)
+        .filter((destination) =>
+          includesCountryId(destination.countryIds || [], requestedCountryId),
+        );
       return Promise.all(
         destinations.map(async (destination) => {
           const mediaRows = await repository.findMedia(destination.id);
@@ -298,10 +390,13 @@ function createDestinationsService({ repository }) {
     async create(data) {
       const slug = data.slug || toSlug(data.name);
       const country = normalizeText(data.country);
-      if (!country) {
+      const countryIds = parseCountryIds(
+        data.countryIds ?? data.country_ids ?? data.countryId,
+      );
+      if (!country && !countryIds.length) {
         throw new AppError(
           400,
-          "Country is required for destination",
+          "At least one country or countryId is required for destination",
           "COUNTRY_REQUIRED",
         );
       }
@@ -334,6 +429,7 @@ function createDestinationsService({ repository }) {
         description: normalizeText(data.description),
         short_description: normalizeText(data.shortDescription),
         country,
+        country_ids: countryIds,
         region: normalizeText(data.region),
         category: categories[0] || null,
         categories,
@@ -362,6 +458,9 @@ function createDestinationsService({ repository }) {
           Array.isArray(data.bestTimeToVisit) ? data.bestTimeToVisit : [],
         meta_title: normalizeText(data.metaTitle),
         meta_description: normalizeText(data.metaDescription),
+        display_order: await reassignDestinationDisplayOrder({
+          displayOrder: data.displayOrder,
+        }),
         is_active: toBoolean(data.isActive, true),
       });
 
@@ -370,7 +469,8 @@ function createDestinationsService({ repository }) {
         ...destination,
         media: {
           ...destination.media,
-          gallery: Array.isArray(mediaPayload?.gallery) ? mediaPayload.gallery : [],
+          gallery:
+            Array.isArray(mediaPayload?.gallery) ? mediaPayload.gallery : [],
         },
       };
     },
@@ -401,6 +501,15 @@ function createDestinationsService({ repository }) {
           throw new AppError(400, "Country cannot be empty", "INVALID_COUNTRY");
         }
         updates.country = country;
+      }
+      if (
+        data.countryIds !== undefined ||
+        data.country_ids !== undefined ||
+        data.countryId !== undefined
+      ) {
+        updates.country_ids = parseCountryIds(
+          data.countryIds ?? data.country_ids ?? data.countryId,
+        );
       }
       if (data.region !== undefined)
         updates.region = normalizeText(data.region);
@@ -461,6 +570,12 @@ function createDestinationsService({ repository }) {
         updates.meta_title = normalizeText(data.metaTitle);
       if (data.metaDescription !== undefined)
         updates.meta_description = normalizeText(data.metaDescription);
+      if (data.displayOrder !== undefined) {
+        updates.display_order = await reassignDestinationDisplayOrder({
+          displayOrder: data.displayOrder,
+          excludeId: id,
+        });
+      }
       if (data.isActive !== undefined)
         updates.is_active = toBoolean(data.isActive, true);
 

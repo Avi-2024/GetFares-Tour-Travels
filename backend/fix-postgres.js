@@ -22,9 +22,9 @@ files.forEach(file => {
     console.log(`Skipping ${file} - not found`);
     return;
   }
-  
+
   let content = fs.readFileSync(filePath, 'utf8');
-  
+
   // Replace PostgreSQL placeholders
   content = content.replace(/\$1/g, '?');
   content = content.replace(/\$2/g, '?');
@@ -35,7 +35,7 @@ files.forEach(file => {
   content = content.replace(/\$7/g, '?');
   content = content.replace(/\$8/g, '?');
   content = content.replace(/\$9/g, '?');
-  
+
   // Remove type casting
   content = content.replace(/::text\[\]/g, '');
   content = content.replace(/::uuid\[\]/g, '');
@@ -44,17 +44,17 @@ files.forEach(file => {
   content = content.replace(/::int/g, '');
   content = content.replace(/::date/g, '');
   content = content.replace(/::bigint/g, '');
-  
+
   // Fix ANY array syntax
   content = content.replace(/ANY\(\?/g, 'IN (?');
-  
+
   // Remove postgres adapter checks
   content = content.replace(/postgres\" \|\| db\.adapter === \"mysql/g, 'mysql');
   content = content.replace(/db\.adapter === \"postgres\" \|\| db\.adapter === \"mysql\"/g, 'db.adapter === "mysql"');
   content = content.replace(/db\.adapter !== \"postgres\" && db\.adapter !== \"mysql\"/g, 'db.adapter !== "mysql"');
   content = content.replace(/adapter === 'postgres' \|\| adapter === 'mysql'/g, "adapter === 'mysql'");
   content = content.replace(/adapter === \"postgres\"/g, 'adapter === "mysql"');
-  
+
   fs.writeFileSync(filePath, content);
   console.log(`Fixed ${file}`);
 });

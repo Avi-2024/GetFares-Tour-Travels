@@ -27,6 +27,7 @@ interface CmsSectionPageState {
   errorMessage: string;
   modalMode: "create" | "edit" | "delete" | null;
   selectedEntry: CmsTableEntry | null;
+  copyInitialValues: Record<string, unknown> | null;
   modalErrorMessage: string;
   isModalSubmitting: boolean;
   viewEntry: CmsTableEntry | null;
@@ -51,6 +52,7 @@ class CmsSectionPage extends Component<
     errorMessage: "",
     modalMode: null,
     selectedEntry: null,
+    copyInitialValues: null,
     modalErrorMessage: "",
     isModalSubmitting: false,
     viewEntry: null,
@@ -142,6 +144,20 @@ class CmsSectionPage extends Component<
     });
   };
 
+  private openCopyModal = (entry: CmsTableEntry): void => {
+    const definition = CmsEntityFormCatalog.get(this.props.sectionKey);
+    if (!definition.supportsCreate) {
+      this.setError("Create operation is not supported for this section.");
+      return;
+    }
+    this.setState({
+      modalMode: "create",
+      selectedEntry: null,
+      copyInitialValues: { ...entry.raw },
+      modalErrorMessage: "",
+    });
+  };
+
   private openCreateModal = (): void => {
     const definition = CmsEntityFormCatalog.get(this.props.sectionKey);
     if (!definition.supportsCreate) {
@@ -151,6 +167,7 @@ class CmsSectionPage extends Component<
     this.setState({
       modalMode: "create",
       selectedEntry: null,
+      copyInitialValues: null,
       modalErrorMessage: "",
     });
   };
@@ -193,6 +210,7 @@ class CmsSectionPage extends Component<
     this.setState({
       modalMode: null,
       selectedEntry: null,
+      copyInitialValues: null,
       modalErrorMessage: "",
     });
   };
@@ -203,6 +221,7 @@ class CmsSectionPage extends Component<
     this.setState({
       modalMode: null,
       selectedEntry: null,
+      copyInitialValues: null,
       modalErrorMessage: "",
     });
   };
@@ -241,6 +260,7 @@ class CmsSectionPage extends Component<
       errorMessage,
       modalMode,
       selectedEntry,
+      copyInitialValues,
       modalErrorMessage,
       isModalSubmitting,
       viewEntry,
@@ -317,6 +337,7 @@ class CmsSectionPage extends Component<
           supportsCreate={CmsEntityFormCatalog.get(sectionKey).supportsCreate}
           supportsEdit={CmsEntityFormCatalog.get(sectionKey).supportsEdit}
           supportsDelete={CmsEntityFormCatalog.get(sectionKey).supportsDelete}
+          supportsCopy={["landing-places", "destinations", "main-packages", "sub-packages", "visa-destinations", "creative-toolkit"].includes(sectionKey)}
           deleteActionLabel="Move to Trash"
           emptyStateMessage="No records found for the selected filters."
           dateColumnKeys={dateColumnKeys}
@@ -324,6 +345,7 @@ class CmsSectionPage extends Component<
           onView={this.openViewModal}
           onEdit={this.openEditModal}
           onDelete={this.openDeleteModal}
+          onCopy={this.openCopyModal}
           onImagePreview={this.openImagePreview}
           getImageUrl={(entry) =>
             this.mediaResolver.getImageUrlFromEntry(entry)
@@ -339,6 +361,8 @@ class CmsSectionPage extends Component<
           sectionKey={sectionKey}
           sectionTitle={section.title}
           entry={modalMode === "edit" ? selectedEntry : null}
+          allRows={rows}
+          initialValues={modalMode === "create" && copyInitialValues ? copyInitialValues : undefined}
           onClose={this.closeModal}
           onSaved={this.handleEditorSaved}
         />

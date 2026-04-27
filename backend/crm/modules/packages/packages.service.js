@@ -7,6 +7,23 @@ const PACKAGE_STATUS = Object.freeze({
   SOLD_OUT: "SOLD_OUT",
 });
 
+function mapListFilters(filters = {}) {
+  return {
+    page: filters.page,
+    limit: filters.limit,
+    search: filters.search,
+    status: filters.status,
+    destination: filters.destination,
+    packageCategory: filters.packageCategory,
+    publishToWebsite: filters.publishToWebsite,
+    isSoldOut: filters.isSoldOut,
+    createdFrom: filters.createdFrom,
+    createdTo: filters.createdTo,
+    sortBy: filters.sortBy,
+    sortOrder: filters.sortOrder,
+  };
+}
+
 function createPackagesService({ repository, logger, events }) {
   function normalizeText(value) {
     if (value === undefined || value === null) return null;
@@ -41,6 +58,53 @@ function createPackagesService({ repository, logger, events }) {
     return [];
   }
 
+  function parseJsonValue(raw, fallback = null) {
+    if (raw === undefined || raw === null) return fallback;
+    if (typeof raw === "string") {
+      try {
+        return JSON.parse(raw);
+      } catch {
+        return fallback;
+      }
+    }
+    return raw;
+  }
+
+  function normalizeStringList(raw) {
+    const parsed = parseJsonValue(raw, raw);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    return parsed
+      .map((item) => normalizeText(item))
+      .filter(Boolean);
+  }
+
+  function normalizeFeatureList(raw) {
+    const parsed = parseJsonValue(raw, raw);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    return parsed
+      .map((item) => {
+        if (!item || typeof item !== "object") {
+          return null;
+        }
+        const iconName = normalizeText(
+          item.iconName ?? item.icon_name ?? item.title,
+        );
+        const description = normalizeText(item.description);
+        if (!iconName && !description) {
+          return null;
+        }
+        return {
+          iconName,
+          description,
+        };
+      })
+      .filter(Boolean);
+  }
+
   function toPackage(row) {
     if (!row) return null;
     const kindRaw = String(
@@ -48,7 +112,7 @@ function createPackagesService({ repository, logger, events }) {
     ).toUpperCase();
     return {
       id: row.id,
-      name: row.name ?? null,
+      name: row.name ?? row.title ?? null,
       destination: row.destination ?? null,
       duration: row.duration ?? null,
       baseCost: Number(row.base_cost ?? row.baseCost ?? 0),
@@ -62,18 +126,38 @@ function createPackagesService({ repository, logger, events }) {
       paymentTerms: row.payment_terms ?? row.paymentTerms ?? null,
       inclusions: row.inclusions ?? null,
       exclusions: row.exclusions ?? null,
-      itinerary: row.itinerary ?? null,
+      itinerary: parseJsonValue(row.itinerary ?? row.itinerary, row.itinerary ?? null),
       hotelDetails: row.hotel_details ?? row.hotelDetails ?? null,
       validFrom: row.valid_from ?? row.validFrom ?? null,
       validTo: row.valid_to ?? row.validTo ?? null,
       cancellationPolicy: row.cancellation_policy ?? row.cancellationPolicy ?? null,
       packageCategory: row.package_category ?? row.packageCategory ?? null,
       status: row.status ?? PACKAGE_STATUS.DRAFT,
+      country: row.country ?? null,
+      image: row.image ?? null,
+      rating:
+        row.rating !== undefined && row.rating !== null ? Number(row.rating) : null,
+      location: row.location ?? null,
+      transport: row.transport ?? null,
+      snapshot: row.snapshot ?? null,
+      highlights: normalizeStringList(row.highlights),
+      features: normalizeFeatureList(row.features),
       bannerImageUrl: row.banner_image_url ?? row.bannerImageUrl ?? null,
-      galleryImageUrls: row.gallery_image_urls ?? row.galleryImageUrls ?? [],
+      galleryImageUrls: Array.isArray(
+        parseJsonValue(row.gallery_image_urls ?? row.galleryImageUrls, []),
+      )
+        ? parseJsonValue(row.gallery_image_urls ?? row.galleryImageUrls, [])
+        : [],
       metaTitle: row.meta_title ?? row.metaTitle ?? null,
       metaDescription: row.meta_description ?? row.metaDescription ?? null,
       keywords: row.keywords ?? null,
+      displayOrder:
+        row.display_order !== undefined && row.display_order !== null
+          ? Number(row.display_order)
+          : row.displayOrder !== undefined && row.displayOrder !== null
+            ? Number(row.displayOrder)
+            : null,
+      isFeatured: Boolean(row.is_featured ?? row.isFeatured ?? false),
       publishToWebsite: row.publish_to_website ?? row.publishToWebsite ?? false,
       websiteSlug: row.website_slug ?? row.websiteSlug ?? null,
       websiteLastSyncedAt:
@@ -162,7 +246,10 @@ function createPackagesService({ repository, logger, events }) {
       updated_by: userId || null,
       updated_at: new Date().toISOString(),
     };
-    if (payload.name !== undefined) patch.name = normalizeText(payload.name);
+    if (payload.name !== undefined) {
+      patch.name = normalizeText(payload.name);
+      patch.title = normalizeText(payload.name);
+    }
     if (payload.destination !== undefined) {
       patch.destination = normalizeText(payload.destination);
     }
@@ -191,6 +278,24 @@ function createPackagesService({ repository, logger, events }) {
       patch.package_category = payload.packageCategory || null;
     }
     if (payload.status !== undefined) patch.status = payload.status;
+    if (payload.image !== undefined) {
+      patch.image = normalizeText(payload.image);
+      if (payload.bannerImageUrl === undefined) {
+        patch.banner_image_url = normalizeText(payload.image);
+      }
+    }
+    if (payload.rating !== undefined) patch.rating = toNumber(payload.rating, 0);
+    if (payload.location !== undefined) patch.location = normalizeText(payload.location);
+    if (payload.transport !== undefined) {
+      patch.transport = normalizeText(payload.transport);
+    }
+    if (payload.snapshot !== undefined) patch.snapshot = normalizeText(payload.snapshot);
+    if (payload.highlights !== undefined) {
+      patch.highlights = Array.isArray(payload.highlights) ? payload.highlights : [];
+    }
+    if (payload.features !== undefined) {
+      patch.features = Array.isArray(payload.features) ? payload.features : [];
+    }
     if (payload.bannerImageUrl !== undefined) {
       patch.banner_image_url = payload.bannerImageUrl || null;
     }
@@ -202,6 +307,9 @@ function createPackagesService({ repository, logger, events }) {
       patch.meta_description = payload.metaDescription || null;
     }
     if (payload.keywords !== undefined) patch.keywords = payload.keywords || null;
+    if (payload.displayOrder !== undefined) {
+      patch.display_order = toNumber(payload.displayOrder, 0);
+    }
     if (payload.publishToWebsite !== undefined) {
       patch.publish_to_website = payload.publishToWebsite;
       patch.website_last_synced_at = new Date().toISOString();
@@ -218,22 +326,44 @@ function createPackagesService({ repository, logger, events }) {
 
   return Object.freeze({
     async list(filters = {}, context = {}) {
-      const rows = await repository.findAll(filters);
-      const search = normalizeText(filters.search)?.toLowerCase();
-      const destinationFilter = normalizeText(filters.destination)?.toLowerCase();
-      const filtered = rows.filter((row) => {
-        if (row.is_deleted === true || row.isDeleted === true) return false;
-        if (
-          destinationFilter &&
-          !String(row.destination || "").toLowerCase().includes(destinationFilter)
-        ) {
-          return false;
-        }
-        if (!search) return true;
-        const blob = `${row.name || ""} ${row.destination || ""}`.toLowerCase();
-        return blob.includes(search);
-      });
-      return filtered.map((row) => toPackage(row));
+      const mappedFilters = mapListFilters(filters);
+      logger.debug(
+        {
+          module: "packages",
+          requestId: context.requestId,
+          filters: mappedFilters,
+        },
+        "Listing packages",
+      );
+      const result = await repository.findAll(mappedFilters);
+      const items = (Array.isArray(result?.items) ? result.items : [])
+        .filter((row) => !(row.is_deleted ?? row.isDeleted))
+        .map((row) => toPackage(row));
+      const summary = typeof repository.summarizeList === "function"
+        ? await repository.summarizeList(mappedFilters)
+        : {
+            totalPackages: Number(result?.pagination?.totalItems || items.length || 0),
+            publishedCount: items.filter((row) => row.publishToWebsite).length,
+            activeCount: items.filter((row) => row.status === PACKAGE_STATUS.ACTIVE).length,
+            soldOutCount: items.filter((row) => row.isSoldOut).length,
+            destinationCount: new Set(
+              items.map((row) => row.destination?.trim()).filter(Boolean),
+            ).size,
+            totalValue: items.reduce(
+              (sum, row) => sum + Number(row.startingPrice || 0),
+              0,
+            ),
+          };
+      return {
+        items,
+        pagination: result?.pagination || {
+          page: 1,
+          limit: items.length,
+          totalItems: items.length,
+          totalPages: 1,
+        },
+        summary,
+      };
     },
 
     async getById(id, context = {}) {
@@ -250,6 +380,7 @@ function createPackagesService({ repository, logger, events }) {
         : "READY";
       const row = await repository.create({
         name: normalizeText(payload.name),
+        title: normalizeText(payload.name),
         destination: normalizeText(payload.destination),
         duration: normalizeText(payload.duration),
         base_cost: pricing.baseCost,
@@ -270,11 +401,19 @@ function createPackagesService({ repository, logger, events }) {
         cancellation_policy: payload.cancellationPolicy || null,
         package_category: payload.packageCategory || null,
         status: payload.status || PACKAGE_STATUS.DRAFT,
-        banner_image_url: payload.bannerImageUrl || null,
+        image: normalizeText(payload.image),
+        rating: toNumber(payload.rating, 0),
+        location: normalizeText(payload.location),
+        transport: normalizeText(payload.transport),
+        snapshot: normalizeText(payload.snapshot),
+        features: Array.isArray(payload.features) ? payload.features : [],
+        highlights: Array.isArray(payload.highlights) ? payload.highlights : [],
+        banner_image_url: payload.bannerImageUrl || normalizeText(payload.image),
         gallery_image_urls: payload.galleryImageUrls || [],
         meta_title: payload.metaTitle || null,
         meta_description: payload.metaDescription || null,
         keywords: payload.keywords || null,
+        display_order: toNumber(payload.displayOrder, 0),
         publish_to_website: payload.publishToWebsite ?? false,
         website_slug: payload.websiteSlug || null,
         website_last_synced_at: payload.publishToWebsite ? now : null,

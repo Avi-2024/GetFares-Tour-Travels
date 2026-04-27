@@ -1,5 +1,8 @@
 function createCustomersRepository({ db, logger, schema }) {
   const tableColumnsCache = new Map();
+  const DEFAULT_PAGE = 1;
+  const DEFAULT_LIMIT = 15;
+  const MAX_LIMIT = 50;
 
   function normalizeEmail(value) {
     if (!value) {
@@ -20,6 +23,36 @@ function createCustomersRepository({ db, logger, schema }) {
     return (
       typeof db.query === "function" &&
       (db.adapter === "mysql" || db.adapter === "mssql")
+    );
+  }
+
+  function toPositiveInt(value, fallback) {
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      return fallback;
+    }
+    return parsed;
+  }
+
+  function normalizePagination(filters = {}) {
+    const page = toPositiveInt(filters.page, DEFAULT_PAGE);
+    const requestedLimit = toPositiveInt(filters.limit, DEFAULT_LIMIT);
+    const limit = Math.min(MAX_LIMIT, requestedLimit);
+    const offset = (page - 1) * limit;
+    return { page, limit, offset };
+  }
+
+  function escapeLike(value) {
+    return String(value).replace(/[\\%_]/g, "\\$&");
+  }
+
+  function normalizeSearchValue(value) {
+    return String(value || "").trim();
+  }
+
+  function isUuidLike(value) {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      String(value || "").trim(),
     );
   }
 
@@ -100,9 +133,328 @@ function createCustomersRepository({ db, logger, schema }) {
     return `${year}-${month}-${day}`;
   }
 
+  async function buildListContext(filters = {}) {
+    const [customerColumns, leadColumns, quotationColumns, bookingColumns] =
+      await Promise.all([
+        getTableColumns(schema.tableName),
+        getTableColumns(schema.leadsTable),
+        getTableColumns(schema.quotationsTable),
+        getTableColumns(schema.bookingsTable),
+      ]);
+
+    const search = normalizeSearchValue(filters.search);
+    const where = ["COALESCE(c.is_deleted, 0) = 0"];
+    const params = [];
+
+    if (
+      filters.segment &&
+      customerColumns?.has("segment")
+    ) {
+      where.push("c.segment = ?");
+      params.push(filters.segment);
+    }
+
+    if (
+      filters.clientCurrency &&
+      customerColumns?.has("client_currency")
+    ) {
+      where.push("UPPER(COALESCE(c.client_currency, '')) = ?");
+      params.push(String(filters.clientCurrency).trim().toUpperCase());
+    }
+
+    if (filters.createdFrom && customerColumns?.has("created_at")) {
+      where.push("DATE(c.created_at) >= ?");
+      params.push(filters.createdFrom);
+    }
+
+    if (filters.createdTo && customerColumns?.has("created_at")) {
+      where.push("DATE(c.created_at) <= ?");
+      params.push(filters.createdTo);
+    }
+
+    if (search) {
+      const lowered = search.toLowerCase();
+      const wildcard = `%${escapeLike(lowered)}%`;
+      const compactDigits = lowered.replace(/[^\d+]/g, "");
+      const searchClauses = [];
+
+      if (isUuidLike(search)) {
+        searchClauses.push("c.id = ?");
+        params.push(search);
+      }
+
+      if (customerColumns?.has("full_name")) {
+        searchClauses.push("LOWER(COALESCE(c.full_name, '')) LIKE ?");
+        params.push(wildcard);
+      }
+      if (customerColumns?.has("email")) {
+        searchClauses.push("LOWER(COALESCE(c.email, '')) LIKE ?");
+        params.push(wildcard);
+      }
+      if (customerColumns?.has("phone")) {
+        searchClauses.push("LOWER(COALESCE(c.phone, '')) LIKE ?");
+        params.push(wildcard);
+        if (compactDigits) {
+          searchClauses.push(
+            "REPLACE(REPLACE(REPLACE(COALESCE(c.phone, ''), ' ', ''), '-', ''), '(', '') LIKE ?",
+          );
+          params.push(`%${escapeLike(compactDigits)}%`);
+        }
+      }
+      if (customerColumns?.has("pan_number")) {
+        searchClauses.push("LOWER(COALESCE(c.pan_number, '')) LIKE ?");
+        params.push(wildcard);
+      }
+      if (customerColumns?.has("address_line")) {
+        searchClauses.push("LOWER(COALESCE(c.address_line, '')) LIKE ?");
+        params.push(wildcard);
+      }
+      if (customerColumns?.has("client_currency")) {
+        searchClauses.push("LOWER(COALESCE(c.client_currency, '')) LIKE ?");
+        params.push(wildcard);
+      }
+
+      if (searchClauses.length) {
+        where.push(`(${searchClauses.join(" OR ")})`);
+      }
+    }
+
+    const leadHasCustomerId = leadColumns?.has("customer_id");
+    const leadHasSoftDelete = leadColumns?.has("is_deleted");
+    const quotationHasLeadId = quotationColumns?.has("lead_id");
+    const quotationHasSoftDelete = quotationColumns?.has("is_deleted");
+    const bookingHasQuotationId = bookingColumns?.has("quotation_id");
+    const bookingHasSoftDelete = bookingColumns?.has("is_deleted");
+
+    const canJoinBookingCounts = Boolean(
+      leadHasCustomerId &&
+        quotationHasLeadId &&
+        bookingHasQuotationId,
+    );
+
+    const bookingCountsJoin = canJoinBookingCounts
+      ? `
+        LEFT JOIN (
+          SELECT
+            l.customer_id AS customer_id,
+            COUNT(DISTINCT b.id) AS total_bookings
+          FROM ${schema.leadsTable} l
+          INNER JOIN ${schema.quotationsTable} q ON q.lead_id = l.id
+          INNER JOIN ${schema.bookingsTable} b ON b.quotation_id = q.id
+          WHERE l.customer_id IS NOT NULL
+            ${leadHasSoftDelete ? "AND COALESCE(l.is_deleted, 0) = 0" : ""}
+            ${quotationHasSoftDelete ? "AND COALESCE(q.is_deleted, 0) = 0" : ""}
+            ${bookingHasSoftDelete ? "AND COALESCE(b.is_deleted, 0) = 0" : ""}
+          GROUP BY l.customer_id
+        ) booking_counts ON booking_counts.customer_id = c.id
+      `
+      : "";
+
+    const normalizedSortBy = String(filters.sortBy || "createdAt").trim();
+    const normalizedSortOrder =
+      String(filters.sortOrder || "desc").trim().toLowerCase() === "asc"
+        ? "ASC"
+        : "DESC";
+
+    let sortExpression = "COALESCE(c.created_at, '1970-01-01 00:00:00')";
+    if (normalizedSortBy === "name" && customerColumns?.has("full_name")) {
+      sortExpression = "LOWER(COALESCE(c.full_name, ''))";
+    } else if (
+      normalizedSortBy === "ltv" &&
+      customerColumns?.has("lifetime_value")
+    ) {
+      sortExpression = "COALESCE(c.lifetime_value, 0)";
+    } else if (normalizedSortBy === "bookings" && canJoinBookingCounts) {
+      sortExpression = "COALESCE(booking_counts.total_bookings, 0)";
+    } else if (
+      normalizedSortBy === "createdAt" &&
+      customerColumns?.has("created_at")
+    ) {
+      sortExpression = "COALESCE(c.created_at, '1970-01-01 00:00:00')";
+    }
+
+    return {
+      whereSql: where.join(" AND "),
+      params,
+      bookingCountsJoin,
+      sortSql: `${sortExpression} ${normalizedSortOrder}, c.id ASC`,
+      canJoinBookingCounts,
+      customerColumns,
+    };
+  }
+
   async function findAll(filters = {}) {
+    const pagination = normalizePagination(filters);
+    const context = await buildListContext(filters);
+
+    if (canUseRawQuery()) {
+      const countResult = await db.query(
+        `
+          SELECT COUNT(*) AS total_count
+          FROM ${schema.tableName} c
+          WHERE ${context.whereSql}
+        `,
+        context.params,
+      );
+      const totalItems = Number(countResult.rows?.[0]?.total_count || 0);
+      const rowParams = [...context.params, pagination.limit, pagination.offset];
+      const rowsResult = await db.query(
+        `
+          SELECT
+            c.*,
+            ${
+              context.canJoinBookingCounts
+                ? "COALESCE(booking_counts.total_bookings, 0)"
+                : "0"
+            } AS total_bookings
+          FROM ${schema.tableName} c
+          ${context.bookingCountsJoin}
+          WHERE ${context.whereSql}
+          ORDER BY ${context.sortSql}
+          LIMIT ?
+          OFFSET ?
+        `,
+        rowParams,
+      );
+
+      return {
+        items: Array.isArray(rowsResult.rows) ? rowsResult.rows : [],
+        pagination: {
+          page: pagination.page,
+          limit: pagination.limit,
+          totalItems,
+          totalPages: Math.max(1, Math.ceil(totalItems / pagination.limit)),
+        },
+      };
+    }
+
     const sanitized = await sanitizeForTable(schema.tableName, filters);
-    return db.findMany(schema.tableName, sanitized);
+    const rows = await db.findMany(schema.tableName, sanitized);
+    const activeRows = (Array.isArray(rows) ? rows : []).filter(
+      (row) => !(row.is_deleted ?? row.isDeleted),
+    );
+    const search = normalizeSearchValue(filters.search).toLowerCase();
+    const filteredRows = activeRows.filter((row) => {
+      if (filters.segment && row.segment !== filters.segment) {
+        return false;
+      }
+      if (
+        filters.clientCurrency &&
+        String(row.client_currency ?? row.clientCurrency ?? "").toUpperCase() !==
+          String(filters.clientCurrency).trim().toUpperCase()
+      ) {
+        return false;
+      }
+      const createdAt = toDateOnly(row.created_at ?? row.createdAt);
+      if (filters.createdFrom && createdAt && createdAt < filters.createdFrom) {
+        return false;
+      }
+      if (filters.createdTo && createdAt && createdAt > filters.createdTo) {
+        return false;
+      }
+      if (!search) {
+        return true;
+      }
+      const haystack = [
+        row.id,
+        row.full_name,
+        row.phone,
+        row.email,
+        row.pan_number,
+        row.address_line,
+        row.client_currency,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(search);
+    });
+    const normalizedSortBy = String(filters.sortBy || "createdAt");
+    const normalizedSortOrder =
+      String(filters.sortOrder || "desc").toLowerCase() === "asc" ? 1 : -1;
+    const sortedRows = filteredRows.slice().sort((left, right) => {
+      let comparison = 0;
+      if (normalizedSortBy === "name") {
+        comparison = String(left.full_name || "").localeCompare(
+          String(right.full_name || ""),
+        );
+      } else if (normalizedSortBy === "ltv") {
+        comparison =
+          Number(left.lifetime_value || 0) - Number(right.lifetime_value || 0);
+      } else {
+        comparison =
+          new Date(left.created_at || 0).getTime() -
+          new Date(right.created_at || 0).getTime();
+      }
+      if (comparison === 0) {
+        comparison = String(left.id || "").localeCompare(String(right.id || ""));
+      }
+      return comparison * normalizedSortOrder;
+    });
+    const items = sortedRows.slice(
+      pagination.offset,
+      pagination.offset + pagination.limit,
+    );
+    return {
+      items,
+      pagination: {
+        page: pagination.page,
+        limit: pagination.limit,
+        totalItems: sortedRows.length,
+        totalPages: Math.max(1, Math.ceil(sortedRows.length / pagination.limit)),
+      },
+    };
+  }
+
+  async function summarizeList(filters = {}) {
+    const context = await buildListContext(filters);
+
+    if (canUseRawQuery()) {
+      const result = await db.query(
+        `
+          SELECT
+            COUNT(*) AS total_customers,
+            SUM(CASE WHEN c.segment = 'NEW' THEN 1 ELSE 0 END) AS new_customers,
+            SUM(CASE WHEN c.segment = 'PLATINUM' THEN 1 ELSE 0 END) AS platinum_customers,
+            COALESCE(AVG(COALESCE(c.lifetime_value, 0)), 0) AS average_lifetime_value,
+            COALESCE(SUM(${
+              context.canJoinBookingCounts
+                ? "COALESCE(booking_counts.total_bookings, 0)"
+                : "0"
+            }), 0) AS total_bookings
+          FROM ${schema.tableName} c
+          ${context.bookingCountsJoin}
+          WHERE ${context.whereSql}
+        `,
+        context.params,
+      );
+      const row = result.rows?.[0] || {};
+      return {
+        totalCustomers: Number(row.total_customers || 0),
+        newCustomers: Number(row.new_customers || 0),
+        platinumCustomers: Number(row.platinum_customers || 0),
+        averageLifetimeValue: Number(row.average_lifetime_value || 0),
+        totalBookings: Number(row.total_bookings || 0),
+      };
+    }
+
+    const listResult = await findAll({ ...filters, page: 1, limit: MAX_LIMIT });
+    const items = Array.isArray(listResult.items) ? listResult.items : [];
+    return {
+      totalCustomers: Number(listResult.pagination?.totalItems || items.length || 0),
+      newCustomers: items.filter((row) => row.segment === "NEW").length,
+      platinumCustomers: items.filter((row) => row.segment === "PLATINUM").length,
+      averageLifetimeValue: items.length
+        ? items.reduce(
+            (sum, row) => sum + Number(row.lifetime_value ?? row.lifetimeValue ?? 0),
+            0,
+          ) / items.length
+        : 0,
+      totalBookings: items.reduce(
+        (sum, row) => sum + Number(row.total_bookings ?? 0),
+        0,
+      ),
+    };
   }
 
   async function findById(id) {
@@ -341,6 +693,7 @@ function createCustomersRepository({ db, logger, schema }) {
 
   return Object.freeze({
     findAll,
+    summarizeList,
     findById,
     create,
     update,

@@ -17,7 +17,7 @@ const PAYMENT_MODE_ALIASES = Object.freeze({
   GATEWAY: "PAYMENT_GATEWAY",
 });
 
-function createPaymentsService({ repository, logger, events, currencyService }) {
+function createPaymentsService({ repository, bookingsRepository, leadsRepository, logger, events, currencyService }) {
   function toNumber(value, fallback = 0) {
     if (value === null || value === undefined) {
       return fallback;

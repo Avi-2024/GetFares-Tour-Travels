@@ -40,8 +40,19 @@ function createWhatsAppApi({
     );
   }
 
-  async function sendMessage(payload) {
-    if (!accessToken) {
+  function resolveRuntimeChannel(overrides = {}) {
+    return {
+      accessToken: overrides.accessToken || accessToken || null,
+      phoneNumberId: overrides.phoneNumberId || phoneNumberId || null,
+      apiBaseUrl: normalizeBaseUrl(overrides.apiBaseUrl || apiBaseUrl || null),
+      apiVersion: normalizeVersion(overrides.apiVersion || apiVersion || null),
+    };
+  }
+
+  async function sendMessage(payload, channel = {}) {
+    const runtime = resolveRuntimeChannel(channel);
+
+    if (!runtime.accessToken) {
       throw new AppError(
         500,
         "WHATSAPP_ACCESS_TOKEN is not configured",
@@ -49,7 +60,7 @@ function createWhatsAppApi({
       );
     }
 
-    if (!phoneNumberId) {
+    if (!runtime.phoneNumberId) {
       throw new AppError(
         500,
         "WHATSAPP_PHONE_NUMBER_ID is not configured",
@@ -57,14 +68,31 @@ function createWhatsAppApi({
       );
     }
 
-    const url = `${apiBaseUrl}/${apiVersion}/${phoneNumberId}/messages`;
+    if (!runtime.apiBaseUrl) {
+      throw new AppError(
+        500,
+        "WHATSAPP_API_BASE_URL is not configured",
+        "WHATSAPP_CONFIG_MISSING",
+      );
+    }
+
+    if (!runtime.apiVersion) {
+      throw new AppError(
+        500,
+        "WHATSAPP_API_VERSION is not configured",
+        "WHATSAPP_CONFIG_MISSING",
+      );
+    }
+
+    const url =
+      `${runtime.apiBaseUrl}/${runtime.apiVersion}/${runtime.phoneNumberId}/messages`;
 
     let response;
     try {
       response = await fetch(url, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${accessToken}`,
+          Authorization: `Bearer ${runtime.accessToken}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify(payload),

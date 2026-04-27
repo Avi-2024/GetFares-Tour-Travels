@@ -16,7 +16,7 @@ const extractList = (response: unknown) => {
 // Compatibility shim: keep this surface while callsites migrate to datasource/service hooks.
 export const leadsApi = {
   getStats: async (_params?: { period?: string }) => {
-    const response = await apiRequest<any>(withQuery("/api/leads", { page: 1, limit: 500 }));
+    const response = await apiRequest<any>(withQuery("/api/leads", { page: 1, limit: 50 }));
     const rows = extractList(response) as Array<{
       status?: string;
       statusLabel?: string;

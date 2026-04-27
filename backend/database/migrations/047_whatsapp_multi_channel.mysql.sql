@@ -1,0 +1,21 @@
+CREATE TABLE IF NOT EXISTS whatsapp_channel_configs (
+  id CHAR(36) NOT NULL,
+  phone_number_id VARCHAR(120) NOT NULL,
+  display_phone_number VARCHAR(40) DEFAULT NULL,
+  country_id CHAR(36) DEFAULT NULL,
+  country_code VARCHAR(20) DEFAULT NULL,
+  access_token TEXT DEFAULT NULL,
+  app_secret VARCHAR(255) DEFAULT NULL,
+  verify_token VARCHAR(255) DEFAULT NULL,
+  app_id VARCHAR(120) DEFAULT NULL,
+  api_base_url VARCHAR(255) DEFAULT NULL,
+  api_version VARCHAR(40) DEFAULT NULL,
+  source_label VARCHAR(120) DEFAULT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_whatsapp_channel_phone_number_id (phone_number_id),
+  KEY idx_whatsapp_channel_country_active (country_id, is_active),
+  KEY idx_whatsapp_channel_country_code_active (country_code, is_active)
+);

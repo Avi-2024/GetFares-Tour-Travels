@@ -234,7 +234,10 @@ function createCmsPackagesController({ service, uploadService }) {
         filters.includeDeleted = req.query.includeDeleted === "true";
       }
 
-      const packages = await service.listSubPackages(req.params.mainPackageId, filters);
+      const packages = await service.listSubPackages(
+        req.params.mainPackageId,
+        filters,
+      );
       res.json({
         success: true,
         data: packages,

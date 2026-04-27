@@ -4,8 +4,15 @@ function mapListFilters(filters = {}) {
   return {
     page: filters.page,
     limit: filters.limit,
+    search: filters.search,
+    sortBy: filters.sortBy,
+    sortOrder: filters.sortOrder,
+    createdFrom: filters.createdFrom,
+    createdTo: filters.createdTo,
     status: filters.status,
+    assignedTo: filters.assignedTo,
     assigned_to: filters.assignedTo,
+    bookingId: filters.bookingId,
     booking_id: filters.bookingId,
   };
 }
@@ -38,9 +45,15 @@ function toComplaint(entity) {
     id: entity.id,
     bookingId: entity.booking_id,
     assignedTo: entity.assigned_to,
+    assignedToName: entity.assigned_to_name ?? entity.assignedToName ?? null,
+    assignedToEmail: entity.assigned_to_email ?? entity.assignedToEmail ?? null,
     issueType: entity.issue_type,
     description: entity.description,
     status: entity.status,
+    bookingNumber: entity.booking_number ?? entity.bookingNumber ?? null,
+    customerName: entity.customer_name ?? entity.customerName ?? null,
+    customerEmail: entity.customer_email ?? entity.customerEmail ?? null,
+    customerPhone: entity.customer_phone ?? entity.customerPhone ?? null,
     createdAt: entity.created_at,
     updatedAt: entity.updated_at ?? entity.updatedAt ?? entity.created_at,
   };
@@ -55,6 +68,7 @@ function toComplaintActivity(entity) {
     id: entity.id,
     complaintId: entity.complaint_id,
     userId: entity.user_id,
+    userName: entity.user_name ?? entity.userName ?? entity.user_email ?? null,
     note: entity.note,
     createdAt: entity.created_at,
   };
@@ -66,7 +80,7 @@ function buildSystemNote(prefix, details) {
   return `${prefix}\n${text}`.slice(0, 2000);
 }
 
-function createComplaintsService({ repository, logger, events }) {
+function createComplaintsService({ repository, bookingsRepository, leadsRepository, logger, events }) {
   async function list(filters = {}, context = {}) {
     const mappedFilters = mapListFilters(filters);
     logger.debug(
@@ -77,8 +91,17 @@ function createComplaintsService({ repository, logger, events }) {
       },
       "Listing records",
     );
-    const rows = await repository.findAll(mappedFilters);
-    return rows.map(toComplaint);
+    const result = await repository.findAll(mappedFilters);
+    const items = Array.isArray(result?.items) ? result.items : [];
+    return {
+      items: items.map(toComplaint),
+      pagination: result?.pagination || {
+        page: 1,
+        limit: 10,
+        totalItems: 0,
+        totalPages: 1,
+      },
+    };
   }
 
   async function getById(id, context = {}) {
@@ -95,10 +118,10 @@ function createComplaintsService({ repository, logger, events }) {
     return toComplaint(item);
   }
 
-  async function create(payload) {
+  async function create(payload, context = {}) {
     const created = await repository.create(mapCreatePayload(payload));
     events.emitCreated(created);
-    return toComplaint(created);
+    return getById(created.id, context);
   }
 
   async function update(id, payload, context = {}) {
@@ -106,7 +129,7 @@ function createComplaintsService({ repository, logger, events }) {
 
     const updated = await repository.update(id, mapUpdatePayload(payload));
     events.emitUpdated(updated);
-    return toComplaint(updated);
+    return getById(updated.id || id);
   }
 
   async function listActivities(id, filters = {}, context = {}) {
@@ -133,7 +156,8 @@ function createComplaintsService({ repository, logger, events }) {
       events.emitUpdated({ id });
     }
 
-    return toComplaintActivity(created);
+    const [latest] = await repository.findActivities(id, { page: 1, limit: 1 });
+    return toComplaintActivity(latest || created);
   }
 
   async function changeStatus(id, payload, context = {}) {
@@ -152,7 +176,7 @@ function createComplaintsService({ repository, logger, events }) {
       note,
     });
     events.emitUpdated(updated);
-    return toComplaint(updated);
+    return getById(updated.id || id);
   }
 
   async function statusHistory(id, context = {}) {
@@ -170,7 +194,7 @@ function createComplaintsService({ repository, logger, events }) {
       note: buildSystemNote("Assigned to user", payload.note || `UserId: ${payload.userId}`),
     });
     events.emitUpdated(updated);
-    return toComplaint(updated);
+    return getById(updated.id || id);
   }
 
   async function escalate(id, payload, context = {}) {
@@ -182,7 +206,7 @@ function createComplaintsService({ repository, logger, events }) {
       note: buildSystemNote("Escalated", payload.reason),
     });
     events.emitUpdated(updated);
-    return toComplaint(updated);
+    return getById(updated.id || id);
   }
 
   return Object.freeze({

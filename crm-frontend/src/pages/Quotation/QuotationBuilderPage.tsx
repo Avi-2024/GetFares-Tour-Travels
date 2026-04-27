@@ -1244,7 +1244,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
       setLeadsLoading(true)
       setLeadsError('')
       try {
-        const data = await leadsService.listLeadsRaw({ page: 1, limit: 100 })
+        const data = await leadsService.listLeadsRaw({ page: 1, limit: 50 })
         setLeads((Array.isArray(data) ? data : []) as LeadOption[])
       } catch (error) {
         console.error('Failed to load leads:', error)
@@ -1302,7 +1302,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     if (!token) return
     setPackagesLoading(true)
     quotationsApi
-      .listPackages({ limit: 200 })
+      .listPackages({ limit: 50 })
       .then((res: any) => {
         const list = res?.data?.data ?? res?.data ?? res ?? []
         setPackages(Array.isArray(list) ? list : [])

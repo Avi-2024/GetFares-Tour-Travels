@@ -67,24 +67,75 @@ function createExperienceRepository({ db, schema }) {
       if (query.includeDeleted !== undefined) {
         delete query.includeDeleted;
       }
-      if (!includeDeleted && query.is_deleted === undefined) {
-        query.is_deleted = false;
+      const values = [];
+      let whereClause = "TRUE";
+
+      if (!includeDeleted) {
+        whereClause += " AND fp.is_deleted = false";
       }
-      if (includeDeleted) {
-        delete query.is_deleted;
-      }
-      return db.findMany(schema.featuredTable, query);
+
+      Object.entries(query).forEach(([key, value]) => {
+        if (key === "is_deleted") {
+          whereClause += " AND fp.is_deleted = ?";
+          values.push(value);
+          return;
+        }
+        whereClause += ` AND fp.${key} = ?`;
+        values.push(value);
+      });
+
+      const packagesTable = schema.packagesTable || "packages";
+      const result = await db.query(
+        `SELECT fp.*,
+                COALESCE(d.name, mp.title, p.name, vd.title) AS reference_name
+         FROM ${schema.featuredTable} fp
+         LEFT JOIN ${schema.destinationsTable} d
+           ON fp.reference_id = d.id
+          AND fp.category = 'destination'
+         LEFT JOIN main_packages mp
+           ON fp.reference_id = mp.id
+          AND fp.category = 'package'
+         LEFT JOIN ${packagesTable} p
+           ON fp.reference_id = p.id
+          AND fp.category = 'package'
+         LEFT JOIN visa_destinations vd
+           ON fp.reference_id = vd.id
+          AND fp.category IN ('visa_service', 'visa_destination')
+         WHERE ${whereClause}
+         ORDER BY fp.display_order ASC, fp.created_at DESC`,
+        values,
+      );
+
+      return result.rows;
     },
 
     async findDeletedFeaturedPicks(filters = {}) {
-      return db.findMany(schema.featuredTable, {
-        ...filters,
-        is_deleted: true,
-      });
+      return this.findFeaturedPicks({ ...filters, is_deleted: true });
     },
 
     async findFeaturedPickById(id) {
-      return db.findById(schema.featuredTable, id);
+      const packagesTable = schema.packagesTable || "packages";
+      const result = await db.query(
+        `SELECT fp.*,
+                COALESCE(d.name, mp.title, p.name, vd.title) AS reference_name
+         FROM ${schema.featuredTable} fp
+         LEFT JOIN ${schema.destinationsTable} d
+           ON fp.reference_id = d.id
+          AND fp.category = 'destination'
+         LEFT JOIN main_packages mp
+           ON fp.reference_id = mp.id
+          AND fp.category = 'package'
+         LEFT JOIN ${packagesTable} p
+           ON fp.reference_id = p.id
+          AND fp.category = 'package'
+         LEFT JOIN visa_destinations vd
+           ON fp.reference_id = vd.id
+          AND fp.category IN ('visa_service', 'visa_destination')
+         WHERE fp.id = ?
+         LIMIT 1`,
+        [id],
+      );
+      return result.rows[0] || null;
     },
 
     async createFeaturedPick(data) {
@@ -108,7 +159,10 @@ function createExperienceRepository({ db, schema }) {
       if (!existing) {
         return null;
       }
-      await db.update(schema.featuredTable, id, { is_deleted: true });
+      await db.update(schema.featuredTable, id, {
+        is_deleted: true,
+        display_order: -1,
+      });
       return db.findById(schema.featuredTable, id);
     },
 
@@ -218,7 +272,10 @@ function createExperienceRepository({ db, schema }) {
       if (!existing) {
         return null;
       }
-      await db.update(schema.seasonsTable, id, { is_deleted: true });
+      await db.update(schema.seasonsTable, id, {
+        is_deleted: true,
+        display_order: -1,
+      });
       return db.findById(schema.seasonsTable, id);
     },
 

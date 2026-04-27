@@ -7,6 +7,14 @@ function createCampaignsController({ service }) {
     res.status(200).json({ data: result });
   }
 
+  async function summary(req, res) {
+    const result = await service.summary(
+      req.validated?.query || req.query,
+      req.context,
+    );
+    res.status(200).json({ data: result });
+  }
+
   async function getById(req, res) {
     const result = await service.getById(req.validated.params.id, req.context);
     res.status(200).json({ data: result });
@@ -14,6 +22,11 @@ function createCampaignsController({ service }) {
 
   async function create(req, res) {
     const result = await service.create(req.validated.body, req.context);
+    res.status(201).json({ data: result });
+  }
+
+  async function duplicate(req, res) {
+    const result = await service.duplicate(req.validated.params.id, req.context);
     res.status(201).json({ data: result });
   }
 
@@ -26,11 +39,19 @@ function createCampaignsController({ service }) {
     res.status(200).json({ data: result });
   }
 
+  async function remove(req, res) {
+    const result = await service.remove(req.validated.params.id, req.context);
+    res.status(200).json({ data: result });
+  }
+
   return Object.freeze({
     list,
+    summary,
     getById,
     create,
+    duplicate,
     update,
+    remove,
   });
 }
 

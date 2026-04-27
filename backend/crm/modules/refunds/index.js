@@ -6,7 +6,7 @@ import { RefundsValidation } from "./refunds.validation.js";
 import { RefundsSchema } from "./refunds.schema.js";
 import { createRefundsEvents } from "./refunds.events.js";
 
-function createRefundsModule({ dependencies }) {
+function createRefundsModule({ dependencies, repositories = {} }) {
   const repository = createRefundsRepository({
     db: dependencies.db,
     logger: dependencies.logger,
@@ -20,6 +20,8 @@ function createRefundsModule({ dependencies }) {
 
   const service = createRefundsService({
     repository,
+    bookingsRepository: repositories.bookings,
+    leadsRepository: repositories.leads,
     logger: dependencies.logger,
     events,
   });

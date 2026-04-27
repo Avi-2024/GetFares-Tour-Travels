@@ -129,9 +129,12 @@ function createDestinationsController({ service, uploadService }) {
           required: false,
         });
         payload.media = {
-          ...(payload.media && typeof payload.media === "object" ? payload.media : {}),
+          ...(payload.media && typeof payload.media === "object" ?
+            payload.media
+          : {}),
           title_image: bannerUpload?.url || payload.media?.title_image || null,
-          gallery: Array.isArray(payload.media?.gallery) ? payload.media.gallery : [],
+          gallery:
+            Array.isArray(payload.media?.gallery) ? payload.media.gallery : [],
         };
       }
 
@@ -185,9 +188,12 @@ function createDestinationsController({ service, uploadService }) {
           required: false,
         });
         payload.media = {
-          ...(payload.media && typeof payload.media === "object" ? payload.media : {}),
+          ...(payload.media && typeof payload.media === "object" ?
+            payload.media
+          : {}),
           title_image: bannerUpload?.url || payload.media?.title_image || null,
-          gallery: Array.isArray(payload.media?.gallery) ? payload.media.gallery : [],
+          gallery:
+            Array.isArray(payload.media?.gallery) ? payload.media.gallery : [],
         };
       }
 
@@ -345,7 +351,6 @@ function createDestinationsController({ service, uploadService }) {
       res.json(result);
     }),
 
-    // Package mapping endpoints
     getPackages: asyncHandler(async (req, res) => {
       const packages = await service.getPackages(req.params.id);
       res.json({

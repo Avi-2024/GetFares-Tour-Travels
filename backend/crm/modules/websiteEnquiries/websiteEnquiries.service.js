@@ -46,6 +46,34 @@ function computeTravelEndDate(travelDate, numberOfDays) {
   return `${y}-${m}-${d}`;
 }
 
+function normalizeCurrency(value) {
+  const normalized = String(value || "").trim().toUpperCase();
+  return normalized || undefined;
+}
+
+function resolveClientCurrency(payload = {}) {
+  const explicitCurrency = normalizeCurrency(payload.clientCurrency);
+  if (explicitCurrency) {
+    return explicitCurrency;
+  }
+
+  const countryHint = String(
+    payload.country || payload.leadCountry || payload.source || payload.sourcePage || "",
+  )
+    .trim()
+    .toLowerCase();
+
+  if (countryHint.includes("uae") || countryHint.includes("united arab emirates")) {
+    return "AED";
+  }
+
+  if (countryHint.includes("india") || countryHint.includes("ind")) {
+    return "INR";
+  }
+
+  return undefined;
+}
+
 function buildNotes(payload = {}) {
   const parts = [];
   const subject = String(payload.subject || "").trim();
@@ -79,11 +107,13 @@ function buildLeadPayload(payload = {}) {
   const leadType = normalizeLeadType(payload);
   const destination = payload.destinationName || payload.destination || undefined;
   const travelDate = payload.travelDate || undefined;
+  const clientCurrency = resolveClientCurrency(payload);
 
   return {
     fullName,
     phone: payload.phone || undefined,
     email: payload.email || undefined,
+    clientCurrency,
     destinationName: destination,
     destination,
     nationality: payload.nationality || undefined,
@@ -108,6 +138,7 @@ function buildLeadPayload(payload = {}) {
     notes,
     clientCreatedAt: payload.clientCreatedAt || undefined,
     clientTimezone: payload.clientTimezone || undefined,
+    allowDuplicate: true,
     autoAssign: true,
   };
 }

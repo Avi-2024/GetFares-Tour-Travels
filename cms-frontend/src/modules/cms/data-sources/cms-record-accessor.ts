@@ -38,6 +38,12 @@ class CmsRecordAccessor {
       if (value === null || value === undefined) {
         continue;
       }
+      if (typeof value === "object") {
+        if (Array.isArray(value)) {
+          return value.length > 0 ? `${value.length} items` : "--";
+        }
+        return JSON.stringify(value);
+      }
       return String(value);
     }
     return "--";

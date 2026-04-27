@@ -67,6 +67,14 @@ function normalizeWallClockDisplay(rawValue: unknown): string | null {
   return `${m[1]} ${hh}:${mm}:${ss}`
 }
 
+function normalizeCampaignCountry(rawValue: unknown): string {
+  const raw = String(rawValue ?? '').trim()
+  if (!raw) return 'Other'
+  if (/^india$/i.test(raw)) return 'India'
+  if (/^(uae|united arab emirates)$/i.test(raw)) return 'UAE'
+  return raw
+}
+
 type QualificationForm = {
   panNumber: string
   addressLine: string
@@ -469,7 +477,7 @@ const LeadDetails: React.FC = () => {
 
   const loadCampaigns = useCallback(async () => {
     try {
-      const response = await campaignsService.list({ status: 'ACTIVE' })
+      const response = await campaignsService.list()
       const rows =
         (response as any)?.data?.data ?? (response as any)?.data ?? response
       setCampaigns(Array.isArray(rows) ? rows : [])
@@ -772,14 +780,48 @@ const LeadDetails: React.FC = () => {
   )
 
   const campaignOptions = useMemo(
-    () => [
-      { value: '', label: 'Select campaign (optional)' },
-      ...campaigns.map(campaign => ({
-        value: String(campaign.id),
-        label: String(campaign.name ?? campaign.title ?? campaign.id)
-      }))
-    ],
-    [campaigns]
+    () => {
+      const selectedCountry = normalizeCampaignCountry(qualification.leadCountry)
+      const selectedCampaignId = String(qualification.campaignId || '').trim()
+      const allCampaigns = campaigns
+        .map(campaign => ({
+          ...campaign,
+          normalizedCountry: normalizeCampaignCountry(campaign.country)
+        }))
+        .sort((left, right) => {
+          const leftMatches = left.normalizedCountry === selectedCountry ? 1 : 0
+          const rightMatches = right.normalizedCountry === selectedCountry ? 1 : 0
+          if (leftMatches !== rightMatches) return rightMatches - leftMatches
+          return String(left.name ?? left.title ?? left.id).localeCompare(
+            String(right.name ?? right.title ?? right.id)
+          )
+        })
+
+      const visibleCampaigns = allCampaigns.filter(
+        campaign =>
+          !qualification.leadCountry ||
+          campaign.normalizedCountry === selectedCountry ||
+          String(campaign.id) === selectedCampaignId
+      )
+
+      const fallbackCampaigns =
+        visibleCampaigns.length > 0 ? visibleCampaigns : allCampaigns
+
+      const placeholder = qualification.leadCountry
+        ? `Select ${selectedCountry} campaign (optional)`
+        : 'Select campaign (optional)'
+
+      return [
+        { value: '', label: placeholder },
+        ...fallbackCampaigns.map(campaign => ({
+          value: String(campaign.id),
+          label: `[${campaign.normalizedCountry}] ${String(
+            campaign.name ?? campaign.title ?? campaign.id
+          )}`
+        }))
+      ]
+    },
+    [campaigns, qualification.campaignId, qualification.leadCountry]
   )
 
   const countryOptions = useMemo(

@@ -4,7 +4,11 @@ function createCustomersController({ service }) {
       req.validated?.query || req.query,
       req.context,
     );
-    res.status(200).json({ data: result });
+    res.status(200).json({
+      data: result.items,
+      pagination: result.pagination,
+      summary: result.summary,
+    });
   }
 
   async function getById(req, res) {

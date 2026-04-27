@@ -7,6 +7,29 @@ import {
 } from "../../core/utils/index.js";
 
 function createVisaService({ repository }) {
+  function normalizeCountryIds(value) {
+    const source =
+      Array.isArray(value) ? value
+      : typeof value === "string" ? value.split(",")
+      : [];
+    return Array.from(
+      new Set(
+        source
+          .map((item) => normalizeText(item))
+          .filter((item) => Boolean(item)),
+      ),
+    );
+  }
+
+  function includesCountryId(countryIds, countryId) {
+    if (!countryId) return true;
+    return (countryIds || []).some(
+      (item) =>
+        String(item).trim().toLowerCase() ===
+        String(countryId).trim().toLowerCase(),
+    );
+  }
+
   function parseJsonArray(value) {
     if (!value) return [];
     if (Array.isArray(value)) return value;
@@ -19,6 +42,7 @@ function createVisaService({ repository }) {
   }
 
   function toVisaDestination(row) {
+    const countryIds = normalizeCountryIds(parseJsonArray(row.country_ids));
     if (!row) return null;
     const highlights = parseJsonArray(row.highlights);
     const supportList = parseJsonArray(row.support_list);
@@ -28,6 +52,7 @@ function createVisaService({ repository }) {
     return {
       id: row.id,
       country: row.country,
+      countryIds,
       title: row.title,
       slug: row.slug,
       subDescription: row.sub_description,
@@ -39,6 +64,22 @@ function createVisaService({ repository }) {
       quickSupportDescription: row.support_description,
       supportIncluded: supportList,
       visaDetails: Array.isArray(visaDetails) ? visaDetails : [],
+      visaDetailsDisplay: (Array.isArray(visaDetails) ? visaDetails : [])
+        .map((item) => {
+          if (typeof item === "string") {
+            return normalizeText(item);
+          }
+          if (item && typeof item === "object") {
+            return [
+              normalizeText(item.title || item.label),
+              normalizeText(item.description || item.value),
+            ]
+              .filter((part) => Boolean(part))
+              .join(": ");
+          }
+          return null;
+        })
+        .filter((item) => Boolean(item)),
       requirements: Array.isArray(requirements) ? requirements : [],
       priceCurrency: row.price_currency || null,
       priceAmount:
@@ -86,16 +127,24 @@ function createVisaService({ repository }) {
 
   return Object.freeze({
     async list(filters = {}) {
-      const rows = await repository.findAll(filters);
+      const { countryId, countryIds, ...repositoryFilters } = filters;
+      const rows = await repository.findAll(repositoryFilters);
+      const requestedCountryId =
+        normalizeText(countryId) || normalizeCountryIds(countryIds)[0] || null;
       return rows
         .map(toVisaDestination)
+        .filter((row) => includesCountryId(row.countryIds, requestedCountryId))
         .sort((a, b) => a.displayOrder - b.displayOrder);
     },
 
     async listDeleted(filters = {}) {
-      const rows = await repository.findDeleted(filters);
+      const { countryId, countryIds, ...repositoryFilters } = filters;
+      const rows = await repository.findDeleted(repositoryFilters);
+      const requestedCountryId =
+        normalizeText(countryId) || normalizeCountryIds(countryIds)[0] || null;
       return rows
         .map(toVisaDestination)
+        .filter((row) => includesCountryId(row.countryIds, requestedCountryId))
         .sort((a, b) => a.displayOrder - b.displayOrder);
     },
 
@@ -118,10 +167,13 @@ function createVisaService({ repository }) {
     async create(data) {
       const slug = data.slug || toSlug(data.title);
       const country = normalizeText(data.country);
-      if (!country) {
+      const countryIds = normalizeCountryIds(
+        data.countryIds ?? data.country_ids ?? data.countryId,
+      );
+      if (!country && !countryIds.length) {
         throw new AppError(
           400,
-          "Country is required for visa destination",
+          "At least one country or countryId is required for visa destination",
           "COUNTRY_REQUIRED",
         );
       }
@@ -138,6 +190,7 @@ function createVisaService({ repository }) {
 
       const row = await repository.create({
         country,
+        country_ids: JSON.stringify(countryIds),
         title: normalizeText(data.title),
         slug,
         sub_description: normalizeText(data.subDescription),
@@ -153,9 +206,15 @@ function createVisaService({ repository }) {
           data.priceCurrency ?? data.price?.currency,
         ),
         price_amount: toNumber(data.priceAmount ?? data.price?.amount, null),
-        highlights: JSON.stringify(Array.isArray(data.highlights) ? data.highlights : []),
-        visa_details: JSON.stringify(Array.isArray(data.visaDetails) ? data.visaDetails : []),
-        requirements: JSON.stringify(Array.isArray(data.requirements) ? data.requirements : []),
+        highlights: JSON.stringify(
+          Array.isArray(data.highlights) ? data.highlights : [],
+        ),
+        visa_details: JSON.stringify(
+          Array.isArray(data.visaDetails) ? data.visaDetails : [],
+        ),
+        requirements: JSON.stringify(
+          Array.isArray(data.requirements) ? data.requirements : [],
+        ),
         meta_title: normalizeText(data.metaTitle),
         meta_description: normalizeText(data.metaDescription),
         keywords: normalizeText(data.keywords),
@@ -181,6 +240,17 @@ function createVisaService({ repository }) {
         }
         updates.country = country;
       }
+      if (
+        data.countryIds !== undefined ||
+        data.country_ids !== undefined ||
+        data.countryId !== undefined
+      ) {
+        updates.country_ids = JSON.stringify(
+          normalizeCountryIds(
+            data.countryIds ?? data.country_ids ?? data.countryId,
+          ),
+        );
+      }
       if (data.slug !== undefined) {
         const slug = toSlug(data.slug);
         const slugExists = await repository.findBySlug(slug);
@@ -200,15 +270,26 @@ function createVisaService({ repository }) {
       if (data.quickSupportTitle !== undefined)
         updates.support_title = normalizeText(data.quickSupportTitle);
       if (data.quickSupportDescription !== undefined)
-        updates.support_description = normalizeText(data.quickSupportDescription);
-      if (data.supportIncluded !== undefined && Array.isArray(data.supportIncluded))
+        updates.support_description = normalizeText(
+          data.quickSupportDescription,
+        );
+      if (
+        data.supportIncluded !== undefined &&
+        Array.isArray(data.supportIncluded)
+      )
         updates.support_list = JSON.stringify(data.supportIncluded);
-      if (data.priceCurrency !== undefined || data.price?.currency !== undefined)
+      if (
+        data.priceCurrency !== undefined ||
+        data.price?.currency !== undefined
+      )
         updates.price_currency = normalizeText(
           data.priceCurrency ?? data.price?.currency,
         );
       if (data.priceAmount !== undefined || data.price?.amount !== undefined)
-        updates.price_amount = toNumber(data.priceAmount ?? data.price?.amount, null);
+        updates.price_amount = toNumber(
+          data.priceAmount ?? data.price?.amount,
+          null,
+        );
       if (data.highlights !== undefined && Array.isArray(data.highlights))
         updates.highlights = JSON.stringify(data.highlights);
       if (data.visaDetails !== undefined && Array.isArray(data.visaDetails))
@@ -273,9 +354,17 @@ function createVisaService({ repository }) {
     },
 
     // Details methods
-    async getDetails(visaDestinationId, sectionType = null, includeDeleted = false) {
+    async getDetails(
+      visaDestinationId,
+      sectionType = null,
+      includeDeleted = false,
+    ) {
       await this.getById(visaDestinationId); // Verify exists
-      const rows = await repository.findDetails(visaDestinationId, sectionType, includeDeleted);
+      const rows = await repository.findDetails(
+        visaDestinationId,
+        sectionType,
+        includeDeleted,
+      );
       return rows.map(toDetail).sort((a, b) => a.displayOrder - b.displayOrder);
     },
 
@@ -307,7 +396,8 @@ function createVisaService({ repository }) {
       if (data.label !== undefined) updates.label = normalizeText(data.label);
       if (data.iconName !== undefined)
         updates.icon_name = normalizeText(data.iconName);
-      if (data.colSpan !== undefined) updates.col_span = toNumber(data.colSpan, 1);
+      if (data.colSpan !== undefined)
+        updates.col_span = toNumber(data.colSpan, 1);
       if (data.displayStyle !== undefined)
         updates.display_style = normalizeText(data.displayStyle);
       if (data.accentColor !== undefined)

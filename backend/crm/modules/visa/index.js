@@ -6,7 +6,7 @@ import { VisaValidation } from "./visa.validation.js";
 import { VisaSchema } from "./visa.schema.js";
 import { createVisaEvents } from "./visa.events.js";
 
-function createVisaModule({ dependencies }) {
+function createVisaModule({ dependencies, repositories = {} }) {
   const repository = createVisaRepository({
     db: dependencies.db,
     logger: dependencies.logger,
@@ -20,6 +20,8 @@ function createVisaModule({ dependencies }) {
 
   const service = createVisaService({
     repository,
+    bookingsRepository: repositories.bookings,
+    leadsRepository: repositories.leads,
     logger: dependencies.logger,
     events,
   });

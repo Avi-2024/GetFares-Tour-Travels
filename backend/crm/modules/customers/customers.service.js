@@ -4,17 +4,31 @@ function mapListFilters(filters = {}) {
   return {
     page: filters.page,
     limit: filters.limit,
+    search: filters.search,
+    sortBy: filters.sortBy,
+    sortOrder: filters.sortOrder,
+    createdFrom: filters.createdFrom,
+    createdTo: filters.createdTo,
     segment: filters.segment,
     email: filters.email,
     phone: filters.phone,
     client_currency: filters.clientCurrency,
+    clientCurrency: filters.clientCurrency,
   };
+}
+
+function normalizePhone(value) {
+  if (!value) return null;
+  const compact = String(value).trim().replace(/\s+/g, "");
+  const normalized = compact.replace(/[^\d+]/g, "");
+  return normalized || null;
 }
 
 function mapCreatePayload(payload) {
   return {
     full_name: payload.fullName,
     phone: payload.phone,
+    phone_normalized: normalizePhone(payload.phone),
     email: payload.email,
     preferences: payload.preferences,
     lifetime_value: payload.lifetimeValue,
@@ -29,6 +43,7 @@ function mapUpdatePayload(payload) {
   return {
     full_name: payload.fullName,
     phone: payload.phone,
+    phone_normalized: normalizePhone(payload.phone),
     email: payload.email,
     preferences: payload.preferences,
     lifetime_value: payload.lifetimeValue,
@@ -57,13 +72,18 @@ function toCustomer(entity, bookingSummary = null) {
     clientCurrency:
       entity.client_currency ?? entity.clientCurrency ?? "INR",
     createdAt: entity.created_at ?? entity.createdAt ?? null,
-    totalBookings: Number(bookingSummary?.totalBookings ?? 0),
+    totalBookings: Number(
+      bookingSummary?.totalBookings ??
+        entity.total_bookings ??
+        entity.totalBookings ??
+        0,
+    ),
     lastBookingDate: bookingSummary?.lastBookingDate ?? null,
     lastBookingNumber: bookingSummary?.lastBookingNumber ?? null,
   };
 }
 
-function createCustomersService({ repository, logger, events }) {
+function createCustomersService({ repository, leadsRepository, logger, events }) {
   async function list(filters = {}, context = {}) {
     const mappedFilters = mapListFilters(filters);
     logger.debug(
@@ -74,25 +94,52 @@ function createCustomersService({ repository, logger, events }) {
       },
       "Listing records",
     );
-    let rows = await repository.findAll(mappedFilters);
+    let result = await repository.findAll(mappedFilters);
     if (
-      (!Array.isArray(rows) || rows.length === 0) &&
+      (!(Array.isArray(result?.items) ? result.items.length : 0) &&
+        !(result?.pagination?.totalItems > 0)) &&
       typeof repository.backfillFromLeads === "function"
     ) {
       await repository.backfillFromLeads();
-      rows = await repository.findAll(mappedFilters);
+      result = await repository.findAll(mappedFilters);
     }
 
-    const activeRows = (Array.isArray(rows) ? rows : []).filter(
+    const activeRows = (Array.isArray(result?.items) ? result.items : []).filter(
       (row) => !(row.is_deleted ?? row.isDeleted),
     );
     const bookingSummaryByCustomerId =
       await repository.findBookingSummaryByCustomerIds(
         activeRows.map((row) => row.id),
       );
-    return activeRows.map((row) =>
+    const items = activeRows.map((row) =>
       toCustomer(row, bookingSummaryByCustomerId.get(String(row.id)) || null),
     );
+    const summary = typeof repository.summarizeList === "function"
+      ? await repository.summarizeList(mappedFilters)
+      : {
+          totalCustomers: Number(result?.pagination?.totalItems || items.length || 0),
+          newCustomers: items.filter((row) => row.segment === "NEW").length,
+          platinumCustomers: items.filter((row) => row.segment === "PLATINUM").length,
+          averageLifetimeValue: items.length
+            ? items.reduce((sum, row) => sum + Number(row.lifetimeValue || 0), 0) /
+              items.length
+            : 0,
+          totalBookings: items.reduce(
+            (sum, row) => sum + Number(row.totalBookings || 0),
+            0,
+          ),
+        };
+
+    return {
+      items,
+      pagination: result?.pagination || {
+        page: 1,
+        limit: items.length,
+        totalItems: items.length,
+        totalPages: 1,
+      },
+      summary,
+    };
   }
 
   async function getById(id, context = {}) {

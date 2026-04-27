@@ -23,8 +23,16 @@ export type MainPackageRecord = {
 export type SubPackageRecord = {
   id: string;
   mainPackageId: string;
+  parentPackageId?: string | null;
+  parentPackageName?: string | null;
+  parentPackage?: string | null;
   title: string;
   name?: string;
+  destination?: string | null;
+  countryIds?: string[];
+  image?: string | null;
+  bannerImageUrl?: string | null;
+  rating?: number | null;
   startingPrice: number;
   startingPriceCurrency: string;
   duration?: string | null;
@@ -38,6 +46,20 @@ export type SubPackageRecord = {
   isDeleted: boolean;
   description?: string | null;
   snapshot?: string | null;
+  highlights?: string[];
+  features?: Array<{
+    title?: string | null;
+    iconName?: string | null;
+    description?: string | null;
+  }>;
+  featuresDisplay?: string[];
+  itinerary?: unknown;
+  itineraries?: Array<{
+    day?: number | null;
+    title?: string | null;
+    description?: string | null;
+  }>;
+  itinerariesDisplay?: string[];
   inclusions?: string[];
   exclusions?: string[];
   paymentTerms?: string[];
@@ -47,6 +69,13 @@ export type SubPackageRecord = {
   galleryImageUrls?: string[];
   hotelDetails?: string | null;
   transport?: string | null;
+  packageCategory?: string | null;
+  metaTitle?: string | null;
+  metaDescription?: string | null;
+  keywords?: string | null;
+  displayOrder?: number | null;
+  validFrom?: string | null;
+  validTo?: string | null;
   createdAt?: string | null;
   updatedAt?: string | null;
 };

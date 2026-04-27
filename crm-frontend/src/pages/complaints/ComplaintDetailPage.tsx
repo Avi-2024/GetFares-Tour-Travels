@@ -14,13 +14,34 @@ const UUID_PATTERN =
 const isUuid = (value?: string | null) =>
   UUID_PATTERN.test(String(value || "").trim());
 
+const shortId = (value?: string | null) => {
+  const normalized = String(value || "").trim();
+  if (!normalized) return "N/A";
+  return normalized.length > 12
+    ? `${normalized.slice(0, 8)}...${normalized.slice(-4)}`
+    : normalized;
+};
+
+const formatStatusLabel = (value?: string) =>
+  String(value || "OPEN")
+    .trim()
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+
 interface Complaint {
   id: string;
   bookingId: string | null;
+  bookingNumber?: string | null;
   assignedTo: string | null;
+  assignedToName?: string | null;
+  assignedToEmail?: string | null;
   issueType: string;
   description: string;
   status: "OPEN" | "IN_PROGRESS" | "RESOLVED";
+  customerName?: string | null;
+  customerEmail?: string | null;
+  customerPhone?: string | null;
   createdAt: string;
   updatedAt: string;
   priority?: "HIGH" | "MEDIUM" | "LOW";
@@ -84,10 +105,16 @@ const ComplaintDetailPage: React.FC = () => {
   const [complaint, setComplaint] = useState<Complaint>({
     id: id || "",
     bookingId: null,
+    bookingNumber: null,
     assignedTo: null,
+    assignedToName: null,
+    assignedToEmail: null,
     issueType: "",
     description: "",
     status: "OPEN",
+    customerName: null,
+    customerEmail: null,
+    customerPhone: null,
     createdAt: "",
     updatedAt: "",
   });
@@ -96,11 +123,26 @@ const ComplaintDetailPage: React.FC = () => {
 
   const getUserLabel = (userId: string | null | undefined) => {
     if (!userId) return "Unassigned";
+    if (
+      complaint.assignedTo &&
+      userId === complaint.assignedTo &&
+      complaint.assignedToName
+    ) {
+      if (complaint.assignedToEmail) {
+        return `${complaint.assignedToName} (${complaint.assignedToEmail})`;
+      }
+      return complaint.assignedToName;
+    }
     const user = assigneeUsers.find((item) => item.id === userId);
-    if (!user) return userId;
+    if (!user) return shortId(userId);
     if (user.fullName && user.email) return `${user.fullName} (${user.email})`;
     return user.fullName || user.email || user.id;
   };
+
+  const bookingDisplayLabel =
+    complaint.customerName || customerName
+      ? `${complaint.customerName || customerName}${complaint.bookingNumber || bookingNumber ? ` - ${complaint.bookingNumber || bookingNumber}` : ""}`
+      : complaint.bookingNumber || bookingNumber || shortId(complaint.bookingId);
 
   useEffect(() => {
     const loadAssignableUsers = async () => {
@@ -125,6 +167,11 @@ const ComplaintDetailPage: React.FC = () => {
   useEffect(() => {
     const loadBookingCustomer = async () => {
       const bookingId = complaint.bookingId;
+      if (complaint.customerName || complaint.bookingNumber) {
+        setCustomerName(String(complaint.customerName || ""));
+        setBookingNumber(String(complaint.bookingNumber || ""));
+        return;
+      }
       if (!bookingId || !isUuid(bookingId)) {
         setCustomerName("");
         setBookingNumber("");
@@ -167,7 +214,7 @@ const ComplaintDetailPage: React.FC = () => {
     };
 
     void loadBookingCustomer();
-  }, [complaint.bookingId, leadsService]);
+  }, [complaint.bookingId, complaint.bookingNumber, complaint.customerName, leadsService]);
 
   useEffect(() => {
     const loadComplaintData = async () => {
@@ -196,6 +243,30 @@ const ComplaintDetailPage: React.FC = () => {
               (complaintPayload as Complaint).assignedTo === undefined
                 ? null
                 : (complaintPayload as Complaint).assignedTo,
+            bookingNumber:
+              (complaintPayload as any).bookingNumber ??
+              (complaintPayload as any).booking_number ??
+              null,
+            assignedToName:
+              (complaintPayload as any).assignedToName ??
+              (complaintPayload as any).assigned_to_name ??
+              null,
+            assignedToEmail:
+              (complaintPayload as any).assignedToEmail ??
+              (complaintPayload as any).assigned_to_email ??
+              null,
+            customerName:
+              (complaintPayload as any).customerName ??
+              (complaintPayload as any).customer_name ??
+              null,
+            customerEmail:
+              (complaintPayload as any).customerEmail ??
+              (complaintPayload as any).customer_email ??
+              null,
+            customerPhone:
+              (complaintPayload as any).customerPhone ??
+              (complaintPayload as any).customer_phone ??
+              null,
           };
           setComplaint(normalizedComplaint);
           setSelectedAssignee(normalizedComplaint.assignedTo || "");
@@ -429,15 +500,15 @@ const ComplaintDetailPage: React.FC = () => {
             </p>
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                #{complaint.id}
+                {complaint.issueType || "Complaint"}
               </h1>
               <span
                 className={`px-2.5 py-0.5 text-xs font-semibold rounded-full border ${getStatusClass(
                   complaint.status,
                 )}`}
               >
-                {complaint.status}
-              </span>
+                  {formatStatusLabel(complaint.status)}
+                </span>
               {(complaint as any).priority && (
                 <span
                   className={`px-2.5 py-0.5 text-xs font-semibold rounded-full border ${getPriorityClass(
@@ -448,18 +519,19 @@ const ComplaintDetailPage: React.FC = () => {
                 </span>
               )}
             </div>
-            {customerName ? (
+            {complaint.customerName || customerName ? (
               <div className="mt-1 text-sm text-gray-700 dark:text-gray-200">
-                {customerName}
-                {bookingNumber ? (
+                {complaint.customerName || customerName}
+                {complaint.bookingNumber || bookingNumber ? (
                   <span className="text-gray-500 dark:text-gray-400">
                     {" "}
-                    • {bookingNumber}
+                    - {complaint.bookingNumber || bookingNumber}
                   </span>
                 ) : null}
               </div>
             ) : null}
             <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400 mt-1.5">
+              <span>Complaint {shortId(complaint.id)}</span>
               <span>Created {formatDate(complaint.createdAt)}</span>
               <span>Updated {formatDate(complaint.updatedAt)}</span>
             </div>
@@ -519,7 +591,7 @@ const ComplaintDetailPage: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-                      Booking ID
+                      Booking
                     </label>
                     {isEditing ? (
                       <input
@@ -535,7 +607,12 @@ const ComplaintDetailPage: React.FC = () => {
                       />
                     ) : (
                       <p className="text-sm font-medium text-blue-600 dark:text-blue-400">
-                        {complaint.bookingId || "N/A"}
+                        {bookingDisplayLabel}
+                        {complaint.bookingId ? (
+                          <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
+                            {shortId(complaint.bookingId)}
+                          </span>
+                        ) : null}
                       </p>
                     )}
                   </div>
@@ -620,7 +697,7 @@ const ComplaintDetailPage: React.FC = () => {
                           complaint.status,
                         )}`}
                       >
-                        {complaint.status}
+                        {formatStatusLabel(complaint.status)}
                       </span>
                     )}
                   </div>
@@ -670,7 +747,7 @@ const ComplaintDetailPage: React.FC = () => {
                       <div className="bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700 rounded-lg p-3">
                         <div className="flex justify-between items-start mb-1">
                           <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                            {activity.userId || "System"}
+                            {activity.userName || getUserLabel(activity.userId) || "System"}
                           </p>
                           <p className="text-xs text-gray-400 dark:text-gray-500">
                             {formatDate(activity.createdAt)}
@@ -811,22 +888,27 @@ const ComplaintDetailPage: React.FC = () => {
                 </h3>
               </div>
               <div className="p-5">
-                {customerName ? (
+                {complaint.customerName || customerName ? (
                   <>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
                       Customer Name
                     </p>
                     <p className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-3">
-                      {customerName}
+                      {complaint.customerName || customerName}
                     </p>
                   </>
                 ) : null}
                 <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
-                  Booking ID
+                  Booking
                 </p>
                 <p className="text-sm font-medium text-blue-600 dark:text-blue-400 mb-3">
-                  {complaint.bookingId || "N/A"}
+                  {bookingDisplayLabel}
                 </p>
+                {complaint.bookingId ? (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                    {shortId(complaint.bookingId)}
+                  </p>
+                ) : null}
                 <button
                   onClick={() =>
                     complaint.bookingId && navigate(`/bookings/${complaint.bookingId}`)

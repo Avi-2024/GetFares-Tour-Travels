@@ -4,6 +4,8 @@ import { withQuery } from "./query";
 export const campaignsApi = {
   list: (params?: Record<string, string | number | boolean>) =>
     apiRequest(withQuery("/api/campaigns", params)),
+  summary: (params?: Record<string, string | number | boolean>) =>
+    apiRequest(withQuery("/api/campaigns/summary", params)),
   create: (payload: unknown) =>
     apiRequest("/api/campaigns", { method: "POST", body: payload }),
   getById: (id: string) => apiRequest(`/api/campaigns/${id}`),
