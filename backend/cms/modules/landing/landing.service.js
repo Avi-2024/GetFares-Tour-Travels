@@ -11,9 +11,8 @@ function createLandingService({ repository }) {
   const MAX_ACTIVE_LANDING_PLACES = 4;
 
   function parseCountryIds(value) {
-    if (value === null || value === undefined) {
-      return [];
-    }
+    if (value === null || value === undefined) return [];
+
     const source =
       Array.isArray(value) ? value
       : typeof value === "string" ? value.split(",")
@@ -52,6 +51,7 @@ function createLandingService({ repository }) {
       is_active: true,
       ...(country ? { country } : {}),
     });
+
     const activeCount = activeRows.filter((row) => {
       if (excludeId && row.id === excludeId) return false;
       return isActiveValue(row.is_active);
