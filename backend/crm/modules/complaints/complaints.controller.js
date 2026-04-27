@@ -4,7 +4,10 @@ function createComplaintsController({ service }) {
       req.validated?.query || req.query,
       req.context,
     );
-    res.status(200).json({ data: result });
+    res.status(200).json({
+      data: result.items,
+      pagination: result.pagination,
+    });
   }
 
   async function getById(req, res) {

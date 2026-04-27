@@ -1,0 +1,523 @@
+{
+  "info": {
+    "_postman_id": "ec64517e-0a30-42be-af22-e4ac8d7d7f52",
+    "name": "Travel CRM - WhatsApp Multi Channel",
+    "description": "Tests CRM WhatsApp APIs for India and UAE channels, plus direct Meta Cloud API calls.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{crmAccessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "1) CRM Auth",
+      "item": [
+        {
+          "name": "POST /api/auth/login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "const token = json?.data?.accessToken;",
+                  "if (token) {",
+                  "  pm.collectionVariables.set('crmAccessToken', token);",
+                  "  pm.environment.set('crmAccessToken', token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{loginEmail}}\",\n  \"password\": \"{{loginPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "2) CRM Runtime",
+      "item": [
+        {
+          "name": "GET /api/whatsapp/config-status",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/whatsapp/config-status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "whatsapp",
+                "config-status"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3) India Channel",
+      "item": [
+        {
+          "name": "GET /webhook/whatsapp verify India",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/webhook/whatsapp?hub.mode=subscribe&hub.verify_token={{indiaVerifyToken}}&hub.challenge={{hubChallenge}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "webhook",
+                "whatsapp"
+              ],
+              "query": [
+                {
+                  "key": "hub.mode",
+                  "value": "subscribe"
+                },
+                {
+                  "key": "hub.verify_token",
+                  "value": "{{indiaVerifyToken}}"
+                },
+                {
+                  "key": "hub.challenge",
+                  "value": "{{hubChallenge}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /webhook/whatsapp inbound India",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const appSecret = pm.environment.get('indiaAppSecret');",
+                  "const rawTemplate = pm.request.body && pm.request.body.raw ? pm.request.body.raw : '';",
+                  "const raw = pm.variables.replaceIn(rawTemplate);",
+                  "if (appSecret && raw) {",
+                  "  const signature = CryptoJS.HmacSHA256(raw, appSecret).toString(CryptoJS.enc.Hex);",
+                  "  pm.request.headers.upsert({ key: 'x-hub-signature-256', value: 'sha256=' + signature });",
+                  "} else {",
+                  "  pm.request.headers.remove('x-hub-signature-256');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"object\": \"whatsapp_business_account\",\n  \"entry\": [\n    {\n      \"id\": \"{{indiaWabaId}}\",\n      \"changes\": [\n        {\n          \"field\": \"messages\",\n          \"value\": {\n            \"messaging_product\": \"whatsapp\",\n            \"metadata\": {\n              \"display_phone_number\": \"{{indiaDisplayPhoneNumber}}\",\n              \"phone_number_id\": \"{{indiaPhoneNumberId}}\"\n            },\n            \"contacts\": [\n              {\n                \"profile\": {\n                  \"name\": \"India Test User\"\n                },\n                \"wa_id\": \"{{whatsappTo}}\"\n              }\n            ],\n            \"messages\": [\n              {\n                \"from\": \"{{whatsappTo}}\",\n                \"id\": \"wamid.india.test.001\",\n                \"timestamp\": \"1710000000\",\n                \"type\": \"text\",\n                \"text\": {\n                  \"body\": \"Hello from India channel\"\n                }\n              }\n            ]\n          }\n        }\n      ]\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/webhook/whatsapp",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "webhook",
+                "whatsapp"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/whatsapp/send India",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"to\": \"{{whatsappTo}}\",\n  \"text\": \"India channel test\",\n  \"phoneNumberId\": \"{{indiaPhoneNumberId}}\",\n  \"countryCode\": \"{{indiaCountryCode}}\",\n  \"countryName\": \"{{indiaCountryName}}\",\n  \"previewUrl\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/whatsapp/send",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "whatsapp",
+                "send"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/whatsapp/send-template India",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"to\": \"{{whatsappTo}}\",\n  \"templateName\": \"{{templateName}}\",\n  \"language\": \"en_US\",\n  \"phoneNumberId\": \"{{indiaPhoneNumberId}}\",\n  \"countryCode\": \"{{indiaCountryCode}}\",\n  \"countryName\": \"{{indiaCountryName}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/whatsapp/send-template",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "whatsapp",
+                "send-template"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST Graph API send India",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{indiaSystemUserToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{whatsappTo}}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"body\": \"Direct India Graph API test\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{metaGraphBaseUrl}}/{{metaGraphVersion}}/{{indiaPhoneNumberId}}/messages",
+              "host": [
+                "{{metaGraphBaseUrl}}"
+              ],
+              "path": [
+                "{{metaGraphVersion}}",
+                "{{indiaPhoneNumberId}}",
+                "messages"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "4) UAE Channel",
+      "item": [
+        {
+          "name": "GET /webhook/whatsapp verify UAE",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/webhook/whatsapp?hub.mode=subscribe&hub.verify_token={{uaeVerifyToken}}&hub.challenge={{hubChallenge}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "webhook",
+                "whatsapp"
+              ],
+              "query": [
+                {
+                  "key": "hub.mode",
+                  "value": "subscribe"
+                },
+                {
+                  "key": "hub.verify_token",
+                  "value": "{{uaeVerifyToken}}"
+                },
+                {
+                  "key": "hub.challenge",
+                  "value": "{{hubChallenge}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /webhook/whatsapp inbound UAE",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const appSecret = pm.environment.get('uaeAppSecret');",
+                  "const rawTemplate = pm.request.body && pm.request.body.raw ? pm.request.body.raw : '';",
+                  "const raw = pm.variables.replaceIn(rawTemplate);",
+                  "if (appSecret && raw) {",
+                  "  const signature = CryptoJS.HmacSHA256(raw, appSecret).toString(CryptoJS.enc.Hex);",
+                  "  pm.request.headers.upsert({ key: 'x-hub-signature-256', value: 'sha256=' + signature });",
+                  "} else {",
+                  "  pm.request.headers.remove('x-hub-signature-256');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"object\": \"whatsapp_business_account\",\n  \"entry\": [\n    {\n      \"id\": \"{{uaeWabaId}}\",\n      \"changes\": [\n        {\n          \"field\": \"messages\",\n          \"value\": {\n            \"messaging_product\": \"whatsapp\",\n            \"metadata\": {\n              \"display_phone_number\": \"{{uaeDisplayPhoneNumber}}\",\n              \"phone_number_id\": \"{{uaePhoneNumberId}}\"\n            },\n            \"contacts\": [\n              {\n                \"profile\": {\n                  \"name\": \"UAE Test User\"\n                },\n                \"wa_id\": \"{{whatsappTo}}\"\n              }\n            ],\n            \"messages\": [\n              {\n                \"from\": \"{{whatsappTo}}\",\n                \"id\": \"wamid.uae.test.001\",\n                \"timestamp\": \"1710000001\",\n                \"type\": \"text\",\n                \"text\": {\n                  \"body\": \"Hello from UAE channel\"\n                }\n              }\n            ]\n          }\n        }\n      ]\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/webhook/whatsapp",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "webhook",
+                "whatsapp"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/whatsapp/send UAE",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"to\": \"{{whatsappTo}}\",\n  \"text\": \"UAE channel test\",\n  \"phoneNumberId\": \"{{uaePhoneNumberId}}\",\n  \"countryCode\": \"{{uaeCountryCode}}\",\n  \"countryName\": \"{{uaeCountryName}}\",\n  \"previewUrl\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/whatsapp/send",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "whatsapp",
+                "send"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/whatsapp/send-template UAE",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"to\": \"{{whatsappTo}}\",\n  \"templateName\": \"{{templateName}}\",\n  \"language\": \"en_US\",\n  \"phoneNumberId\": \"{{uaePhoneNumberId}}\",\n  \"countryCode\": \"{{uaeCountryCode}}\",\n  \"countryName\": \"{{uaeCountryName}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/whatsapp/send-template",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "whatsapp",
+                "send-template"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST Graph API send UAE",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{uaeSystemUserToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{whatsappTo}}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"body\": \"Direct UAE Graph API test\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{metaGraphBaseUrl}}/{{metaGraphVersion}}/{{uaePhoneNumberId}}/messages",
+              "host": [
+                "{{metaGraphBaseUrl}}"
+              ],
+              "path": [
+                "{{metaGraphVersion}}",
+                "{{uaePhoneNumberId}}",
+                "messages"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "crmAccessToken",
+      "value": ""
+    }
+  ]
+}

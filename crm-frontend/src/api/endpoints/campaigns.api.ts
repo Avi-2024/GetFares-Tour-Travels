@@ -3,11 +3,13 @@ import { apiClient, withQuery } from "../core";
 export interface Campaign {
   id: string;
   name: string;
+  country?: string;
   source?: string;
   budget?: number;
   actualSpend?: number;
   leadsGenerated?: number;
   revenueGenerated?: number;
+  revenueCurrency?: string;
   metaCampaignId?: string;
   metaAdsetId?: string;
   metaAdId?: string;
@@ -18,6 +20,7 @@ export interface Campaign {
 
 export interface CreateCampaignPayload {
   name: string;
+  country?: string;
   source?: string;
   budget?: number;
   actualSpend?: number;
@@ -30,9 +33,21 @@ export interface CreateCampaignPayload {
   endDate?: string;
 }
 
+export interface CampaignSummary {
+  campaignsCount: number;
+  budget: number;
+  actualSpend: number;
+  leadsGenerated: number;
+  revenueGenerated: number;
+  revenueCurrency?: string;
+}
+
 export const campaignsEndpoints = {
   list: (params?: Record<string, any>) =>
     apiClient.get<{ data: Campaign[] }>(withQuery("/api/campaigns", params)),
+
+  summary: (params?: Record<string, any>) =>
+    apiClient.get<{ data: CampaignSummary }>(withQuery("/api/campaigns/summary", params)),
 
   create: (payload: CreateCampaignPayload) =>
     apiClient.post<{ data: Campaign }>("/api/campaigns", payload),

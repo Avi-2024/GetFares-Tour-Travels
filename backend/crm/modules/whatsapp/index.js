@@ -1,6 +1,7 @@
 import { createWhatsAppApi } from "./whatsapp.api.js";
 import { createWhatsAppService } from "./whatsapp.service.js";
 import { createWhatsappController } from "./whatsapp.controller.js";
+import { createWhatsappRepository } from "./whatsapp.repository.js";
 import {
   createWhatsappRoutes,
   createWhatsappWebhookRoutes,
@@ -17,6 +18,11 @@ function createWhatsappModule({
   refundsService,
   visaService,
 }) {
+  const repository = createWhatsappRepository({
+    db: dependencies.db,
+    logger: dependencies.logger,
+  });
+
   const api = createWhatsAppApi({
     accessToken: dependencies.config.whatsapp.accessToken,
     baseUrl: dependencies.config.whatsapp.apiBaseUrl,
@@ -27,6 +33,7 @@ function createWhatsappModule({
 
   const service = createWhatsAppService({
     api,
+    repository,
     config: dependencies.config.whatsapp,
     logger: dependencies.logger,
     leadsService,
@@ -65,6 +72,7 @@ function createWhatsappModule({
     webhookRouter,
     controller,
     service,
+    repository,
     subscribers,
   });
 }

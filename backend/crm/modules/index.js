@@ -88,7 +88,14 @@ function registerModules(app, dependencies) {
   ];
 
   featureFactories.forEach(([name, factory]) => {
-    let moduleOptions = { dependencies: featureDependencies };
+    let moduleOptions = {
+      dependencies: featureDependencies,
+      repositories: {
+        leads: mountedModules.leads?.repository,
+        quotations: mountedModules.quotations?.repository,
+        bookings: mountedModules.bookings?.repository,
+      },
+    };
     
     // Pass leadsRepository to bookings module
     if (name === "bookings" && mountedModules.leads?.repository) {

@@ -1,6 +1,10 @@
 import type { HttpClient } from "../api/apiClient";
 
 export type LeadsQuery = Record<string, string | number | boolean | undefined>;
+export type LeadDestinationListResponse =
+  | { data?: { items?: string[] } }
+  | { data?: string[] }
+  | string[];
 
 export type LeadDestinationRecord =
   | {
@@ -155,6 +159,8 @@ export const createLeadsDatasource = (client: HttpClient) => ({
     }),
   getCampaigns: () => client.get("/api/campaigns", { params: { status: "ACTIVE" } }),
   getDestinations: () => client.get("/api/destinations"),
+  getLeadDestinations: (params?: LeadsQuery) =>
+    client.get<LeadDestinationListResponse>("/api/leads/destinations", { params }),
   distribute: (payload?: { limit?: number; reason?: string }) =>
     client.post("/api/leads/distribute", payload),
   reassignInactive: (payload?: { inactiveMinutes?: number; limit?: number; reason?: string }) =>

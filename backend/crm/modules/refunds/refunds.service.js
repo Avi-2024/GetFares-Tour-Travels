@@ -18,7 +18,7 @@ const POLICY = Object.freeze({
   managerApprovalThreshold: 10000,
 });
 
-function createRefundsService({ repository, logger, events }) {
+function createRefundsService({ repository, bookingsRepository, leadsRepository, logger, events }) {
   function toNumber(value, fallback = 0) {
     if (value === null || value === undefined) {
       return fallback;

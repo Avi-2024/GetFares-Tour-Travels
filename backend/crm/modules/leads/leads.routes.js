@@ -18,6 +18,13 @@ function createLeadsRoutes({
     validateRequest(validation.list),
     asyncHandler(controller.list),
   );
+  router.get(
+    "/destinations",
+    requireAuth,
+    authorize("leads:read"),
+    validateRequest(validation.listDestinations),
+    asyncHandler(controller.listDestinations),
+  );
   router.post(
     "/",
     requireAuth,

@@ -7,6 +7,14 @@ function createCampaignsController({ service }) {
     res.status(200).json({ data: result });
   }
 
+  async function summary(req, res) {
+    const result = await service.summary(
+      req.validated?.query || req.query,
+      req.context,
+    );
+    res.status(200).json({ data: result });
+  }
+
   async function getById(req, res) {
     const result = await service.getById(req.validated.params.id, req.context);
     res.status(200).json({ data: result });
@@ -38,6 +46,7 @@ function createCampaignsController({ service }) {
 
   return Object.freeze({
     list,
+    summary,
     getById,
     create,
     duplicate,

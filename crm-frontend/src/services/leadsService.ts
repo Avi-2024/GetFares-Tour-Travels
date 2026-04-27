@@ -53,6 +53,18 @@ export type LeadsPagination = {
   totalPages: number;
 };
 
+const extractStringList = (response: unknown) => {
+  const payload = (response as { data?: unknown })?.data ?? response;
+  if (Array.isArray(payload)) {
+    return payload.map((item) => String(item || "").trim()).filter(Boolean);
+  }
+  const items = (payload as { items?: unknown })?.items;
+  if (Array.isArray(items)) {
+    return items.map((item) => String(item || "").trim()).filter(Boolean);
+  }
+  return [];
+};
+
 const toPlainText = (value: unknown, fallback = "N/A"): string => {
   if (typeof value === "string") {
     const text = value.trim();
@@ -383,7 +395,11 @@ export const createLeadsService = (datasource: LeadsDatasource) => ({
     };
   },
   listLeadsRaw: async (params?: LeadsQuery): Promise<LeadApiRecord[]> => {
-    const response = await datasource.list(params);
+    const nextParams = {
+      ...(params || {}),
+      limit: Math.min(Number((params as any)?.limit || 25), 50)
+    };
+    const response = await datasource.list(nextParams);
     return extractListPayload(response).items;
   },
   createLead: (payload: unknown) => datasource.create(payload),
@@ -412,6 +428,10 @@ export const createLeadsService = (datasource: LeadsDatasource) => ({
   getDestinations: async () => {
     const response = await datasource.getDestinations();
     return extractArray(response);
+  },
+  getLeadDestinations: async (params?: LeadsQuery) => {
+    const response = await datasource.getLeadDestinations(params);
+    return extractStringList(response);
   },
   distributeLeads: (payload?: { limit?: number; reason?: string }) =>
     datasource.distribute(payload),

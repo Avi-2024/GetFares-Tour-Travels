@@ -470,14 +470,27 @@ function createLeadsService({ repository, logger, events }) {
       .trim()
       .toUpperCase()
       .replace(/[\s-]+/g, "_");
+    if (normalized === "CREATED_AT_DESC" || normalized === "CREATED_DESC") {
+      return "CREATED_AT_DESC";
+    }
+    if (normalized === "CREATED_AT_ASC" || normalized === "CREATED_ASC") {
+      return "CREATED_AT_ASC";
+    }
     if (normalized === "OLDEST_FIRST" || normalized === "OLDEST") {
       return "OLDEST_FIRST";
     }
-    if (normalized === "NAME_A_Z" || normalized === "NAME") {
+    if (
+      normalized === "NAME_A_Z" ||
+      normalized === "NAME" ||
+      normalized === "NAME_ASC"
+    ) {
       return "NAME_A_Z";
     }
-    if (normalized === "STATUS") {
+    if (normalized === "STATUS" || normalized === "STATUS_ASC") {
       return "STATUS";
+    }
+    if (normalized === "COUNTRY_ASC" || normalized === "COUNTRY") {
+      return "COUNTRY_ASC";
     }
     return "NEWEST_FIRST";
   }
@@ -957,10 +970,11 @@ function createLeadsService({ repository, logger, events }) {
     const leadCountry = payload.leadCountry ?? payload.country ?? null;
     const normalizedLeadType = normalizeLeadType(payload.leadType ?? payload.type);
 
-    const mapped = {
-      full_name: payload.fullName || null,
-      phone: normalizePhone(payload.phone),
-      email: normalizeEmail(payload.email),
+	    const mapped = {
+	      full_name: payload.fullName || null,
+	      phone: normalizePhone(payload.phone),
+	      phone_normalized: normalizePhone(payload.phone),
+	      email: normalizeEmail(payload.email),
       pan_number: payload.panNumber || null,
       address_line: payload.addressLine || null,
       client_currency: payload.clientCurrency || null,
@@ -992,6 +1006,11 @@ function createLeadsService({ repository, logger, events }) {
       utm_medium: payload.utmMedium || null,
       utm_campaign: payload.utmCampaign || null,
       meta_lead_id: payload.metaLeadId || null,
+      meta_page_id: payload.metaPageId || null,
+      meta_form_id: payload.metaFormId || null,
+      meta_ad_id: payload.metaAdId || null,
+      meta_adset_id: payload.metaAdsetId || null,
+      meta_campaign_id: payload.metaCampaignId || null,
       priority_level:
         payload.priorityLevel ?? mapTemperatureToPriority(temperature),
       is_vip: payload.isVip ?? false,
@@ -1028,9 +1047,10 @@ function createLeadsService({ repository, logger, events }) {
     if (payload.fullName !== undefined) {
       mapped.full_name = payload.fullName;
     }
-    if (payload.phone !== undefined) {
-      mapped.phone = normalizePhone(payload.phone);
-    }
+	    if (payload.phone !== undefined) {
+	      mapped.phone = normalizePhone(payload.phone);
+	      mapped.phone_normalized = normalizePhone(payload.phone);
+	    }
     if (payload.email !== undefined) {
       mapped.email = normalizeEmail(payload.email);
     }
@@ -1096,6 +1116,21 @@ function createLeadsService({ repository, logger, events }) {
     }
     if (payload.metaLeadId !== undefined) {
       mapped.meta_lead_id = payload.metaLeadId || null;
+    }
+    if (payload.metaPageId !== undefined) {
+      mapped.meta_page_id = payload.metaPageId || null;
+    }
+    if (payload.metaFormId !== undefined) {
+      mapped.meta_form_id = payload.metaFormId || null;
+    }
+    if (payload.metaAdId !== undefined) {
+      mapped.meta_ad_id = payload.metaAdId || null;
+    }
+    if (payload.metaAdsetId !== undefined) {
+      mapped.meta_adset_id = payload.metaAdsetId || null;
+    }
+    if (payload.metaCampaignId !== undefined) {
+      mapped.meta_campaign_id = payload.metaCampaignId || null;
     }
     if (payload.adultsCount !== undefined) {
       mapped.adults_count = payload.adultsCount;
@@ -1823,7 +1858,7 @@ function createLeadsService({ repository, logger, events }) {
         "Listing leads",
       );
       const page = toPositiveInt(filters.page, 1, 1000000);
-      const limit = toPositiveInt(filters.limit, 15, 500);
+      const limit = toPositiveInt(filters.limit, 25, 50);
       const mappedFilters = {
         ...filters,
         page,
@@ -1893,6 +1928,45 @@ function createLeadsService({ repository, logger, events }) {
           totalPages: Math.max(1, Math.ceil(total / safeLimit)),
         },
       };
+    },
+
+    async listDestinations(filters = {}, context = {}) {
+      const mappedFilters = {
+        search: filters.search ? String(filters.search).trim() : undefined,
+        country: filters.country ? String(filters.country).trim() : undefined,
+        limit: toPositiveInt(filters.limit, 200, 500),
+      };
+
+      const userId = context.user?.id || null;
+      const userRole = normalizeRoleToken(context.user?.role);
+      const isAgent = isAgentRole(userRole);
+      const isManager = isManagerRole(userRole);
+
+      if (isAgent && userId) {
+        mappedFilters.assignedTo = userId;
+        const agentCountrySet = await getUserCountrySet(userId);
+        if (agentCountrySet.size > 0) {
+          mappedFilters.allowedCountries = [...agentCountrySet];
+        }
+      }
+
+      if (isManager && userId) {
+        const [managerCountrySet, managedAgentIds] = await Promise.all([
+          getUserCountrySet(userId),
+          repository.findManagedAgentIds(userId),
+        ]);
+        const visibleAssigneeIds = [userId, ...managedAgentIds].filter(Boolean);
+        if (visibleAssigneeIds.length > 0) {
+          mappedFilters.visibleAssigneeIds = [...new Set(visibleAssigneeIds)];
+          mappedFilters.includeUnassigned = true;
+        }
+        if (managerCountrySet.size > 0) {
+          mappedFilters.allowedCountries = [...managerCountrySet];
+        }
+      }
+
+      const items = await repository.findDistinctDestinations(mappedFilters);
+      return { items };
     },
 
     getById,

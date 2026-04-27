@@ -788,6 +788,7 @@ function createBookingsRepository({ db, logger, schema }) {
       });
       return mapRowToDomain(row);
     },
+
     findTravelReminderCandidates,
     createReminderLog,
     findDeadlineCandidates,

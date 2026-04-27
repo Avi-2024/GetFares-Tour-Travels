@@ -10,6 +10,15 @@ const packageCategory = z.enum([
   "FAMILY",
 ]);
 const packageKind = z.enum(["READY", "CUSTOMIZED"]);
+const packageSortBy = z.enum([
+  "createdAt",
+  "updatedAt",
+  "name",
+  "destination",
+  "status",
+  "startingPrice",
+  "validTo",
+]);
 
 const customServiceLine = z.object({
   id: z.string().optional(),
@@ -19,6 +28,25 @@ const customServiceLine = z.object({
   markupPercent: z.coerce.number().min(0).max(100).optional(),
   sellValue: z.coerce.number().nonnegative().optional(),
 });
+
+const packageFeatureLine = z
+  .object({
+    id: z.string().optional(),
+    iconName: z.string().trim().max(120).optional(),
+    icon_name: z.string().trim().max(120).optional(),
+    title: z.string().trim().max(200).optional(),
+    description: z.string().max(2000).optional(),
+  })
+  .refine(
+    (value) =>
+      Boolean(
+        value.iconName ||
+          value.icon_name ||
+          value.title ||
+          value.description,
+      ),
+    "Feature cannot be empty",
+  );
 
 const emptyToUndefined = (value) => {
   if (typeof value === "string" && value.trim() === "") {
@@ -53,11 +81,21 @@ const create = z.object({
     cancellationPolicy: z.string().max(4000).optional(),
     packageCategory: packageCategory.optional(),
     status: packageStatus.optional(),
+    country: z.string().trim().max(100).optional(),
+    image: z.string().max(4000).optional(),
+    rating: z.coerce.number().min(0).max(5).optional(),
+    location: z.string().trim().max(200).optional(),
+    transport: z.string().trim().max(120).optional(),
+    snapshot: z.string().max(12000).optional(),
+    highlights: z.array(z.string().trim().min(1).max(500)).max(100).optional(),
+    features: z.array(packageFeatureLine).max(100).optional(),
     bannerImageUrl: z.string().max(4000).optional(),
     galleryImageUrls: z.array(z.string().max(4000)).optional(),
     metaTitle: z.string().max(180).optional(),
     metaDescription: z.string().max(2000).optional(),
     keywords: z.string().max(1000).optional(),
+    displayOrder: z.coerce.number().int().min(0).optional(),
+    isFeatured: z.boolean().optional(),
     publishToWebsite: z.boolean().optional(),
     websiteSlug: z.string().max(180).optional(),
     isSoldOut: z.boolean().optional(),
@@ -88,11 +126,21 @@ const update = z.object({
       cancellationPolicy: z.string().max(4000).optional(),
       packageCategory: packageCategory.optional(),
       status: packageStatus.optional(),
+      country: z.string().trim().max(100).optional(),
+      image: z.string().max(4000).optional(),
+      rating: z.coerce.number().min(0).max(5).optional(),
+      location: z.string().trim().max(200).optional(),
+      transport: z.string().trim().max(120).optional(),
+      snapshot: z.string().max(12000).optional(),
+      highlights: z.array(z.string().trim().min(1).max(500)).max(100).optional(),
+      features: z.array(packageFeatureLine).max(100).optional(),
       bannerImageUrl: z.string().max(4000).optional(),
       galleryImageUrls: z.array(z.string().max(4000)).optional(),
       metaTitle: z.string().max(180).optional(),
       metaDescription: z.string().max(2000).optional(),
       keywords: z.string().max(1000).optional(),
+      displayOrder: z.coerce.number().int().min(0).optional(),
+      isFeatured: z.boolean().optional(),
       publishToWebsite: z.boolean().optional(),
       websiteSlug: z.string().max(180).optional(),
       isSoldOut: z.boolean().optional(),
@@ -117,13 +165,17 @@ const list = z.object({
   query: z
     .object({
       page: z.coerce.number().int().positive().optional(),
-      limit: z.coerce.number().int().positive().optional(),
+      limit: z.coerce.number().int().positive().max(50).optional(),
       status: packageStatus.optional(),
-      destination: z.string().optional(),
+      destination: z.string().max(120).optional(),
       packageCategory: packageCategory.optional(),
       publishToWebsite: optionalQueryBoolean,
       isSoldOut: optionalQueryBoolean,
       search: z.string().max(120).optional(),
+      createdFrom: optionalDate,
+      createdTo: optionalDate,
+      sortBy: packageSortBy.optional(),
+      sortOrder: z.enum(["asc", "desc"]).optional(),
     })
     .optional(),
 });

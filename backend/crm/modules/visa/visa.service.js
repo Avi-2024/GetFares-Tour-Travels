@@ -70,7 +70,7 @@ const CHECKLIST_DOC_MAP = Object.freeze({
   ITINERARY: "final_itinerary_uploaded",
 });
 
-function createVisaService({ repository, logger, events }) {
+function createVisaService({ repository, bookingsRepository, leadsRepository, logger, events }) {
   function normalizeWorkflowStage(value, fallback = null) {
     const normalized = String(value || "")
       .trim()

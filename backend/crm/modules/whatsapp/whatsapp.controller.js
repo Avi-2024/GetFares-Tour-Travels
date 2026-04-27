@@ -1,12 +1,12 @@
 function createWhatsappController({ service }) {
   return Object.freeze({
     async configStatus(_req, res) {
-      const result = service.getConfigStatus();
+      const result = await service.getConfigStatus();
       res.status(200).json({ data: result });
     },
 
     async verify(req, res) {
-      const challenge = service.verifyWebhook(
+      const challenge = await service.verifyWebhook(
         req.validated?.query ?? req.query,
       );
       res.status(200).send(challenge);

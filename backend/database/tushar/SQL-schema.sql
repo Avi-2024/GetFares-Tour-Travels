@@ -407,6 +407,7 @@ CREATE TABLE IF NOT EXISTS customers (
 );
 CREATE INDEX idx_customers_is_deleted ON customers(is_deleted);
 CREATE INDEX idx_customers_is_deleted_segment ON customers(is_deleted, segment);
+CREATE INDEX idx_customers_active_created_at ON customers(is_deleted, created_at);
 
 CREATE TABLE IF NOT EXISTS customer_leads (
     customer_id CHAR(36),
@@ -428,6 +429,9 @@ CREATE TABLE IF NOT EXISTS complaints (
     FOREIGN KEY (booking_id) REFERENCES bookings(id),
     FOREIGN KEY (assigned_to) REFERENCES users(id)
 );
+CREATE INDEX idx_complaints_status_created_at ON complaints(status, created_at);
+CREATE INDEX idx_complaints_assigned_created_at ON complaints(assigned_to, created_at);
+CREATE INDEX idx_complaints_booking_created_at ON complaints(booking_id, created_at);
 
 CREATE TABLE IF NOT EXISTS complaint_activities (
     id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
@@ -1106,6 +1110,7 @@ ALTER TABLE customers
   ADD COLUMN pan_number VARCHAR(20),
   ADD COLUMN address_line TEXT,
   ADD COLUMN client_currency VARCHAR(10) DEFAULT 'INR';
+CREATE INDEX idx_customers_active_currency ON customers(is_deleted, client_currency);
 
 ALTER TABLE suppliers
   ADD COLUMN pan_number VARCHAR(20),
@@ -2345,6 +2350,10 @@ CREATE INDEX idx_supplier_payables_supplier_id ON supplier_payables(supplier_id)
 CREATE INDEX idx_supplier_payables_status ON supplier_payables(status);
 
 CREATE INDEX idx_packages_status_publish ON packages(status, publish_to_website);
+CREATE INDEX idx_packages_active_created_at ON packages(is_deleted, created_at);
+CREATE INDEX idx_packages_active_status_created_at ON packages(is_deleted, status, created_at);
+CREATE INDEX idx_packages_active_category_created_at ON packages(is_deleted, package_category, created_at);
+CREATE INDEX idx_packages_active_sold_out_created_at ON packages(is_deleted, is_sold_out, created_at);
 
 CREATE INDEX idx_package_enquiries_package_id ON package_enquiries(package_id);
 
