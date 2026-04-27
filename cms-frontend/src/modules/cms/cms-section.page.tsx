@@ -361,6 +361,7 @@ class CmsSectionPage extends Component<
           sectionKey={sectionKey}
           sectionTitle={section.title}
           entry={modalMode === "edit" ? selectedEntry : null}
+          allRows={rows}
           initialValues={modalMode === "create" && copyInitialValues ? copyInitialValues : undefined}
           onClose={this.closeModal}
           onSaved={this.handleEditorSaved}
