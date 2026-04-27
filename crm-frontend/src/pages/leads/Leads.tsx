@@ -494,7 +494,11 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
     return (
       <div
         className="grid border-b border-gray-100 bg-white transition-colors hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-900 dark:hover:bg-gray-800/40"
-        style={{ gridTemplateColumns: "120px 240px 120px 220px 170px 140px 140px 150px 120px 110px" }}
+        style={{
+          gridTemplateColumns: "120px 240px 120px 220px 170px 140px 140px 150px 120px 110px",
+          width: "max-content",
+          minWidth: "100%",
+        }}
       >
         <div className="px-3 py-4 text-center text-sm font-medium text-gray-700 dark:text-gray-200">
           {dateLabel}
