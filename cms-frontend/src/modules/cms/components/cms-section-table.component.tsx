@@ -1,5 +1,5 @@
 import { Component, type ReactNode } from "react";
-import { CirclePlus, Eye, PencilLine, RotateCcw, Trash2 } from "lucide-react";
+import { CirclePlus, Copy, Eye, PencilLine, RotateCcw, Trash2 } from "lucide-react";
 import SurfaceCardComponent from "../../../shared/components/cards/surface-card.component";
 import type { CmsTableEntry } from "../types/cms-table-entry.type";
 
@@ -13,6 +13,7 @@ interface CmsSectionTableProps {
   supportsCreate: boolean;
   supportsEdit: boolean;
   supportsDelete: boolean;
+  supportsCopy?: boolean;
   supportsRestore?: boolean;
   deleteActionLabel?: string;
   emptyStateMessage?: string;
@@ -21,6 +22,7 @@ interface CmsSectionTableProps {
   onView: (entry: CmsTableEntry) => void;
   onEdit: (entry: CmsTableEntry) => void;
   onDelete: (entry: CmsTableEntry) => void;
+  onCopy?: (entry: CmsTableEntry) => void;
   onRestore?: (entry: CmsTableEntry) => void;
   onImagePreview: (url: string, label: string) => void;
   getImageUrl: (entry: CmsTableEntry) => string | null;
@@ -99,6 +101,7 @@ class CmsSectionTableComponent extends Component<CmsSectionTableProps> {
       supportsCreate,
       supportsEdit,
       supportsDelete,
+      supportsCopy = false,
       supportsRestore = false,
       deleteActionLabel = "Delete",
       emptyStateMessage = "No records found for the selected filters.",
@@ -106,6 +109,7 @@ class CmsSectionTableComponent extends Component<CmsSectionTableProps> {
       onView,
       onEdit,
       onDelete,
+      onCopy,
       onRestore,
       onImagePreview,
       getImageUrl,
@@ -208,6 +212,14 @@ class CmsSectionTableComponent extends Component<CmsSectionTableProps> {
                       onClick: () => onEdit(entry),
                       icon: <PencilLine size={14} />,
                     })}
+                    {supportsCopy &&
+                      onCopy &&
+                      this.renderActionButton({
+                        label: `Copy ${entryLabel}`,
+                        title: "Copy",
+                        onClick: () => onCopy(entry),
+                        icon: <Copy size={14} />,
+                      })}
                     {supportsRestore &&
                       onRestore &&
                       this.renderActionButton({
@@ -324,6 +336,14 @@ class CmsSectionTableComponent extends Component<CmsSectionTableProps> {
                             onClick: () => onEdit(entry),
                             icon: <PencilLine size={14} />,
                           })}
+                          {supportsCopy &&
+                            onCopy &&
+                            this.renderActionButton({
+                              label: `Copy ${entryLabel}`,
+                              title: "Copy",
+                              onClick: () => onCopy(entry),
+                              icon: <Copy size={14} />,
+                            })}
                           {supportsRestore &&
                             onRestore &&
                             this.renderActionButton({
