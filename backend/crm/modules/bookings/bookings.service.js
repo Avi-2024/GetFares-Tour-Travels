@@ -29,6 +29,38 @@ function createBookingsService({ repository, logger, events, config, leadsReposi
     preTravelDays: config?.whatsapp?.preTravelDays ?? 2,
     postTravelDays: config?.whatsapp?.postTravelDays ?? 1,
   };
+  function normalizeRoleToken(value) {
+    return String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[\s-]+/g, "_");
+  }
+
+  function isManagerRole(value) {
+    const role = normalizeRoleToken(value);
+    return role === "manager" || role === "department_head" || role === "team_lead";
+  }
+
+  function isAgentRole(value) {
+    const role = normalizeRoleToken(value);
+    return (
+      role === "agent" ||
+      role === "sales_consultant" ||
+      role === "visa_executive" ||
+      role === "holiday_consultant"
+    );
+  }
+
+  function isSuperAdminRole(value) {
+    const role = normalizeRoleToken(value);
+    return role === "super_admin" || role === "superadmin";
+  }
+
+  function isFullAccessRole(value) {
+    const role = normalizeRoleToken(value);
+    return isSuperAdminRole(role) || role === "admin" || role === "accounts";
+  }
+
   function toNumber(value, fallback = 0) {
     if (value === null || value === undefined) {
       return fallback;
@@ -251,6 +283,36 @@ function createBookingsService({ repository, logger, events, config, leadsReposi
     }
   }
 
+  async function canViewBooking(booking, lead, context = {}) {
+    const userId = context.user?.id || null;
+    const userRole = normalizeRoleToken(context.user?.role);
+
+    if (!userId) {
+      return false;
+    }
+
+    if (isFullAccessRole(userRole)) {
+      return true;
+    }
+
+    if (isAgentRole(userRole)) {
+      return Boolean(lead?.assignedTo && lead.assignedTo === userId);
+    }
+
+    if (isManagerRole(userRole)) {
+      const managedAgentIds = typeof leadsRepository?.findManagedAgentIds === "function"
+        ? await leadsRepository.findManagedAgentIds(userId)
+        : [];
+      const visibleAssigneeIds = new Set([userId, ...managedAgentIds].filter(Boolean));
+      if (!lead?.assignedTo) {
+        return true;
+      }
+      return visibleAssigneeIds.has(lead.assignedTo);
+    }
+
+    return true;
+  }
+
   async function getById(id, context = {}) {
     logger.debug(
       { module: "bookings", requestId: context.requestId, id },
@@ -262,12 +324,20 @@ function createBookingsService({ repository, logger, events, config, leadsReposi
       throw new AppError(404, "Booking not found", "BOOKING_NOT_FOUND");
     }
 
+    const accessLead = booking.leadId && leadsRepository
+      ? await leadsRepository.findById(booking.leadId).catch(() => null)
+      : null;
+    const allowed = await canViewBooking(booking, accessLead, context);
+    if (!allowed) {
+      throw new AppError(404, "Booking not found", "BOOKING_NOT_FOUND");
+    }
+
     const withDeadline = withDeadlineInsights(booking);
     const enriched = await enrichBookingsWithLeadNames([withDeadline]);
     return enriched[0];
   }
 
-  async function ensureQuotationExists(quotationId) {
+  async function ensureQuotationExists(quotationId, context = {}) {
     const normalizedQuotationId = String(quotationId || "").trim();
     if (!normalizedQuotationId) {
       throw new AppError(
@@ -301,6 +371,18 @@ function createBookingsService({ repository, logger, events, config, leadsReposi
         "Only APPROVED quotations can be used to create a booking.",
         "BOOKING_QUOTATION_NOT_APPROVED",
       );
+    }
+
+    const accessLead = quotation.leadId && leadsRepository
+      ? await leadsRepository.findById(quotation.leadId).catch(() => null)
+      : null;
+    const allowed = await canViewBooking(
+      { id: null, leadId: quotation.leadId },
+      accessLead,
+      context,
+    );
+    if (!allowed) {
+      throw new AppError(404, "Quotation not found", "BOOKING_QUOTATION_NOT_FOUND");
     }
 
     return quotation;
@@ -741,7 +823,17 @@ function createBookingsService({ repository, logger, events, config, leadsReposi
       const list = await repository.findAll(filters);
       const withDeadlines = list.map((item) => withDeadlineInsights(item));
       const enriched = await enrichBookingsWithLeadNames(withDeadlines);
-      return enriched;
+      const visible = [];
+      for (const booking of enriched) {
+        const accessLead = booking.leadId && leadsRepository
+          ? await leadsRepository.findById(booking.leadId).catch(() => null)
+          : null;
+        const allowed = await canViewBooking(booking, accessLead, context);
+        if (allowed) {
+          visible.push(booking);
+        }
+      }
+      return visible;
     },
 
     async stats(context = {}) {
@@ -756,7 +848,7 @@ function createBookingsService({ repository, logger, events, config, leadsReposi
 
     async create(payload, context = {}) {
       const normalizedQuotationId = String(payload.quotationId || "").trim();
-      await ensureQuotationExists(normalizedQuotationId);
+      await ensureQuotationExists(normalizedQuotationId, context);
 
       const existingForQuotation = await repository.findByQuotationId(
         normalizedQuotationId,

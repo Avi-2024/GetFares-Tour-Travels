@@ -205,10 +205,72 @@ function buildQuoteNumber() {
 }
 
 function createQuotationsService({ repository, leadsRepository, logger, events, config, s3, mailService }) {
+  function normalizeRoleToken(value) {
+    return String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[\s-]+/g, "_");
+  }
+
+  function isManagerRole(value) {
+    const role = normalizeRoleToken(value);
+    return role === "manager" || role === "department_head" || role === "team_lead";
+  }
+
+  function isAgentRole(value) {
+    const role = normalizeRoleToken(value);
+    return (
+      role === "agent" ||
+      role === "sales_consultant" ||
+      role === "visa_executive" ||
+      role === "holiday_consultant"
+    );
+  }
+
+  function isSuperAdminRole(value) {
+    const role = normalizeRoleToken(value);
+    return role === "super_admin" || role === "superadmin";
+  }
+
+  function isFullAccessRole(value) {
+    const role = normalizeRoleToken(value);
+    return isSuperAdminRole(role) || role === "admin" || role === "accounts";
+  }
+
   function assertAuthenticatedUser(user) {
     if (!user?.id) {
       throw new AppError(401, "Authentication required", "AUTH_REQUIRED");
     }
+  }
+
+  async function canViewQuotation(quotation, lead, context = {}) {
+    const userId = context.user?.id || null;
+    const userRole = normalizeRoleToken(context.user?.role);
+
+    if (!userId) {
+      return false;
+    }
+
+    if (isFullAccessRole(userRole)) {
+      return true;
+    }
+
+    if (isAgentRole(userRole)) {
+      return Boolean(lead?.assignedTo && lead.assignedTo === userId);
+    }
+
+    if (isManagerRole(userRole)) {
+      const managedAgentIds = typeof leadsRepository?.findManagedAgentIds === "function"
+        ? await leadsRepository.findManagedAgentIds(userId)
+        : [];
+      const visibleAssigneeIds = new Set([userId, ...managedAgentIds].filter(Boolean));
+      if (!lead?.assignedTo) {
+        return true;
+      }
+      return visibleAssigneeIds.has(lead.assignedTo);
+    }
+
+    return true;
   }
 
   function toHours(value, fallback) {
@@ -994,6 +1056,14 @@ function createQuotationsService({ repository, leadsRepository, logger, events, 
       response = await attachRelations(response);
     }
 
+    const accessLead = response.lead || (response.leadId
+      ? await repository.findLeadById(response.leadId)
+      : null);
+    const allowed = await canViewQuotation(response, accessLead, context);
+    if (!allowed) {
+      throw new AppError(404, "Quotation not found", "QUOTATION_NOT_FOUND");
+    }
+
     return response;
   }
 
@@ -1577,12 +1647,20 @@ function createQuotationsService({ repository, leadsRepository, logger, events, 
         };
       });
 
+      const visibleRows = [];
+      for (const row of withUsers) {
+        const allowed = await canViewQuotation(row, row.lead, context);
+        if (allowed) {
+          visibleRows.push(row);
+        }
+      }
+
       if (!filters.includeItems) {
-        return withUsers;
+        return visibleRows;
       }
 
       const result = [];
-      for (const row of withUsers) {
+      for (const row of visibleRows) {
         const items = await repository.findItemsByQuotationId(row.id);
         result.push({ ...row, items });
       }
