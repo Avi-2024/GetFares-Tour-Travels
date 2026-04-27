@@ -23,6 +23,7 @@ interface CmsEntityEditorModalProps {
   sectionTitle: string;
   entry: CmsTableEntry | null;
   initialValues?: Record<string, unknown>;
+  allRows?: CmsTableEntry[];
   onClose: () => void;
   onSaved: (message: string) => Promise<void> | void;
 }
@@ -55,6 +56,7 @@ interface CmsEntityEditorModalState {
   mediaInfoMessage: string;
   slugTouched: boolean;
   showDisplayOrderConflict: boolean;
+  conflictingEntryLabel: string;
   pendingForcePayload: Record<string, unknown> | null;
   copies: LandingCopy[];
   copyIdCounter: number;
@@ -93,6 +95,7 @@ class CmsEntityEditorModalComponent extends Component<
     mediaInfoMessage: "",
     slugTouched: false,
     showDisplayOrderConflict: false,
+    conflictingEntryLabel: "",
     pendingForcePayload: null,
     copies: [],
     copyIdCounter: 0,
@@ -921,11 +924,46 @@ class CmsEntityEditorModalComponent extends Component<
     if (!this.validate()) return;
     const destinationMediaError = this.validateDestinationMedia();
     if (destinationMediaError) {
-      this.setState({
-        mediaErrorMessage: destinationMediaError,
-      });
+      this.setState({ mediaErrorMessage: destinationMediaError });
       return;
     }
+
+    // Client-side display order conflict check
+    const definition = CmsEntityFormCatalog.get(this.props.sectionKey);
+    const hasDisplayOrderField = definition.fields.some((f) => f.key === "displayOrder");
+    if (hasDisplayOrderField) {
+      const pendingOrder = Number(this.state.formValues["displayOrder"]);
+      if (pendingOrder >= 1) {
+        const allRows = this.props.allRows ?? [];
+        const conflicting = allRows.find(
+          (r) =>
+            r.id !== this.props.entry?.id &&
+            Number(r.raw.display_order ?? r.raw.displayOrder) === pendingOrder,
+        );
+        if (conflicting) {
+          const conflictingEntryLabel = String(
+            conflicting.raw.title ??
+            conflicting.raw.name ??
+            conflicting.raw.place_name ??
+            conflicting.raw.placeName ??
+            conflicting.raw.destination ??
+            conflicting.raw.country ??
+            conflicting.id,
+          );
+          let payload: Record<string, unknown> = {};
+          const uploadedMediaItems = await this.uploadPendingMediaFiles();
+          payload = this.createPayload(uploadedMediaItems);
+          payload = await this.uploadPendingFieldImages(payload);
+          this.setState({
+            showDisplayOrderConflict: true,
+            conflictingEntryLabel,
+            pendingForcePayload: payload,
+          });
+          return;
+        }
+      }
+    }
+
     this.setState({ isSubmitting: true, mediaErrorMessage: "" });
     let payload: Record<string, unknown> = {};
     try {
@@ -1010,9 +1048,28 @@ class CmsEntityEditorModalComponent extends Component<
         message.toLowerCase().includes("display order must be unique") ||
         (error instanceof Error && (error as Error & { code?: string }).code === "DUPLICATE_DISPLAY_ORDER");
       if (isDisplayOrderConflict) {
+        const conflictOrder = Number(payload.displayOrder);
+        const allRows = this.props.allRows ?? [];
+        const conflicting = allRows.find(
+          (r) =>
+            r.id !== this.props.entry?.id &&
+            Number(r.raw.display_order ?? r.raw.displayOrder) === conflictOrder,
+        );
+        const conflictingEntryLabel = conflicting
+          ? (String(
+              conflicting.raw.title ??
+              conflicting.raw.name ??
+              conflicting.raw.place_name ??
+              conflicting.raw.placeName ??
+              conflicting.raw.destination ??
+              conflicting.raw.country ??
+              conflicting.id,
+            ))
+          : `Order #${conflictOrder}`;
         this.setState({
           isSubmitting: false,
           showDisplayOrderConflict: true,
+          conflictingEntryLabel,
           pendingForcePayload: payload,
         });
         return;
@@ -1590,13 +1647,7 @@ class CmsEntityEditorModalComponent extends Component<
 
   render() {
     const definition = CmsEntityFormCatalog.get(this.props.sectionKey);
-    const isCopySupported =
-      this.props.sectionKey === "landing-places" ||
-      this.props.sectionKey === "destinations" ||
-      this.props.sectionKey === "main-packages" ||
-      this.props.sectionKey === "sub-packages" ||
-      this.props.sectionKey === "visa-destinations" ||
-      this.props.sectionKey === "creative-toolkit";
+    const isCopySupported = false;
     return (
       <>
         <CmsModalShellComponent
@@ -1723,8 +1774,11 @@ class CmsEntityEditorModalComponent extends Component<
                 Display Order Conflict
               </h3>
               <p className="mt-2 text-xs text-[var(--text-secondary)]">
-                This display order is already taken by another landing place. Do
-                you want to replace it?
+                Display order is already taken by{" "}
+                <span className="font-semibold text-[var(--text-primary)]">
+                  {this.state.conflictingEntryLabel}
+                </span>
+                . Do you want to replace it?
               </p>
               <div className="mt-4 flex justify-end gap-2">
                 <button

@@ -163,8 +163,12 @@ class CmsEntityFormGroupsComponent extends Component<CmsEntityFormGroupsProps> {
           <input
             type="number"
             value={String(value ?? "")}
+            onKeyDown={(e) => {
+              if (e.key === "ArrowUp" || e.key === "ArrowDown") e.preventDefault();
+            }}
+            onWheel={(e) => e.currentTarget.blur()}
             onChange={(event) => onFieldChange(field, event.target.value)}
-            className="h-10 w-full rounded-r-xl rounded-l-none border border-(--border) bg-(--surface) px-3 text-sm text-(--text-primary) outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--ring)"
+            className="h-10 w-full rounded-r-xl rounded-l-none border border-(--border) bg-(--surface) px-3 text-sm text-(--text-primary) outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--ring) [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
           />
         </div>
       );
@@ -427,6 +431,12 @@ class CmsEntityFormGroupsComponent extends Component<CmsEntityFormGroupsProps> {
                             type={inputType}
                             value={itemValue}
                             placeholder={itemField.placeholder}
+                            onKeyDown={(e) => {
+                              if (inputType === "number" && (e.key === "ArrowUp" || e.key === "ArrowDown")) e.preventDefault();
+                            }}
+                            onWheel={(e) => {
+                              if (inputType === "number") e.currentTarget.blur();
+                            }}
                             onChange={(event) => {
                               const next = [...rows];
                               next[rowIndex] = {
@@ -435,7 +445,7 @@ class CmsEntityFormGroupsComponent extends Component<CmsEntityFormGroupsProps> {
                               };
                               onFieldChange(field, next);
                             }}
-                            className="h-10 w-full rounded-lg border border-(--border) bg-(--surface) px-3 text-sm normal-case tracking-normal text-(--text-primary) outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--ring)"
+                            className={`h-10 w-full rounded-lg border border-(--border) bg-(--surface) px-3 text-sm normal-case tracking-normal text-(--text-primary) outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--ring) ${inputType === "number" ? "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" : ""}`}
                           />
                         }
                       </label>
@@ -498,12 +508,29 @@ class CmsEntityFormGroupsComponent extends Component<CmsEntityFormGroupsProps> {
       );
     }
 
+    const isDisplayOrder = field.key === "displayOrder";
+
     return (
       <input
         type={type}
         value={String(value ?? "")}
-        onChange={(event) => onFieldChange(field, event.target.value)}
-        className={className}
+        min={isDisplayOrder ? 1 : undefined}
+        onKeyDown={(e) => {
+          if (type === "number" && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+            e.preventDefault();
+          }
+        }}
+        onWheel={(e) => {
+          if (type === "number") e.currentTarget.blur();
+        }}
+        onChange={(event) => {
+          if (isDisplayOrder) {
+            const num = Number(event.target.value);
+            if (event.target.value !== "" && num < 1) return;
+          }
+          onFieldChange(field, event.target.value);
+        }}
+        className={`${className} ${type === "number" ? "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" : ""}`}
       />
     );
   }
