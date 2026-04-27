@@ -264,7 +264,7 @@ function mergeByKey(items = [], key) {
 
 function buildAutoCampaignName({
   metaCampaignId,
-  pageConfig = {},
+  pageConfig = {}, 
   campaignDetails = null,
 }) {
   const fetchedName = normalizeValue(campaignDetails?.name);

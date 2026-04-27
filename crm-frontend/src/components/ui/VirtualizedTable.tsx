@@ -12,6 +12,7 @@ type VirtualizedTableProps<T> = {
   rows: T[];
   rowHeight?: number;
   height?: number;
+  headerHeight?: number;
   overscan?: number;
   renderRow: (row: T, index: number) => React.ReactNode;
 };
@@ -27,46 +28,54 @@ function VirtualizedTable<T>({
   rows,
   rowHeight = 88,
   height = 560,
+  headerHeight = 48,
   overscan = 4,
   renderRow,
 }: VirtualizedTableProps<T>) {
   const [scrollTop, setScrollTop] = useState(0);
   const totalHeight = rows.length * rowHeight;
+  const effectiveScrollTop = Math.max(0, scrollTop - headerHeight);
+  const bodyViewportHeight = Math.max(0, height - headerHeight);
+  const gridTemplateColumns = columns.map((column) => column.width || "1fr").join(" ");
 
-  const { startIndex, endIndex, visibleRows } = useMemo(() => {
-    const start = Math.max(0, Math.floor(scrollTop / rowHeight) - overscan);
+  const { startIndex, visibleRows } = useMemo(() => {
+    const start = Math.max(0, Math.floor(effectiveScrollTop / rowHeight) - overscan);
     const end = Math.min(
       rows.length,
-      Math.ceil((scrollTop + height) / rowHeight) + overscan,
+      Math.ceil((effectiveScrollTop + bodyViewportHeight) / rowHeight) + overscan,
     );
     return {
       startIndex: start,
-      endIndex: end,
       visibleRows: rows.slice(start, end),
     };
-  }, [height, overscan, rowHeight, rows, scrollTop]);
+  }, [bodyViewportHeight, effectiveScrollTop, overscan, rowHeight, rows]);
 
   return (
     <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800">
-      <div
-        className="grid border-b border-gray-200 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-600 dark:border-gray-800 dark:bg-gray-800/50 dark:text-gray-400"
-        style={{ gridTemplateColumns: columns.map((column) => column.width || "1fr").join(" ") }}
-      >
-        {columns.map((column) => (
-          <div
-            key={column.key}
-            className={`px-3 py-3.5 ${alignClassMap[column.align || "left"]}`}
-          >
-            {column.label}
-          </div>
-        ))}
-      </div>
       <div
         className="overflow-y-auto bg-white dark:bg-gray-900"
         style={{ height }}
         onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
       >
-        <div style={{ height: totalHeight, position: "relative" }}>
+        <div style={{ height: headerHeight + totalHeight, position: "relative" }}>
+          <div
+            className="sticky top-0 z-10 grid border-b border-gray-200 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-600 dark:border-gray-800 dark:bg-gray-800/50 dark:text-gray-400"
+            style={{
+              gridTemplateColumns,
+              height: headerHeight,
+              width: "max-content",
+              minWidth: "100%",
+            }}
+          >
+            {columns.map((column) => (
+              <div
+                key={column.key}
+                className={`px-3 py-3.5 ${alignClassMap[column.align || "left"]}`}
+              >
+                {column.label}
+              </div>
+            ))}
+          </div>
           {visibleRows.map((row, index) => {
             const absoluteIndex = startIndex + index;
             return (
@@ -74,10 +83,11 @@ function VirtualizedTable<T>({
                 key={absoluteIndex}
                 style={{
                   position: "absolute",
-                  top: absoluteIndex * rowHeight,
+                  top: headerHeight + absoluteIndex * rowHeight,
                   left: 0,
-                  right: 0,
                   height: rowHeight,
+                  width: "max-content",
+                  minWidth: "100%",
                 }}
               >
                 {renderRow(row, absoluteIndex)}
