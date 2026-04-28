@@ -50,6 +50,7 @@ interface CmsEntityEditorModalState {
   relationOptions: Record<RelationSourceKey, CmsFieldOption[]>;
   allDestinations: CmsFieldOption[];
   allMainPackages: CmsFieldOption[];
+  allFeaturedReferences: CmsFieldOption[];
   mediaItems: CmsEntityMediaEditorItem[];
   removedMediaIds: string[];
   mediaErrorMessage: string;
@@ -89,6 +90,7 @@ class CmsEntityEditorModalComponent extends Component<
     },
     allDestinations: [],
     allMainPackages: [],
+    allFeaturedReferences: [],
     mediaItems: [],
     removedMediaIds: [],
     mediaErrorMessage: "",
@@ -269,25 +271,23 @@ class CmsEntityEditorModalComponent extends Component<
   ): Promise<CmsFieldOption[]> {
     if (source === "featured-references") {
       const [destinations, visa] = await Promise.all([
-        // this.cmsService.list("published-packages"),
         this.cmsService.list("destinations"),
         this.cmsService.list("visa-destinations"),
       ]);
       return [
-        // ...packages.map((item) => ({
-        //   value: item.id,
-        //   label: `Package - ${item.row.cells.package?.value ?? item.id}`,
-        //   meta: {
-        //     destinationName: item.row.cells.destination?.value ?? "",
-        //   },
-        // })),
         ...destinations.map((item) => ({
           value: item.id,
           label: `Destination - ${item.row.cells.destination?.value ?? item.id}`,
+          meta: {
+            country: String(item.raw.country ?? item.raw.destination_country ?? ""),
+          },
         })),
         ...visa.map((item) => ({
           value: item.id,
           label: `Visa - ${item.row.cells.country?.value ?? item.id}`,
+          meta: {
+            country: String(item.raw.country ?? ""),
+          },
         })),
       ];
     }
@@ -502,6 +502,7 @@ class CmsEntityEditorModalComponent extends Component<
       slugTouched: false,
       allDestinations: [],
       allMainPackages: [],
+      allFeaturedReferences: [],
       copies: [],
       copyIdCounter: 0,
       isCopyAdding: false,
@@ -524,19 +525,17 @@ class CmsEntityEditorModalComponent extends Component<
     // Store full lists before filtering, then filter by pre-selected country (edit mode)
     const allDestinations = nextOptions.destinations;
     const allMainPackages = nextOptions["main-packages"];
+    const allFeaturedReferences = nextOptions["featured-references"];
     const currentCountry = String(formValues["country"] ?? "");
     if (currentCountry) {
       if (allDestinations.length > 0) {
-        nextOptions.destinations = this.filterByCountry(
-          allDestinations,
-          currentCountry,
-        );
+        nextOptions.destinations = this.filterByCountry(allDestinations, currentCountry);
       }
       if (allMainPackages.length > 0) {
-        nextOptions["main-packages"] = this.filterByCountry(
-          allMainPackages,
-          currentCountry,
-        );
+        nextOptions["main-packages"] = this.filterByCountry(allMainPackages, currentCountry);
+      }
+      if (allFeaturedReferences.length > 0) {
+        nextOptions["featured-references"] = this.filterByCountry(allFeaturedReferences, currentCountry);
       }
     }
 
@@ -638,6 +637,7 @@ class CmsEntityEditorModalComponent extends Component<
       relationOptions: nextOptions,
       allDestinations,
       allMainPackages,
+      allFeaturedReferences,
       isBootstrapping: false,
     });
   }
@@ -672,18 +672,16 @@ class CmsEntityEditorModalComponent extends Component<
         const country = String(nextValue ?? "");
         nextRelationOptions = { ...prev.relationOptions };
         if (prev.allDestinations.length > 0) {
-          nextRelationOptions.destinations = this.filterByCountry(
-            prev.allDestinations,
-            country,
-          );
+          nextRelationOptions.destinations = this.filterByCountry(prev.allDestinations, country);
           formValues["destinationId"] = "";
         }
         if (prev.allMainPackages.length > 0) {
-          nextRelationOptions["main-packages"] = this.filterByCountry(
-            prev.allMainPackages,
-            country,
-          );
+          nextRelationOptions["main-packages"] = this.filterByCountry(prev.allMainPackages, country);
           formValues["mainPackageId"] = "";
+        }
+        if (prev.allFeaturedReferences.length > 0) {
+          nextRelationOptions["featured-references"] = this.filterByCountry(prev.allFeaturedReferences, country);
+          formValues["referenceId"] = "";
         }
       }
 

@@ -197,7 +197,22 @@ const ModalComponent = ({
                     className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-(--border) bg-(--surface) text-(--text-secondary) transition hover:bg-(--background-soft) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--ring)"
                     aria-label="Close modal"
                   >
-                    <span aria-hidden="true">&times;</span>
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="flex-shrink-0"
+                    >
+                      <path
+                        d="M12 4L4 12M4 4L12 12"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
                   </button>
                 </div>
               </motion.header>

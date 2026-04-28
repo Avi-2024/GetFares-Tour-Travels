@@ -221,7 +221,6 @@ class CmsEntityFormCatalog {
             key: "displayOrder",
             label: "Display Order",
             type: "select",
-            required: true,
             groupKey: "status",
             options: Array.from({ length: 4 }, (_, i) => ({
               label: String(i + 1),
@@ -710,7 +709,6 @@ class CmsEntityFormCatalog {
             key: "displayOrder",
             label: "Display Order",
             type: "number",
-            required: true,
             groupKey: "status",
           },
           {
@@ -944,7 +942,6 @@ class CmsEntityFormCatalog {
             key: "displayOrder",
             label: "Display Order",
             type: "number",
-            required: true,
             groupKey: "basic",
           },
         ],
@@ -1114,7 +1111,6 @@ class CmsEntityFormCatalog {
             key: "displayOrder",
             label: "Display Order",
             type: "number",
-            required: true,
             groupKey: "status",
           },
           {
@@ -1259,7 +1255,6 @@ class CmsEntityFormCatalog {
             type: "text",
             groupKey: "content",
           },
-          { key: "ctaUrl", label: "CTA URL", type: "url", groupKey: "content" },
           {
             key: "tags",
             label: "Tags",
@@ -1319,7 +1314,6 @@ class CmsEntityFormCatalog {
             key: "displayOrder",
             label: "Display Order",
             type: "number",
-            required: true,
             groupKey: "status",
           },
           {
