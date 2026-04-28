@@ -455,6 +455,17 @@ class CmsEntityEditorModalComponent extends Component<
         if (value === undefined && field.key === "seasonFocus") {
           value = this.getRawValue(this.props.entry as CmsTableEntry, "season");
         }
+        // For sub-packages, resolve country from the raw record (stored as destination_country or via mainPackage)
+        if (
+          value === undefined &&
+          this.props.sectionKey === "sub-packages" &&
+          field.key === "country"
+        ) {
+          value =
+            this.getRawValue(this.props.entry as CmsTableEntry, "country") ??
+            this.getRawValue(this.props.entry as CmsTableEntry, "destination_country") ??
+            this.getRawValue(this.props.entry as CmsTableEntry, "destinationCountry");
+        }
         if (value === undefined || value === null) {
           return;
         }
@@ -486,6 +497,107 @@ class CmsEntityEditorModalComponent extends Component<
 
     this.revokeAllPreviewUrls();
 
+    // Pre-populate image previews from initial values (copy mode)
+    const fieldImagePreviews: Record<string, string> = {};
+    let copyMediaItems: CmsEntityMediaEditorItem[] = [];
+    if (this.props.initialValues) {
+      const definition2 = CmsEntityFormCatalog.get(this.props.sectionKey);
+      definition2.fields.forEach((field) => {
+        if (field.type === "url" && /image|thumbnail|hero|banner/i.test(field.key)) {
+          const val = String(formValues[field.key] ?? "").trim();
+          if (val) fieldImagePreviews[field.key] = val;
+        }
+      });
+
+      // For media-enabled sections, pre-populate mediaItems from raw data
+      if (definition2.mediaEnabled) {
+        const raw = this.props.initialValues;
+        const media = raw.media;
+        const mediaRecord =
+          media && typeof media === "object" && !Array.isArray(media)
+            ? (media as Record<string, unknown>)
+            : {};
+
+        if (this.props.sectionKey === "destinations") {
+          const titleImageUrl = String(
+            mediaRecord.title_image ??
+            raw.titleImageUrl ??
+            raw.thumbnailUrl ??
+            raw.heroImageUrl ??
+            "",
+          ).trim();
+          const gallery = Array.isArray(mediaRecord.gallery)
+            ? (mediaRecord.gallery as string[]).filter(Boolean)
+            : [];
+          if (titleImageUrl) {
+            copyMediaItems.push({
+              id: null,
+              clientId: "copy-title-image",
+              mediaUrl: titleImageUrl,
+              thumbnailUrl: titleImageUrl,
+              title: "Title Image",
+              altText: "Title Image",
+              isPrimary: true,
+              mediaKind: "image",
+              pendingFile: null,
+              previewUrl: undefined,
+            });
+          }
+          gallery.slice(0, 4).forEach((url, i) => {
+            copyMediaItems.push({
+              id: null,
+              clientId: `copy-gallery-${i}`,
+              mediaUrl: url,
+              thumbnailUrl: url,
+              title: "",
+              altText: "",
+              isPrimary: false,
+              mediaKind: "image",
+              pendingFile: null,
+              previewUrl: undefined,
+            });
+          });
+        } else {
+          // For other media-enabled sections — try raw fields first, then fetch from media API
+          const imageUrl = String(
+            raw.imageUrl ?? raw.image_url ?? raw.heroImageUrl ?? raw.bannerImageUrl ?? "",
+          ).trim();
+          if (imageUrl) {
+            copyMediaItems.push({
+              id: null,
+              clientId: "copy-primary-image",
+              mediaUrl: imageUrl,
+              thumbnailUrl: imageUrl,
+              title: "",
+              altText: "",
+              isPrimary: true,
+              mediaKind: "image",
+              pendingFile: null,
+              previewUrl: undefined,
+            });
+          } else if (raw.id) {
+            // Fetch from media API (e.g. main-packages stores images via media API)
+            const entityType = this.cmsService.getMediaEntityType(this.props.sectionKey);
+            const fetchedMedia = await this.cmsService.listMedia(entityType, String(raw.id)).catch(() => []);
+            fetchedMedia.forEach((item) => {
+              copyMediaItems.push({
+                id: null,
+                clientId: `copy-media-${item.id}`,
+                mediaUrl: item.mediaUrl,
+                thumbnailUrl: item.thumbnailUrl || item.mediaUrl,
+                title: item.title || "",
+                altText: item.altText || "",
+                isPrimary: item.isPrimary,
+                mediaKind: item.mediaKind || "image",
+                pendingFile: null,
+                previewUrl: undefined,
+              });
+            });
+          }
+        }
+      }
+    }
+
     this.setState({
       isBootstrapping: true,
       isMediaUploading: false,
@@ -494,8 +606,8 @@ class CmsEntityEditorModalComponent extends Component<
       formErrors: {},
       formUploadErrorMessage: "",
       fieldImageFiles: {},
-      fieldImagePreviews: {},
-      mediaItems: [],
+      fieldImagePreviews,
+      mediaItems: copyMediaItems,
       removedMediaIds: [],
       mediaErrorMessage: "",
       mediaInfoMessage: "",
@@ -515,7 +627,13 @@ class CmsEntityEditorModalComponent extends Component<
           .filter((item): item is RelationSourceKey => Boolean(item)),
       ),
     );
-    const nextOptions = { ...this.state.relationOptions };
+    const nextOptions: Record<RelationSourceKey, CmsFieldOption[]> = {
+      destinations: [],
+      "published-packages": [],
+      "main-packages": [],
+      "visa-destinations": [],
+      "featured-references": [],
+    };
     for (const source of relationSources) {
       nextOptions[source] = await this.loadRelationOptions(source).catch(
         () => [],
@@ -926,12 +1044,16 @@ class CmsEntityEditorModalComponent extends Component<
       return;
     }
 
-    // Client-side display order conflict check
+    // Client-side display order conflict check — only when display order actually changes
     const definition = CmsEntityFormCatalog.get(this.props.sectionKey);
     const hasDisplayOrderField = definition.fields.some((f) => f.key === "displayOrder");
     if (hasDisplayOrderField) {
       const pendingOrder = Number(this.state.formValues["displayOrder"]);
-      if (pendingOrder >= 1) {
+      const originalOrder = this.props.entry
+        ? Number(this.props.entry.raw.display_order ?? this.props.entry.raw.displayOrder)
+        : null;
+      const isDisplayOrderChanged = this.props.mode === "create" || pendingOrder !== originalOrder;
+      if (isDisplayOrderChanged && pendingOrder >= 1) {
         const allRows = this.props.allRows ?? [];
         const conflicting = allRows.find(
           (r) =>

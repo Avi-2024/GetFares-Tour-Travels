@@ -831,7 +831,7 @@ class CmsEntityFormCatalog {
           },
           {
             key: "transport",
-            label: "Transport",
+            label: "Transfer",
             type: "text",
             groupKey: "basic",
           },
