@@ -182,12 +182,12 @@ const ComplaintsPage = () => {
   ]
 
   const fallbackBookingOptions = Array.from(
-    new Set(rows.map(row => row.bookingId).filter(id => isUuid(id || '')))
+    new Set(rows.map(row => row.bookingId).filter(id => id && isUuid(id)))
   )
     .filter(id => !bookingOptions.some(option => option.value === id))
     .map(id => ({
-      value: id,
-      label: shortId(id)
+      value: id!,
+      label: shortId(id!)
     }))
 
   const mergedBookingOptions = [...bookingOptions, ...fallbackBookingOptions]
@@ -220,16 +220,6 @@ const ComplaintsPage = () => {
     { value: 'status', label: 'Sort by Status' },
     { value: 'issueType', label: 'Sort by Issue' }
   ]
-
-  const formatBookingDisplay = (bookingId?: string) => {
-    if (!bookingId) return '-'
-    const meta = bookingMetaById[bookingId]
-    if (!meta) return shortId(bookingId)
-    const bookingLabel = meta.bookingNumber || shortId(bookingId)
-    return meta.customerName
-      ? `${meta.customerName} - ${bookingLabel}`
-      : bookingLabel
-  }
 
   const getAssigneeLabel = (userId?: string) => {
     if (!userId) return 'Unassigned'
