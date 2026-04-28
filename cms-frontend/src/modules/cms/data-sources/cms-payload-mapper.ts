@@ -195,7 +195,6 @@ class CmsPayloadMapper {
         description: payload.description,
         imageUrl: payload.imageUrl,
         buttonText: payload.buttonText,
-        ctaUrl: payload.ctaUrl,
         expiresOn: this.normalizeDateValue(payload.expiresOn),
         tags: payload.tags,
         highlights: payload.highlights,
