@@ -110,7 +110,11 @@ function createExperienceRepository({ db, schema }) {
     },
 
     async findDeletedFeaturedPicks(filters = {}) {
-      return this.findFeaturedPicks({ ...filters, is_deleted: true });
+      return this.findFeaturedPicks({
+        ...filters,
+        includeDeleted: true,
+        is_deleted: true,
+      });
     },
 
     async findFeaturedPickById(id) {

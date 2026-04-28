@@ -2687,7 +2687,7 @@ SET @sql = IF(
    WHERE table_schema = DATABASE()
      AND table_name = 'featured_picks'
      AND index_name = 'ux_featured_picks_country_display_order') = 0,
-  'CREATE UNIQUE INDEX ux_featured_picks_country_display_order ON featured_picks(country, display_order)',
+  'SELECT 1',
   'SELECT 1'
 );
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
