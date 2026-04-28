@@ -486,6 +486,89 @@ class CmsEntityEditorModalComponent extends Component<
 
     this.revokeAllPreviewUrls();
 
+    // Pre-populate image previews from initial values (copy mode)
+    const fieldImagePreviews: Record<string, string> = {};
+    let copyMediaItems: CmsEntityMediaEditorItem[] = [];
+    if (this.props.initialValues) {
+      const definition2 = CmsEntityFormCatalog.get(this.props.sectionKey);
+      definition2.fields.forEach((field) => {
+        if (field.type === "url" && /image|thumbnail|hero|banner/i.test(field.key)) {
+          const val = String(formValues[field.key] ?? "").trim();
+          if (val) fieldImagePreviews[field.key] = val;
+        }
+      });
+
+      // For media-enabled sections, pre-populate mediaItems from raw data
+      if (definition2.mediaEnabled) {
+        const raw = this.props.initialValues;
+        const media = raw.media;
+        const mediaRecord =
+          media && typeof media === "object" && !Array.isArray(media)
+            ? (media as Record<string, unknown>)
+            : {};
+
+        if (this.props.sectionKey === "destinations") {
+          const titleImageUrl = String(
+            mediaRecord.title_image ??
+            raw.titleImageUrl ??
+            raw.thumbnailUrl ??
+            raw.heroImageUrl ??
+            "",
+          ).trim();
+          const gallery = Array.isArray(mediaRecord.gallery)
+            ? (mediaRecord.gallery as string[]).filter(Boolean)
+            : [];
+          if (titleImageUrl) {
+            copyMediaItems.push({
+              id: null,
+              clientId: "copy-title-image",
+              mediaUrl: titleImageUrl,
+              thumbnailUrl: titleImageUrl,
+              title: "Title Image",
+              altText: "Title Image",
+              isPrimary: true,
+              mediaKind: "image",
+              pendingFile: null,
+              previewUrl: undefined,
+            });
+          }
+          gallery.slice(0, 4).forEach((url, i) => {
+            copyMediaItems.push({
+              id: null,
+              clientId: `copy-gallery-${i}`,
+              mediaUrl: url,
+              thumbnailUrl: url,
+              title: "",
+              altText: "",
+              isPrimary: false,
+              mediaKind: "image",
+              pendingFile: null,
+              previewUrl: undefined,
+            });
+          });
+        } else {
+          // For other media-enabled sections (visa-destinations, creative-toolkit, etc.)
+          const imageUrl = String(
+            raw.imageUrl ?? raw.image_url ?? raw.heroImageUrl ?? "",
+          ).trim();
+          if (imageUrl) {
+            copyMediaItems.push({
+              id: null,
+              clientId: "copy-primary-image",
+              mediaUrl: imageUrl,
+              thumbnailUrl: imageUrl,
+              title: "",
+              altText: "",
+              isPrimary: true,
+              mediaKind: "image",
+              pendingFile: null,
+              previewUrl: undefined,
+            });
+          }
+        }
+      }
+    }
+
     this.setState({
       isBootstrapping: true,
       isMediaUploading: false,
@@ -494,8 +577,8 @@ class CmsEntityEditorModalComponent extends Component<
       formErrors: {},
       formUploadErrorMessage: "",
       fieldImageFiles: {},
-      fieldImagePreviews: {},
-      mediaItems: [],
+      fieldImagePreviews,
+      mediaItems: copyMediaItems,
       removedMediaIds: [],
       mediaErrorMessage: "",
       mediaInfoMessage: "",
