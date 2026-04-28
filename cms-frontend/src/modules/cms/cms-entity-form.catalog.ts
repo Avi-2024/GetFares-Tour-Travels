@@ -1255,7 +1255,6 @@ class CmsEntityFormCatalog {
             type: "text",
             groupKey: "content",
           },
-          { key: "ctaUrl", label: "CTA URL", type: "url", groupKey: "content" },
           {
             key: "tags",
             label: "Tags",
