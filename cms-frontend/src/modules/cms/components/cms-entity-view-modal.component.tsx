@@ -1,6 +1,9 @@
 import { Component } from "react";
 import CmsModalShellComponent from "./cms-modal-shell.component";
-import { CmsEntityFormCatalog } from "../cms-entity-form.catalog";
+import {
+  CmsEntityFormCatalog,
+  type CmsEntityFieldDefinition,
+} from "../cms-entity-form.catalog";
 import type { CmsMediaAsset, CmsTableEntry } from "../cms.datasource";
 import type { CmsSectionKey } from "../cms-section.models";
 import { CmsServiceContainer } from "../core/cms.service.container";
@@ -61,25 +64,110 @@ class CmsEntityViewModalComponent extends Component<
     return value.replace(/[A-Z]/g, (char) => `_${char.toLowerCase()}`);
   }
 
-  private readValue(key: string): string {
+  private readRawValue(key: string): unknown {
     const { entry } = this.props;
     if (!entry) {
-      return "--";
+      return undefined;
     }
     const direct = entry.raw[key];
-    if (direct !== undefined && direct !== null && String(direct).trim()) {
-      return String(direct);
+    if (direct !== undefined && direct !== null) {
+      return direct;
     }
     const snake = this.toSnake(key);
     const fallback = entry.raw[snake];
-    if (
-      fallback !== undefined &&
-      fallback !== null &&
-      String(fallback).trim()
-    ) {
-      return String(fallback);
+    if (fallback !== undefined && fallback !== null) {
+      return fallback;
+    }
+    return undefined;
+  }
+
+  private formatScalarValue(value: unknown): string {
+    if (value === undefined || value === null) {
+      return "--";
+    }
+    if (typeof value === "string") {
+      return value.trim() || "--";
+    }
+    if (typeof value === "number" || typeof value === "boolean") {
+      return String(value);
+    }
+    if (Array.isArray(value)) {
+      const items = value
+        .map((item) => this.formatScalarValue(item))
+        .filter((item) => item !== "--");
+      return items.length ? items.join(", ") : "--";
     }
     return "--";
+  }
+
+  private readValue(key: string): string {
+    return this.formatScalarValue(this.readRawValue(key));
+  }
+
+  private formatArrayValue(values: unknown[]): string {
+    const items = values
+      .map((item) => this.formatScalarValue(item))
+      .filter((item) => item !== "--");
+    return items.length ? items.join("\n") : "--";
+  }
+
+  private formatListObjectRow(
+    item: Record<string, unknown>,
+    field: CmsEntityFieldDefinition,
+  ): string {
+    const orderedParts = (field.itemFields ?? [])
+      .map((itemField) =>
+        this.formatScalarValue(
+          item[itemField.key] ?? item[this.toSnake(itemField.key)],
+        ),
+      )
+      .filter((part) => part !== "--");
+
+    if (orderedParts.length) {
+      return orderedParts.join(" | ");
+    }
+
+    const fallbackParts = Object.values(item)
+      .map((value) => this.formatScalarValue(value))
+      .filter((part) => part !== "--");
+
+    return fallbackParts.join(" | ");
+  }
+
+  private formatFieldValue(field: CmsEntityFieldDefinition): string {
+    const displayValue = this.readRawValue(`${field.key}Display`);
+
+    if (Array.isArray(displayValue)) {
+      return this.formatArrayValue(displayValue);
+    }
+
+    if (typeof displayValue === "string" && displayValue.trim()) {
+      return displayValue.trim();
+    }
+
+    const value = this.readRawValue(field.key);
+
+    if (field.type === "list-text" || field.type === "multi-select") {
+      return Array.isArray(value) ? this.formatArrayValue(value) : "--";
+    }
+
+    if (field.type === "list-object") {
+      if (!Array.isArray(value)) {
+        return "--";
+      }
+
+      const rows = value
+        .filter(
+          (item): item is Record<string, unknown> =>
+            Boolean(item) && typeof item === "object" && !Array.isArray(item),
+        )
+        .map((item) => this.formatListObjectRow(item, field))
+        .filter(Boolean);
+
+      return rows.length ? rows.join("\n") : "--";
+    }
+
+    return this.formatScalarValue(value);
   }
 
   private resolveStatus(value: string): { label: string; className: string } {
@@ -254,7 +342,7 @@ class CmsEntityViewModalComponent extends Component<
         return;
       }
 
-      const value = this.readValue(field.key);
+      const value = this.formatFieldValue(field);
       if (value === "--") {
         return;
       }
@@ -386,7 +474,7 @@ class CmsEntityViewModalComponent extends Component<
                   <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-(--text-secondary)">
                     {item.label}
                   </p>
-                  <p className="mt-1 text-sm text-(--text-primary)">
+                  <p className="mt-1 text-sm whitespace-pre-line text-(--text-primary)">
                     {item.value}
                   </p>
                 </div>
