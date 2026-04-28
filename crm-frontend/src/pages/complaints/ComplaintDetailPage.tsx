@@ -509,13 +509,13 @@ const ComplaintDetailPage: React.FC = () => {
               >
                   {formatStatusLabel(complaint.status)}
                 </span>
-              {(complaint as any).priority && (
+              {complaint.priority && (
                 <span
                   className={`px-2.5 py-0.5 text-xs font-semibold rounded-full border ${getPriorityClass(
-                    (complaint as any).priority,
+                    complaint.priority,
                   )}`}
                 >
-                  {(complaint as any).priority} Priority
+                  {complaint.priority} Priority
                 </span>
               )}
             </div>
