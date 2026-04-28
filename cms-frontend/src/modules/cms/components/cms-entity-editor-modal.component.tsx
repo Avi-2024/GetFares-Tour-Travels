@@ -558,9 +558,9 @@ class CmsEntityEditorModalComponent extends Component<
             });
           });
         } else {
-          // For other media-enabled sections (visa-destinations, creative-toolkit, etc.)
+          // For other media-enabled sections — try raw fields first, then fetch from media API
           const imageUrl = String(
-            raw.imageUrl ?? raw.image_url ?? raw.heroImageUrl ?? "",
+            raw.imageUrl ?? raw.image_url ?? raw.heroImageUrl ?? raw.bannerImageUrl ?? "",
           ).trim();
           if (imageUrl) {
             copyMediaItems.push({
@@ -574,6 +574,24 @@ class CmsEntityEditorModalComponent extends Component<
               mediaKind: "image",
               pendingFile: null,
               previewUrl: undefined,
+            });
+          } else if (raw.id) {
+            // Fetch from media API (e.g. main-packages stores images via media API)
+            const entityType = this.cmsService.getMediaEntityType(this.props.sectionKey);
+            const fetchedMedia = await this.cmsService.listMedia(entityType, String(raw.id)).catch(() => []);
+            fetchedMedia.forEach((item) => {
+              copyMediaItems.push({
+                id: null,
+                clientId: `copy-media-${item.id}`,
+                mediaUrl: item.mediaUrl,
+                thumbnailUrl: item.thumbnailUrl || item.mediaUrl,
+                title: item.title || "",
+                altText: item.altText || "",
+                isPrimary: item.isPrimary,
+                mediaKind: item.mediaKind || "image",
+                pendingFile: null,
+                previewUrl: undefined,
+              });
             });
           }
         }
