@@ -455,6 +455,17 @@ class CmsEntityEditorModalComponent extends Component<
         if (value === undefined && field.key === "seasonFocus") {
           value = this.getRawValue(this.props.entry as CmsTableEntry, "season");
         }
+        // For sub-packages, resolve country from the raw record (stored as destination_country or via mainPackage)
+        if (
+          value === undefined &&
+          this.props.sectionKey === "sub-packages" &&
+          field.key === "country"
+        ) {
+          value =
+            this.getRawValue(this.props.entry as CmsTableEntry, "country") ??
+            this.getRawValue(this.props.entry as CmsTableEntry, "destination_country") ??
+            this.getRawValue(this.props.entry as CmsTableEntry, "destinationCountry");
+        }
         if (value === undefined || value === null) {
           return;
         }
@@ -598,7 +609,13 @@ class CmsEntityEditorModalComponent extends Component<
           .filter((item): item is RelationSourceKey => Boolean(item)),
       ),
     );
-    const nextOptions = { ...this.state.relationOptions };
+    const nextOptions: Record<RelationSourceKey, CmsFieldOption[]> = {
+      destinations: [],
+      "published-packages": [],
+      "main-packages": [],
+      "visa-destinations": [],
+      "featured-references": [],
+    };
     for (const source of relationSources) {
       nextOptions[source] = await this.loadRelationOptions(source).catch(
         () => [],
@@ -1009,12 +1026,16 @@ class CmsEntityEditorModalComponent extends Component<
       return;
     }
 
-    // Client-side display order conflict check
+    // Client-side display order conflict check — only when display order actually changes
     const definition = CmsEntityFormCatalog.get(this.props.sectionKey);
     const hasDisplayOrderField = definition.fields.some((f) => f.key === "displayOrder");
     if (hasDisplayOrderField) {
       const pendingOrder = Number(this.state.formValues["displayOrder"]);
-      if (pendingOrder >= 1) {
+      const originalOrder = this.props.entry
+        ? Number(this.props.entry.raw.display_order ?? this.props.entry.raw.displayOrder)
+        : null;
+      const isDisplayOrderChanged = this.props.mode === "create" || pendingOrder !== originalOrder;
+      if (isDisplayOrderChanged && pendingOrder >= 1) {
         const allRows = this.props.allRows ?? [];
         const conflicting = allRows.find(
           (r) =>

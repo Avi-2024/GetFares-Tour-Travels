@@ -257,7 +257,11 @@ class CmsSectionEntryMapper {
             0;
           entries.push({
             id,
-            raw: subPackage,
+            raw: {
+              ...subPackage,
+              country: this.accessor.getText(mainPackage, "country", "destination_country") || undefined,
+              mainPackageId: mainId,
+            },
             row: new CmsTableRow(id, {
               variant: new CmsTableCell(
                 this.accessor.getText(subPackage, "title", "packageName", "name"),
