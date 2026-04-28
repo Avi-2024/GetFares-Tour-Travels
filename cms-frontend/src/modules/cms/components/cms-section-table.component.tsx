@@ -291,7 +291,7 @@ class CmsSectionTableComponent extends Component<CmsSectionTableProps> {
                           >
                             {toned ?
                               <span
-                                className={`rounded-full px-2 py-1 text-xs font-semibold ${this.props.getToneClass(cell.tone)}`}
+                                className={`whitespace-nowrap rounded-full px-2 py-1 text-xs font-semibold ${this.props.getToneClass(cell.tone)}`}
                               >
                                 {value}
                               </span>
