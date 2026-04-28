@@ -535,12 +535,12 @@ const Login = () => {
                       />
                       Remember me
                     </label>
-                    <Link
+                    {/* <Link
                       to='/forgot-password'
                       className='text-blue-600 font-medium hover:text-blue-700'
                     >
                       Forgot password?
-                    </Link>
+                    </Link> */}
                   </div>
 
                   <button
