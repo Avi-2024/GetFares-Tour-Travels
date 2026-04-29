@@ -412,7 +412,7 @@ const IconPickerComponent = ({
       {isOpen && (
         <div className="fixed inset-0 z-300 flex items-center justify-center bg-black/45 p-3 sm:p-6">
           <div className="w-full max-w-4xl overflow-hidden rounded-3xl border border-(--border) bg-(--surface) shadow-[0_36px_110px_color-mix(in_srgb,var(--text-primary)_22%,transparent)]">
-            <div className="flex items-center justify-between border-b border-(--border) px-4 py-3 sm:px-6">
+            <div className="flex items-center justify-between border-b border-(--border) px-4 pb-4 pt-8 sm:px-6">
               <h3 className="text-base font-semibold text-(--text-primary)">
                 Choose Icon
               </h3>
