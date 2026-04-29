@@ -103,6 +103,7 @@ function createCmsPackagesService({ repository }) {
       return {
         title: normalizeText(item.title),
         description: normalizeText(item.description),
+        iconName: normalizeText(item.iconName),
       };
     });
     const itineraries = normalizeObjectList(row.itineraries, (item, index) => {
@@ -239,6 +240,7 @@ function createCmsPackagesService({ repository }) {
         return null;
       }
       return {
+        iconName: normalizeText(item.iconName || item.icon_name),
         title: normalizeText(item.title),
         description: normalizeText(item.description),
       };
@@ -251,15 +253,7 @@ function createCmsPackagesService({ repository }) {
         day: toNumber(item.day, index + 1) || index + 1,
         title: normalizeText(item.title),
         description: normalizeText(item.description),
-        features: normalizeObjectList(item.features, (feature) => {
-          if (!feature || typeof feature !== "object") {
-            return null;
-          }
-          return {
-            title: normalizeText(feature.title),
-            description: normalizeText(feature.description),
-          };
-        }),
+        features: normalizeStringList(item.features),
       };
     });
     const countryIds = parseCountryIds(row.country_ids);
@@ -1064,9 +1058,7 @@ function createCmsPackagesService({ repository }) {
       if (!title) {
         throw new AppError(400, "Title is required", "TITLE_REQUIRED");
       }
-      const itineraries =
-        Array.isArray(data.itineraries) ? data.itineraries : [];
-      const normalizedItineraries = itineraries.map((item, index) => ({
+      const normalizedItineraries = normalizeObjectList(data.itineraries, (item, index) => ({
         day: toNumber(item?.day, index + 1) || index + 1,
         title: normalizeText(item?.title),
         description: normalizeText(item?.description),
@@ -1208,9 +1200,7 @@ function createCmsPackagesService({ repository }) {
         updates.features = Array.isArray(data.features) ? data.features : [];
       }
       if (data.itineraries !== undefined) {
-        const itineraries =
-          Array.isArray(data.itineraries) ? data.itineraries : [];
-        updates.itineraries = itineraries.map((item, index) => ({
+        updates.itineraries = normalizeObjectList(data.itineraries, (item, index) => ({
           day: toNumber(item?.day, index + 1) || index + 1,
           title: normalizeText(item?.title),
           description: normalizeText(item?.description),

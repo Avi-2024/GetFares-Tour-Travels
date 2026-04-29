@@ -1079,14 +1079,23 @@ class CmsEntityEditorModalComponent extends Component<
             this.props.entry?.raw.destination_country ??
             this.props.entry?.raw.destinationCountry,
         );
+        const currentSectionKey = this.toNonEmptyString(
+          this.state.formValues["sectionKey"] ??
+            this.props.entry?.raw.section_key ??
+            this.props.entry?.raw.sectionKey,
+        );
         const conflicting = allRows.find((r) => {
           const rowCountry = this.toNonEmptyString(
             r.raw.country ?? r.raw.destination_country ?? r.raw.destinationCountry,
           );
+          const rowSectionKey = this.toNonEmptyString(
+            r.raw.section_key ?? r.raw.sectionKey,
+          );
           return (
             r.id !== this.props.entry?.id &&
             Number(r.raw.display_order ?? r.raw.displayOrder) === pendingOrder &&
-            (currentCountry === "" || rowCountry === currentCountry)
+            (currentCountry === "" || rowCountry === currentCountry) &&
+            currentSectionKey === rowSectionKey
           );
         });
         if (conflicting) {
