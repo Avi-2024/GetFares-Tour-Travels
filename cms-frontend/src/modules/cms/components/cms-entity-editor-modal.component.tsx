@@ -196,8 +196,26 @@ class CmsEntityEditorModalComponent extends Component<
     return value.trim();
   }
 
-  private parseArrayValue(value: unknown): unknown[] {
+  private parseArrayValue(value: unknown, fieldDef?: CmsEntityFieldDefinition): unknown[] {
     if (Array.isArray(value)) {
+      // For list-object fields, normalize nested array fields to comma-separated strings
+      if (fieldDef?.type === "list-object" && fieldDef.itemFields) {
+        const arrayItemFields = new Set(
+          fieldDef.itemFields
+            .filter((f) => !f.type || f.type === "text")
+            .map((f) => f.key),
+        );
+        return value.map((item) => {
+          if (!item || typeof item !== "object" || Array.isArray(item)) return item;
+          const normalized: Record<string, unknown> = { ...(item as Record<string, unknown>) };
+          for (const key of arrayItemFields) {
+            if (Array.isArray(normalized[key])) {
+              normalized[key] = (normalized[key] as unknown[]).join(", ");
+            }
+          }
+          return normalized;
+        });
+      }
       return value;
     }
     if (typeof value === "string") {
@@ -484,7 +502,7 @@ class CmsEntityEditorModalComponent extends Component<
           return;
         }
         if (field.type === "list-text" || field.type === "list-object") {
-          formValues[field.key] = this.parseArrayValue(value);
+          formValues[field.key] = this.parseArrayValue(value, field);
           return;
         }
         if (field.type === "date") {

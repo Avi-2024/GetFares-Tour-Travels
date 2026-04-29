@@ -402,17 +402,19 @@ class CmsEntityFormGroupsComponent extends Component<CmsEntityFormGroupsProps> {
                       >
                         <span>{itemField.label}</span>
                         {isIconField ?
-                          <IconPickerComponent
-                            value={itemValue}
-                            onChange={(nextIcon) => {
-                              const next = [...rows];
-                              next[rowIndex] = {
-                                ...next[rowIndex],
-                                [itemField.key]: nextIcon,
-                              };
-                              onFieldChange(field, next);
-                            }}
-                          />
+                          <span className="normal-case tracking-normal">
+                            <IconPickerComponent
+                              value={itemValue}
+                              onChange={(nextIcon) => {
+                                const next = [...rows];
+                                next[rowIndex] = {
+                                  ...next[rowIndex],
+                                  [itemField.key]: nextIcon,
+                                };
+                                onFieldChange(field, next);
+                              }}
+                            />
+                          </span>
                         : isTextarea ?
                           <textarea
                             value={itemValue}
