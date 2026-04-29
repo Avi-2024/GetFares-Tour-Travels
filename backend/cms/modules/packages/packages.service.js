@@ -1139,15 +1139,21 @@ function createCmsPackagesService({ repository }) {
       const updates = {};
       const nextMainPackageId =
         normalizeText(data.mainPackageId) || normalizeText(existing.main_package_id);
+      let nextMainPackage;
       if (data.mainPackageId !== undefined) {
-        const mainPackage = await repository.findMainPackageById(
+        nextMainPackage = await repository.findMainPackageById(
           data.mainPackageId,
         );
-        if (!mainPackage) {
+        if (!nextMainPackage) {
           throw new AppError(404, "Main package not found", "NOT_FOUND");
         }
         updates.main_package_id = data.mainPackageId;
-        updates.country_ids = parseCountryIds(mainPackage.country_ids);
+        updates.country_ids = parseCountryIds(nextMainPackage.country_ids);
+      } else {
+        nextMainPackage = await repository.findMainPackageById(nextMainPackageId);
+        if (!nextMainPackage) {
+          throw new AppError(404, "Main package not found", "NOT_FOUND");
+        }
       }
       if (
         data.countryIds !== undefined ||
