@@ -196,8 +196,26 @@ class CmsEntityEditorModalComponent extends Component<
     return value.trim();
   }
 
-  private parseArrayValue(value: unknown): unknown[] {
+  private parseArrayValue(value: unknown, fieldDef?: CmsEntityFieldDefinition): unknown[] {
     if (Array.isArray(value)) {
+      // For list-object fields, normalize nested array fields to comma-separated strings
+      if (fieldDef?.type === "list-object" && fieldDef.itemFields) {
+        const arrayItemFields = new Set(
+          fieldDef.itemFields
+            .filter((f) => !f.type || f.type === "text")
+            .map((f) => f.key),
+        );
+        return value.map((item) => {
+          if (!item || typeof item !== "object" || Array.isArray(item)) return item;
+          const normalized: Record<string, unknown> = { ...(item as Record<string, unknown>) };
+          for (const key of arrayItemFields) {
+            if (Array.isArray(normalized[key])) {
+              normalized[key] = (normalized[key] as unknown[]).join(", ");
+            }
+          }
+          return normalized;
+        });
+      }
       return value;
     }
     if (typeof value === "string") {
@@ -484,7 +502,7 @@ class CmsEntityEditorModalComponent extends Component<
           return;
         }
         if (field.type === "list-text" || field.type === "list-object") {
-          formValues[field.key] = this.parseArrayValue(value);
+          formValues[field.key] = this.parseArrayValue(value, field);
           return;
         }
         if (field.type === "date") {
@@ -1055,20 +1073,31 @@ class CmsEntityEditorModalComponent extends Component<
       const isDisplayOrderChanged = this.props.mode === "create" || pendingOrder !== originalOrder;
       if (isDisplayOrderChanged && pendingOrder >= 1) {
         const allRows = this.props.allRows ?? [];
-        const conflicting = allRows.find(
-          (r) =>
-            r.id !== this.props.entry?.id &&
-            Number(r.raw.display_order ?? r.raw.displayOrder) === pendingOrder,
+        const currentCountry = this.toNonEmptyString(
+          this.state.formValues["country"] ??
+            this.props.entry?.raw.country ??
+            this.props.entry?.raw.destination_country ??
+            this.props.entry?.raw.destinationCountry,
         );
+        const conflicting = allRows.find((r) => {
+          const rowCountry = this.toNonEmptyString(
+            r.raw.country ?? r.raw.destination_country ?? r.raw.destinationCountry,
+          );
+          return (
+            r.id !== this.props.entry?.id &&
+            Number(r.raw.display_order ?? r.raw.displayOrder) === pendingOrder &&
+            (currentCountry === "" || rowCountry === currentCountry)
+          );
+        });
         if (conflicting) {
           const conflictingEntryLabel = String(
             conflicting.raw.title ??
-            conflicting.raw.name ??
-            conflicting.raw.place_name ??
-            conflicting.raw.placeName ??
-            conflicting.raw.destination ??
-            conflicting.raw.country ??
-            conflicting.id,
+              conflicting.raw.name ??
+              conflicting.raw.place_name ??
+              conflicting.raw.placeName ??
+              conflicting.raw.destination ??
+              conflicting.raw.country ??
+              conflicting.id,
           );
           let payload: Record<string, unknown> = {};
           const uploadedMediaItems = await this.uploadPendingMediaFiles();
@@ -1164,36 +1193,6 @@ class CmsEntityEditorModalComponent extends Component<
       this.props.onClose();
     } catch (error) {
       const message = this.mapApiErrorMessage(error, "Failed to save.");
-      const isDisplayOrderConflict =
-        message.toLowerCase().includes("display order must be unique") ||
-        (error instanceof Error && (error as Error & { code?: string }).code === "DUPLICATE_DISPLAY_ORDER");
-      if (isDisplayOrderConflict) {
-        const conflictOrder = Number(payload.displayOrder);
-        const allRows = this.props.allRows ?? [];
-        const conflicting = allRows.find(
-          (r) =>
-            r.id !== this.props.entry?.id &&
-            Number(r.raw.display_order ?? r.raw.displayOrder) === conflictOrder,
-        );
-        const conflictingEntryLabel = conflicting
-          ? (String(
-              conflicting.raw.title ??
-              conflicting.raw.name ??
-              conflicting.raw.place_name ??
-              conflicting.raw.placeName ??
-              conflicting.raw.destination ??
-              conflicting.raw.country ??
-              conflicting.id,
-            ))
-          : `Order #${conflictOrder}`;
-        this.setState({
-          isSubmitting: false,
-          showDisplayOrderConflict: true,
-          conflictingEntryLabel,
-          pendingForcePayload: payload,
-        });
-        return;
-      }
       this.setState({
         isSubmitting: false,
         mediaErrorMessage: message,

@@ -398,6 +398,35 @@ function createCmsPackagesRepository({ db, schema }) {
       }
     },
 
+    async findAllSubPackages(filters = {}) {
+      const values = [];
+      const clauses = ["p.main_package_id IS NOT NULL"];
+      if (filters.includeDeleted !== true) {
+        clauses.push("p.is_deleted = false");
+      }
+      if (filters.country) {
+        values.push(filters.country);
+        clauses.push("mp.country = ?");
+      }
+
+      try {
+        const result = await db.query(
+          `SELECT p.*, mp.title AS main_package_title
+           FROM ${schema.packagesTable} p
+           LEFT JOIN ${schema.mainPackagesTable} mp ON mp.id = p.main_package_id
+           WHERE ${clauses.join(" AND ")}
+           ORDER BY p.display_order, p.created_at DESC`,
+          values,
+        );
+        return result.rows;
+      } catch (error) {
+        if (!isMissingColumnError(error)) {
+          throw error;
+        }
+        return [];
+      }
+    },
+
     async findSubPackageById(id) {
       const result = await db.query(
         `SELECT p.*, mp.title AS main_package_title
