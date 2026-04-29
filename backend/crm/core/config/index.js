@@ -194,7 +194,7 @@ const config = Object.freeze({
       .map((field) => field.trim())
       .filter(Boolean),
     allowInsecureWebhooks:
-      env.META_ALLOW_INSECURE_WEBHOOKS || env.WHATSAPP_ALLOW_INSECURE_WEBHOOKS,
+      env.META_ALLOW_INSECURE_WEBHOOKS ?? env.WHATSAPP_ALLOW_INSECURE_WEBHOOKS ?? false,
     pages: metaPages,
   },
   whatsapp: {
