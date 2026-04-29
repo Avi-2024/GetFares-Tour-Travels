@@ -206,6 +206,20 @@ function createExperienceService({ repository }) {
         );
       }
 
+      // Check for duplicate section key in same country
+      const existingPicks = await repository.findFeaturedPicks({
+        country,
+        section_key: normalizeText(data.sectionKey || "featured-hot-picks"),
+        includeDeleted: false,
+      });
+      if (existingPicks.length > 0) {
+        throw new AppError(
+          400,
+          `A featured pick already exists for country "${country}" and section key "${normalizeText(data.sectionKey || "featured-hot-picks")}"`,
+          "DUPLICATE_SECTION_KEY",
+        );
+      }
+
       const row = await repository.createFeaturedPick({
         slug: normalizeText(data.slug),
         title: normalizeText(data.title),
@@ -337,6 +351,24 @@ function createExperienceService({ repository }) {
       }
       if (data.isActive !== undefined)
         updates.is_active = toBoolean(data.isActive, true);
+
+      // Check for duplicate section key in same country on update
+      const newCountry = updates.country !== undefined ? updates.country : existing.country;
+      const newSectionKey = updates.section_key !== undefined ? updates.section_key : existing.section_key;
+      if (newCountry !== existing.country || newSectionKey !== existing.section_key) {
+        const existingPicks = await repository.findFeaturedPicks({
+          country: newCountry,
+          section_key: newSectionKey,
+          includeDeleted: false,
+        });
+        if (existingPicks.length > 0) {
+          throw new AppError(
+            400,
+            `A featured pick already exists for country "${newCountry}" and section key "${newSectionKey}"`,
+            "DUPLICATE_SECTION_KEY",
+          );
+        }
+      }
 
       const row = await repository.updateFeaturedPick(id, updates);
       return toFeaturedPick(row);
