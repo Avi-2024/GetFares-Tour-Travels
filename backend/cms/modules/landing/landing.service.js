@@ -119,7 +119,7 @@ function createLandingService({ repository }) {
     }
     const rows = await repository.findAll({
       ...(country ? { country } : {}),
-      includeDeleted: true,
+      is_deleted: false,
     });
     const duplicate = findDisplayOrderConflict(
       normalizedOrder,
@@ -127,7 +127,11 @@ function createLandingService({ repository }) {
       excludeId,
     );
     if (duplicate) {
-      await repository.update(duplicate.id, { display_order: -1 });
+      throw new AppError(
+        400,
+        `Display order ${normalizedOrder} is already taken in country "${country}"`,
+        "DISPLAY_ORDER_CONFLICT",
+      );
     }
     return normalizedOrder;
   }

@@ -352,28 +352,39 @@ function createCmsPackagesService({ repository }) {
       excludeId,
     );
     if (duplicate) {
-      await repository.updateMainPackage(duplicate.id, { display_order: -1 });
+      throw new AppError(
+        400,
+        `Display order ${normalizedOrder} is already taken in country "${country || 'all'}"`,
+        "DISPLAY_ORDER_CONFLICT",
+      );
     }
     return normalizedOrder;
   }
 
   async function reassignSubPackageDisplayOrder({
     displayOrder,
-    mainPackageId,
+    country,
     excludeId = null,
   }) {
     const normalizedOrder = normalizeDisplayOrderInput(displayOrder, -1);
-    if (normalizedOrder < 0 || !mainPackageId) {
+    if (normalizedOrder < 0) {
       return normalizedOrder;
     }
-    const rows = await repository.findSubPackages(mainPackageId, true);
+    const rows = await repository.findAllSubPackages({
+      includeDeleted: true,
+      ...(country ? { country } : {}),
+    });
     const duplicate = findDisplayOrderConflict(
       normalizedOrder,
       rows,
       excludeId,
     );
     if (duplicate) {
-      await repository.updateSubPackage(duplicate.id, { display_order: -1 });
+      throw new AppError(
+        400,
+        `Display order ${normalizedOrder} is already taken in country "${country || 'all'}"`,
+        "DISPLAY_ORDER_CONFLICT",
+      );
     }
     return normalizedOrder;
   }
@@ -1113,7 +1124,7 @@ function createCmsPackagesService({ repository }) {
         publish_to_website: toBoolean(data.publishToWebsite, false),
         display_order: await reassignSubPackageDisplayOrder({
           displayOrder: data.displayOrder,
-          mainPackageId: data.mainPackageId,
+          country: mainPackage.country,
         }),
       });
 
@@ -1242,13 +1253,13 @@ function createCmsPackagesService({ repository }) {
       if (data.displayOrder !== undefined)
         updates.display_order = await reassignSubPackageDisplayOrder({
           displayOrder: data.displayOrder,
-          mainPackageId: nextMainPackageId,
+          country: nextMainPackage.country,
           excludeId: id,
         });
       if (data.displayOrder === undefined && data.mainPackageId !== undefined) {
         updates.display_order = await reassignSubPackageDisplayOrder({
           displayOrder: existing.display_order,
-          mainPackageId: nextMainPackageId,
+          country: nextMainPackage.country,
           excludeId: id,
         });
       }
