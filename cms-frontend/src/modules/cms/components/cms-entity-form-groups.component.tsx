@@ -1,4 +1,5 @@
 import { Component, type ChangeEvent } from "react";
+import { FaTimes } from "react-icons/fa";
 import SearchDropDown from "../../../shared/components/search-dropdown.component";
 import IconPickerComponent from "../../../shared/components/icon-picker.component";
 import type {
@@ -329,10 +330,9 @@ class CmsEntityFormGroupsComponent extends Component<CmsEntityFormGroupsProps> {
                     );
                     onFieldChange(field, next);
                   }}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] text-sm font-bold text-(--danger) transition hover:bg-[color-mix(in_srgb,var(--danger)_18%,transparent)]"
-                  aria-label={`Remove ${field.label} item ${index + 1}`}
+                  className="inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] text-(--danger) transition hover:bg-[color-mix(in_srgb,var(--danger)_18%,transparent)]"
                 >
-                  ×
+                  <FaTimes size={11} />
                 </button>
               </div>
             ))}
@@ -370,7 +370,7 @@ class CmsEntityFormGroupsComponent extends Component<CmsEntityFormGroupsProps> {
                 key={`${field.key}-${rowIndex}`}
                 className="rounded-2xl border border-(--border) bg-(--surface) p-3 shadow-[0_8px_24px_color-mix(in_srgb,var(--text-primary)_8%,transparent)]"
               >
-                <div className="mb-2 flex items-center justify-between">
+                <div className="mb-2 flex items-center justify-between gap-2">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-(--text-secondary)">
                     {field.label} #{rowIndex + 1}
                   </p>
@@ -382,10 +382,10 @@ class CmsEntityFormGroupsComponent extends Component<CmsEntityFormGroupsProps> {
                       );
                       onFieldChange(field, next);
                     }}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] text-sm font-bold text-(--danger) transition hover:bg-[color-mix(in_srgb,var(--danger)_18%,transparent)]"
+                    className="inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] text-(--danger) transition hover:bg-[color-mix(in_srgb,var(--danger)_18%,transparent)]"
                     aria-label={`Remove ${field.label} row ${rowIndex + 1}`}
                   >
-                    ×
+                    <FaTimes size={11} />
                   </button>
                 </div>
                 <div className="grid gap-2 md:grid-cols-2">

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import type { IconType } from "react-icons";
 import {
   FaAnchor,
@@ -401,7 +402,7 @@ const IconPickerComponent = ({
           <button
             type="button"
             onClick={() => onChange("")}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] text-(--danger)"
+            className="inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] text-(--danger)"
             aria-label="Clear icon"
           >
             <FaTimes size={14} />
@@ -409,8 +410,8 @@ const IconPickerComponent = ({
         )}
       </div>
 
-      {isOpen && (
-        <div className="fixed inset-0 z-300 flex items-center justify-center bg-black/45 p-3 sm:p-6">
+      {isOpen && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/45 p-3 sm:p-6">
           <div className="w-full max-w-4xl overflow-hidden rounded-3xl border border-(--border) bg-(--surface) shadow-[0_36px_110px_color-mix(in_srgb,var(--text-primary)_22%,transparent)]">
             <div className="flex items-center justify-between border-b border-(--border) px-4 pb-4 pt-8 sm:px-6">
               <h3 className="text-base font-semibold text-(--text-primary)">
@@ -474,7 +475,7 @@ const IconPickerComponent = ({
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
     </>
   );
 };
