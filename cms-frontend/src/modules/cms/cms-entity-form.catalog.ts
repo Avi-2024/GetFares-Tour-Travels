@@ -843,6 +843,7 @@ class CmsEntityFormCatalog {
             groupKey: "content",
             addLabel: "Add Feature",
             itemFields: [
+              { key: "iconName", label: "Icon" },
               { key: "title", label: "Title" },
               { key: "description", label: "Description", type: "textarea" },
             ],
