@@ -26,6 +26,7 @@ type ReportTabId =
   | 'dashboard_executive_kpis'
   | 'funnel_conversion'
   | 'revenue_monthly'
+  | 'sales_by_agent'
   | 'leads_by_source'
   | 'leads_by_consultant'
   | 'outstanding_payments'
@@ -45,6 +46,7 @@ const reportTabs: ReportTab[] = [
   { id: 'dashboard_executive_kpis', label: 'Executive KPIs' },
   { id: 'funnel_conversion', label: 'Funnel Conversion' },
   { id: 'revenue_monthly', label: 'Revenue Monthly' },
+  { id: 'sales_by_agent', label: 'Sales by Agent' },
   { id: 'leads_by_source', label: 'Leads by Source' },
   { id: 'leads_by_consultant', label: 'Leads by Consultant' },
   { id: 'outstanding_payments', label: 'Outstanding Payments' },
@@ -61,6 +63,7 @@ const reportsFetcher: Record<
   dashboard_executive_kpis: reportsApi.dashboardExecutiveKpis,
   funnel_conversion: reportsApi.funnelConversion,
   revenue_monthly: reportsApi.revenueMonthly,
+  sales_by_agent: reportsApi.targetVsAchievement,
   leads_by_source: reportsApi.leadsBySource,
   leads_by_consultant: reportsApi.leadsByConsultant,
   outstanding_payments: reportsApi.outstandingPayments,
@@ -74,6 +77,7 @@ const VALUE_KEY_PREFERENCE: Record<ReportTabId, string[]> = {
   dashboard_executive_kpis: ['value'],
   funnel_conversion: ['count', 'sharePercent'],
   revenue_monthly: ['revenue', 'profit', 'cost'],
+  sales_by_agent: ['achievedAmount', 'targetAmount', 'achievementPercent'],
   leads_by_source: ['totalLeads', 'convertedLeads', 'conversionRatePercent'],
   leads_by_consultant: ['totalLeads', 'convertedLeads', 'avgResponseMinutes'],
   outstanding_payments: ['outstandingAmount', 'totalAmount', 'advanceReceived'],
@@ -125,6 +129,13 @@ const REPORT_META: Record<
     chartKind: 'area',
     helper:
       'A good month is not just higher revenue. Profit should also rise with it, otherwise margin is leaking.'
+  },
+  sales_by_agent: {
+    description:
+      'Person-wise sales performance using target, achieved amount, and achievement percentage.',
+    chartKind: 'bar',
+    helper:
+      'Use this when overall revenue looks good but you still need to see which sales agent is driving results.'
   },
   leads_by_source: {
     description:
@@ -323,6 +334,7 @@ const deriveLabelColumn = (rows: ReportRecord[], numericColumns: string[]) => {
     'month',
     'source',
     'name',
+    'fullName',
     'consultantName',
     'bookingNumber',
     'bookingId',

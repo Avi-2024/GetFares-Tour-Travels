@@ -26,7 +26,10 @@ function createRefundsModule({ dependencies, repositories = {} }) {
     events,
   });
 
-  const controller = createRefundsController({ service });
+  const controller = createRefundsController({
+    service,
+    s3: dependencies.storage?.s3,
+  });
 
   const router = createRefundsRoutes({
     controller,
@@ -34,6 +37,7 @@ function createRefundsModule({ dependencies, repositories = {} }) {
     validateRequest: dependencies.middlewares.validateRequest,
     requireAuth: dependencies.middlewares.requireAuth,
     authorize: dependencies.middlewares.authorize,
+    config: dependencies.config,
   });
 
   return Object.freeze({

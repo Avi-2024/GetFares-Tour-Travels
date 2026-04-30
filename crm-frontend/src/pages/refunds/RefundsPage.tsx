@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   FaCheck,
   FaCircleXmark,
   FaMoneyBillTransfer,
   FaPlus,
   FaEye,
+  FaPen,
   FaChevronLeft,
   FaChevronRight,
   FaXmark,
@@ -21,11 +22,10 @@ import SearchableDropdown from '../../components/ui/SearchableDropdown'
 import { refundsApi } from '../../api/refunds'
 import { bookingsApi } from '../../api/bookings'
 import { paymentsApi } from '../../api/payments'
-import { customersApi } from '../../api/customers'
-import { leadsApi } from '../../api/leads'
 import { reportApiError } from '../../lib/notify'
 import { useAuth } from '../../context/AuthContext'
 import { getCurrencyOptions, formatCurrency } from '../../utils/currency'
+import EditRefundModal from './EditRefundModal'
 
 type RefundStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'PROCESSED'
 
@@ -74,6 +74,9 @@ type RefundRow = {
   id: string
   bookingId: string
   paymentId?: string
+  assignedTo?: string
+  assignedToName?: string
+  raisedByName?: string
   refundAmount: number
   currency?: string
   supplierPenalty: number
@@ -90,6 +93,8 @@ type RefundRow = {
   processedAt?: string
   processedBy?: string
   gatewayRefundId?: string
+  proofUrl?: string
+  notes?: string
 }
 
 type BookingLookup = {
@@ -108,6 +113,25 @@ type PaymentLookup = {
   paidAt?: string
   createdAt?: string
   date?: string
+}
+
+type FinanceUser = {
+  id: string
+  fullName: string
+  email?: string
+}
+
+const MAX_REFUND_PROOF_SIZE = 5 * 1024 * 1024
+
+const formatFileSize = (bytes: number) => {
+  if (!bytes) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB']
+  const power = Math.min(
+    Math.floor(Math.log(bytes) / Math.log(1024)),
+    units.length - 1
+  )
+  const value = bytes / Math.pow(1024, power)
+  return `${value % 1 === 0 ? value : value.toFixed(1)} ${units[power]}`
 }
 
 // Toast Component
@@ -439,22 +463,34 @@ const DetailsModal = ({
           </div>
 
           {/* Reference */}
-          <div className='rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/40'>
-            <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
+	          <div className='rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/40'>
+	            <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
               <div>
                 <p className='text-xs text-gray-500'>Booking</p>
                 <p className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
                   {bookingDisplay}
                 </p>
               </div>
-              <div>
-                <p className='text-xs text-gray-500'>Payment</p>
-                <p className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
-                  {paymentDisplay}
-                </p>
-              </div>
-            </div>
-          </div>
+	              <div>
+	                <p className='text-xs text-gray-500'>Payment</p>
+	                <p className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
+	                  {paymentDisplay}
+	                </p>
+	              </div>
+	              <div>
+	                <p className='text-xs text-gray-500'>Assigned Finance</p>
+	                <p className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
+	                  {refund.assignedToName || 'Unassigned'}
+	                </p>
+	              </div>
+	              <div>
+	                <p className='text-xs text-gray-500'>Raised By</p>
+	                <p className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
+	                  {refund.raisedByName || 'N/A'}
+	                </p>
+	              </div>
+	            </div>
+	          </div>
 
           {/* Amounts */}
           <div className='grid grid-cols-2 gap-4'>
@@ -498,6 +534,33 @@ const DetailsModal = ({
               </span>
             </div>
           </div>
+
+          {(refund.notes || refund.proofUrl) && (
+            <div className='space-y-3'>
+              <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300'>
+                Proof And Notes
+              </h4>
+              {refund.notes && (
+                <div className='rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/40'>
+                  <p className='text-xs text-gray-500 mb-1'>Notes</p>
+                  <p className='whitespace-pre-wrap text-sm text-gray-900 dark:text-gray-100'>
+                    {refund.notes}
+                  </p>
+                </div>
+              )}
+              {refund.proofUrl && (
+                <button
+                  type='button'
+                  onClick={() =>
+                    window.open(refund.proofUrl, '_blank', 'noopener,noreferrer')
+                  }
+                  className='inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800'
+                >
+                  <FaEye /> View Refund Proof
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Timeline */}
           <div className='space-y-3'>
@@ -593,6 +656,10 @@ const mapApiRefund = (refund: any): RefundRow => {
     id: refund?.id || '',
     bookingId: refund?.bookingId ?? refund?.booking_id ?? '',
     paymentId: refund?.paymentId ?? refund?.payment_id ?? undefined,
+    assignedTo: refund?.assignedTo ?? refund?.assigned_to ?? undefined,
+    assignedToName:
+      refund?.assignedToName ?? refund?.assigned_to_name ?? undefined,
+    raisedByName: refund?.raisedByName ?? refund?.raised_by_name ?? undefined,
     refundAmount,
     currency: refund?.currency || 'INR',
     supplierPenalty,
@@ -609,7 +676,9 @@ const mapApiRefund = (refund: any): RefundRow => {
     rejectedReason: refund?.rejectedReason ?? refund?.rejected_reason,
     processedAt: refund?.processedAt ?? refund?.processed_at,
     processedBy: refund?.processedBy ?? refund?.processed_by,
-    gatewayRefundId: refund?.gatewayRefundId ?? refund?.gateway_refund_id
+    gatewayRefundId: refund?.gatewayRefundId ?? refund?.gateway_refund_id,
+    proofUrl: refund?.proofUrl ?? refund?.proof_url,
+    notes: refund?.notes
   }
 }
 
@@ -644,7 +713,9 @@ const RefundsPage = () => {
   const [rows, setRows] = useState<RefundRow[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [formError, setFormError] = useState('')
   const [showForm, setShowForm] = useState(false)
+  const [editingRefundId, setEditingRefundId] = useState<string | null>(null)
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('ALL')
   const [search, setSearch] = useState('')
   const [filterError, setFilterError] = useState('')
@@ -668,6 +739,7 @@ const RefundsPage = () => {
   const [showRejectModal, setShowRejectModal] = useState(false)
   const [showProcessModal, setShowProcessModal] = useState(false)
   const [showApproveConfirm, setShowApproveConfirm] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
   const [actionRefundId, setActionRefundId] = useState<string | null>(null)
 
   const pageSize = 15
@@ -675,14 +747,22 @@ const RefundsPage = () => {
   const [form, setForm] = useState({
     bookingId: '',
     paymentId: '',
+    assignedTo: '',
+    raisedByName: '',
     refundAmount: '' as number | '',
     currency: 'INR',
     supplierPenalty: '' as number | '',
-    serviceCharge: '' as number | ''
+    serviceCharge: '' as number | '',
+    notes: ''
   })
+  const [proofFile, setProofFile] = useState<File | null>(null)
+  const [proofUploadError, setProofUploadError] = useState('')
+  const proofInputRef = useRef<HTMLInputElement | null>(null)
 
   const [bookings, setBookings] = useState<BookingLookup[]>([])
   const [payments, setPayments] = useState<PaymentLookup[]>([])
+  const [financeUsers, setFinanceUsers] = useState<FinanceUser[]>([])
+  const [loadingFinanceUsers, setLoadingFinanceUsers] = useState(false)
   const [loadingBookings, setLoadingBookings] = useState(false)
   const [loadingPayments, setLoadingPayments] = useState(false)
   const currencyOptions = useMemo(() => getCurrencyOptions(false), [])
@@ -694,6 +774,23 @@ const RefundsPage = () => {
   const paymentById = useMemo(
     () => new Map(payments.map(payment => [payment.id, payment])),
     [payments]
+  )
+  const financeUserOptions = useMemo(
+    () => [
+      {
+        value: '',
+        label: loadingFinanceUsers
+          ? 'Loading finance users...'
+          : financeUsers.length === 0
+          ? 'No accounts users found'
+          : 'Select finance person...'
+      },
+      ...financeUsers.map(user => ({
+        value: user.id,
+        label: `${user.fullName}${user.email ? ` - ${user.email}` : ''}`
+      }))
+    ],
+    [financeUsers, loadingFinanceUsers]
   )
 
   const shortId = (value?: string) => {
@@ -1115,6 +1212,42 @@ const RefundsPage = () => {
     void loadRefunds()
   }, [token])
 
+  useEffect(() => {
+    if (!showForm || !token) return
+
+    let cancelled = false
+    const loadFinanceUsers = async () => {
+      setLoadingFinanceUsers(true)
+      try {
+        const response = await refundsApi.listAssignableUsers()
+        const payload = (response as any)?.data ?? response
+        const data =
+          (payload as any)?.data || (payload as any)?.items || payload || []
+        if (cancelled) return
+        setFinanceUsers(
+          (Array.isArray(data) ? data : []).map((item: any) => ({
+            id: String(item?.id || ''),
+            fullName: String(item?.fullName ?? item?.full_name ?? ''),
+            email: item?.email ? String(item.email) : undefined
+          }))
+        )
+      } catch (err) {
+        if (cancelled) return
+        setFinanceUsers([])
+        reportApiError(err, 'Failed to load finance users', setFormError)
+      } finally {
+        if (!cancelled) {
+          setLoadingFinanceUsers(false)
+        }
+      }
+    }
+
+    void loadFinanceUsers()
+    return () => {
+      cancelled = true
+    }
+  }, [showForm, token])
+
   const searchBookings = useCallback(async (query: string) => {
     if (!token || !query.trim()) {
       setBookings([])
@@ -1229,9 +1362,15 @@ const RefundsPage = () => {
           const latestPayment = mappedPayments
             .slice()
             .sort((a, b) => toPaymentTimestamp(b) - toPaymentTimestamp(a))[0]
+          const hasSelectedPayment = mappedPayments.some(
+            payment => payment.id === current.paymentId
+          )
           return {
             ...current,
-            paymentId: latestPayment?.id || ''
+            paymentId:
+              current.paymentId && hasSelectedPayment
+                ? current.paymentId
+                : latestPayment?.id || ''
           }
         })
       } catch (err) {
@@ -1262,39 +1401,135 @@ const RefundsPage = () => {
     void loadPaymentsForBooking(selectedBookingId)
   }, [showForm, form.bookingId, loadPaymentsForBooking])
 
-  const createRefund = async () => {
+  const clearProofSelection = () => {
+    setProofFile(null)
+    setProofUploadError('')
+    if (proofInputRef.current) {
+      proofInputRef.current.value = ''
+    }
+  }
+
+  const resetRefundForm = () => {
+    setForm({
+      bookingId: '',
+      paymentId: '',
+      assignedTo: '',
+      raisedByName: '',
+      refundAmount: '',
+      currency: 'INR',
+      supplierPenalty: '',
+      serviceCharge: '',
+      notes: ''
+    })
+    setEditingRefundId(null)
+    setFormError('')
+    clearProofSelection()
+  }
+
+  const handleProofFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    if (file.type !== 'application/pdf' && !file.type.startsWith('image/')) {
+      setProofUploadError('Upload a PDF or image as refund proof')
+      event.target.value = ''
+      return
+    }
+
+    if (file.size > MAX_REFUND_PROOF_SIZE) {
+      setProofUploadError('Refund proof must be 5 MB or smaller')
+      event.target.value = ''
+      return
+    }
+
+    setProofUploadError('')
+    setProofFile(file)
+  }
+
+  const saveRefund = async () => {
     if (!form.bookingId || form.refundAmount === '') return
+    if (!form.assignedTo.trim()) {
+      setFormError('Select finance person.')
+      return
+    }
+    if (!form.raisedByName.trim()) {
+      setFormError('Enter raised by name.')
+      return
+    }
 
     setLoading(true)
+    setFormError('')
     try {
-      const payload = {
-        bookingId: form.bookingId,
-        ...(form.paymentId ? { paymentId: form.paymentId } : {}),
+      const basePayload = {
+        assignedTo: form.assignedTo,
+        raisedByName: form.raisedByName.trim(),
         refundAmount: Number(form.refundAmount),
         supplierPenalty: Number(form.supplierPenalty || 0),
-        serviceCharge: Number(form.serviceCharge || 0)
+        serviceCharge: Number(form.serviceCharge || 0),
+        ...(form.notes.trim() ? { notes: form.notes.trim() } : {})
       }
-      const response = await refundsApi.create(payload)
+      const payload = editingRefundId
+        ? basePayload
+        : {
+            bookingId: form.bookingId,
+            ...(form.paymentId ? { paymentId: form.paymentId } : {}),
+            ...basePayload
+          }
+      const requestBody = proofFile
+        ? (() => {
+            const formData = new FormData()
+            Object.entries(payload).forEach(([key, value]) => {
+              formData.append(key, String(value))
+            })
+            formData.append('proofFile', proofFile, proofFile.name)
+            return formData
+          })()
+        : payload
+      const response = editingRefundId
+        ? await refundsApi.update(editingRefundId, requestBody)
+        : await refundsApi.create(requestBody)
       const data =
         (response as any)?.data?.data ?? (response as any)?.data ?? response
-      const newRefund = mapApiRefund(data)
+      const savedRefund = mapApiRefund(data)
 
-      setRows(current => [newRefund, ...current])
-      setForm({
-        bookingId: '',
-        paymentId: '',
-        refundAmount: '',
-        currency: 'INR',
-        supplierPenalty: '',
-        serviceCharge: ''
-      })
+      setRows(current =>
+        editingRefundId
+          ? current.map(item => (item.id === editingRefundId ? savedRefund : item))
+          : [savedRefund, ...current]
+      )
+      if (selectedRefund?.id === savedRefund.id) {
+        setSelectedRefund(savedRefund)
+      }
+      resetRefundForm()
       setShowForm(false)
     } catch (err) {
-      console.error('Failed to create refund:', err)
-      reportApiError(err, 'Failed to create refund')
+      console.error('Failed to save refund:', err)
+      reportApiError(
+        err,
+        editingRefundId ? 'Failed to update refund' : 'Failed to create refund',
+        setFormError
+      )
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleEditRefund = (row: RefundRow) => {
+    setForm({
+      bookingId: row.bookingId,
+      paymentId: row.paymentId || '',
+      assignedTo: row.assignedTo || '',
+      raisedByName: row.raisedByName || '',
+      refundAmount: row.refundAmount,
+      currency: row.currency || 'INR',
+      supplierPenalty: row.supplierPenalty,
+      serviceCharge: row.serviceCharge,
+      notes: row.notes || ''
+    })
+    setEditingRefundId(row.id)
+    setFormError('')
+    clearProofSelection()
+    setShowForm(true)
   }
 
   const handleApprove = (id: string) => {
@@ -1422,6 +1657,26 @@ const RefundsPage = () => {
       )}
 
       {/* Modals */}
+      <EditRefundModal
+        isOpen={showEditModal}
+        form={form}
+        setForm={setForm}
+        formError={formError}
+        loading={loading}
+        financeUserOptions={financeUserOptions}
+        currencyOptions={currencyOptions}
+        proofFile={proofFile}
+        proofUploadError={proofUploadError}
+        proofInputRef={proofInputRef}
+        handleProofFileChange={handleProofFileChange}
+        clearProofSelection={clearProofSelection}
+        onSave={saveRefund}
+        onCancel={() => {
+          setShowEditModal(false)
+          resetRefundForm()
+        }}
+      />
+
       <ConfirmModal
         isOpen={showApproveConfirm}
         title='Approve Refund'
@@ -1480,10 +1735,18 @@ const RefundsPage = () => {
         <div className='flex flex-col sm:flex-row gap-2 w-full sm:w-auto'>
           <PermissionGate permission='refunds:update'>
             <button
-              onClick={() => setShowForm(open => !open)}
+              onClick={() => {
+                if (showForm) {
+                  setShowForm(false)
+                  resetRefundForm()
+                  return
+                }
+                resetRefundForm()
+                setShowForm(true)
+              }}
               className='inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors w-full sm:w-auto'
             >
-              <FaPlus /> Create Refund
+              <FaPlus /> {editingRefundId ? 'Edit Refund' : 'Create Refund'}
             </button>
           </PermissionGate>
         </div>
@@ -1492,9 +1755,21 @@ const RefundsPage = () => {
       {/* Create Form */}
       {showForm && (
         <SurfaceCard className='p-5 border border-gray-200 dark:border-gray-800'>
-          <h2 className='text-base font-semibold text-gray-900 dark:text-gray-100 mb-4'>
-            New Refund Request
-          </h2>
+          <div className='mb-4 flex items-center justify-between gap-3'>
+            <h2 className='text-base font-semibold text-gray-900 dark:text-gray-100'>
+              {editingRefundId ? 'Edit Refund Request' : 'New Refund Request'}
+            </h2>
+            {editingRefundId ? (
+              <span className='text-xs font-medium text-blue-600 dark:text-blue-400'>
+                {editingRefundId}
+              </span>
+            ) : null}
+          </div>
+          {formError ? (
+            <div className='mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-200'>
+              {formError}
+            </div>
+          ) : null}
           <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
             <div>
               <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
@@ -1512,7 +1787,7 @@ const RefundsPage = () => {
                 onSearch={searchBookings}
                 options={bookingDropdownOptions}
                 searchPlaceholder='Type booking number (e.g., BK-1776424194713-8883)'
-                disabled={loadingBookings}
+                disabled={loadingBookings || Boolean(editingRefundId)}
               />
             </div>
             <div>
@@ -1526,7 +1801,23 @@ const RefundsPage = () => {
                 }
                 options={paymentDropdownOptions}
                 searchPlaceholder='Search payment...'
-                disabled={loadingPayments || !form.bookingId}
+                disabled={
+                  loadingPayments || !form.bookingId || Boolean(editingRefundId)
+                }
+              />
+            </div>
+            <div>
+              <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
+                Assign Finance Person *
+              </label>
+              <SearchableDropdown
+                value={form.assignedTo}
+                onChange={value =>
+                  setForm(current => ({ ...current, assignedTo: value }))
+                }
+                options={financeUserOptions}
+                searchPlaceholder='Search accounts user...'
+                disabled={loadingFinanceUsers}
               />
             </div>
             <CurrencyInput
@@ -1565,18 +1856,99 @@ const RefundsPage = () => {
               }
             />
           </div>
+          <div className='mt-4'>
+            <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
+              Raised By Name *
+            </label>
+            <input
+              type='text'
+              value={form.raisedByName}
+              onChange={event =>
+                setForm(current => ({
+                  ...current,
+                  raisedByName: event.target.value
+                }))
+              }
+              placeholder='Customer or requester name'
+              className='w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-700 dark:bg-gray-900'
+            />
+          </div>
+          <div className='mt-4'>
+            <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
+              Notes
+            </label>
+            <textarea
+              value={form.notes}
+              onChange={event =>
+                setForm(current => ({ ...current, notes: event.target.value }))
+              }
+              rows={3}
+              placeholder='Refund reason, proof notes, or approval context'
+              className='w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-700 dark:bg-gray-900'
+            />
+          </div>
+          <div className='mt-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900'>
+            <p className='text-sm font-semibold text-gray-800 dark:text-gray-100 mb-2'>
+              Refund Proof
+            </p>
+            {proofFile ? (
+              <div className='flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-700 dark:bg-gray-800'>
+                <div>
+                  <p className='text-sm font-medium text-gray-800 dark:text-gray-100'>
+                    {proofFile.name}
+                  </p>
+                  <p className='text-xs text-gray-500'>
+                    {formatFileSize(proofFile.size)}
+                  </p>
+                </div>
+                <button
+                  type='button'
+                  className='text-xs font-semibold text-red-600 hover:underline'
+                  onClick={clearProofSelection}
+                >
+                  Remove
+                </button>
+              </div>
+            ) : (
+              <p className='text-sm text-gray-500'>
+                Upload refund proof image or PDF, max 5 MB.
+              </p>
+            )}
+            <div className='mt-3'>
+              <label
+                htmlFor='refund-proof-upload'
+                className='inline-flex cursor-pointer items-center rounded-lg border border-dashed border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:border-blue-500 hover:text-blue-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200'
+              >
+                Upload Proof
+              </label>
+              <input
+                id='refund-proof-upload'
+                ref={proofInputRef}
+                type='file'
+                accept='application/pdf,image/*'
+                className='hidden'
+                onChange={handleProofFileChange}
+              />
+            </div>
+            {proofUploadError && (
+              <p className='mt-2 text-xs text-red-500'>{proofUploadError}</p>
+            )}
+          </div>
           <div className='flex justify-end gap-3 mt-4'>
             <button
-              onClick={() => setShowForm(false)}
+              onClick={() => {
+                setShowForm(false)
+                resetRefundForm()
+              }}
               className='px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50'
             >
               Cancel
             </button>
             <button
-              onClick={createRefund}
+              onClick={saveRefund}
               className='px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700'
             >
-              Create Refund
+              {editingRefundId ? 'Update Refund' : 'Create Refund'}
             </button>
           </div>
         </SurfaceCard>
@@ -1883,6 +2255,9 @@ const RefundsPage = () => {
                         <p className='text-xs text-gray-500'>
                           Ref: {shortId(row.bookingId)}
                         </p>
+                        <p className='text-xs text-gray-500'>
+                          Finance: {row.assignedToName || 'Unassigned'}
+                        </p>
                       </td>
                       <td className='px-5 py-4 text-right'>
                         <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>
@@ -1912,6 +2287,13 @@ const RefundsPage = () => {
                             </button>
                             {row.status === 'PENDING' && (
                               <>
+                                <button
+                                  onClick={() => handleEditRefund(row)}
+                                  className='p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors'
+                                  title='Edit'
+                                >
+                                  <FaPen />
+                                </button>
                                 <button
                                   onClick={() => handleApprove(row.id)}
                                   className='p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors'
@@ -1961,6 +2343,12 @@ const RefundsPage = () => {
                       <p className='text-xs text-gray-500'>
                         Payment: {getPaymentDisplay(row.paymentId)}
                       </p>
+                      <p className='text-xs text-gray-500'>
+                        Finance: {row.assignedToName || 'Unassigned'}
+                      </p>
+                      <p className='text-xs text-gray-500'>
+                        Raised By: {row.raisedByName || 'N/A'}
+                      </p>
                     </div>
                     <StatusBadge status={row.status} />
                   </div>
@@ -1989,6 +2377,12 @@ const RefundsPage = () => {
                     </button>
                     {row.status === 'PENDING' && (
                       <>
+                        <button
+                          onClick={() => handleEditRefund(row)}
+                          className='p-2 text-amber-600 hover:bg-amber-50 rounded-lg'
+                        >
+                          <FaPen />
+                        </button>
                         <button
                           onClick={() => handleApprove(row.id)}
                           className='p-2 text-green-600 hover:bg-green-50 rounded-lg'

@@ -4,6 +4,7 @@ import { withQuery } from "./query";
 export const refundsApi = {
   list: (params?: Record<string, string | number | boolean>) =>
     apiRequest(withQuery("/api/refunds", params)),
+  listAssignableUsers: () => apiRequest("/api/refunds/assignable-users"),
   create: (payload: unknown) =>
     apiRequest("/api/refunds", { method: "POST", body: payload }),
   getById: (id: string) => apiRequest(`/api/refunds/${id}`),

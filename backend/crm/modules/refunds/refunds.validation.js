@@ -11,18 +11,26 @@ const dateTimeString = z
 const createPayload = z.object({
   bookingId: z.string().uuid(),
   paymentId: z.string().uuid().optional(),
+  assignedTo: z.string().uuid(),
+  raisedByName: z.string().trim().min(2).max(150),
   refundAmount: z.coerce.number().positive(),
   supplierPenalty: z.coerce.number().nonnegative().optional(),
   serviceCharge: z.coerce.number().nonnegative().optional(),
   gatewayRefundId: z.string().trim().min(2).max(150).optional(),
+  proofUrl: z.string().url().max(2000).optional(),
+  notes: z.string().trim().min(1).max(4000).optional(),
 });
 
 const updatePayload = z
   .object({
+    assignedTo: z.string().uuid().optional(),
+    raisedByName: z.string().trim().min(2).max(150).optional(),
     refundAmount: z.coerce.number().positive().optional(),
     supplierPenalty: z.coerce.number().nonnegative().optional(),
     serviceCharge: z.coerce.number().nonnegative().optional(),
     gatewayRefundId: z.string().trim().min(2).max(150).optional(),
+    proofUrl: z.string().url().max(2000).optional(),
+    notes: z.string().trim().min(1).max(4000).optional(),
   })
   .refine(
     (value) => Object.keys(value).length > 0,
@@ -59,6 +67,12 @@ const update = z.object({
 const byId = z.object({
   body: z.object({}).optional(),
   params: z.object({ id: z.string().uuid() }),
+  query: z.object({}).optional(),
+});
+
+const assignableUsers = z.object({
+  body: z.object({}).optional(),
+  params: z.object({}).optional(),
   query: z.object({}).optional(),
 });
 
@@ -100,6 +114,7 @@ const RefundsValidation = {
   create,
   update,
   byId,
+  assignableUsers,
   list,
   approve,
   reject,

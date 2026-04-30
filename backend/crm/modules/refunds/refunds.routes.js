@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { asyncHandler } from "../../core/utils/index.js";
+import { createMemoryUpload } from "../../core/uploads/index.js";
 
 function createRefundsRoutes({
   controller,
@@ -7,8 +8,16 @@ function createRefundsRoutes({
   validateRequest,
   requireAuth,
   authorize,
+  config,
 }) {
   const router = Router();
+  const upload = createMemoryUpload({
+    maxFileSizeMb: config?.uploads?.maxFileSizeMb,
+  });
+  const refundUploadFields = upload.fields([
+    { name: "file", maxCount: 1 },
+    { name: "proofFile", maxCount: 1 },
+  ]);
 
   router.get(
     "/",
@@ -16,6 +25,13 @@ function createRefundsRoutes({
     authorize("refunds:read"),
     validateRequest(validation.list),
     asyncHandler(controller.list),
+  );
+  router.get(
+    "/assignable-users",
+    requireAuth,
+    authorize("refunds:create"),
+    validateRequest(validation.assignableUsers),
+    asyncHandler(controller.listAssignableUsers),
   );
   router.get(
     "/:id",
@@ -28,6 +44,7 @@ function createRefundsRoutes({
     "/",
     requireAuth,
     authorize("refunds:create"),
+    refundUploadFields,
     validateRequest(validation.create),
     asyncHandler(controller.create),
   );
@@ -35,6 +52,7 @@ function createRefundsRoutes({
     "/:id",
     requireAuth,
     authorize("refunds:update"),
+    refundUploadFields,
     validateRequest(validation.update),
     asyncHandler(controller.update),
   );

@@ -489,6 +489,10 @@ function createLeadsRepository({ db, logger, schema }) {
         true,
       ),
       createdAt: row.created_at ?? row.createdAt ?? null,
+      activityCreatedAt: row.created_at ?? row.createdAt ?? null,
+      activity_created_at: row.created_at ?? row.createdAt ?? null,
+      activityTimezone: row.client_timezone ?? row.clientTimezone ?? null,
+      activity_timezone: row.client_timezone ?? row.clientTimezone ?? null,
     };
   }
 
@@ -2379,8 +2383,8 @@ function createLeadsRepository({ db, logger, schema }) {
         .filter(Boolean);
     },
 
-    async createFollowup(payload) {
-      const sanitized = await sanitizeForTable(schema.followupsTable, {
+    async createFollowup(payload) {      console.log('[Repository] createFollowup payload:', JSON.stringify(payload, null, 2));
+          const sanitized = await sanitizeForTable(schema.followupsTable, {
         lead_id: payload.leadId,
         user_id: payload.userId || null,
         followup_type: normalizeFollowupType(payload.followupType),
@@ -2388,13 +2392,16 @@ function createLeadsRepository({ db, logger, schema }) {
         cadence_code: payload.cadenceCode || null,
         status_snapshot: payload.statusSnapshot || null,
         notes: payload.notes || null,
+        created_at: payload.createdAt || payload.created_at || null,
         client_timezone: payload.clientTimezone || null,
         followup_local_at: payload.followupLocalAt || null,
         is_completed: payload.isCompleted ?? false,
         is_schedule_only: payload.isScheduleOnly ?? false,
         counts_toward_compliance: payload.countsTowardCompliance ?? true,
       });
-      const row = await db.insert(schema.followupsTable, sanitized);
+      console.log('[Repository] Sanitized for DB:', JSON.stringify(sanitized, null, 2));
+         const row = await db.insert(schema.followupsTable, sanitized);
+          console.log('[Repository] Inserted row:', JSON.stringify(row, null, 2));
 
       return toFollowupDomain(row);
     },
@@ -2643,6 +2650,7 @@ function createLeadsRepository({ db, logger, schema }) {
 }
 
 export { createLeadsRepository };
+
 
 
 

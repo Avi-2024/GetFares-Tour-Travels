@@ -43,7 +43,7 @@ const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
   const rootRef = useRef<HTMLDivElement | null>(null)
   const dropdownRef = useRef<HTMLDivElement | null>(null)
   const [placement, setPlacement] = useState<'down' | 'up'>(dropdownPlacement)
-  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   React.useEffect(() => {
     if (onSearch && query.trim()) {
