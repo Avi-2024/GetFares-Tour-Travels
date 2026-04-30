@@ -41,6 +41,16 @@ function createVisaService({ repository }) {
     }
   }
 
+  function resolveMediaKind(mediaUrl) {
+    if (typeof mediaUrl === "string") {
+      const lowerUrl = mediaUrl.toLowerCase();
+      if (/(\.(mp4|mov|webm|ogg|m4v|avi|mkv|flv|wmv))(\?|$)/.test(lowerUrl)) {
+        return "video";
+      }
+    }
+    return "image";
+  }
+
   function toVisaDestination(row) {
     const countryIds = normalizeCountryIds(parseJsonArray(row.country_ids));
     if (!row) return null;
@@ -57,6 +67,7 @@ function createVisaService({ repository }) {
       slug: row.slug,
       subDescription: row.sub_description,
       imageUrl: row.image_url,
+      mediaKind: resolveMediaKind(row.image_url),
       highlights,
       overviewTitle: row.overview_title,
       overviewDescription: row.overview_description,
