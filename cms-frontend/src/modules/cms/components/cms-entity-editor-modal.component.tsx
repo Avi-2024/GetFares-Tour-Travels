@@ -1862,7 +1862,7 @@ class CmsEntityEditorModalComponent extends Component<
                   <button
                     type="button"
                     onClick={() => this.onRemoveCopy(copy.id)}
-                    className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-[color-mix(in_srgb,var(--danger)_35%,transparent)] text-xs text-[var(--danger)] hover:bg-[color-mix(in_srgb,var(--danger)_10%,transparent)]"
+                    className="inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-[color-mix(in_srgb,var(--danger)_35%,transparent)] text-[var(--danger)] hover:bg-[color-mix(in_srgb,var(--danger)_10%,transparent)]"
                   >
                     ✕
                   </button>

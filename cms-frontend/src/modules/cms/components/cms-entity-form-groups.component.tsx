@@ -330,10 +330,9 @@ class CmsEntityFormGroupsComponent extends Component<CmsEntityFormGroupsProps> {
                     );
                     onFieldChange(field, next);
                   }}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] text-sm font-bold text-(--danger) transition hover:bg-[color-mix(in_srgb,var(--danger)_18%,transparent)]"
-                  aria-label={`Remove ${field.label} item ${index + 1}`}
+                  className="inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] text-(--danger) transition hover:bg-[color-mix(in_srgb,var(--danger)_18%,transparent)]"
                 >
-                  ×
+                  <FaTimes size={11} />
                 </button>
               </div>
             ))}
@@ -383,7 +382,7 @@ class CmsEntityFormGroupsComponent extends Component<CmsEntityFormGroupsProps> {
                       );
                       onFieldChange(field, next);
                     }}
-                    className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] text-(--danger) transition hover:bg-[color-mix(in_srgb,var(--danger)_18%,transparent)]"
+                    className="inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] text-(--danger) transition hover:bg-[color-mix(in_srgb,var(--danger)_18%,transparent)]"
                     aria-label={`Remove ${field.label} row ${rowIndex + 1}`}
                   >
                     <FaTimes size={11} />
