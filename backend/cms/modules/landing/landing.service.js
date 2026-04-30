@@ -35,6 +35,28 @@ function createLandingService({ repository }) {
     );
   }
 
+  function resolveLandingPlaceMediaUrl(payload) {
+    return normalizeText(
+      payload.mediaUrl ?? payload.videoUrl ?? payload.imageUrl ?? payload.image,
+    );
+  }
+
+  function resolveLandingPlaceMediaKind(payload, mediaUrl) {
+    const explicitKind = normalizeText(payload.mediaKind ?? payload.mediaType);
+    if (explicitKind === "video" || explicitKind === "image") {
+      return explicitKind;
+    }
+
+    if (typeof mediaUrl === "string") {
+      const lowerUrl = mediaUrl.toLowerCase();
+      if (/(\.(mp4|mov|webm|ogg|m4v|avi|mkv|flv|wmv))(\?|$)/.test(lowerUrl)) {
+        return "video";
+      }
+    }
+
+    return "image";
+  }
+
   function isActiveValue(value) {
     if (typeof value === "boolean") return value;
     if (typeof value === "number") return value === 1;
@@ -139,6 +161,8 @@ function createLandingService({ repository }) {
   function toLandingPlace(row) {
     if (!row) return null;
     const countryIds = parseCountryIds(row.country_ids);
+    const mediaUrl = row.image_url;
+    const mediaKind = resolveLandingPlaceMediaKind({}, mediaUrl);
     return {
       id: row.id,
       title: row.name,
@@ -147,8 +171,10 @@ function createLandingService({ repository }) {
       countryIds,
       description: row.description ?? row.tag ?? null,
       tag: row.tag ?? null,
-      image: row.image_url,
-      imageUrl: row.image_url,
+      image: mediaUrl,
+      imageUrl: mediaUrl,
+      mediaUrl,
+      mediaKind,
       displayOrder: row.display_order,
       isActive: row.is_active,
       isDeleted: row.is_deleted,
@@ -223,10 +249,11 @@ function createLandingService({ repository }) {
         throw new AppError(400, "Title is required", "TITLE_REQUIRED");
       }
 
-      const imageUrl = normalizeText(data.image ?? data.imageUrl);
-      if (!imageUrl) {
-        throw new AppError(400, "Image is required", "IMAGE_REQUIRED");
+      const mediaUrl = resolveLandingPlaceMediaUrl(data);
+      if (!mediaUrl) {
+        throw new AppError(400, "Media is required", "MEDIA_REQUIRED");
       }
+      const mediaKind = resolveLandingPlaceMediaKind(data, mediaUrl);
 
       const displayOrder = await reassignDisplayOrderConflict({
         displayOrder: normalizeDisplayOrderInput(data.displayOrder, -1),
@@ -262,7 +289,7 @@ function createLandingService({ repository }) {
         : {
             tag: legacySharedCopy,
           }),
-        image_url: imageUrl,
+        image_url: mediaUrl,
         display_order: displayOrder,
         is_active: requestedIsActive,
       });
@@ -360,8 +387,18 @@ function createLandingService({ repository }) {
         }
         updates.tag = tag;
       }
-      if (data.imageUrl !== undefined || data.image !== undefined)
-        updates.image_url = normalizeText(data.image ?? data.imageUrl);
+      if (
+        data.mediaUrl !== undefined ||
+        data.videoUrl !== undefined ||
+        data.imageUrl !== undefined ||
+        data.image !== undefined
+      ) {
+        const mediaUrl = resolveLandingPlaceMediaUrl(data);
+        if (!mediaUrl) {
+          throw new AppError(400, "Media cannot be empty", "INVALID_MEDIA");
+        }
+        updates.image_url = mediaUrl;
+      }
       if (data.displayOrder !== undefined) {
         updates.display_order = normalizeDisplayOrderInput(
           data.displayOrder,

@@ -235,6 +235,12 @@ function createCmsPackagesRepository({ db, schema }) {
         clauses.push("LOWER(mp.country) = LOWER(?)");
       }
 
+      const destinationId = normalizeCountry(filters.destinationId);
+      if (destinationId) {
+        values.push(destinationId);
+        clauses.push("mp.destination_id = ?");
+      }
+
       if (filters.is_featured !== undefined) {
         values.push(filters.is_featured);
         clauses.push("mp.is_featured = ?");

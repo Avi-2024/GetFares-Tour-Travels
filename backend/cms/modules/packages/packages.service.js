@@ -330,6 +330,7 @@ function createCmsPackagesService({ repository }) {
   async function reassignMainPackageDisplayOrder({
     displayOrder,
     country,
+    destinationId,
     excludeId = null,
   }) {
     const normalizedOrder = normalizeDisplayOrderInput(displayOrder, -1);
@@ -339,6 +340,7 @@ function createCmsPackagesService({ repository }) {
     const rows = await repository.findAllMainPackages({
       includeDeleted: true,
       ...(country ? { country } : {}),
+      ...(destinationId ? { destinationId } : {}),
     });
     const duplicate = findDisplayOrderConflict(
       normalizedOrder,
@@ -348,7 +350,7 @@ function createCmsPackagesService({ repository }) {
     if (duplicate) {
       throw new AppError(
         400,
-        `Display order ${normalizedOrder} is already taken in country "${country || 'all'}"`,
+        `Display order ${normalizedOrder} is already taken for country "${country || 'all'}" and destination "${destinationId || 'all'}"`,
         "DISPLAY_ORDER_CONFLICT",
       );
     }
@@ -791,6 +793,7 @@ function createCmsPackagesService({ repository }) {
           display_order: await reassignMainPackageDisplayOrder({
             displayOrder: data.displayOrder,
             country: resolvedCountry,
+            destinationId,
           }),
           is_featured: toBoolean(data.isFeatured, false),
         });
@@ -846,6 +849,10 @@ function createCmsPackagesService({ repository }) {
         data.country !== undefined ?
           normalizeText(data.country)
         : normalizeText(existing.country);
+      const nextDestinationId =
+        data.destinationId !== undefined ?
+          normalizeText(data.destinationId)
+        : normalizeText(existing.destination_id);
       if (data.destinationId !== undefined) {
         const destinationId = normalizeText(data.destinationId);
         if (!destinationId) {
@@ -920,12 +927,14 @@ function createCmsPackagesService({ repository }) {
         updates.display_order = await reassignMainPackageDisplayOrder({
           displayOrder: data.displayOrder,
           country: nextCountry,
+          destinationId: nextDestinationId,
           excludeId: id,
         });
-      if (data.displayOrder === undefined && data.country !== undefined) {
+      if (data.displayOrder === undefined && (data.country !== undefined || data.destinationId !== undefined)) {
         updates.display_order = await reassignMainPackageDisplayOrder({
           displayOrder: existing.display_order,
           country: nextCountry,
+          destinationId: nextDestinationId,
           excludeId: id,
         });
       }
