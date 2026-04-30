@@ -460,8 +460,9 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
   const tableColumns = useMemo(
     () => [
       { key: "createdAt", label: "Date", width: "120px", align: "center" as const },
-      { key: "lead", label: "Lead", width: "240px" },
-      { key: "leadId", label: "Lead ID", width: "120px" },
+      { key: "lead", label: "Lead", width: "180px" },
+      { key: "leadId", label: "Lead ID", width: "110px" },
+      { key: "leadSource", label: "Lead Source", width: "180px" },
       { key: "contact", label: "Contact", width: "220px" },
       { key: "destination", label: "Destination", width: "170px" },
       { key: "type", label: "Visa/Holidays", width: "140px" },
@@ -495,7 +496,7 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
       <div
         className="grid border-b border-gray-100 bg-white transition-colors hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-900 dark:hover:bg-gray-800/40"
         style={{
-          gridTemplateColumns: "120px 240px 120px 220px 170px 140px 140px 150px 120px 110px",
+          gridTemplateColumns: "120px 180px 110px 180px 220px 170px 140px 140px 150px 120px 110px",
           width: "max-content",
           minWidth: "100%",
         }}
@@ -520,6 +521,9 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
         <div className="px-3 py-4 text-sm font-medium text-gray-700 dark:text-gray-200">
           {lead.leadId}
         </div>
+        <div className="px-3 py-4 text-sm text-gray-700 dark:text-gray-200">
+          <span className="line-clamp-2 break-words">{lead.source || "-"}</span>
+        </div>
         <div className="px-3 py-4">
           <p className="truncate text-sm font-medium text-gray-800 dark:text-gray-200" title={lead.email}>
             {truncateEmail(lead.email)}
@@ -532,7 +536,7 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
         <div className="px-3 py-4 text-sm font-medium text-gray-800 dark:text-gray-200">
           {getVisaHolidayLabel(lead)}
         </div>
-        <div className="px-3 py-4 text-sm font-medium text-gray-700 dark:text-gray-300">
+        <div className="px-3 py-4 text-sm font-medium text-gray-  `700 dark:text-gray-300">
           {lead.leadCountry || "-"}
         </div>
         <div className="flex items-center justify-center px-3 py-4">
@@ -850,7 +854,7 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
             <div className="p-8">
               <EmptyState
                 title="No leads found"
-                description="Try adjusting your filter combination and search query."
+                description="Try adjusting yo ur filter combination and search query."
                 icon={<FaUsers className="text-4xl" />}
               />
             </div>
@@ -876,14 +880,15 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
                 >
                   <colgroup>
                     <col style={{ width: 120, minWidth: 120 }} />
-                    <col style={{ width: 220, minWidth: 220 }} />
+                    <col style={{ width: 180, minWidth: 180 }} />
                     <col style={{ width: 110, minWidth: 110 }} />
-                    <col style={{ width: 200, minWidth: 200 }} />
+                    <col style={{ width: 180, minWidth: 180 }} />
+                    <col style={{ width: 220, minWidth: 220 }} />
+                    <col style={{ width: 170, minWidth: 170 }} />
+                    <col style={{ width: 140, minWidth: 140 }} />
+                    <col style={{ width: 140, minWidth: 140 }} />
                     <col style={{ width: 150, minWidth: 150 }} />
                     <col style={{ width: 120, minWidth: 120 }} />
-                    <col style={{ width: 130, minWidth: 130 }} />
-                    <col style={{ width: 140, minWidth: 140 }} />
-                    <col style={{ width: 110, minWidth: 110 }} />
                     <col style={{ width: 110, minWidth: 110 }} />
                   </colgroup>
                   <thead className="bg-gray-50  dark:bg-gray-800/50 sticky top-0 z-10">
@@ -896,6 +901,9 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
                       </th>
                       <th className="px-3 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
                         Lead ID
+                      </th>
+                      <th className="px-3 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
+                        Lead Source
                       </th>
                       <th className="px-3 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
                         Contact
@@ -978,6 +986,11 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
                         <td className="px-3 py-4 whitespace-nowrap">
                           <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
                             {lead.leadId}
+                          </span>
+                        </td>
+                        <td className="px-3 py-4">
+                          <span className="line-clamp-2 break-words text-sm text-gray-700 dark:text-gray-200">
+                            {lead.source || "-"}
                           </span>
                         </td>
                         <td className="px-3 py-4">
