@@ -23,6 +23,7 @@ type SearchableDropdownProps = {
   hasError?: boolean
   searchPlaceholder?: string
   dropdownPlacement?: 'down' | 'up'
+  onSearch?: (query: string) => void
 }
 
 const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
@@ -34,13 +35,31 @@ const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
   disabled = false,
   hasError = false,
   searchPlaceholder = 'Search...',
-  dropdownPlacement = 'down'
+  dropdownPlacement = 'down',
+  onSearch
 }) => {
   const [isOpen, setIsOpen] = useState(false)
   const [query, setQuery] = useState('')
   const rootRef = useRef<HTMLDivElement | null>(null)
   const dropdownRef = useRef<HTMLDivElement | null>(null)
   const [placement, setPlacement] = useState<'down' | 'up'>(dropdownPlacement)
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  React.useEffect(() => {
+    if (onSearch && query.trim()) {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current)
+      }
+      searchTimeoutRef.current = setTimeout(() => {
+        onSearch(query.trim())
+      }, 300)
+    }
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current)
+      }
+    }
+  }, [query, onSearch])
 
   React.useEffect(() => {
     const onPointerDown = (event: MouseEvent) => {

@@ -83,6 +83,42 @@ function toCustomer(entity, bookingSummary = null) {
   };
 }
 
+function toCustomerLead(entity) {
+  if (!entity) {
+    return null;
+  }
+
+  return {
+    id: entity.id,
+    leadId:
+      entity.lead_code ??
+      entity.leadCode ??
+      entity.meta_lead_id ??
+      entity.metaLeadId ??
+      entity.id,
+    status: entity.status ?? null,
+    subStatus: entity.sub_status ?? entity.subStatus ?? null,
+    leadType: entity.lead_type ?? entity.leadType ?? null,
+    destination:
+      entity.destination_name ??
+      entity.destinationName ??
+      entity.travel_to ??
+      entity.travelTo ??
+      entity.lead_country ??
+      entity.leadCountry ??
+      null,
+    source: entity.source ?? null,
+    consultant:
+      entity.assigned_user_name ??
+      entity.assignedUserName ??
+      entity.consultant ??
+      null,
+    assignedTo: entity.assigned_to ?? entity.assignedTo ?? null,
+    createdAt: entity.created_at ?? entity.createdAt ?? null,
+    updatedAt: entity.updated_at ?? entity.updatedAt ?? null,
+  };
+}
+
 function createCustomersService({ repository, leadsRepository, logger, events }) {
   async function list(filters = {}, context = {}) {
     const mappedFilters = mapListFilters(filters);
@@ -161,6 +197,19 @@ function createCustomersService({ repository, leadsRepository, logger, events })
     );
   }
 
+  async function getLeads(id, context = {}) {
+    const customer = await getById(id, context);
+    const rows = await repository.findLeadsByCustomerId(id, customer);
+    const items = (Array.isArray(rows) ? rows : [])
+      .map(toCustomerLead)
+      .filter(Boolean);
+
+    return {
+      items,
+      totalLeads: items.length,
+    };
+  }
+
   async function create(payload) {
     const created = await repository.create(mapCreatePayload(payload));
     events.emitCreated(created);
@@ -185,6 +234,7 @@ function createCustomersService({ repository, leadsRepository, logger, events })
   return Object.freeze({
     list,
     getById,
+    getLeads,
     create,
     update,
     remove,

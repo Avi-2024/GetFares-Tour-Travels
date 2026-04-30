@@ -1115,20 +1115,19 @@ const RefundsPage = () => {
     void loadRefunds()
   }, [token])
 
-  const loadLookupData = useCallback(async () => {
-    if (!token) {
+  const searchBookings = useCallback(async (query: string) => {
+    if (!token || !query.trim()) {
       setBookings([])
-      setPayments([])
       return
     }
 
     setLoadingBookings(true)
     try {
-      const [bookingsRes, customersRes, leadsRes] = await Promise.all([
-        bookingsApi.list({ page: 1, limit: 300 }),
-        customersApi.list({ page: 1, limit: 500 }),
-        leadsApi.list({ page: 1, limit: 500 })
-      ])
+      const bookingsRes = await bookingsApi.list({ 
+        page: 1, 
+        limit: 50,
+        search: query.trim()
+      })
 
       const bookingsPayload = bookingsRes as any
       const bookingsData =
@@ -1138,73 +1137,22 @@ const RefundsPage = () => {
         []
       const bookingsList = Array.isArray(bookingsData) ? bookingsData : []
 
-      const customersPayload = customersRes as any
-      const customersData =
-        customersPayload?.data?.data ||
-        customersPayload?.data ||
-        customersPayload ||
-        []
-      const customersList = Array.isArray(customersData) ? customersData : []
-      const customersById = new Map(
-        customersList.map((customer: any) => [
-          String(customer?.id || customer?.customerId || ''),
-          customer
-        ])
-      )
-      const leadsPayload = leadsRes as any
-      const leadsData =
-        leadsPayload?.data?.data ||
-        leadsPayload?.data ||
-        leadsPayload ||
-        []
-      const leadsList = Array.isArray(leadsData) ? leadsData : []
-      const leadsById = new Map(
-        leadsList.map((lead: any) => [
-          String(lead?.id || lead?.leadId || ''),
-          lead
-        ])
-      )
-
       setBookings(
         bookingsList.map((booking: any) => {
-          const customerId =
-            booking.customerId ||
-            booking.customer_id ||
-            booking.customer?.id ||
-            booking.customer?.customerId ||
-            booking.customer?.customer_id ||
-            booking.leadId ||
-            booking.lead_id ||
-            ''
-          const customerRecord = customersById.get(String(customerId)) as any
-          const leadRecord = leadsById.get(String(customerId)) as any
           const derivedCustomerName =
             booking.customerName ||
             booking.customer_name ||
             booking.customer?.name ||
             booking.customer?.fullName ||
-            booking.customer?.customerName ||
             booking.leadName ||
             booking.lead_name ||
             booking.lead?.name ||
             booking.lead?.fullName ||
-            customerRecord?.name ||
-            customerRecord?.fullName ||
-            customerRecord?.customerName ||
-            leadRecord?.name ||
-            leadRecord?.fullName ||
-            leadRecord?.leadName ||
-            (customerRecord?.firstName || customerRecord?.lastName
-              ? `${customerRecord?.firstName ?? ''} ${customerRecord?.lastName ?? ''}`.trim()
-              : '') ||
-            (leadRecord?.firstName || leadRecord?.lastName
-              ? `${leadRecord?.firstName ?? ''} ${leadRecord?.lastName ?? ''}`.trim()
-              : '') ||
             booking.primaryContactName ||
             booking.contactName ||
             booking.travellerName ||
             booking.customer ||
-            ''
+            'Unknown Customer'
           return {
             id: String(booking.id || ''),
             bookingNumber:
@@ -1217,23 +1165,18 @@ const RefundsPage = () => {
               booking.customerEmail ||
               booking.customer_email ||
               booking.customer?.email ||
-              booking.customer?.primaryEmail ||
-              leadRecord?.email ||
               '',
             customerPhone:
               booking.customerPhone ||
               booking.customer_phone ||
               booking.customer?.phone ||
-              booking.customer?.mobile ||
-              leadRecord?.phone ||
-              leadRecord?.mobile ||
               ''
           }
         })
       )
-
     } catch (err) {
-      console.error('Failed to load booking/payment lookups:', err)
+      console.error('Failed to search bookings:', err)
+      setBookings([])
     } finally {
       setLoadingBookings(false)
     }
@@ -1302,14 +1245,11 @@ const RefundsPage = () => {
   )
 
   useEffect(() => {
-    void loadLookupData()
-  }, [loadLookupData])
-
-  useEffect(() => {
-    if (!showForm) return
-    setPayments([])
-    void loadLookupData()
-  }, [showForm, loadLookupData])
+    if (!showForm) {
+      setBookings([])
+      setPayments([])
+    }
+  }, [showForm])
 
   useEffect(() => {
     if (!showForm) return
@@ -1558,7 +1498,7 @@ const RefundsPage = () => {
           <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
             <div>
               <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
-                Booking *
+                Booking * (Search by booking number or ID)
               </label>
               <SearchableDropdown
                 value={form.bookingId}
@@ -1569,8 +1509,9 @@ const RefundsPage = () => {
                     paymentId: ''
                   }))
                 }}
+                onSearch={searchBookings}
                 options={bookingDropdownOptions}
-                searchPlaceholder='Search booking...'
+                searchPlaceholder='Type booking number (e.g., BK-1776424194713-8883)'
                 disabled={loadingBookings}
               />
             </div>

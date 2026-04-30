@@ -461,6 +461,84 @@ function createCustomersRepository({ db, logger, schema }) {
     return db.findById(schema.tableName, id);
   }
 
+  async function findLeadsByCustomerId(customerId, customer = {}) {
+    if (!customerId) {
+      return [];
+    }
+
+    if (canUseRawQuery()) {
+      const [leadHasCustomerId, leadHasSoftDelete] = await Promise.all([
+        hasColumn(schema.leadsTable, "customer_id"),
+        hasColumn(schema.leadsTable, "is_deleted"),
+      ]);
+      const where = [];
+      const params = [];
+
+      if (leadHasCustomerId) {
+        where.push("l.customer_id = ?");
+        params.push(customerId);
+      } else {
+        const contactClauses = [];
+        if (customer.email) {
+          contactClauses.push("LOWER(COALESCE(l.email, '')) = LOWER(?)");
+          params.push(customer.email);
+        }
+        if (customer.phone) {
+          contactClauses.push("COALESCE(l.phone, '') = ?");
+          params.push(customer.phone);
+        }
+        if (!contactClauses.length) {
+          return [];
+        }
+        where.push(`(${contactClauses.join(" OR ")})`);
+      }
+
+      if (leadHasSoftDelete) {
+        where.push("COALESCE(l.is_deleted, 0) = 0");
+      }
+
+      const result = await db.query(
+        `
+          SELECT
+            l.*,
+            d.name AS destination_name,
+            u.full_name AS assigned_user_name
+          FROM ${schema.leadsTable} l
+          LEFT JOIN ${schema.destinationsTable} d ON d.id = l.destination_id
+          LEFT JOIN ${schema.usersTable} u ON u.id = l.assigned_to
+          WHERE ${where.join(" AND ")}
+          ORDER BY COALESCE(l.created_at, '1970-01-01 00:00:00') DESC
+        `,
+        params,
+      );
+
+      return Array.isArray(result.rows) ? result.rows : [];
+    }
+
+    const rows = await db.findMany(schema.leadsTable, {});
+    const normalizedEmail = normalizeEmail(customer.email);
+    const normalizedPhone = normalizePhone(customer.phone);
+    return (Array.isArray(rows) ? rows : [])
+      .filter((row) => !(row?.is_deleted ?? row?.isDeleted ?? false))
+      .filter((row) => {
+        const rowCustomerId = String(row?.customer_id ?? row?.customerId ?? "");
+        if (rowCustomerId && rowCustomerId === String(customerId)) {
+          return true;
+        }
+        const rowEmail = normalizeEmail(row?.email);
+        const rowPhone = normalizePhone(row?.phone);
+        return Boolean(
+          (normalizedEmail && rowEmail === normalizedEmail) ||
+            (normalizedPhone && rowPhone === normalizedPhone),
+        );
+      })
+      .sort((left, right) => {
+        const leftTime = new Date(left.created_at ?? left.createdAt ?? 0).getTime();
+        const rightTime = new Date(right.created_at ?? right.createdAt ?? 0).getTime();
+        return rightTime - leftTime;
+      });
+  }
+
   async function create(payload) {
     logger.debug({ module: "customers", payload }, "Creating record");
     const sanitized = await sanitizeForTable(schema.tableName, payload);
@@ -695,6 +773,7 @@ function createCustomersRepository({ db, logger, schema }) {
     findAll,
     summarizeList,
     findById,
+    findLeadsByCustomerId,
     create,
     update,
     backfillFromLeads,

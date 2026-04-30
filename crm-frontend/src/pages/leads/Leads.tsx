@@ -20,6 +20,7 @@ import SearchableDropdown from "../../components/ui/SearchableDropdown";
 import VirtualizedTable from "../../components/ui/VirtualizedTable";
 import { reportApiError } from "../../lib/notify";
 import { useLeadsService } from "../../hooks/useLeadsService";
+import { useUsersService } from "../../hooks/useUsersService";
 
 import type { LeadListItem, LeadsPagination } from "../../services/leadsService";
 import { toStatusLabelText, sopLabelToCanonical } from "../../utils/leadStatus";
@@ -52,6 +53,18 @@ type LeadFilterState = {
   status: "ALL" | "NEW" | "CONTACTED" | "NEGOTIATION" | "QUOTED" | "FOLLOW_UP_1" | "FOLLOW_UP_2" | "FOLLOW_UP_3" | "FOLLOW_UP_4" | "FINAL_REMINDER" | "CONVERTED" | "LOST" | "NON_RESPONSIVE";
   sla: "ALL" | "OVERDUE" | "WITHIN_SLA" | "PENDING";
   sortBy: "CREATED_AT_DESC" | "CREATED_AT_ASC" | "NAME_ASC" | "STATUS_ASC" | "COUNTRY_ASC";
+};
+
+type ConsultantUser = {
+  id?: string;
+  fullName?: string;
+  full_name?: string;
+  name?: string;
+  email?: string;
+  role?: string;
+  isActive?: boolean;
+  is_active?: boolean;
+  active?: boolean | null;
 };
 
 const defaultFilters: LeadFilterState = {
@@ -100,6 +113,15 @@ const truncateEmail = (value: string, maxLength = 26) => {
   return `${safe.slice(0, Math.max(3, maxLength - 3))}...`;
 };
 
+const extractRows = <T,>(response: unknown): T[] => {
+  const payload = response as { data?: T[] | { data?: T[]; items?: T[] } };
+  if (Array.isArray(payload?.data)) return payload.data;
+  const nested = payload?.data as { data?: T[]; items?: T[] } | undefined;
+  if (Array.isArray(nested?.data)) return nested.data;
+  if (Array.isArray(nested?.items)) return nested.items;
+  return Array.isArray(response) ? (response as T[]) : [];
+};
+
 const Leads: React.FC = () => {
   const [quickFilter, setQuickFilter] = useState<QuickFilter>("ALL");
   const [search, setSearch] = useState("");
@@ -111,7 +133,7 @@ const Leads: React.FC = () => {
   const [pagination, setPagination] = useState<LeadsPagination | null>(null);
   const [destinationNames, setDestinationNames] = useState<string[]>([]);
   const destinationsFetchedRef = React.useRef(false);
-  const [consultantNames, setConsultantNames] = useState<string[]>([]);
+  const [consultantUsers, setConsultantUsers] = useState<Array<{ id: string; name: string }>>([]);
   const consultantsFetchedRef = React.useRef(false);
   const [pageSize, setPageSize] = useState(25);
   const [draftFilters, setDraftFilters] = useState<LeadFilterState>(defaultFilters);
@@ -119,6 +141,7 @@ const Leads: React.FC = () => {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const nav = useNavigate();
   const leadsService = useLeadsService();
+  const usersService = useUsersService();
   const deferredSearch = useDeferredValue(debouncedSearch);
 
   const countryOptions = useMemo(
@@ -171,9 +194,9 @@ const Leads: React.FC = () => {
   const consultantOptions = useMemo(
     () => [
       { value: "", label: "All Consultants" },
-      ...consultantNames.map((name) => ({ value: name, label: name })),
+      ...consultantUsers.map((user) => ({ value: user.id, label: user.name })),
     ],
-    [consultantNames],
+    [consultantUsers],
   );
 
   const sortOptions = useMemo(
@@ -217,7 +240,7 @@ const Leads: React.FC = () => {
       ...(appliedFilters.email.trim() ? { email: appliedFilters.email.trim() } : {}),
       ...(appliedFilters.phone.trim() ? { phone: appliedFilters.phone.trim() } : {}),
       ...(appliedFilters.leadId.trim() ? { leadId: appliedFilters.leadId.trim() } : {}),
-      ...(appliedFilters.consultant.trim() ? { consultant: appliedFilters.consultant.trim() } : {}),
+      ...(appliedFilters.consultant.trim() ? { assignedTo: appliedFilters.consultant.trim() } : {}),
       ...(appliedFilters.sortBy ? { sortBy: appliedFilters.sortBy } : {}),
     }
   };
@@ -244,21 +267,23 @@ const Leads: React.FC = () => {
     const fetchConsultants = async () => {
       try {
         // Fetch a large batch to get all unique consultants
-        const result = await leadsService.listLeadsPage({ page: 1, limit: 1000 })
-        const uniqueConsultants = Array.from(
-          new Set(
-            result.items
-              .map(lead => lead.consultant)
-              .filter(c => c && c !== "Unassigned")
-          )
-        ).sort()
-        setConsultantNames(uniqueConsultants)
+        const response = await usersService.list()
+        const salesConsultants = extractRows<ConsultantUser>(response)
+          .filter(user => String(user.role || '').trim().toLowerCase() === 'sales_consultant')
+          .filter(user => user.isActive !== false && user.is_active !== false && user.active !== false)
+          .map(user => ({
+            id: String(user.id || '').trim(),
+            name: String(user.fullName || user.full_name || user.name || user.email || '').trim(),
+          }))
+          .filter(user => user.id && user.name)
+          .sort((left, right) => left.name.localeCompare(right.name))
+        setConsultantUsers(salesConsultants)
       } catch {
         // silently ignore — consultant filter just won't populate
       }
     }
     void fetchConsultants()
-  }, [leadsService])
+  }, [usersService])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
