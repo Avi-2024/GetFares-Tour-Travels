@@ -48,6 +48,7 @@ type LeadFilterState = {
   email: string;
   phone: string;
   leadId: string;
+  consultant: string;
   status: "ALL" | "NEW" | "CONTACTED" | "NEGOTIATION" | "QUOTED" | "FOLLOW_UP_1" | "FOLLOW_UP_2" | "FOLLOW_UP_3" | "FOLLOW_UP_4" | "FINAL_REMINDER" | "CONVERTED" | "LOST" | "NON_RESPONSIVE";
   sla: "ALL" | "OVERDUE" | "WITHIN_SLA" | "PENDING";
   sortBy: "CREATED_AT_DESC" | "CREATED_AT_ASC" | "NAME_ASC" | "STATUS_ASC" | "COUNTRY_ASC";
@@ -61,6 +62,7 @@ const defaultFilters: LeadFilterState = {
   email: "",
   phone: "",
   leadId: "",
+  consultant: "",
   status: "ALL",
   sla: "ALL" as const,
   sortBy: "CREATED_AT_DESC",
@@ -109,6 +111,8 @@ const Leads: React.FC = () => {
   const [pagination, setPagination] = useState<LeadsPagination | null>(null);
   const [destinationNames, setDestinationNames] = useState<string[]>([]);
   const destinationsFetchedRef = React.useRef(false);
+  const [consultantNames, setConsultantNames] = useState<string[]>([]);
+  const consultantsFetchedRef = React.useRef(false);
   const [pageSize, setPageSize] = useState(25);
   const [draftFilters, setDraftFilters] = useState<LeadFilterState>(defaultFilters);
   const [appliedFilters, setAppliedFilters] = useState<LeadFilterState>(defaultFilters);
@@ -164,6 +168,14 @@ const Leads: React.FC = () => {
     [destinationNames],
   );
 
+  const consultantOptions = useMemo(
+    () => [
+      { value: "", label: "All Consultants" },
+      ...consultantNames.map((name) => ({ value: name, label: name })),
+    ],
+    [consultantNames],
+  );
+
   const sortOptions = useMemo(
     () => [
       { value: "CREATED_AT_DESC", label: "Created desc" },
@@ -205,6 +217,7 @@ const Leads: React.FC = () => {
       ...(appliedFilters.email.trim() ? { email: appliedFilters.email.trim() } : {}),
       ...(appliedFilters.phone.trim() ? { phone: appliedFilters.phone.trim() } : {}),
       ...(appliedFilters.leadId.trim() ? { leadId: appliedFilters.leadId.trim() } : {}),
+      ...(appliedFilters.consultant.trim() ? { consultant: appliedFilters.consultant.trim() } : {}),
       ...(appliedFilters.sortBy ? { sortBy: appliedFilters.sortBy } : {}),
     }
   };
@@ -222,6 +235,29 @@ const Leads: React.FC = () => {
       }
     }
     void fetchDestinations()
+  }, [leadsService])
+
+  // Load all unique consultants once on mount — fetch from all leads
+  useEffect(() => {
+    if (consultantsFetchedRef.current) return
+    consultantsFetchedRef.current = true
+    const fetchConsultants = async () => {
+      try {
+        // Fetch a large batch to get all unique consultants
+        const result = await leadsService.listLeadsPage({ page: 1, limit: 1000 })
+        const uniqueConsultants = Array.from(
+          new Set(
+            result.items
+              .map(lead => lead.consultant)
+              .filter(c => c && c !== "Unassigned")
+          )
+        ).sort()
+        setConsultantNames(uniqueConsultants)
+      } catch {
+        // silently ignore — consultant filter just won't populate
+      }
+    }
+    void fetchConsultants()
   }, [leadsService])
 
   useEffect(() => {
@@ -305,6 +341,7 @@ const Leads: React.FC = () => {
     if (appliedFilters.email) count += 1;
     if (appliedFilters.phone) count += 1;
     if (appliedFilters.leadId) count += 1;
+    if (appliedFilters.consultant) count += 1;
     if (appliedFilters.status !== "ALL") count += 1;
     if (appliedFilters.sla !== "ALL") count += 1;
     if (appliedFilters.sortBy !== "CREATED_AT_DESC") count += 1;
@@ -340,6 +377,7 @@ const Leads: React.FC = () => {
         email: draftFilters.email.trim(),
         phone: draftFilters.phone.trim(),
         leadId: draftFilters.leadId.trim(),
+        consultant: draftFilters.consultant.trim(),
       });
       setPage(1);
     }, delay);
@@ -461,6 +499,7 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
     () => [
       { key: "createdAt", label: "Date", width: "120px", align: "center" as const },
       { key: "lead", label: "Lead", width: "180px" },
+      { key: "salesPerson", label: "Sales Person", width: "160px" },
       { key: "leadId", label: "Lead ID", width: "110px" },
       { key: "leadSource", label: "Lead Source", width: "180px" },
       { key: "contact", label: "Contact", width: "220px" },
@@ -488,15 +527,17 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
         "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
       : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300";
     const priorityLabel =
-      lead.priority === "High" ? "Hot"
-      : lead.priority === "Medium" ? "Warm"
-      : "Cold";
+      lead.priority === "High" ? "🔥 Hot"
+      : lead.priority === "Medium" ? "⚡ Warm"
+      : "❄️ Cold";
+    const maxNameLength = 17;
+    const displayName = lead.name.length > maxNameLength ? lead.name.slice(0, maxNameLength) + '...' : lead.name;
 
     return (
       <div
         className="grid border-b border-gray-100 bg-white transition-colors hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-900 dark:hover:bg-gray-800/40"
         style={{
-          gridTemplateColumns: "120px 180px 110px 180px 220px 170px 140px 140px 150px 120px 110px",
+          gridTemplateColumns: "120px 180px 160px 110px 180px 220px 170px 140px 140px 150px 120px 110px",
           width: "max-content",
           minWidth: "100%",
         }}
@@ -505,9 +546,14 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
           {dateLabel}
         </div>
         <div className="px-3 py-4">
-          <div className="space-y-1">
-            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{lead.name}</p>
-            <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${priorityTone}`}>
+          <div className="">
+            <div className="flex items-center gap-1">
+              <p className="text-sm font-medium text-gray-900 dark:text-gray-100" title={lead.name}>{displayName}</p>
+              {lead.name.length > maxNameLength && (
+                <FaInfoCircle className="text-gray-400 hover:text-blue-500 cursor-help flex-shrink-0" title={lead.name} />
+              )}
+            </div>
+            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${priorityTone}`}>
               {priorityLabel}
             </span>
             <p className="text-xs text-gray-500 dark:text-gray-400">{formatPaxSummary(lead)}</p>
@@ -518,6 +564,23 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
             ) : null}
           </div>
         </div>
+        <div className="px-3 py-4">
+          <div className="space-y-1">
+            {lead.consultant && lead.consultant !== "Unassigned" && (
+              <p className="text-xs text-gray-700 dark:text-gray-300">
+                {lead.consultant}
+              </p>
+            )}
+            {lead.assignedBy && (
+              <p className="text-xs text-blue-600 dark:text-blue-400">
+                Assigned by: {lead.assignedBy}
+              </p>
+            )}
+            {(!lead.consultant || lead.consultant === "Unassigned") && !lead.assignedBy && (
+              <p className="text-xs text-gray-500 dark:text-gray-400">-</p>
+            )}
+          </div>
+        </div>
         <div className="px-3 py-4 text-sm font-medium text-gray-700 dark:text-gray-200">
           {lead.leadId}
         </div>
@@ -525,9 +588,14 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
           <span className="line-clamp-2 break-words">{lead.source || "-"}</span>
         </div>
         <div className="px-3 py-4">
-          <p className="truncate text-sm font-medium text-gray-800 dark:text-gray-200" title={lead.email}>
-            {truncateEmail(lead.email)}
-          </p>
+          <div className="flex items-center gap-1">
+            <p className="truncate text-sm font-medium text-gray-800 dark:text-gray-200" title={lead.email}>
+              {truncateEmail(lead.email)}
+            </p>
+            {lead.email && lead.email.length > 26 && (
+              <FaInfoCircle className="text-gray-400 hover:text-blue-500 cursor-help flex-shrink-0" title={lead.email} />
+            )}
+          </div>
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{lead.phone}</p>
         </div>
         <div className="px-3 py-4 text-sm font-medium text-gray-800 dark:text-gray-200">
@@ -536,7 +604,7 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
         <div className="px-3 py-4 text-sm font-medium text-gray-800 dark:text-gray-200">
           {getVisaHolidayLabel(lead)}
         </div>
-        <div className="px-3 py-4 text-sm font-medium text-gray-  `700 dark:text-gray-300">
+        <div className="px-3 py-4 text-sm font-medium text-gray-700 dark:text-gray-300">
           {lead.leadCountry || "-"}
         </div>
         <div className="flex items-center justify-center px-3 py-4">
@@ -724,7 +792,7 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
                 <div>
                   <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
                     Country
@@ -750,6 +818,21 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
                     searchPlaceholder="Search destination..."
                     onChange={(value) =>
                       updateDraftFilter("destination", value)
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
+                    Consultant
+                  </label>
+                  <SearchableDropdown
+                    className="w-full"
+                    value={draftFilters.consultant}
+                    options={consultantOptions}
+                    placeholder="All Consultants"
+                    searchPlaceholder="Search consultant..."
+                    onChange={(value) =>
+                      updateDraftFilter("consultant", value)
                     }
                   />
                 </div>
@@ -881,6 +964,7 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
                   <colgroup>
                     <col style={{ width: 120, minWidth: 120 }} />
                     <col style={{ width: 180, minWidth: 180 }} />
+                    <col style={{ width: 160, minWidth: 160 }} />
                     <col style={{ width: 110, minWidth: 110 }} />
                     <col style={{ width: 180, minWidth: 180 }} />
                     <col style={{ width: 220, minWidth: 220 }} />
@@ -900,6 +984,9 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
                         Lead
                       </th>
                       <th className="px-3 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
+                        Sales Person
+                      </th>
+                      <th className="px-3 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
                         Lead ID
                       </th>
                       <th className="px-3 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
@@ -916,6 +1003,9 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
                       </th>
                       <th className="px-3 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
                         Lead Country
+                      </th>
+                      <th className="px-3 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
+                        Sales Person
                       </th>
                       <th className="px-3 py-3.5 text-center text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
                         Status
@@ -971,6 +1061,10 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
                                 </p>
                               )
                             })()}
+                          </div>
+                        </td>
+                        <td className="px-3 py-4 align-top">
+                          <div className="space-y-1">
                             {lead.consultant && lead.consultant !== "Unassigned" && (
                               <p className="text-xs text-gray-700 dark:text-gray-300">
                                 Assigned to: {lead.consultant}
@@ -980,6 +1074,9 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
                               <p className="text-xs text-blue-600 dark:text-blue-400">
                                 Assigned by: {lead.assignedBy}
                               </p>
+                            )}
+                            {(!lead.consultant || lead.consultant === "Unassigned") && !lead.assignedBy && (
+                              <span className="text-sm text-gray-500 dark:text-gray-400">-</span>
                             )}
                           </div>
                         </td>
