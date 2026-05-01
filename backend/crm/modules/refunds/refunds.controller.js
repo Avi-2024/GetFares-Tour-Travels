@@ -27,9 +27,9 @@ async function uploadRefundFile({ file, s3, prefix, metadata }) {
 
   if (!s3?.uploadBuffer) {
     throw new AppError(
-      500,
-      "Media storage is not configured",
-      "S3_NOT_CONFIGURED",
+      422,
+      "Refund proof uploads require configured storage. Remove the attachment or configure media storage.",
+      "REFUND_UPLOAD_STORAGE_DISABLED",
     );
   }
 
@@ -48,7 +48,7 @@ function createRefundsController({ service, s3 }) {
   return Object.freeze({
     async list(req, res) {
       const result = await service.list(
-        req.validated?.query || req.query,
+        req.validated.query,
         req.context,
       );
       res.status(200).json({ data: result });

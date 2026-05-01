@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import {
   FaFileInvoice,
@@ -20,6 +20,7 @@ import { paymentsApi } from "../../api/payments";
 import { refundsApi } from "../../api/refunds";
 import { quotationsApi } from "../../api/quotations";
 import { reportApiError } from "../../lib/notify";
+import { useAuth } from "../../context/AuthContext";
 import SearchableDropdown from "../../components/ui/SearchableDropdown";
 
 import {
@@ -1639,6 +1640,13 @@ const AddRefundModal = ({
   onClose: () => void;
   onSubmit: (payload: CreateRefundFormPayload) => void;
 }) => {
+  const { user } = useAuth();
+  const viewerRaisedByName = useMemo(
+    () =>
+      (user?.name?.trim() || user?.email?.split("@")[0] || "").trim(),
+    [user?.name, user?.email],
+  );
+
   const [formData, setFormData] = useState({
     paymentId: "",
     assignedTo: "",
@@ -1661,6 +1669,28 @@ const AddRefundModal = ({
     refundAmount?: string;
   }>({});
   const proofInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (!isOpen || !booking) return;
+
+    setFormData((prev) => ({
+      ...prev,
+      paymentId: "",
+      assignedTo: "",
+      raisedByName: viewerRaisedByName,
+      refundAmount: "",
+      supplierPenalty: "",
+      serviceCharge: "",
+      gatewayRefundId: "",
+      notes: "",
+    }));
+    setErrors({});
+    setProofFile(null);
+    setProofUploadError("");
+    if (proofInputRef.current) {
+      proofInputRef.current.value = "";
+    }
+  }, [isOpen, booking?.id, viewerRaisedByName]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -1762,8 +1792,9 @@ const AddRefundModal = ({
     if (!formData.assignedTo.trim()) {
       nextErrors.assignedTo = "Finance person is required";
     }
-    if (!formData.raisedByName.trim()) {
-      nextErrors.raisedByName = "Raised by name is required";
+    if (!viewerRaisedByName) {
+      nextErrors.raisedByName =
+        "Your profile name is unavailable — refresh or sign in again";
     }
     const refundAmount = Number(formData.refundAmount);
     if (!formData.refundAmount.trim()) {
@@ -1783,7 +1814,7 @@ const AddRefundModal = ({
     onSubmit({
       paymentId: formData.paymentId || undefined,
       assignedTo: formData.assignedTo,
-      raisedByName: formData.raisedByName.trim(),
+      raisedByName: viewerRaisedByName,
       refundAmount: Number(formData.refundAmount),
       supplierPenalty: Number(formData.supplierPenalty || 0),
       serviceCharge: Number(formData.serviceCharge || 0),
@@ -1874,16 +1905,17 @@ const AddRefundModal = ({
 	              )}
 	            </div>
 	            <div>
-	              <label className="field-label">Raised By Name *</label>
+	              <label className="field-label">Raised By *</label>
 	              <input
 	                type="text"
-	                value={formData.raisedByName}
-	                onChange={(event) =>
-	                  setFormData({ ...formData, raisedByName: event.target.value })
-	                }
-	                className="field-input"
-	                placeholder="Customer or requester name"
+	                readOnly
+	                value={viewerRaisedByName}
+	                title="Taken from logged-in account"
+	                className="field-input bg-gray-50 cursor-not-allowed dark:bg-gray-800"
 	              />
+	              <p className="text-xs text-gray-500 mt-2 dark:text-gray-400">
+	                Logged-in user (cannot be changed)
+	              </p>
 	              {errors.raisedByName && (
 	                <p className="text-xs text-red-500 mt-1">
 	                  {errors.raisedByName}

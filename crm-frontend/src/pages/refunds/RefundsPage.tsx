@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode
+} from 'react'
 import {
   FaCheck,
   FaCircleXmark,
@@ -640,6 +647,78 @@ const mapApiStatusToUi = (status?: string): RefundStatus => {
   }
 }
 
+const unwrapBookingResponse = (res: unknown): any => {
+  const r = res as { data?: unknown }
+  const outer = (r?.data ?? res) as { data?: unknown }
+  const inner =
+    outer && typeof outer === 'object' && 'data' in outer ?
+      (outer as { data: unknown }).data
+    : outer
+  return inner && typeof inner === 'object' ? inner : outer
+}
+
+const mapBookingApiToLookup = (booking: any): BookingLookup | null => {
+  if (!booking || typeof booking !== 'object') return null
+  const id = String(booking.id || '').trim()
+  if (!id) return null
+  const derivedCustomerName =
+    booking.customerName ||
+    booking.customer_name ||
+    booking.customer?.name ||
+    booking.customer?.fullName ||
+    booking.leadName ||
+    booking.lead_name ||
+    booking.lead?.name ||
+    booking.lead?.fullName ||
+    booking.primaryContactName ||
+    booking.contactName ||
+    booking.travellerName ||
+    booking.customer ||
+    ''
+  return {
+    id,
+    bookingNumber:
+      booking.bookingNumber ||
+      booking.booking_number ||
+      booking.bookingCode ||
+      booking.booking_code ||
+      booking.code ||
+      '',
+    customer: derivedCustomerName || 'Unknown traveller',
+    customerEmail:
+      booking.customerEmail ||
+      booking.customer_email ||
+      booking.customer?.email ||
+      '',
+    customerPhone:
+      booking.customerPhone ||
+      booking.customer_phone ||
+      booking.customer?.phone ||
+      ''
+  }
+}
+
+const bkLabelFromBookingUuid = (bookingUuid: string) => {
+  const hex = String(bookingUuid || '')
+    .replace(/-/g, '')
+    .slice(0, 8)
+    .toUpperCase()
+  return `BK-${hex || 'UNKNOWN'}`
+}
+
+/** Same style as Bookings list: full human booking number, e.g. #BK-1777143943586-8316 */
+const formatBkBookingLabel = (
+  lookup: BookingLookup | undefined,
+  bookingUuid: string
+) => {
+  const raw = (lookup?.bookingNumber || '').trim()
+  if (raw) {
+    const core = raw.replace(/^#+\s*/, '').trim()
+    return core.startsWith('#') ? core : `#${core}`
+  }
+  return `#${bkLabelFromBookingUuid(bookingUuid)}`
+}
+
 const mapApiRefund = (refund: any): RefundRow => {
   const refundAmount = Number(
     refund?.refundAmount ?? refund?.refund_amount ?? 0
@@ -709,7 +788,12 @@ const matchesQuickFilter = (quickFilter: QuickFilter, row: RefundRow) => {
 }
 
 const RefundsPage = () => {
-  const { token } = useAuth()
+  const { token, user } = useAuth()
+  const viewerRaisedByName = useMemo(
+    () =>
+      (user?.name?.trim() || user?.email?.split('@')[0] || '').trim(),
+    [user?.name, user?.email]
+  )
   const [rows, setRows] = useState<RefundRow[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -759,7 +843,16 @@ const RefundsPage = () => {
   const [proofUploadError, setProofUploadError] = useState('')
   const proofInputRef = useRef<HTMLInputElement | null>(null)
 
+  useEffect(() => {
+    if (!viewerRaisedByName) return
+    setForm(prev => ({ ...prev, raisedByName: viewerRaisedByName }))
+  }, [viewerRaisedByName])
+
   const [bookings, setBookings] = useState<BookingLookup[]>([])
+  /** Populated via getById for refund rows — not only dropdown search results */
+  const [bookingLookupCache, setBookingLookupCache] = useState<
+    Map<string, BookingLookup>
+  >(() => new Map())
   const [payments, setPayments] = useState<PaymentLookup[]>([])
   const [financeUsers, setFinanceUsers] = useState<FinanceUser[]>([])
   const [loadingFinanceUsers, setLoadingFinanceUsers] = useState(false)
@@ -767,30 +860,120 @@ const RefundsPage = () => {
   const [loadingPayments, setLoadingPayments] = useState(false)
   const currencyOptions = useMemo(() => getCurrencyOptions(false), [])
 
-  const bookingById = useMemo(
-    () => new Map(bookings.map(booking => [booking.id, booking])),
-    [bookings]
-  )
+  const bookingById = useMemo(() => {
+    const m = new Map<string, BookingLookup>()
+    bookingLookupCache.forEach((booking, cacheKey) => {
+      const cid = String(booking?.id || cacheKey || '').trim()
+      if (!cid) return
+      m.set(cid, { ...booking, id: cid })
+    })
+    for (const booking of bookings) {
+      if (booking?.id) m.set(booking.id, booking)
+    }
+    return m
+  }, [bookingLookupCache, bookings])
+
+  const bookingsNeedHydrationKey = useMemo(() => {
+    const uniq = [
+      ...new Set(
+        rows
+          .map(r => String(r.bookingId || '').trim())
+          .filter(Boolean)
+      )
+    ]
+    const missing = uniq.filter(id => !bookingLookupCache.has(id))
+    missing.sort()
+    return missing.join('|')
+  }, [rows, bookingLookupCache])
+
+  useEffect(() => {
+    if (!token || !bookingsNeedHydrationKey) return
+
+    let cancelled = false
+    const ids = bookingsNeedHydrationKey.split('|').filter(Boolean)
+
+    ;(async () => {
+      const settled = await Promise.all(
+        ids.map(async bookingId => {
+          try {
+            const res = await bookingsApi.getById(bookingId)
+            const raw = unwrapBookingResponse(res)
+            const mapped =
+              mapBookingApiToLookup({ ...raw, id: raw?.id ?? bookingId }) || {
+                id: bookingId,
+                bookingNumber: '',
+                customer: '',
+                customerEmail: '',
+                customerPhone: ''
+              }
+            return mapped
+          } catch {
+            return {
+              id: bookingId,
+              bookingNumber: '',
+              customer: '',
+              customerEmail: '',
+              customerPhone: ''
+            } as BookingLookup
+          }
+        })
+      )
+
+      if (cancelled) return
+
+      setBookingLookupCache(prev => {
+        const next = new Map(prev)
+        let changed = false
+        settled.forEach(lookup => {
+          if (!lookup?.id) return
+          if (!next.has(lookup.id)) {
+            next.set(lookup.id, lookup)
+            changed = true
+          }
+        })
+        return changed ? next : prev
+      })
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [token, bookingsNeedHydrationKey])
   const paymentById = useMemo(
     () => new Map(payments.map(payment => [payment.id, payment])),
     [payments]
   )
+  const financeUsersForDropdown = useMemo(() => {
+    const assignId = String(form.assignedTo || '').trim()
+    const byId = new Map(financeUsers.map(u => [u.id, u]))
+    if (assignId && !byId.has(assignId)) {
+      const row =
+        editingRefundId ?
+          rows.find(r => r.id === editingRefundId)
+        : undefined
+      const fallbackName =
+        row?.assignedToName?.trim() || 'Finance assignee'
+      return [{ id: assignId, fullName: fallbackName, email: undefined }, ...financeUsers]
+    }
+    return financeUsers
+  }, [financeUsers, form.assignedTo, editingRefundId, rows])
+
   const financeUserOptions = useMemo(
     () => [
       {
         value: '',
         label: loadingFinanceUsers
           ? 'Loading finance users...'
-          : financeUsers.length === 0
+          : financeUsers.length === 0 && financeUsersForDropdown.length <= 1
           ? 'No accounts users found'
           : 'Select finance person...'
       },
-      ...financeUsers.map(user => ({
+      ...financeUsersForDropdown.map(user => ({
         value: user.id,
         label: `${user.fullName}${user.email ? ` - ${user.email}` : ''}`
       }))
     ],
-    [financeUsers, loadingFinanceUsers]
+    [financeUsers, financeUsersForDropdown, loadingFinanceUsers]
   )
 
   const shortId = (value?: string) => {
@@ -805,12 +988,51 @@ const RefundsPage = () => {
       const normalized = String(bookingId || '').trim()
       if (!normalized) return 'N/A'
       const booking = bookingById.get(normalized)
-      if (!booking) return `Booking ${shortId(normalized)}`
-      return `${booking.bookingNumber}${
-        booking.customer ? ` - ${booking.customer}` : ''
-      }`
+      const name = booking?.customer?.trim() || 'Unknown traveller'
+      const refLabel = formatBkBookingLabel(booking, normalized)
+      return `${name} · ${refLabel}`
     },
     [bookingById]
+  )
+
+  const renderRefundBookingCell = useCallback(
+    (
+      row: RefundRow,
+      options?: { showFinanceAssignee?: boolean }
+    ): ReactNode => {
+      const id = String(row.bookingId || '').trim()
+      const booking = bookingById.get(id)
+      const name =
+        booking?.customer?.trim() || 'Unknown traveller'
+      const refLabel = formatBkBookingLabel(booking, id || row.bookingId)
+      const pendingHydrate =
+        Boolean(id && token && !bookingLookupCache.has(id))
+      const showFinanceAssignee =
+        options?.showFinanceAssignee !== false
+
+      return (
+        <>
+          <p className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
+            {name}
+          </p>
+          <p
+            className='text-xs font-mono text-blue-700 dark:text-blue-300'
+            title={id ? `Booking UUID: ${id}` : undefined}
+          >
+            {refLabel}
+          </p>
+          {pendingHydrate ? (
+            <p className='text-[10px] text-gray-400'>Loading booking…</p>
+          ) : null}
+          {showFinanceAssignee ? (
+            <p className='text-xs text-gray-500 dark:text-gray-400'>
+              Finance: {row.assignedToName || 'Unassigned'}
+            </p>
+          ) : null}
+        </>
+      )
+    },
+    [bookingById, bookingLookupCache, token]
   )
 
   const getPaymentDisplay = useCallback(
@@ -1213,7 +1435,7 @@ const RefundsPage = () => {
   }, [token])
 
   useEffect(() => {
-    if (!showForm || !token) return
+    if ((!showForm && !showEditModal) || !token) return
 
     let cancelled = false
     const loadFinanceUsers = async () => {
@@ -1246,7 +1468,7 @@ const RefundsPage = () => {
     return () => {
       cancelled = true
     }
-  }, [showForm, token])
+  }, [showForm, showEditModal, token])
 
   const searchBookings = useCallback(async (query: string) => {
     if (!token || !query.trim()) {
@@ -1271,41 +1493,16 @@ const RefundsPage = () => {
       const bookingsList = Array.isArray(bookingsData) ? bookingsData : []
 
       setBookings(
-        bookingsList.map((booking: any) => {
-          const derivedCustomerName =
-            booking.customerName ||
-            booking.customer_name ||
-            booking.customer?.name ||
-            booking.customer?.fullName ||
-            booking.leadName ||
-            booking.lead_name ||
-            booking.lead?.name ||
-            booking.lead?.fullName ||
-            booking.primaryContactName ||
-            booking.contactName ||
-            booking.travellerName ||
-            booking.customer ||
-            'Unknown Customer'
-          return {
-            id: String(booking.id || ''),
+        bookingsList
+          .map((booking: any) => mapBookingApiToLookup(booking))
+          .filter((b): b is BookingLookup => Boolean(b))
+          .map(b => ({
+            ...b,
             bookingNumber:
-              booking.bookingNumber ||
-              booking.booking_number ||
-              booking.code ||
-              `BK-${booking.id}`,
-            customer: derivedCustomerName,
-            customerEmail:
-              booking.customerEmail ||
-              booking.customer_email ||
-              booking.customer?.email ||
-              '',
-            customerPhone:
-              booking.customerPhone ||
-              booking.customer_phone ||
-              booking.customer?.phone ||
-              ''
-          }
-        })
+              (b.bookingNumber || '').trim() ?
+                b.bookingNumber
+              : `BK-${shortId(b.id)}`
+          }))
       )
     } catch (err) {
       console.error('Failed to search bookings:', err)
@@ -1414,7 +1611,7 @@ const RefundsPage = () => {
       bookingId: '',
       paymentId: '',
       assignedTo: '',
-      raisedByName: '',
+      raisedByName: viewerRaisedByName,
       refundAmount: '',
       currency: 'INR',
       supplierPenalty: '',
@@ -1424,6 +1621,7 @@ const RefundsPage = () => {
     setEditingRefundId(null)
     setFormError('')
     clearProofSelection()
+    setShowEditModal(false)
   }
 
   const handleProofFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -1452,8 +1650,8 @@ const RefundsPage = () => {
       setFormError('Select finance person.')
       return
     }
-    if (!form.raisedByName.trim()) {
-      setFormError('Enter raised by name.')
+    if (!viewerRaisedByName) {
+      setFormError('Your name could not be loaded. Refresh the page or sign in again.')
       return
     }
 
@@ -1462,7 +1660,7 @@ const RefundsPage = () => {
     try {
       const basePayload = {
         assignedTo: form.assignedTo,
-        raisedByName: form.raisedByName.trim(),
+        raisedByName: viewerRaisedByName,
         refundAmount: Number(form.refundAmount),
         supplierPenalty: Number(form.supplierPenalty || 0),
         serviceCharge: Number(form.serviceCharge || 0),
@@ -1515,11 +1713,12 @@ const RefundsPage = () => {
   }
 
   const handleEditRefund = (row: RefundRow) => {
+    setShowForm(false)
     setForm({
       bookingId: row.bookingId,
       paymentId: row.paymentId || '',
       assignedTo: row.assignedTo || '',
-      raisedByName: row.raisedByName || '',
+      raisedByName: viewerRaisedByName,
       refundAmount: row.refundAmount,
       currency: row.currency || 'INR',
       supplierPenalty: row.supplierPenalty,
@@ -1529,7 +1728,7 @@ const RefundsPage = () => {
     setEditingRefundId(row.id)
     setFormError('')
     clearProofSelection()
-    setShowForm(true)
+    setShowEditModal(true)
   }
 
   const handleApprove = (id: string) => {
@@ -1659,6 +1858,7 @@ const RefundsPage = () => {
       {/* Modals */}
       <EditRefundModal
         isOpen={showEditModal}
+        refundId={editingRefundId}
         form={form}
         setForm={setForm}
         formError={formError}
@@ -1671,10 +1871,7 @@ const RefundsPage = () => {
         handleProofFileChange={handleProofFileChange}
         clearProofSelection={clearProofSelection}
         onSave={saveRefund}
-        onCancel={() => {
-          setShowEditModal(false)
-          resetRefundForm()
-        }}
+        onCancel={resetRefundForm}
       />
 
       <ConfirmModal
@@ -1746,24 +1943,20 @@ const RefundsPage = () => {
               }}
               className='inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors w-full sm:w-auto'
             >
-              <FaPlus /> {editingRefundId ? 'Edit Refund' : 'Create Refund'}
+              {showForm ? <FaXmark className='text-lg' /> : <FaPlus />}{' '}
+              {showForm ? 'Close' : 'Create Refund'}
             </button>
           </PermissionGate>
         </div>
       </div>
 
-      {/* Create Form */}
+      {/* Create form (edit uses EditRefundModal) */}
       {showForm && (
         <SurfaceCard className='p-5 border border-gray-200 dark:border-gray-800'>
           <div className='mb-4 flex items-center justify-between gap-3'>
             <h2 className='text-base font-semibold text-gray-900 dark:text-gray-100'>
-              {editingRefundId ? 'Edit Refund Request' : 'New Refund Request'}
+              New Refund Request
             </h2>
-            {editingRefundId ? (
-              <span className='text-xs font-medium text-blue-600 dark:text-blue-400'>
-                {editingRefundId}
-              </span>
-            ) : null}
           </div>
           {formError ? (
             <div className='mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-200'>
@@ -1787,7 +1980,7 @@ const RefundsPage = () => {
                 onSearch={searchBookings}
                 options={bookingDropdownOptions}
                 searchPlaceholder='Type booking number (e.g., BK-1776424194713-8883)'
-                disabled={loadingBookings || Boolean(editingRefundId)}
+                disabled={loadingBookings}
               />
             </div>
             <div>
@@ -1801,9 +1994,7 @@ const RefundsPage = () => {
                 }
                 options={paymentDropdownOptions}
                 searchPlaceholder='Search payment...'
-                disabled={
-                  loadingPayments || !form.bookingId || Boolean(editingRefundId)
-                }
+                disabled={loadingPayments || !form.bookingId}
               />
             </div>
             <div>
@@ -1858,20 +2049,18 @@ const RefundsPage = () => {
           </div>
           <div className='mt-4'>
             <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
-              Raised By Name *
+              Raised By *
             </label>
             <input
               type='text'
-              value={form.raisedByName}
-              onChange={event =>
-                setForm(current => ({
-                  ...current,
-                  raisedByName: event.target.value
-                }))
-              }
-              placeholder='Customer or requester name'
-              className='w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-700 dark:bg-gray-900'
+              readOnly
+              value={viewerRaisedByName}
+              title='Taken from logged-in account'
+              className='w-full cursor-not-allowed rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-800/80 dark:text-gray-200'
             />
+            <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+              Logged-in user (cannot be changed)
+            </p>
           </div>
           <div className='mt-4'>
             <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
@@ -1948,7 +2137,7 @@ const RefundsPage = () => {
               onClick={saveRefund}
               className='px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700'
             >
-              {editingRefundId ? 'Update Refund' : 'Create Refund'}
+              Create Refund
             </button>
           </div>
         </SurfaceCard>
@@ -2249,15 +2438,7 @@ const RefundsPage = () => {
                         </p>
                       </td>
                       <td className='px-5 py-4'>
-                        <p className='text-sm text-gray-700 dark:text-gray-300'>
-                          {getBookingDisplay(row.bookingId)}
-                        </p>
-                        <p className='text-xs text-gray-500'>
-                          Ref: {shortId(row.bookingId)}
-                        </p>
-                        <p className='text-xs text-gray-500'>
-                          Finance: {row.assignedToName || 'Unassigned'}
-                        </p>
+                        {renderRefundBookingCell(row)}
                       </td>
                       <td className='px-5 py-4 text-right'>
                         <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>
@@ -2337,9 +2518,14 @@ const RefundsPage = () => {
                       <p className='text-sm font-medium text-blue-600 dark:text-blue-400'>
                         {row.id}
                       </p>
-                      <p className='text-xs text-gray-500'>
-                        Booking: {getBookingDisplay(row.bookingId)}
-                      </p>
+                      <div className='mt-2 space-y-0.5 text-xs'>
+                        <p className='text-[11px] font-semibold uppercase tracking-wide text-gray-500'>
+                          Booking
+                        </p>
+                        {renderRefundBookingCell(row, {
+                          showFinanceAssignee: false
+                        })}
+                      </div>
                       <p className='text-xs text-gray-500'>
                         Payment: {getPaymentDisplay(row.paymentId)}
                       </p>

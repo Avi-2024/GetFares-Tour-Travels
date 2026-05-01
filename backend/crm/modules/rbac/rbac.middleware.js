@@ -1,7 +1,22 @@
 import { AppError } from "../../core/errors/index.js";
 
+function matchesPermission(granted, permissionKey) {
+  if (granted === "*") return true;
+  if (granted === permissionKey) return true;
+  if (granted.endsWith(":*")) {
+    const [scope] = granted.split(":");
+    return permissionKey.startsWith(`${scope}:`);
+  }
+  return false;
+}
+
 function createRbacMiddleware({ rbacService }) {
-  function authorize(permissionKey) {
+  /** Single key, or any-of (OR) when an array is passed */
+  function authorize(permissionKeyOrKeys) {
+    const keys = Array.isArray(permissionKeyOrKeys)
+      ? permissionKeyOrKeys
+      : [permissionKeyOrKeys];
+
     return async (req, res, next) => {
       try {
         if (!req.context?.user) {
@@ -11,21 +26,17 @@ function createRbacMiddleware({ rbacService }) {
         }
 
         const access = await rbacService.getPermissionsForUser(req.context.user);
-        const allowed = access.permissions.some((granted) => {
-          if (granted === "*") return true;
-          if (granted === permissionKey) return true;
-          if (granted.endsWith(":*")) {
-            const [scope] = granted.split(":");
-            return permissionKey.startsWith(`${scope}:`);
-          }
-          return false;
-        });
+        const allowed = keys.some((permissionKey) =>
+          access.permissions.some((granted) =>
+            matchesPermission(granted, permissionKey),
+          ),
+        );
 
         if (!allowed) {
           return next(
             new AppError(
               403,
-              `Missing permission: ${permissionKey}`,
+              `Missing permission: ${keys.join(" | ")}`,
               "RBAC_FORBIDDEN",
             ),
           );

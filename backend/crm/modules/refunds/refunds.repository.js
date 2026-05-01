@@ -453,6 +453,38 @@ function createRefundsRepository({ db, logger, schema }) {
           0,
         );
     },
+
+    /** Sums refunds not yet processed (counts against available refund capacity). */
+    async getPendingRefundReservationAmount(bookingId, excludeRefundId = null) {
+      if (canUseRawQuery()) {
+        const params = [bookingId];
+        let sql = `
+            SELECT COALESCE(SUM(refund_amount), 0) AS reservation
+            FROM ${schema.tableName}
+            WHERE booking_id = ?
+              AND status IN ('INITIATED', 'APPROVED')
+          `;
+        if (excludeRefundId) {
+          sql += ` AND id <> ?`;
+          params.push(excludeRefundId);
+        }
+        const result = await db.query(sql, params);
+        return toNumber(result.rows[0]?.reservation, 0);
+      }
+
+      const rows = await db.findMany(schema.tableName, {
+        booking_id: bookingId,
+      });
+      const pending = ["INITIATED", "APPROVED"];
+      return rows
+        .filter((row) => pending.includes(String(row.status ?? "INITIATED")))
+        .filter((row) => !excludeRefundId || String(row.id) !== String(excludeRefundId))
+        .reduce(
+          (sum, row) =>
+            sum + toNumber(row.refund_amount ?? row.refundAmount, 0),
+          0,
+        );
+    },
   });
 }
 

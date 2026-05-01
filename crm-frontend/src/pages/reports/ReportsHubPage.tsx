@@ -21,6 +21,8 @@ import FilterTabs from '../../components/ui/FilterTabs'
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import { reportsApi } from '../../api/reports'
 import { reportApiError } from '../../lib/notify'
+import { useAuth } from '../../context/AuthContext'
+import { useUsersService } from '../../hooks/useUsersService'
 
 type ReportTabId =
   | 'dashboard_executive_kpis'
@@ -198,6 +200,27 @@ const CHART_COLORS = [
 ]
 
 const MOBILE_BREAKPOINT = 640
+
+type ReportConsultantOption = {
+  id: string
+  fullName?: string
+  isActive?: boolean
+  role?: string
+}
+
+const normalizeReporterRole = (role?: string) =>
+  String(role || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_')
+
+const isSalesConsultantRole = (role?: string) =>
+  normalizeReporterRole(role) === 'sales_consultant'
+
+const canPickReportSalesConsultant = (role?: string) => {
+  const n = normalizeReporterRole(role)
+  return n === 'super_admin' || n === 'superadmin' || n === 'admin' || n === 'accounts'
+}
 
 const toDateValue = (date: Date) => {
   const yyyy = date.getFullYear()
@@ -378,6 +401,8 @@ const toExecutiveKpis = (payload: unknown): ExecutiveKpis | null => {
 }
 
 const ReportsHubPage = () => {
+  const { user } = useAuth()
+  const usersService = useUsersService()
   const now = useMemo(() => new Date(), [])
   const initialFrom = useMemo(() => {
     const start = new Date(now.getFullYear(), now.getMonth(), 1)
@@ -399,6 +424,12 @@ const ReportsHubPage = () => {
       ? window.innerWidth < MOBILE_BREAKPOINT
       : false
   )
+
+  const showConsultantPicker = canPickReportSalesConsultant(user?.role)
+
+  const [reportConsultantId, setReportConsultantId] = useState('')
+  const [consultantOptions, setConsultantOptions] = useState<ReportConsultantOption[]>([])
+  const [consultantsLoading, setConsultantsLoading] = useState(false)
 
   const activeTabLabel = useMemo(
     () => reportTabs.find(item => item.id === tab)?.label ?? 'Report',
@@ -426,6 +457,44 @@ const ReportsHubPage = () => {
   }, [])
 
   useEffect(() => {
+    if (!showConsultantPicker || !localStorage.getItem('auth_token')) return
+    let cancelled = false
+    const load = async () => {
+      setConsultantsLoading(true)
+      try {
+        const response = await usersService.list()
+        const list = (
+          ((response as { data?: ReportConsultantOption[] }).data ?? []) as ReportConsultantOption[]
+        )
+          .filter(u => u?.id && u.isActive !== false)
+          .filter(u => isSalesConsultantRole(u.role))
+        if (!cancelled) {
+          list.sort((a, b) =>
+            String(a.fullName || '').localeCompare(String(b.fullName || ''), undefined, {
+              sensitivity: 'base'
+            })
+          )
+          setConsultantOptions(list)
+        }
+      } catch {
+        if (!cancelled) setConsultantOptions([])
+      } finally {
+        if (!cancelled) setConsultantsLoading(false)
+      }
+    }
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [showConsultantPicker, usersService])
+
+  useEffect(() => {
+    if (!reportConsultantId || consultantOptions.length === 0) return
+    const ok = consultantOptions.some(c => c.id === reportConsultantId)
+    if (!ok) setReportConsultantId('')
+  }, [consultantOptions, reportConsultantId])
+
+  useEffect(() => {
     let cancelled = false
 
     const loadExecutiveKpis = async () => {
@@ -433,6 +502,7 @@ const ReportsHubPage = () => {
         const params: Record<string, string | number | boolean> = {}
         if (from) params.from = from
         if (to) params.to = to
+        if (reportConsultantId) params.userId = reportConsultantId
         const response = await reportsApi.dashboardExecutiveKpis(params)
         const payload = extractPayload(response)
         const parsed = toExecutiveKpis(payload)
@@ -450,7 +520,7 @@ const ReportsHubPage = () => {
     return () => {
       cancelled = true
     }
-  }, [from, to])
+  }, [from, to, reportConsultantId])
 
   useEffect(() => {
     let cancelled = false
@@ -462,6 +532,7 @@ const ReportsHubPage = () => {
         const params: Record<string, string | number | boolean> = {}
         if (from) params.from = from
         if (to) params.to = to
+        if (reportConsultantId) params.userId = reportConsultantId
         if (tab === 'pipeline_forecast') {
           params.periodMonths = 3
         }
@@ -498,7 +569,7 @@ const ReportsHubPage = () => {
     return () => {
       cancelled = true
     }
-  }, [tab, from, to])
+  }, [tab, from, to, reportConsultantId])
 
   const numericColumns = useMemo(() => deriveNumericColumns(rows), [rows])
   const labelColumn = useMemo(
@@ -640,9 +711,27 @@ const ReportsHubPage = () => {
               PRD Module 7 report space. Cards, chart, and table use backend APIs.
             </p>
           </div>
-          <div className='grid w-full gap-3 sm:grid-cols-2 lg:grid-cols-3 lg:items-end xl:w-auto xl:grid-cols-[minmax(180px,1fr)_minmax(180px,1fr)_auto]'>
+          <div className='grid w-full gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:items-end xl:w-auto xl:grid-cols-[minmax(180px,1fr)_minmax(180px,1fr)_minmax(220px,1fr)_auto]'>
             <DateInput label='From' value={from} onChange={setFrom} className='w-full' />
             <DateInput label='To' value={to} onChange={setTo} className='w-full' />
+            {showConsultantPicker ? (
+              <label className='flex w-full flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300'>
+                <span>Sales consultant</span>
+                <select
+                  value={reportConsultantId}
+                  onChange={event => setReportConsultantId(event.target.value)}
+                  disabled={consultantsLoading}
+                  className='field-input h-11 w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 text-sm font-normal text-slate-900 shadow-sm disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100'
+                >
+                  <option value=''>All sales consultants (firm-wide)</option>
+                  {consultantOptions.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.fullName || c.id.slice(0, 8)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             <button
               onClick={exportCsv}
               disabled={!rows.length}
@@ -961,6 +1050,9 @@ const ReportsHubPage = () => {
                 </p>
                 <p className='mt-0.5 text-xs font-semibold text-gray-900 dark:text-gray-100 sm:mt-1 sm:text-sm'>
                   {from || 'Start not set'} to {to || 'Today'}
+                  {reportConsultantId && showConsultantPicker
+                    ? ` · Consultant-scoped`
+                    : ''}
                 </p>
               </div>
               <div className='rounded-lg border border-gray-200 bg-white px-3 py-2 dark:border-gray-800 dark:bg-gray-900 sm:rounded-xl sm:px-4 sm:py-3'>

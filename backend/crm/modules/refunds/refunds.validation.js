@@ -37,19 +37,31 @@ const updatePayload = z
     "At least one field is required for update",
   );
 
+const REFUNDS_LIST_DEFAULT_LIMIT = 200;
+const REFUNDS_LIST_MAX_LIMIT = 500;
+
+const listQuery = z
+  .object({
+    page: z.coerce.number().int().positive().optional(),
+    limit: z.coerce.number().int().positive().max(REFUNDS_LIST_MAX_LIMIT).optional(),
+    bookingId: z.string().uuid().optional(),
+    paymentId: z.string().uuid().optional(),
+    status: refundStatus.optional(),
+    approvedBy: z.string().uuid().optional(),
+  })
+  .transform((q) => ({
+    ...q,
+    limit: q.limit ?? REFUNDS_LIST_DEFAULT_LIMIT,
+    page: q.page ?? 1,
+  }));
+
 const list = z.object({
   body: z.object({}).optional(),
   params: z.object({}).optional(),
-  query: z
-    .object({
-      page: z.coerce.number().int().positive().optional(),
-      limit: z.coerce.number().int().positive().optional(),
-      bookingId: z.string().uuid().optional(),
-      paymentId: z.string().uuid().optional(),
-      status: refundStatus.optional(),
-      approvedBy: z.string().uuid().optional(),
-    })
-    .optional(),
+  query: z.preprocess(
+    (raw) => (raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {}),
+    listQuery,
+  ),
 });
 
 const create = z.object({

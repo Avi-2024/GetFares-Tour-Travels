@@ -105,20 +105,48 @@ function createRefundsService({ repository, bookingsRepository, leadsRepository,
     return payment;
   }
 
-  async function getRefundableBalance(bookingId) {
-    const [paidAmount, processedRefundAmount] = await Promise.all([
-      repository.getVerifiedPaidAmount(bookingId),
-      repository.getProcessedRefundAmount(bookingId),
-    ]);
+  async function getRefundableBalance(bookingId, excludeRefundId = null) {
+    const [paidAmount, processedRefundAmount, pendingRefundHeld] =
+      await Promise.all([
+        repository.getVerifiedPaidAmount(bookingId),
+        repository.getProcessedRefundAmount(bookingId),
+        repository.getPendingRefundReservationAmount(
+          bookingId,
+          excludeRefundId,
+        ),
+      ]);
 
+    const raw =
+      paidAmount - processedRefundAmount - pendingRefundHeld;
     return {
       paidAmount,
       processedRefundAmount,
-      refundableBalance: Math.max(
-        Number((paidAmount - processedRefundAmount).toFixed(2)),
-        0,
-      ),
+      pendingRefundHeld,
+      refundableBalance: Math.max(Number(raw.toFixed(2)), 0),
     };
+  }
+
+  async function resolveRaisedByName(context = {}) {
+    const userId = context.user?.id;
+    if (!userId) {
+      throw new AppError(
+        401,
+        "Authentication required",
+        "REFUND_AUTH_REQUIRED",
+      );
+    }
+
+    const me = await repository.findUserById(userId);
+    const name = String(me?.fullName || "").trim();
+    if (name.length < 2) {
+      throw new AppError(
+        400,
+        "User profile needs a valid full name before creating refunds.",
+        "REFUND_RAISER_NAME_MISSING",
+      );
+    }
+
+    return name;
   }
 
   async function syncBookingPaymentSummary(bookingId) {
@@ -235,9 +263,6 @@ function createRefundsService({ repository, bookingsRepository, leadsRepository,
         await ensureAccountsAssignee(payload.assignedTo);
         patch.assigned_to = payload.assignedTo || null;
       }
-      if (payload.raisedByName !== undefined) {
-        patch.raised_by_name = payload.raisedByName?.trim() || null;
-      }
 	      if (payload.refundAmount !== undefined) {
 	        patch.refund_amount = toNumber(
 	          payload.refundAmount,
@@ -266,15 +291,16 @@ function createRefundsService({ repository, bookingsRepository, leadsRepository,
         patch.notes = payload.notes?.trim() || null;
       }
 
-      const policy = await getRefundableBalance(existing.bookingId);
+      const policy = await getRefundableBalance(
+        existing.bookingId,
+        existing.id,
+      );
       const nextRefundAmount = patch.refund_amount ?? existing.refundAmount;
-      const availableForUpdate =
-        policy.refundableBalance + existing.refundAmount;
 
-      if (toNumber(nextRefundAmount, 0) > availableForUpdate) {
+      if (toNumber(nextRefundAmount, 0) > policy.refundableBalance) {
         throw new AppError(
           409,
-          `Refund amount exceeds refundable balance ${availableForUpdate}.`,
+          `Refund amount exceeds refundable balance (${policy.refundableBalance}; other pending approvals hold ${policy.pendingRefundHeld}).`,
           "REFUND_EXCEEDS_REFUNDABLE_BALANCE",
         );
       }

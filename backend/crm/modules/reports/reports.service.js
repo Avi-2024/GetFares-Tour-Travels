@@ -1,3 +1,38 @@
+import {
+  isSuperAdminRole,
+  normalizeRoleName,
+} from "../../core/constants/index.js";
+
+function canReportsScopeConsultantGlobally(role) {
+  const name = normalizeRoleName(role);
+  return (
+    isSuperAdminRole(role) || name === "admin" || name === "accounts"
+  );
+}
+
+function mergeConsultantScope(filters = {}, context = {}) {
+  const unrestricted = canReportsScopeConsultantGlobally(context.user?.role);
+  const trimmed =
+    filters.userId ?
+      String(filters.userId).trim()
+    : "";
+  const next = { ...filters };
+
+  if (unrestricted) {
+    if (trimmed) next.userId = trimmed;
+    else delete next.userId;
+    return next;
+  }
+
+  if (context.user?.id) {
+    next.userId = context.user.id;
+    return next;
+  }
+
+  delete next.userId;
+  return next;
+}
+
 function createReportsService({ repository, logger, currencyService }) {
   function normalizeCurrency(value, fallback = "AED") {
     const normalized = String(value || "")
@@ -49,143 +84,156 @@ function createReportsService({ repository, logger, currencyService }) {
 
   return Object.freeze({
     async leadsBySource(filters = {}, context = {}) {
+      const scoped = mergeConsultantScope(filters, context);
       logger.debug(
-        { module: "reports", requestId: context.requestId, filters },
+        { module: "reports", requestId: context.requestId, filters: scoped },
         "Lead source report",
       );
-      return repository.getLeadsBySource(filters);
+      return repository.getLeadsBySource(scoped);
     },
 
     async leadsByConsultant(filters = {}, context = {}) {
+      const scoped = mergeConsultantScope(filters, context);
       logger.debug(
-        { module: "reports", requestId: context.requestId, filters },
+        { module: "reports", requestId: context.requestId, filters: scoped },
         "Lead consultant report",
       );
-      return repository.getLeadsByConsultant(filters);
+      return repository.getLeadsByConsultant(scoped);
     },
 
     async leadAging(filters = {}, context = {}) {
+      const scoped = mergeConsultantScope(filters, context);
       logger.debug(
-        { module: "reports", requestId: context.requestId, filters },
+        { module: "reports", requestId: context.requestId, filters: scoped },
         "Lead aging report",
       );
-      return repository.getLeadAgingReport(filters);
+      return repository.getLeadAgingReport(scoped);
     },
 
     async lostLeads(filters = {}, context = {}) {
+      const scoped = mergeConsultantScope(filters, context);
       logger.debug(
-        { module: "reports", requestId: context.requestId, filters },
+        { module: "reports", requestId: context.requestId, filters: scoped },
         "Lost leads report",
       );
-      return repository.getLostLeadReport(filters);
+      return repository.getLostLeadReport(scoped);
     },
 
     async revenueByMonth(filters = {}, context = {}) {
+      const scoped = mergeConsultantScope(filters, context);
       logger.debug(
-        { module: "reports", requestId: context.requestId, filters },
+        { module: "reports", requestId: context.requestId, filters: scoped },
         "Revenue by month report",
       );
-      return repository.getRevenueByMonth(filters);
+      return repository.getRevenueByMonth(scoped);
     },
 
     async revenueByServiceType(filters = {}, context = {}) {
+      const scoped = mergeConsultantScope(filters, context);
       logger.debug(
-        { module: "reports", requestId: context.requestId, filters },
+        { module: "reports", requestId: context.requestId, filters: scoped },
         "Revenue by service type report",
       );
-      return repository.getRevenueByServiceType(filters);
+      return repository.getRevenueByServiceType(scoped);
     },
 
     async revenueByDestination(filters = {}, context = {}) {
+      const scoped = mergeConsultantScope(filters, context);
       logger.debug(
-        { module: "reports", requestId: context.requestId, filters },
+        { module: "reports", requestId: context.requestId, filters: scoped },
         "Revenue by destination report",
       );
-      return repository.getRevenueByDestination(filters);
+      return repository.getRevenueByDestination(scoped);
     },
 
     async targetVsAchievement(filters = {}, context = {}) {
+      const scoped = mergeConsultantScope(filters, context);
       logger.debug(
-        { module: "reports", requestId: context.requestId, filters },
+        { module: "reports", requestId: context.requestId, filters: scoped },
         "Target vs achievement report",
       );
-      return repository.getTargetVsAchievement(filters);
+      return repository.getTargetVsAchievement(scoped);
     },
 
     async outstandingPayments(filters = {}, context = {}) {
+      const scoped = mergeConsultantScope(filters, context);
       logger.debug(
-        { module: "reports", requestId: context.requestId, filters },
+        { module: "reports", requestId: context.requestId, filters: scoped },
         "Outstanding payments report",
       );
-      return repository.getOutstandingPayments(filters);
+      return repository.getOutstandingPayments(scoped);
     },
 
     async paymentMode(filters = {}, context = {}) {
+      const scoped = mergeConsultantScope(filters, context);
       logger.debug(
-        { module: "reports", requestId: context.requestId, filters },
+        { module: "reports", requestId: context.requestId, filters: scoped },
         "Payment mode report",
       );
-      return repository.getPaymentModeReport(filters);
+      return repository.getPaymentModeReport(scoped);
     },
 
     async profitMargin(filters = {}, context = {}) {
+      const scoped = mergeConsultantScope(filters, context);
       logger.debug(
-        { module: "reports", requestId: context.requestId, filters },
+        { module: "reports", requestId: context.requestId, filters: scoped },
         "Profit margin report",
       );
-      return repository.getProfitMarginReport(filters);
+      return repository.getProfitMarginReport(scoped);
     },
 
     async visaSummary(filters = {}, context = {}) {
+      const scoped = mergeConsultantScope(filters, context);
       logger.debug(
-        { module: "reports", requestId: context.requestId, filters },
+        { module: "reports", requestId: context.requestId, filters: scoped },
         "Visa summary report",
       );
-      return repository.getVisaSummary(filters);
+      return repository.getVisaSummary(scoped);
     },
 
     async followupsToday(filters = {}, context = {}) {
+      const scoped = mergeConsultantScope(filters, context);
       logger.debug(
-        { module: "reports", requestId: context.requestId, filters },
+        { module: "reports", requestId: context.requestId, filters: scoped },
         "Today follow-ups report",
       );
-      return repository.getTodayFollowups(filters);
+      return repository.getTodayFollowups(scoped);
     },
 
     async followupsMissed(filters = {}, context = {}) {
+      const scoped = mergeConsultantScope(filters, context);
       logger.debug(
-        { module: "reports", requestId: context.requestId, filters },
+        { module: "reports", requestId: context.requestId, filters: scoped },
         "Missed follow-ups report",
       );
-      return repository.getMissedFollowups(filters);
+      return repository.getMissedFollowups(scoped);
     },
 
     async callLog(filters = {}, context = {}) {
+      const scoped = mergeConsultantScope(filters, context);
       logger.debug(
-        { module: "reports", requestId: context.requestId, filters },
+        { module: "reports", requestId: context.requestId, filters: scoped },
         "Call log report",
       );
-      return repository.getCallLogReport(filters);
+      return repository.getCallLogReport(scoped);
     },
 
     async monthlySummary(filters = {}, context = {}) {
+      const scoped = mergeConsultantScope(filters, context);
       logger.debug(
-        { module: "reports", requestId: context.requestId, filters },
+        { module: "reports", requestId: context.requestId, filters: scoped },
         "Monthly summary report",
       );
-      return repository.getMonthlySummary(filters);
+      return repository.getMonthlySummary(scoped);
     },
 
     async executiveKpis(filters = {}, context = {}) {
+      const scoped = mergeConsultantScope(filters, context);
       logger.debug(
-        { module: "reports", requestId: context.requestId, filters },
+        { module: "reports", requestId: context.requestId, filters: scoped },
         "Executive KPI dashboard pack",
       );
-      const enrichedFilters = {
-        ...filters,
-        userId: context.user?.id,
-      };
-      const result = await repository.getExecutiveKpis(enrichedFilters);
+      const result = await repository.getExecutiveKpis(scoped);
       const reportingCurrency = normalizeCurrency(
         currencyService?.baseCurrency || result?.currency || "AED",
       );
@@ -199,9 +247,7 @@ function createReportsService({ repository, logger, currencyService }) {
 
       try {
         const bookingCurrencyRows =
-          (await repository.getExecutiveBookingRevenueByCurrency(
-            enrichedFilters,
-          )) || [];
+          (await repository.getExecutiveBookingRevenueByCurrency(scoped)) || [];
 
         const convertedTotalRevenue = await sumConvertedAmounts(
           bookingCurrencyRows,
@@ -211,9 +257,7 @@ function createReportsService({ repository, logger, currencyService }) {
         );
 
         const serviceCurrencyRows =
-          (await repository.getExecutiveServiceRevenueByCurrency(
-            enrichedFilters,
-          )) || [];
+          (await repository.getExecutiveServiceRevenueByCurrency(scoped)) || [];
 
         const holidayRevenue = await sumConvertedAmounts(
           serviceCurrencyRows.filter((row) => row.service_type !== "VISA"),
@@ -273,51 +317,57 @@ function createReportsService({ repository, logger, currencyService }) {
     },
 
     async conversionFunnel(filters = {}, context = {}) {
+      const scoped = mergeConsultantScope(filters, context);
       logger.debug(
-        { module: "reports", requestId: context.requestId, filters },
+        { module: "reports", requestId: context.requestId, filters: scoped },
         "Conversion funnel report",
       );
-      return repository.getConversionFunnel(filters);
+      return repository.getConversionFunnel(scoped);
     },
 
     async marketingPerformance(filters = {}, context = {}) {
+      const scoped = mergeConsultantScope(filters, context);
       logger.debug(
-        { module: "reports", requestId: context.requestId, filters },
+        { module: "reports", requestId: context.requestId, filters: scoped },
         "Marketing performance report",
       );
-      return repository.getMarketingPerformance(filters);
+      return repository.getMarketingPerformance(scoped);
     },
 
     async supplierPerformance(filters = {}, context = {}) {
+      const scoped = mergeConsultantScope(filters, context);
       logger.debug(
-        { module: "reports", requestId: context.requestId, filters },
+        { module: "reports", requestId: context.requestId, filters: scoped },
         "Supplier performance report",
       );
-      return repository.getSupplierPerformance(filters);
+      return repository.getSupplierPerformance(scoped);
     },
 
     async pipelineForecast(filters = {}, context = {}) {
+      const scoped = mergeConsultantScope(filters, context);
       logger.debug(
-        { module: "reports", requestId: context.requestId, filters },
+        { module: "reports", requestId: context.requestId, filters: scoped },
         "Pipeline forecast report",
       );
-      return repository.getPipelineForecast(filters);
+      return repository.getPipelineForecast(scoped);
     },
 
     async financeCostBreakup(filters = {}, context = {}) {
+      const scoped = mergeConsultantScope(filters, context);
       logger.debug(
-        { module: "reports", requestId: context.requestId, filters },
+        { module: "reports", requestId: context.requestId, filters: scoped },
         "Finance cost breakup report",
       );
-      return repository.getFinanceCostBreakup(filters);
+      return repository.getFinanceCostBreakup(scoped);
     },
 
     async financeSupplierServices(filters = {}, context = {}) {
+      const scoped = mergeConsultantScope(filters, context);
       logger.debug(
-        { module: "reports", requestId: context.requestId, filters },
+        { module: "reports", requestId: context.requestId, filters: scoped },
         "Finance supplier services report",
       );
-      return repository.getFinanceSupplierServices(filters);
+      return repository.getFinanceSupplierServices(scoped);
     },
   });
 }

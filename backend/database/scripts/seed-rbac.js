@@ -73,17 +73,48 @@ function buildMysqlSslConfig() {
   return undefined;
 }
 
+function tlsDefaultForMysql2() {
+  return { minVersion: "TLSv1.2", rejectUnauthorized: false };
+}
+
+function resolveMysqlSsl(hostname) {
+  const flag = String(process.env.MYSQL_SSL ?? "").trim().toLowerCase();
+  if (["0", "false", "no", "off"].includes(flag)) {
+    return undefined;
+  }
+
+  const custom = buildMysqlSslConfig();
+  if (custom !== undefined) {
+    return { ...tlsDefaultForMysql2(), ...custom };
+  }
+
+  const host = String(hostname || "").toLowerCase();
+  const looksCloudTls =
+    host.includes(".mysql.database.azure.com") ||
+    host.includes(".rds.amazonaws.com") ||
+    host.includes(".rds.") ||
+    host.includes("amazonaws.com") ||
+    host.includes(".db.ondigitalocean.com") ||
+    host.includes(".psdb.cloud");
+
+  if (["1", "true", "yes", "on"].includes(flag) || looksCloudTls) {
+    return tlsDefaultForMysql2();
+  }
+
+  return undefined;
+}
+
 function createMySqlConnectionConfig() {
   const databaseUrl = String(process.env.DATABASE_URL || "").trim();
-  const ssl = buildMysqlSslConfig();
 
   if (
     databaseUrl.toLowerCase().startsWith("mysql://") ||
     databaseUrl.toLowerCase().startsWith("mysql2://")
   ) {
+    const parsed = parseMySqlUrl(databaseUrl);
     return {
-      ...parseMySqlUrl(databaseUrl),
-      ssl,
+      ...parsed,
+      ssl: resolveMysqlSsl(parsed.host),
     };
   }
 
@@ -105,7 +136,7 @@ function createMySqlConnectionConfig() {
     user,
     password,
     database,
-    ssl,
+    ssl: resolveMysqlSsl(host),
   };
 }
 

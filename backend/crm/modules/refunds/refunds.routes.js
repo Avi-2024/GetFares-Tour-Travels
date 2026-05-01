@@ -29,7 +29,7 @@ function createRefundsRoutes({
   router.get(
     "/assignable-users",
     requireAuth,
-    authorize("refunds:create"),
+    authorize(["refunds:create", "refunds:update"]),
     validateRequest(validation.assignableUsers),
     asyncHandler(controller.listAssignableUsers),
   );
