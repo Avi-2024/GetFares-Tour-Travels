@@ -193,8 +193,7 @@ const config = Object.freeze({
     graphFields: env.META_GRAPH_FIELDS.split(",")
       .map((field) => field.trim())
       .filter(Boolean),
-    allowInsecureWebhooks:
-      env.META_ALLOW_INSECURE_WEBHOOKS || env.WHATSAPP_ALLOW_INSECURE_WEBHOOKS,
+    allowInsecureWebhooks: env.META_ALLOW_INSECURE_WEBHOOKS,
     pages: metaPages,
   },
   whatsapp: {

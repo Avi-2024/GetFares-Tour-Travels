@@ -31,7 +31,10 @@ function createMetaWebhookModule({ dependencies, leadsService }) {
     config: dependencies.config,
   });
 
-  const controller = createMetaWebhookController({ service });
+  const controller = createMetaWebhookController({ 
+    service,
+    logger: dependencies.logger,
+  });
 
   const router = createMetaWebhookRoutes({
     controller,

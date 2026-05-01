@@ -2,6 +2,7 @@ function createLandingRepository({ db, schema }) {
   let countryColumnSupported = null;
   let countryIdsColumnSupported = null;
   let isDeletedColumnSupported = null;
+  let descriptionColumnSupported = null;
 
   async function supportsCountryColumn() {
     if (countryColumnSupported !== null) {
@@ -90,6 +91,35 @@ function createLandingRepository({ db, schema }) {
     return countryIdsColumnSupported;
   }
 
+  async function supportsDescriptionColumn() {
+    if (descriptionColumnSupported !== null) {
+      return descriptionColumnSupported;
+    }
+
+    if (db?.adapter === "in-memory" || typeof db?.query !== "function") {
+      descriptionColumnSupported = true;
+      return descriptionColumnSupported;
+    }
+
+    try {
+      const result = await db.query(
+        `SELECT 1
+         FROM information_schema.columns
+         WHERE table_schema = DATABASE()
+           AND table_name = ?
+           AND column_name = 'description'
+         LIMIT 1`,
+        [schema.tableName],
+      );
+      descriptionColumnSupported =
+        (result?.rowCount ?? result?.rows?.length ?? 0) > 0;
+    } catch {
+      descriptionColumnSupported = false;
+    }
+
+    return descriptionColumnSupported;
+  }
+
   return Object.freeze({
     async findAll(filters = {}) {
       const query = { ...filters };
@@ -136,6 +166,9 @@ function createLandingRepository({ db, schema }) {
       if (!(await supportsCountryIdsColumn())) {
         delete payload.country_ids;
       }
+      if (!(await supportsDescriptionColumn())) {
+        delete payload.description;
+      }
       if (await supportsIsDeletedColumn()) {
         payload.is_deleted = false;
       } else {
@@ -151,6 +184,9 @@ function createLandingRepository({ db, schema }) {
       }
       if (!(await supportsCountryIdsColumn())) {
         delete payload.country_ids;
+      }
+      if (!(await supportsDescriptionColumn())) {
+        delete payload.description;
       }
       return db.update(schema.tableName, id, payload);
     },
@@ -209,6 +245,10 @@ function createLandingRepository({ db, schema }) {
 
     async supportsIsDeleted() {
       return supportsIsDeletedColumn();
+    },
+
+    async supportsDescription() {
+      return supportsDescriptionColumn();
     },
   });
 }

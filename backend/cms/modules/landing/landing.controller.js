@@ -53,15 +53,17 @@ function createLandingController({ service, uploadService }) {
         "imageFile",
         "file",
         "banner",
+        "video",
       ]);
       if (imageFile) {
         const uploaded = await uploadService.uploadSingle({
           file: imageFile,
           prefix: "cms/landing/banner",
-          allowVideo: false,
+          allowVideo: true,
           required: false,
         });
-        payload.imageUrl = uploaded?.url || payload.imageUrl;
+        payload.mediaType = uploaded?.mediaType || payload.mediaType;
+        payload.mediaUrl = uploaded?.url || payload.mediaUrl;
       }
 
       const place = await service.create(payload);
@@ -82,15 +84,17 @@ function createLandingController({ service, uploadService }) {
         "imageFile",
         "file",
         "banner",
+        "video",
       ]);
       if (imageFile) {
         const uploaded = await uploadService.uploadSingle({
           file: imageFile,
           prefix: "cms/landing/banner",
-          allowVideo: false,
+          allowVideo: true,
           required: false,
         });
-        payload.imageUrl = uploaded?.url || payload.imageUrl;
+        payload.mediaType = uploaded?.mediaType || payload.mediaType;
+        payload.mediaUrl = uploaded?.url || payload.mediaUrl;
       }
 
       const place = await service.update(req.params.id, payload);

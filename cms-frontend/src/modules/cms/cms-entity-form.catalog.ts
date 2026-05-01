@@ -345,17 +345,6 @@ class CmsEntityFormCatalog {
             addLabel: "Add Highlight",
           },
           {
-            key: "services",
-            label: "Services",
-            type: "list-object",
-            groupKey: "content",
-            addLabel: "Add Service",
-            itemFields: [
-              { key: "title", label: "Title" },
-              { key: "description", label: "Description", type: "textarea" },
-            ],
-          },
-          {
             key: "bestTimeToVisit",
             label: "Best Time To Visit",
             type: "list-object",
@@ -825,13 +814,13 @@ class CmsEntityFormCatalog {
           },
           {
             key: "startingPrice",
-            label: "Starting Price",
+            label: "Starting Price for 2 Person",
             type: "number",
             groupKey: "basic",
           },
           {
             key: "transport",
-            label: "Transport",
+            label: "Transfer",
             type: "text",
             groupKey: "basic",
           },
@@ -854,6 +843,7 @@ class CmsEntityFormCatalog {
             groupKey: "content",
             addLabel: "Add Feature",
             itemFields: [
+              { key: "iconName", label: "Icon" },
               { key: "title", label: "Title" },
               { key: "description", label: "Description", type: "textarea" },
             ],

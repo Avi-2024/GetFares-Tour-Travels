@@ -4,7 +4,6 @@ import {
   normalizeDisplayOrderInput,
   normalizeText,
   toBoolean,
-  toNumber,
 } from "../../core/utils/index.js";
 
 function createLandingService({ repository }) {
@@ -36,6 +35,28 @@ function createLandingService({ repository }) {
     );
   }
 
+  function resolveLandingPlaceMediaUrl(payload) {
+    return normalizeText(
+      payload.mediaUrl ?? payload.videoUrl ?? payload.imageUrl ?? payload.image,
+    );
+  }
+
+  function resolveLandingPlaceMediaKind(payload, mediaUrl) {
+    const explicitKind = normalizeText(payload.mediaKind ?? payload.mediaType);
+    if (explicitKind === "video" || explicitKind === "image") {
+      return explicitKind;
+    }
+
+    if (typeof mediaUrl === "string") {
+      const lowerUrl = mediaUrl.toLowerCase();
+      if (/(\.(mp4|mov|webm|ogg|m4v|avi|mkv|flv|wmv))(\?|$)/.test(lowerUrl)) {
+        return "video";
+      }
+    }
+
+    return "image";
+  }
+
   function isActiveValue(value) {
     if (typeof value === "boolean") return value;
     if (typeof value === "number") return value === 1;
@@ -44,6 +65,49 @@ function createLandingService({ repository }) {
       return normalized === "true" || normalized === "1";
     }
     return false;
+  }
+
+  function resolveSharedCopyValue(
+    {
+      description,
+      tag,
+      subtitle,
+    } = {},
+    existingValue = null,
+  ) {
+    const normalizedExisting = normalizeText(existingValue);
+    const normalizedDescription = normalizeText(description);
+    const normalizedTag = normalizeText(tag);
+    const normalizedSubtitle = normalizeText(subtitle);
+
+    const changedCandidates = [
+      normalizedDescription,
+      normalizedTag,
+      normalizedSubtitle,
+    ].filter(
+      (value) => value !== null && value !== normalizedExisting,
+    );
+
+    if (changedCandidates.length === 1) {
+      return changedCandidates[0];
+    }
+
+    if (changedCandidates.length > 1) {
+      const [firstCandidate] = changedCandidates;
+      const allSame = changedCandidates.every(
+        (value) => value === firstCandidate,
+      );
+      if (allSame) {
+        return firstCandidate;
+      }
+    }
+
+    return (
+      normalizedDescription ??
+      normalizedTag ??
+      normalizedSubtitle ??
+      normalizedExisting
+    );
   }
 
   async function assertActiveLimit({ excludeId = null, country = null } = {}) {
@@ -77,7 +141,7 @@ function createLandingService({ repository }) {
     }
     const rows = await repository.findAll({
       ...(country ? { country } : {}),
-      includeDeleted: true,
+      is_deleted: false,
     });
     const duplicate = findDisplayOrderConflict(
       normalizedOrder,
@@ -85,7 +149,11 @@ function createLandingService({ repository }) {
       excludeId,
     );
     if (duplicate) {
-      await repository.update(duplicate.id, { display_order: -1 });
+      throw new AppError(
+        400,
+        `Display order ${normalizedOrder} is already taken in country "${country}"`,
+        "DISPLAY_ORDER_CONFLICT",
+      );
     }
     return normalizedOrder;
   }
@@ -93,16 +161,20 @@ function createLandingService({ repository }) {
   function toLandingPlace(row) {
     if (!row) return null;
     const countryIds = parseCountryIds(row.country_ids);
+    const mediaUrl = row.image_url;
+    const mediaKind = resolveLandingPlaceMediaKind({}, mediaUrl);
     return {
       id: row.id,
       title: row.name,
       name: row.name,
       country: row.country ?? null,
       countryIds,
-      description: row.tag ?? null,
-      tag: row.tag,
-      image: row.image_url,
-      imageUrl: row.image_url,
+      description: row.description ?? row.tag ?? null,
+      tag: row.tag ?? null,
+      image: mediaUrl,
+      imageUrl: mediaUrl,
+      mediaUrl,
+      mediaKind,
       displayOrder: row.display_order,
       isActive: row.is_active,
       isDeleted: row.is_deleted,
@@ -153,6 +225,7 @@ function createLandingService({ repository }) {
       );
       const supportsCountry = await repository.supportsCountry();
       const supportsCountryIds = await repository.supportsCountryIds();
+      const supportsDescription = await repository.supportsDescription();
       if (
         supportsCountry &&
         supportsCountryIds &&
@@ -176,26 +249,47 @@ function createLandingService({ repository }) {
         throw new AppError(400, "Title is required", "TITLE_REQUIRED");
       }
 
-      const imageUrl = normalizeText(data.image ?? data.imageUrl);
-      if (!imageUrl) {
-        throw new AppError(400, "Image is required", "IMAGE_REQUIRED");
+      const mediaUrl = resolveLandingPlaceMediaUrl(data);
+      if (!mediaUrl) {
+        throw new AppError(400, "Media is required", "MEDIA_REQUIRED");
       }
-
-      const existing = await repository.findAll(
-        supportsCountry && country ? { country } : {},
-      );
+      const mediaKind = resolveLandingPlaceMediaKind(data, mediaUrl);
 
       const displayOrder = await reassignDisplayOrderConflict({
         displayOrder: normalizeDisplayOrderInput(data.displayOrder, -1),
         country,
       });
 
+      const legacySharedCopy = resolveSharedCopyValue(data);
+      const tag = normalizeText(data.tag ?? data.subtitle);
+      const description = normalizeText(
+        data.description ?? data.tag ?? data.subtitle,
+      );
+
+      if (supportsDescription && !description) {
+        throw new AppError(
+          400,
+          "Description is required",
+          "DESCRIPTION_REQUIRED",
+        );
+      }
+      if (!supportsDescription && !legacySharedCopy) {
+        throw new AppError(400, "Tag is required", "INVALID_TAG");
+      }
+
       const row = await repository.create({
         name: title,
         ...(supportsCountry ? { country } : {}),
         ...(supportsCountryIds ? { country_ids: countryIds } : {}),
-        tag: normalizeText(data.tag ?? data.subtitle ?? data.description),
-        image_url: imageUrl,
+        ...(supportsDescription ?
+          {
+            tag,
+            description,
+          }
+        : {
+            tag: legacySharedCopy,
+          }),
+        image_url: mediaUrl,
         display_order: displayOrder,
         is_active: requestedIsActive,
       });
@@ -212,6 +306,7 @@ function createLandingService({ repository }) {
       const updates = {};
       const supportsCountry = await repository.supportsCountry();
       const supportsCountryIds = await repository.supportsCountryIds();
+      const supportsDescription = await repository.supportsDescription();
       const incomingCountry =
         supportsCountry && data.country !== undefined ?
           normalizeText(data.country)
@@ -266,21 +361,44 @@ function createLandingService({ repository }) {
       ) {
         updates.country_ids = incomingCountryIds;
       }
-      if (
+      if (supportsDescription) {
+        if (data.description !== undefined) {
+          const description = normalizeText(data.description);
+          if (!description) {
+            throw new AppError(
+              400,
+              "Description cannot be empty",
+              "INVALID_DESCRIPTION",
+            );
+          }
+          updates.description = description;
+        }
+        if (data.tag !== undefined || data.subtitle !== undefined) {
+          updates.tag = normalizeText(data.tag ?? data.subtitle);
+        }
+      } else if (
         data.tag !== undefined ||
         data.subtitle !== undefined ||
         data.description !== undefined
       ) {
-        const tag = normalizeText(
-          data.tag ?? data.subtitle ?? data.description,
-        );
+        const tag = resolveSharedCopyValue(data, existing.tag);
         if (!tag) {
           throw new AppError(400, "Tag cannot be empty", "INVALID_TAG");
         }
         updates.tag = tag;
       }
-      if (data.imageUrl !== undefined || data.image !== undefined)
-        updates.image_url = normalizeText(data.image ?? data.imageUrl);
+      if (
+        data.mediaUrl !== undefined ||
+        data.videoUrl !== undefined ||
+        data.imageUrl !== undefined ||
+        data.image !== undefined
+      ) {
+        const mediaUrl = resolveLandingPlaceMediaUrl(data);
+        if (!mediaUrl) {
+          throw new AppError(400, "Media cannot be empty", "INVALID_MEDIA");
+        }
+        updates.image_url = mediaUrl;
+      }
       if (data.displayOrder !== undefined) {
         updates.display_order = normalizeDisplayOrderInput(
           data.displayOrder,

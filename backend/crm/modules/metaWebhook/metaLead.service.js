@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { AppError } from "../../core/errors/index.js";
+import { getWebhookFileLogger } from "./webhookFileLogger.js";
 
 const META_SOURCE = "Meta Lead Ads";
 const META_UTM_SOURCE = "meta";
@@ -392,10 +393,35 @@ function createMetaLeadService({
   logger,
   config,
 }) {
+  const fileLogger = getWebhookFileLogger();
   const verifyToken = config?.meta?.verifyToken;
   const appSecret = config?.meta?.appSecret;
   const allowInsecureWebhooks = config?.meta?.allowInsecureWebhooks === true;
   const envPages = Array.isArray(config?.meta?.pages) ? config.meta.pages : [];
+
+  console.log("\n========== META LEAD SERVICE INITIALIZED ==========");
+  console.log("Verify token configured:", verifyToken ? "YES" : "NO");
+  console.log("App secret configured:", appSecret ? "YES" : "NO");
+  console.log("Allow insecure webhooks:", allowInsecureWebhooks);
+  console.log("Environment pages count:", envPages.length);
+  envPages.forEach((page, idx) => {
+    console.log(`\nPage ${idx + 1}:`);
+    console.log("  Page ID:", page.pageId);
+    console.log("  Page Name:", page.pageName);
+    console.log("  Country:", page.countryName, "(", page.countryCode, ")");
+    console.log("  Source Label:", page.sourceLabel);
+    console.log("  Access Token:", page.accessToken ? "[CONFIGURED]" : "[MISSING]");
+    console.log("  App Secret:", page.appSecret ? "[CONFIGURED]" : "[MISSING]");
+    console.log("  Verify Token:", page.verifyToken ? "[CONFIGURED]" : "[MISSING]");
+  });
+  console.log("\n================================================\n");
+  
+  fileLogger.logServiceInitialization({
+    verifyToken,
+    appSecret,
+    allowInsecureWebhooks,
+    pages: envPages,
+  });
 
   async function listConfiguredPages() {
     const repositoryPages =
@@ -404,22 +430,60 @@ function createMetaLeadService({
   }
 
   async function resolvePageConfig(pageId) {
+    console.log("\n========== resolvePageConfig ==========");
+    console.log("Looking for page ID:", pageId);
+    
     const normalizedPageId = String(pageId || "").trim();
     if (!normalizedPageId) {
+      console.error("Page ID is empty or null");
+      fileLogger.error("Empty Page ID", { pageId });
       return null;
     }
+    console.log("Normalized page ID:", normalizedPageId);
 
+    console.log("Checking environment pages...");
+    console.log("Environment pages count:", envPages.length);
+    envPages.forEach((page, idx) => {
+      console.log(`Env page ${idx}:`, {
+        pageId: page?.pageId,
+        pageName: page?.pageName,
+        countryName: page?.countryName,
+      });
+    });
+    
     const envPage =
       envPages.find(
         (page) => String(page?.pageId || "").trim() === normalizedPageId,
       ) || null;
     if (envPage) {
+      console.log("Found in environment pages:", {
+        pageId: envPage.pageId,
+        pageName: envPage.pageName,
+        countryName: envPage.countryName,
+      });
+      fileLogger.logPageConfigResolution(normalizedPageId, true, envPage);
       return envPage;
     }
+    console.log("Not found in environment pages");
 
-    return repository?.findPageConfigByPageId ?
-        repository.findPageConfigByPageId(normalizedPageId)
+    console.log("Checking database for page config...");
+    const dbPage = repository?.findPageConfigByPageId ?
+        await repository.findPageConfigByPageId(normalizedPageId)
       : null;
+    
+    if (dbPage) {
+      console.log("Found in database:", {
+        pageId: dbPage.pageId,
+        pageName: dbPage.pageName,
+        countryName: dbPage.countryName,
+      });
+      fileLogger.logPageConfigResolution(normalizedPageId, true, dbPage);
+    } else {
+      console.log("Not found in database");
+      fileLogger.logPageConfigResolution(normalizedPageId, false);
+    }
+    
+    return dbPage;
   }
 
   async function verifyWebhook(query = {}) {
@@ -534,18 +598,36 @@ function createMetaLeadService({
   }
 
   async function assertSignature(rawBody, signatureHeader, payload = {}) {
+    console.log("\n========== SIGNATURE VALIDATION ==========");
+    console.log("Allow insecure webhooks:", allowInsecureWebhooks);
+    
     if (allowInsecureWebhooks) {
+      console.log("Skipping signature validation (insecure mode enabled)");
+      fileLogger.info("Signature Validation Skipped", { reason: "insecure_mode" });
       return;
     }
 
     const secrets = await getSignatureSecrets(payload);
+    console.log("Secrets found:", secrets.length);
+    
     if (!secrets.length) {
+      console.log("No secrets configured - skipping validation");
+      fileLogger.info("Signature Validation Skipped", { reason: "no_secrets" });
       return;
     }
 
-    if (!isValidSignature(rawBody, signatureHeader, secrets)) {
+    console.log("Signature header present:", signatureHeader ? "YES" : "NO");
+    console.log("Raw body length:", rawBody?.length || 0);
+    
+    const isValid = isValidSignature(rawBody, signatureHeader, secrets);
+    fileLogger.logSignatureValidation(isValid, secrets.length);
+    
+    if (!isValid) {
+      console.error("Signature validation FAILED");
       throw new AppError(403, "Invalid signature", "META_SIGNATURE_INVALID");
     }
+    
+    console.log("Signature validation PASSED");
   }
 
   async function fetchLeadWithRetry(leadgenId, pageConfig = {}) {
@@ -756,7 +838,14 @@ function createMetaLeadService({
   }
 
   async function processLeadEvent(event, context) {
+    console.log("\n========== processLeadEvent START ==========");
+    console.log("Event key:", event.eventKey);
+    console.log("Leadgen ID:", event.leadgenId);
+    console.log("Page ID:", event.pageId);
+    
     const existingEvent = await repository.findWebhookEventByKey(event.eventKey);
+    console.log("Existing event found:", existingEvent ? "YES" : "NO");
+    
     const eventRecord =
       existingEvent ||
       (await repository.createWebhookEvent({
@@ -766,11 +855,15 @@ function createMetaLeadService({
         status: "RECEIVED",
         payloadJson: JSON.stringify(event),
       }));
+    console.log("Event record ID:", eventRecord?.id);
 
     const existingLead = await repository.findByMetaLeadId(event.leadgenId);
+    console.log("Existing lead found:", existingLead ? "YES (ID: " + existingLead.id + ")" : "NO");
+    
     if (existingLead?.id) {
       const lead = await leadsService.getById(existingLead.id, context);
       await markWebhookEvent(eventRecord, { status: "DUPLICATE_META_LEAD" });
+      console.log("Returning duplicate lead");
       return {
         leadgenId: event.leadgenId,
         lead,
@@ -781,7 +874,14 @@ function createMetaLeadService({
     }
 
     const pageConfig = await resolvePageConfig(event.pageId);
+    console.log("\n========== PAGE CONFIG RESOLUTION ==========");
+    console.log("Page config found:", pageConfig ? "YES" : "NO");
+    if (pageConfig) {
+      console.log("Page config details:", JSON.stringify(summarizePageConfig(pageConfig), null, 2));
+    }
+    
     if (!pageConfig) {
+      console.error("Page config not found for page ID:", event.pageId);
       logger?.warn(
         {
           pageId: event.pageId || null,
@@ -813,7 +913,12 @@ function createMetaLeadService({
       "Meta webhook resolved page config",
     );
 
+    console.log("\n========== FETCHING META LEAD DATA ==========");
     const metaLead = await fetchLeadWithRetry(event.leadgenId, pageConfig);
+    console.log("Meta lead fetched:", JSON.stringify(metaLead, null, 2));
+    
+    fileLogger.logMetaLeadFetched(event.leadgenId, metaLead);
+    
     logger?.debug(
       {
         leadgenId: event.leadgenId,
@@ -828,8 +933,17 @@ function createMetaLeadService({
       },
       "Fetched Meta lead payload for webhook event",
     );
+    
+    console.log("\n========== ENSURING CAMPAIGN RECORD ==========");
     const campaign = await ensureCampaignRecord(metaLead, event, pageConfig);
+    console.log("Campaign:", campaign ? JSON.stringify(summarizeCampaignRecord(campaign), null, 2) : "NONE");
+    
+    console.log("\n========== BUILDING LEAD PAYLOAD ==========");
     const payload = buildLeadPayload(metaLead, event, pageConfig, campaign);
+    console.log("Lead payload:", JSON.stringify(payload, null, 2));
+    
+    fileLogger.logLeadPayload(event.leadgenId, payload);
+    
     logger?.debug(
       {
         leadgenId: event.leadgenId,
@@ -841,12 +955,22 @@ function createMetaLeadService({
       "Built lead payload from Meta webhook event",
     );
 
+    console.log("\n========== CREATING LEAD IN CRM ==========");
     try {
       const result = await leadsService.createOrGetDuplicate(payload, context);
+      console.log("Lead creation result:", {
+        leadId: result.lead?.id,
+        duplicate: result.duplicate,
+      });
+      
+      fileLogger.logLeadCreated(event.leadgenId, result.lead?.id, result.duplicate);
+      
       const lead = await ensureMetaAttributes(result.lead, payload, context);
       await markWebhookEvent(eventRecord, {
         status: result.duplicate ? "DUPLICATE_CONTACT" : "PROCESSED",
       });
+      
+      console.log("Lead processing complete - Success");
       return {
         leadgenId: event.leadgenId,
         lead,
@@ -855,7 +979,11 @@ function createMetaLeadService({
         reason: result.duplicate ? "contact" : null,
       };
     } catch (error) {
+      console.error("Lead creation error:", error);
+      fileLogger.logLeadCreationError(event.leadgenId, error);
+      
       if (isUniqueViolation(error)) {
+        console.log("Unique violation - checking for existing lead");
         const existingByMeta = await repository.findByMetaLeadId(event.leadgenId);
         if (existingByMeta?.id) {
           const lead = await leadsService.getById(existingByMeta.id, context);
@@ -880,13 +1008,22 @@ function createMetaLeadService({
   }
 
   async function handleWebhook(payload, context = {}, signatureHeader) {
+    console.log("\n========== SERVICE: handleWebhook START ==========");
+    console.log("Payload object type:", payload?.object);
+    console.log("Payload entry count:", Array.isArray(payload?.entry) ? payload.entry.length : 0);
+    
     await assertSignature(context.rawBody, signatureHeader, payload);
+    console.log("Signature validation passed");
 
     if (!payload || typeof payload !== "object") {
+      console.error("Invalid payload - not an object");
+      fileLogger.error("Invalid Payload", { type: typeof payload });
       throw new AppError(400, "Invalid webhook payload", "META_PAYLOAD_INVALID");
     }
 
     if (payload.object && payload.object !== "page") {
+      console.warn("Unexpected object type:", payload.object);
+      fileLogger.warn("Unexpected Object Type", { object: payload.object });
       logger?.warn(
         { object: payload.object },
         "Unexpected Meta webhook object type",
@@ -894,7 +1031,14 @@ function createMetaLeadService({
     }
 
     const leadEvents = extractLeadgenEvents(payload);
+    console.log("\n========== EXTRACTED LEAD EVENTS ==========");
+    console.log("Lead events count:", leadEvents.length);
+    console.log("Lead events:", JSON.stringify(leadEvents, null, 2));
+    
+    fileLogger.logLeadEvents(leadEvents);
+    
     if (!leadEvents.length) {
+      console.warn("No leadgen events found in payload");
       logger?.warn(
         { payloadSummary: { object: payload.object } },
         "Meta webhook payload did not include leadgen_id",
@@ -917,10 +1061,16 @@ function createMetaLeadService({
     const errors = [];
 
     for (const event of leadEvents) {
+      console.log("\n========== PROCESSING LEAD EVENT ==========");
+      console.log("Event:", JSON.stringify(event, null, 2));
+      
       try {
         const result = await processLeadEvent(event, serviceContext);
+        console.log("Event processed successfully:", JSON.stringify(result, null, 2));
         results.push(result);
       } catch (error) {
+        console.error("Event processing failed:", error);
+        fileLogger.logError(`lead_event_${event.leadgenId}`, error);
         errors.push({
           leadgenId: event.leadgenId,
           message: error.message,
@@ -935,6 +1085,8 @@ function createMetaLeadService({
     }
 
     if (errors.length) {
+      console.error("\n========== PROCESSING ERRORS ==========");
+      console.error("Errors:", JSON.stringify(errors, null, 2));
       throw new AppError(
         502,
         "Meta webhook processing failed",
@@ -943,12 +1095,17 @@ function createMetaLeadService({
       );
     }
 
-    return {
+    const summary = {
       processed: results.filter((item) => !item.skipped).length,
       duplicates: results.filter((item) => item.duplicate).length,
       skipped: results.filter((item) => item.skipped).length,
       leads: results,
     };
+    
+    console.log("\n========== FINAL SUMMARY ==========");
+    console.log(JSON.stringify(summary, null, 2));
+    
+    return summary;
   }
 
   return Object.freeze({

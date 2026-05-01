@@ -46,6 +46,16 @@ function createExperienceService({ repository }) {
     return value;
   }
 
+  function resolveMediaKind(mediaUrl) {
+    if (typeof mediaUrl === "string") {
+      const lowerUrl = mediaUrl.toLowerCase();
+      if (/(\.(mp4|mov|webm|ogg|m4v|avi|mkv|flv|wmv))(\?|$)/.test(lowerUrl)) {
+        return "video";
+      }
+    }
+    return "image";
+  }
+
   function toFeaturedPick(row) {
     if (!row) return null;
     const tags = parseJsonValue(row.tags, []);
@@ -76,6 +86,7 @@ function createExperienceService({ repository }) {
       duration: row.duration,
       description: row.description,
       imageUrl: row.image_url,
+      mediaKind: resolveMediaKind(row.image_url),
       buttonText: row.button_text,
       ctaUrl: row.cta_url,
       expiresOn: row.expires_on,
@@ -138,9 +149,41 @@ function createExperienceService({ repository }) {
     };
   }
 
+  async function assertFeaturedPickUnique({
+    country,
+    displayOrder,
+    sectionKey,
+    excludeId = null,
+  }) {
+    const query = {
+      country,
+      display_order: displayOrder,
+      includeDeleted: false,
+    };
+    if (sectionKey) {
+      query.section_key = sectionKey;
+    }
+
+    const existingPicks = await repository.findFeaturedPicks(query);
+    const conflictingPick = existingPicks.find((pick) => {
+      if (excludeId && pick.id === excludeId) return false;
+      if (sectionKey) return true;
+      return normalizeText(pick.section_key) === null;
+    });
+
+    if (conflictingPick) {
+      throw new AppError(
+        400,
+        `A featured pick already exists for country "${country}", display order "${displayOrder}", and section key "${sectionKey}"`,
+        "DUPLICATE_FEATURED_PICK",
+      );
+    }
+  }
+
   async function reassignFeaturedPickDisplayOrder({
     displayOrder,
     country,
+    sectionKey,
     excludeId = null,
   }) {
     const normalizedOrder = normalizeDisplayOrderInput(displayOrder, -1);
@@ -150,12 +193,21 @@ function createExperienceService({ repository }) {
     const rows = await repository.findFeaturedPicks({
       includeDeleted: true,
       ...(country ? { country } : {}),
+      ...(sectionKey ? { section_key: sectionKey } : {}),
     });
-    const duplicate = findDisplayOrderConflict(
-      normalizedOrder,
-      rows,
-      excludeId,
-    );
+
+    let duplicate = null;
+    if (sectionKey) {
+      duplicate = findDisplayOrderConflict(normalizedOrder, rows, excludeId);
+    } else {
+      duplicate =
+        rows.find((row) => {
+          if (excludeId && row.id === excludeId) return false;
+          if (normalizeText(row.section_key) !== null) return false;
+          return normalizeDisplayOrderInput(row.display_order, -1) === normalizedOrder;
+        }) || null;
+    }
+
     if (duplicate) {
       await repository.updateFeaturedPick(duplicate.id, { display_order: -1 });
     }
@@ -206,13 +258,27 @@ function createExperienceService({ repository }) {
         );
       }
 
+      const sectionKey = normalizeText(
+        data.sectionKey ?? data.section_key ?? "featured-hot-picks",
+      );
+      const displayOrder = normalizeDisplayOrderInput(data.displayOrder, -1);
+      
+      // Validate unique (country, display_order, section_key) combination
+      if (displayOrder >= 0) {
+        await assertFeaturedPickUnique({
+          country,
+          displayOrder,
+          sectionKey,
+        });
+      }
+
       const row = await repository.createFeaturedPick({
         slug: normalizeText(data.slug),
         title: normalizeText(data.title),
         subtitle: normalizeText(data.subtitle),
         category: normalizeText(data.category || "destination"),
         campaign_type: normalizeText(data.campaignType || "featured"),
-        section_key: normalizeText(data.sectionKey || "featured-hot-picks"),
+        section_key: sectionKey,
         reference_id: normalizeText(data.referenceId),
         country,
         country_ids: countryIds,
@@ -234,8 +300,9 @@ function createExperienceService({ repository }) {
             data.metadata
           : {},
         display_order: await reassignFeaturedPickDisplayOrder({
-          displayOrder: data.displayOrder,
+          displayOrder,
           country,
+          sectionKey,
         }),
         is_active: toBoolean(data.isActive, true),
       });
@@ -264,8 +331,10 @@ function createExperienceService({ repository }) {
       if (data.campaignType !== undefined) {
         updates.campaign_type = normalizeText(data.campaignType);
       }
-      if (data.sectionKey !== undefined) {
-        updates.section_key = normalizeText(data.sectionKey);
+      if (data.sectionKey !== undefined || data.section_key !== undefined) {
+        updates.section_key = normalizeText(
+          data.sectionKey ?? data.section_key,
+        );
       }
       if (data.referenceId !== undefined) {
         updates.reference_id = normalizeText(data.referenceId);
@@ -321,22 +390,47 @@ function createExperienceService({ repository }) {
       if (data.metadata !== undefined && typeof data.metadata === "object") {
         updates.metadata = data.metadata;
       }
+
+      const newCountry = updates.country !== undefined ? updates.country : existing.country;
+      const newSectionKey = updates.section_key !== undefined ? updates.section_key : existing.section_key;
+
       if (data.displayOrder !== undefined) {
         updates.display_order = await reassignFeaturedPickDisplayOrder({
           displayOrder: data.displayOrder,
-          country: nextCountry,
+          country: newCountry,
+          sectionKey: newSectionKey,
           excludeId: id,
         });
       }
       if (data.displayOrder === undefined && data.country !== undefined) {
         updates.display_order = await reassignFeaturedPickDisplayOrder({
           displayOrder: existing.display_order,
-          country: nextCountry,
+          country: newCountry,
+          sectionKey: newSectionKey,
           excludeId: id,
         });
       }
       if (data.isActive !== undefined)
         updates.is_active = toBoolean(data.isActive, true);
+
+      // Determine final values for validation
+      const newDisplayOrder = updates.display_order !== undefined ? updates.display_order : existing.display_order;
+
+      // Validate unique (country, display_order, section_key) combination
+      if (newDisplayOrder >= 0) {
+        if (
+          newCountry !== existing.country ||
+          newDisplayOrder !== existing.display_order ||
+          newSectionKey !== existing.section_key
+        ) {
+          await assertFeaturedPickUnique({
+            country: newCountry,
+            displayOrder: newDisplayOrder,
+            sectionKey: newSectionKey,
+            excludeId: id,
+          });
+        }
+      }
 
       const row = await repository.updateFeaturedPick(id, updates);
       return toFeaturedPick(row);

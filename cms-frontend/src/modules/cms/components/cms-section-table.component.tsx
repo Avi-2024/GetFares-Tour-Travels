@@ -287,15 +287,21 @@ class CmsSectionTableComponent extends Component<CmsSectionTableProps> {
                         return (
                           <td
                             key={`${entry.id}-${column.key}`}
-                            className={`px-4 py-3 ${column.isHighlighted ? "font-semibold text-[var(--text-primary)]" : "text-[var(--text-secondary)]"}`}
+                            className={`px-4 py-3 ${
+                              column.isHighlighted
+                                ? "max-w-[220px] font-semibold text-[var(--text-primary)]"
+                                : "max-w-[160px] text-[var(--text-secondary)]"
+                            }`}
                           >
+                            <div className="truncate">
                             {toned ?
                               <span
-                                className={`rounded-full px-2 py-1 text-xs font-semibold ${this.props.getToneClass(cell.tone)}`}
+                                className={`whitespace-nowrap rounded-full px-2 py-1 text-xs font-semibold ${this.props.getToneClass(cell.tone)}`}
                               >
                                 {value}
                               </span>
                             : value}
+                            </div>
                           </td>
                         );
                       })}

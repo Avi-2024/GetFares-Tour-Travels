@@ -196,8 +196,26 @@ class CmsEntityEditorModalComponent extends Component<
     return value.trim();
   }
 
-  private parseArrayValue(value: unknown): unknown[] {
+  private parseArrayValue(value: unknown, fieldDef?: CmsEntityFieldDefinition): unknown[] {
     if (Array.isArray(value)) {
+      // For list-object fields, normalize nested array fields to comma-separated strings
+      if (fieldDef?.type === "list-object" && fieldDef.itemFields) {
+        const arrayItemFields = new Set(
+          fieldDef.itemFields
+            .filter((f) => !f.type || f.type === "text")
+            .map((f) => f.key),
+        );
+        return value.map((item) => {
+          if (!item || typeof item !== "object" || Array.isArray(item)) return item;
+          const normalized: Record<string, unknown> = { ...(item as Record<string, unknown>) };
+          for (const key of arrayItemFields) {
+            if (Array.isArray(normalized[key])) {
+              normalized[key] = (normalized[key] as unknown[]).join(", ");
+            }
+          }
+          return normalized;
+        });
+      }
       return value;
     }
     if (typeof value === "string") {
@@ -455,6 +473,17 @@ class CmsEntityEditorModalComponent extends Component<
         if (value === undefined && field.key === "seasonFocus") {
           value = this.getRawValue(this.props.entry as CmsTableEntry, "season");
         }
+        // For sub-packages, resolve country from the raw record (stored as destination_country or via mainPackage)
+        if (
+          value === undefined &&
+          this.props.sectionKey === "sub-packages" &&
+          field.key === "country"
+        ) {
+          value =
+            this.getRawValue(this.props.entry as CmsTableEntry, "country") ??
+            this.getRawValue(this.props.entry as CmsTableEntry, "destination_country") ??
+            this.getRawValue(this.props.entry as CmsTableEntry, "destinationCountry");
+        }
         if (value === undefined || value === null) {
           return;
         }
@@ -473,7 +502,7 @@ class CmsEntityEditorModalComponent extends Component<
           return;
         }
         if (field.type === "list-text" || field.type === "list-object") {
-          formValues[field.key] = this.parseArrayValue(value);
+          formValues[field.key] = this.parseArrayValue(value, field);
           return;
         }
         if (field.type === "date") {
@@ -486,6 +515,107 @@ class CmsEntityEditorModalComponent extends Component<
 
     this.revokeAllPreviewUrls();
 
+    // Pre-populate image previews from initial values (copy mode)
+    const fieldImagePreviews: Record<string, string> = {};
+    let copyMediaItems: CmsEntityMediaEditorItem[] = [];
+    if (this.props.initialValues) {
+      const definition2 = CmsEntityFormCatalog.get(this.props.sectionKey);
+      definition2.fields.forEach((field) => {
+        if (field.type === "url" && /image|thumbnail|hero|banner/i.test(field.key)) {
+          const val = String(formValues[field.key] ?? "").trim();
+          if (val) fieldImagePreviews[field.key] = val;
+        }
+      });
+
+      // For media-enabled sections, pre-populate mediaItems from raw data
+      if (definition2.mediaEnabled) {
+        const raw = this.props.initialValues;
+        const media = raw.media;
+        const mediaRecord =
+          media && typeof media === "object" && !Array.isArray(media)
+            ? (media as Record<string, unknown>)
+            : {};
+
+        if (this.props.sectionKey === "destinations") {
+          const titleImageUrl = String(
+            mediaRecord.title_image ??
+            raw.titleImageUrl ??
+            raw.thumbnailUrl ??
+            raw.heroImageUrl ??
+            "",
+          ).trim();
+          const gallery = Array.isArray(mediaRecord.gallery)
+            ? (mediaRecord.gallery as string[]).filter(Boolean)
+            : [];
+          if (titleImageUrl) {
+            copyMediaItems.push({
+              id: null,
+              clientId: "copy-title-image",
+              mediaUrl: titleImageUrl,
+              thumbnailUrl: titleImageUrl,
+              title: "Title Image",
+              altText: "Title Image",
+              isPrimary: true,
+              mediaKind: "image",
+              pendingFile: null,
+              previewUrl: undefined,
+            });
+          }
+          gallery.slice(0, 4).forEach((url, i) => {
+            copyMediaItems.push({
+              id: null,
+              clientId: `copy-gallery-${i}`,
+              mediaUrl: url,
+              thumbnailUrl: url,
+              title: "",
+              altText: "",
+              isPrimary: false,
+              mediaKind: "image",
+              pendingFile: null,
+              previewUrl: undefined,
+            });
+          });
+        } else {
+          // For other media-enabled sections — try raw fields first, then fetch from media API
+          const imageUrl = String(
+            raw.imageUrl ?? raw.image_url ?? raw.heroImageUrl ?? raw.bannerImageUrl ?? "",
+          ).trim();
+          if (imageUrl) {
+            copyMediaItems.push({
+              id: null,
+              clientId: "copy-primary-image",
+              mediaUrl: imageUrl,
+              thumbnailUrl: imageUrl,
+              title: "",
+              altText: "",
+              isPrimary: true,
+              mediaKind: "image",
+              pendingFile: null,
+              previewUrl: undefined,
+            });
+          } else if (raw.id) {
+            // Fetch from media API (e.g. main-packages stores images via media API)
+            const entityType = this.cmsService.getMediaEntityType(this.props.sectionKey);
+            const fetchedMedia = await this.cmsService.listMedia(entityType, String(raw.id)).catch(() => []);
+            fetchedMedia.forEach((item) => {
+              copyMediaItems.push({
+                id: null,
+                clientId: `copy-media-${item.id}`,
+                mediaUrl: item.mediaUrl,
+                thumbnailUrl: item.thumbnailUrl || item.mediaUrl,
+                title: item.title || "",
+                altText: item.altText || "",
+                isPrimary: item.isPrimary,
+                mediaKind: item.mediaKind || "image",
+                pendingFile: null,
+                previewUrl: undefined,
+              });
+            });
+          }
+        }
+      }
+    }
+
     this.setState({
       isBootstrapping: true,
       isMediaUploading: false,
@@ -494,8 +624,8 @@ class CmsEntityEditorModalComponent extends Component<
       formErrors: {},
       formUploadErrorMessage: "",
       fieldImageFiles: {},
-      fieldImagePreviews: {},
-      mediaItems: [],
+      fieldImagePreviews,
+      mediaItems: copyMediaItems,
       removedMediaIds: [],
       mediaErrorMessage: "",
       mediaInfoMessage: "",
@@ -515,7 +645,13 @@ class CmsEntityEditorModalComponent extends Component<
           .filter((item): item is RelationSourceKey => Boolean(item)),
       ),
     );
-    const nextOptions = { ...this.state.relationOptions };
+    const nextOptions: Record<RelationSourceKey, CmsFieldOption[]> = {
+      destinations: [],
+      "published-packages": [],
+      "main-packages": [],
+      "visa-destinations": [],
+      "featured-references": [],
+    };
     for (const source of relationSources) {
       nextOptions[source] = await this.loadRelationOptions(source).catch(
         () => [],
@@ -926,27 +1062,51 @@ class CmsEntityEditorModalComponent extends Component<
       return;
     }
 
-    // Client-side display order conflict check
+    // Client-side display order conflict check — only when display order actually changes
     const definition = CmsEntityFormCatalog.get(this.props.sectionKey);
     const hasDisplayOrderField = definition.fields.some((f) => f.key === "displayOrder");
     if (hasDisplayOrderField) {
       const pendingOrder = Number(this.state.formValues["displayOrder"]);
-      if (pendingOrder >= 1) {
+      const originalOrder = this.props.entry
+        ? Number(this.props.entry.raw.display_order ?? this.props.entry.raw.displayOrder)
+        : null;
+      const isDisplayOrderChanged = this.props.mode === "create" || pendingOrder !== originalOrder;
+      if (isDisplayOrderChanged && pendingOrder >= 1) {
         const allRows = this.props.allRows ?? [];
-        const conflicting = allRows.find(
-          (r) =>
-            r.id !== this.props.entry?.id &&
-            Number(r.raw.display_order ?? r.raw.displayOrder) === pendingOrder,
+        const currentCountry = this.toNonEmptyString(
+          this.state.formValues["country"] ??
+            this.props.entry?.raw.country ??
+            this.props.entry?.raw.destination_country ??
+            this.props.entry?.raw.destinationCountry,
         );
+        const currentSectionKey = this.toNonEmptyString(
+          this.state.formValues["sectionKey"] ??
+            this.props.entry?.raw.section_key ??
+            this.props.entry?.raw.sectionKey,
+        );
+        const conflicting = allRows.find((r) => {
+          const rowCountry = this.toNonEmptyString(
+            r.raw.country ?? r.raw.destination_country ?? r.raw.destinationCountry,
+          );
+          const rowSectionKey = this.toNonEmptyString(
+            r.raw.section_key ?? r.raw.sectionKey,
+          );
+          return (
+            r.id !== this.props.entry?.id &&
+            Number(r.raw.display_order ?? r.raw.displayOrder) === pendingOrder &&
+            (currentCountry === "" || rowCountry === currentCountry) &&
+            currentSectionKey === rowSectionKey
+          );
+        });
         if (conflicting) {
           const conflictingEntryLabel = String(
             conflicting.raw.title ??
-            conflicting.raw.name ??
-            conflicting.raw.place_name ??
-            conflicting.raw.placeName ??
-            conflicting.raw.destination ??
-            conflicting.raw.country ??
-            conflicting.id,
+              conflicting.raw.name ??
+              conflicting.raw.place_name ??
+              conflicting.raw.placeName ??
+              conflicting.raw.destination ??
+              conflicting.raw.country ??
+              conflicting.id,
           );
           let payload: Record<string, unknown> = {};
           const uploadedMediaItems = await this.uploadPendingMediaFiles();
@@ -1042,36 +1202,6 @@ class CmsEntityEditorModalComponent extends Component<
       this.props.onClose();
     } catch (error) {
       const message = this.mapApiErrorMessage(error, "Failed to save.");
-      const isDisplayOrderConflict =
-        message.toLowerCase().includes("display order must be unique") ||
-        (error instanceof Error && (error as Error & { code?: string }).code === "DUPLICATE_DISPLAY_ORDER");
-      if (isDisplayOrderConflict) {
-        const conflictOrder = Number(payload.displayOrder);
-        const allRows = this.props.allRows ?? [];
-        const conflicting = allRows.find(
-          (r) =>
-            r.id !== this.props.entry?.id &&
-            Number(r.raw.display_order ?? r.raw.displayOrder) === conflictOrder,
-        );
-        const conflictingEntryLabel = conflicting
-          ? (String(
-              conflicting.raw.title ??
-              conflicting.raw.name ??
-              conflicting.raw.place_name ??
-              conflicting.raw.placeName ??
-              conflicting.raw.destination ??
-              conflicting.raw.country ??
-              conflicting.id,
-            ))
-          : `Order #${conflictOrder}`;
-        this.setState({
-          isSubmitting: false,
-          showDisplayOrderConflict: true,
-          conflictingEntryLabel,
-          pendingForcePayload: payload,
-        });
-        return;
-      }
       this.setState({
         isSubmitting: false,
         mediaErrorMessage: message,
@@ -1732,7 +1862,7 @@ class CmsEntityEditorModalComponent extends Component<
                   <button
                     type="button"
                     onClick={() => this.onRemoveCopy(copy.id)}
-                    className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-[color-mix(in_srgb,var(--danger)_35%,transparent)] text-xs text-[var(--danger)] hover:bg-[color-mix(in_srgb,var(--danger)_10%,transparent)]"
+                    className="inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-[color-mix(in_srgb,var(--danger)_35%,transparent)] text-[var(--danger)] hover:bg-[color-mix(in_srgb,var(--danger)_10%,transparent)]"
                   >
                     ✕
                   </button>

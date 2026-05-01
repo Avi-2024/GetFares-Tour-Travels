@@ -103,6 +103,7 @@ function createCmsPackagesService({ repository }) {
       return {
         title: normalizeText(item.title),
         description: normalizeText(item.description),
+        iconName: normalizeText(item.iconName),
       };
     });
     const itineraries = normalizeObjectList(row.itineraries, (item, index) => {
@@ -239,6 +240,7 @@ function createCmsPackagesService({ repository }) {
         return null;
       }
       return {
+        iconName: normalizeText(item.iconName || item.icon_name),
         title: normalizeText(item.title),
         description: normalizeText(item.description),
       };
@@ -251,15 +253,7 @@ function createCmsPackagesService({ repository }) {
         day: toNumber(item.day, index + 1) || index + 1,
         title: normalizeText(item.title),
         description: normalizeText(item.description),
-        features: normalizeObjectList(item.features, (feature) => {
-          if (!feature || typeof feature !== "object") {
-            return null;
-          }
-          return {
-            title: normalizeText(feature.title),
-            description: normalizeText(feature.description),
-          };
-        }),
+        features: normalizeStringList(item.features),
       };
     });
     const countryIds = parseCountryIds(row.country_ids);
@@ -336,6 +330,7 @@ function createCmsPackagesService({ repository }) {
   async function reassignMainPackageDisplayOrder({
     displayOrder,
     country,
+    destinationId,
     excludeId = null,
   }) {
     const normalizedOrder = normalizeDisplayOrderInput(displayOrder, -1);
@@ -345,6 +340,7 @@ function createCmsPackagesService({ repository }) {
     const rows = await repository.findAllMainPackages({
       includeDeleted: true,
       ...(country ? { country } : {}),
+      ...(destinationId ? { destinationId } : {}),
     });
     const duplicate = findDisplayOrderConflict(
       normalizedOrder,
@@ -352,28 +348,39 @@ function createCmsPackagesService({ repository }) {
       excludeId,
     );
     if (duplicate) {
-      await repository.updateMainPackage(duplicate.id, { display_order: -1 });
+      throw new AppError(
+        400,
+        `Display order ${normalizedOrder} is already taken for country "${country || 'all'}" and destination "${destinationId || 'all'}"`,
+        "DISPLAY_ORDER_CONFLICT",
+      );
     }
     return normalizedOrder;
   }
 
   async function reassignSubPackageDisplayOrder({
     displayOrder,
-    mainPackageId,
+    country,
     excludeId = null,
   }) {
     const normalizedOrder = normalizeDisplayOrderInput(displayOrder, -1);
-    if (normalizedOrder < 0 || !mainPackageId) {
+    if (normalizedOrder < 0) {
       return normalizedOrder;
     }
-    const rows = await repository.findSubPackages(mainPackageId, true);
+    const rows = await repository.findAllSubPackages({
+      includeDeleted: true,
+      ...(country ? { country } : {}),
+    });
     const duplicate = findDisplayOrderConflict(
       normalizedOrder,
       rows,
       excludeId,
     );
     if (duplicate) {
-      await repository.updateSubPackage(duplicate.id, { display_order: -1 });
+      throw new AppError(
+        400,
+        `Display order ${normalizedOrder} is already taken in country "${country || 'all'}"`,
+        "DISPLAY_ORDER_CONFLICT",
+      );
     }
     return normalizedOrder;
   }
@@ -786,6 +793,7 @@ function createCmsPackagesService({ repository }) {
           display_order: await reassignMainPackageDisplayOrder({
             displayOrder: data.displayOrder,
             country: resolvedCountry,
+            destinationId,
           }),
           is_featured: toBoolean(data.isFeatured, false),
         });
@@ -841,6 +849,10 @@ function createCmsPackagesService({ repository }) {
         data.country !== undefined ?
           normalizeText(data.country)
         : normalizeText(existing.country);
+      const nextDestinationId =
+        data.destinationId !== undefined ?
+          normalizeText(data.destinationId)
+        : normalizeText(existing.destination_id);
       if (data.destinationId !== undefined) {
         const destinationId = normalizeText(data.destinationId);
         if (!destinationId) {
@@ -915,12 +927,14 @@ function createCmsPackagesService({ repository }) {
         updates.display_order = await reassignMainPackageDisplayOrder({
           displayOrder: data.displayOrder,
           country: nextCountry,
+          destinationId: nextDestinationId,
           excludeId: id,
         });
-      if (data.displayOrder === undefined && data.country !== undefined) {
+      if (data.displayOrder === undefined && (data.country !== undefined || data.destinationId !== undefined)) {
         updates.display_order = await reassignMainPackageDisplayOrder({
           displayOrder: existing.display_order,
           country: nextCountry,
+          destinationId: nextDestinationId,
           excludeId: id,
         });
       }
@@ -1053,9 +1067,7 @@ function createCmsPackagesService({ repository }) {
       if (!title) {
         throw new AppError(400, "Title is required", "TITLE_REQUIRED");
       }
-      const itineraries =
-        Array.isArray(data.itineraries) ? data.itineraries : [];
-      const normalizedItineraries = itineraries.map((item, index) => ({
+      const normalizedItineraries = normalizeObjectList(data.itineraries, (item, index) => ({
         day: toNumber(item?.day, index + 1) || index + 1,
         title: normalizeText(item?.title),
         description: normalizeText(item?.description),
@@ -1113,7 +1125,7 @@ function createCmsPackagesService({ repository }) {
         publish_to_website: toBoolean(data.publishToWebsite, false),
         display_order: await reassignSubPackageDisplayOrder({
           displayOrder: data.displayOrder,
-          mainPackageId: data.mainPackageId,
+          country: mainPackage.country,
         }),
       });
 
@@ -1136,15 +1148,21 @@ function createCmsPackagesService({ repository }) {
       const updates = {};
       const nextMainPackageId =
         normalizeText(data.mainPackageId) || normalizeText(existing.main_package_id);
+      let nextMainPackage;
       if (data.mainPackageId !== undefined) {
-        const mainPackage = await repository.findMainPackageById(
+        nextMainPackage = await repository.findMainPackageById(
           data.mainPackageId,
         );
-        if (!mainPackage) {
+        if (!nextMainPackage) {
           throw new AppError(404, "Main package not found", "NOT_FOUND");
         }
         updates.main_package_id = data.mainPackageId;
-        updates.country_ids = parseCountryIds(mainPackage.country_ids);
+        updates.country_ids = parseCountryIds(nextMainPackage.country_ids);
+      } else {
+        nextMainPackage = await repository.findMainPackageById(nextMainPackageId);
+        if (!nextMainPackage) {
+          throw new AppError(404, "Main package not found", "NOT_FOUND");
+        }
       }
       if (
         data.countryIds !== undefined ||
@@ -1197,9 +1215,7 @@ function createCmsPackagesService({ repository }) {
         updates.features = Array.isArray(data.features) ? data.features : [];
       }
       if (data.itineraries !== undefined) {
-        const itineraries =
-          Array.isArray(data.itineraries) ? data.itineraries : [];
-        updates.itineraries = itineraries.map((item, index) => ({
+        updates.itineraries = normalizeObjectList(data.itineraries, (item, index) => ({
           day: toNumber(item?.day, index + 1) || index + 1,
           title: normalizeText(item?.title),
           description: normalizeText(item?.description),
@@ -1242,13 +1258,13 @@ function createCmsPackagesService({ repository }) {
       if (data.displayOrder !== undefined)
         updates.display_order = await reassignSubPackageDisplayOrder({
           displayOrder: data.displayOrder,
-          mainPackageId: nextMainPackageId,
+          country: nextMainPackage.country,
           excludeId: id,
         });
       if (data.displayOrder === undefined && data.mainPackageId !== undefined) {
         updates.display_order = await reassignSubPackageDisplayOrder({
           displayOrder: existing.display_order,
-          mainPackageId: nextMainPackageId,
+          country: nextMainPackage.country,
           excludeId: id,
         });
       }
