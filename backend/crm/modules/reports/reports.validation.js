@@ -7,6 +7,7 @@ const baseDateRangeQuery = z.object({
 
 const queryWithOptionalUser = baseDateRangeQuery.extend({
   userId: z.string().uuid().optional(),
+  destination: z.string().trim().min(1).optional(),
 });
 
 const bySource = z.object({

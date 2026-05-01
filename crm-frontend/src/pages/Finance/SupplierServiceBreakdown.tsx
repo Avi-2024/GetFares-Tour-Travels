@@ -55,10 +55,13 @@ type Group = {
   supplierId: string
   supplierName: string
   currency: string
+  /** Supplier / payout currency (same for payable columns when one supplier). */
+  currencyLabel: string
   serviceCount: number
   bookingCount: number
   serviceMix: string[]
-  baseTotal: number
+  /** Base supplier cost summed per quote line currency — never merge unlike-for-unlike amounts. */
+  baseByCurrency: Record<string, number>
   payableTotal: number
   paidTotal: number
   pendingTotal: number
@@ -119,6 +122,30 @@ const formatCurrency = (amount: number, currency = 'INR') => {
   } catch (_err) {
     return `${toNumber(amount, 0).toFixed(2)} ${currency}`
   }
+}
+
+/** Labels money per currency bucket (no bogus cross-ccy sums). */
+const formatTotalsByCurrency = (totals: Record<string, number>) => {
+  const parts = Object.entries(totals)
+    .filter(([, amt]) => Math.abs(toNumber(amt, 0)) > 1e-9)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([cur, amt]) => formatCurrency(toNumber(amt, 0), cur || 'INR'))
+  return parts.length ? parts.join(' · ') : formatCurrency(0, 'INR')
+}
+
+/** Single display currency label when homogeneous; warns when mixed vs supplier currency. */
+const summarizeCurrenciesLabel = (
+  totals: Record<string, number>,
+  supplierCurrency: string
+) => {
+  const keys = Object.keys(totals).filter(k => Math.abs(toNumber(totals[k], 0)) > 1e-9)
+  const sup = toUpper(supplierCurrency, 'INR')
+  if (keys.length === 0) return sup
+  if (keys.length === 1) {
+    const c = keys[0]
+    return c === sup ? c : `${c} (supplier ${sup})`
+  }
+  return `Mixed (${keys.sort().join(', ')}) · supplier ${sup}`
 }
 
 const pickSupplierCurrency = (
@@ -375,15 +402,17 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ ref
           supplierKey === 'UNASSIGNED'
             ? toUpper(row.currency, 'INR')
             : pickSupplierCurrency(supplierKey, supplierCurrencyById, row.currency)
+        const sc = supplierCurrency || 'INR'
         map.set(supplierKey, {
           supplierId: supplierKey,
           supplierName:
             supplierKey === 'UNASSIGNED' ? 'Supplier not assigned' : row.supplierName || 'Unknown Supplier',
-          currency: supplierCurrency || 'INR',
+          currency: sc,
+          currencyLabel: sc,
           serviceCount: 0,
           bookingCount: 0,
           serviceMix: [],
-          baseTotal: 0,
+          baseByCurrency: {},
           payableTotal: 0,
           paidTotal: 0,
           pendingTotal: 0,
@@ -393,19 +422,30 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ ref
       const group = map.get(supplierKey)!
       group.rows.push(row)
       group.serviceCount += 1
-      group.baseTotal += row.basePrice
+      const lineCur = toUpper(row.currency, 'INR')
+      group.baseByCurrency[lineCur] =
+        toNumber(group.baseByCurrency[lineCur], 0) + toNumber(row.basePrice, 0)
       if (!group.serviceMix.includes(row.serviceLabel)) group.serviceMix.push(row.serviceLabel)
-      const payable = getPayable(row)
-      if (payable) {
-        group.payableTotal += payable.payableAmount
-        group.paidTotal += payable.paidAmount
-        group.pendingTotal += payable.pendingAmount
-      }
     })
     map.forEach(group => {
       group.bookingCount = new Set(group.rows.map(item => item.bookingId)).size
       group.rows.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       group.serviceMix.sort((a, b) => a.localeCompare(b))
+      group.currencyLabel = summarizeCurrenciesLabel(group.baseByCurrency, group.currency)
+
+      const seenPayKey = new Set<string>()
+      for (const row of group.rows) {
+        const payable = getPayable(row)
+        if (!payable) continue
+        const key = payable.id?.trim()
+          ? `id:${payable.id}`
+          : `booking:${payable.bookingId}:${payable.supplierId}`
+        if (seenPayKey.has(key)) continue
+        seenPayKey.add(key)
+        group.payableTotal += payable.payableAmount
+        group.paidTotal += payable.paidAmount
+        group.pendingTotal += payable.pendingAmount
+      }
     })
     return Array.from(map.values()).sort((a, b) => a.supplierName.localeCompare(b.supplierName))
   }, [filteredRows, getPayable, supplierCurrencyById])
@@ -476,11 +516,22 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ ref
         const serviceCount = sorted.filter(r => Boolean(r.serviceLabel)).length
         const serviceTitle = [...new Set(sorted.map(r => r.serviceLabel).filter(Boolean))].join(', ')
         const serviceDetail = sorted.map(r => `${r.serviceLabel}: ${formatCurrency(r.basePrice, r.currency)}`).join(' | ')
-        const baseTotal = sorted.reduce((sum, r) => sum + r.basePrice, 0)
-        const baseCurrency = first.currency || 'INR'
-        const payableTotal = sorted.reduce((sum, r) => sum + (getPayable(r)?.payableAmount ?? 0), 0)
-        const paidTotal = sorted.reduce((sum, r) => sum + (getPayable(r)?.paidAmount ?? 0), 0)
-        const pendingTotal = sorted.reduce((sum, r) => sum + (getPayable(r)?.pendingAmount ?? 0), 0)
+        const baseByLineCurrency: Record<string, number> = {}
+        for (const r of sorted) {
+          const c = toUpper(r.currency, 'INR')
+          baseByLineCurrency[c] =
+            toNumber(baseByLineCurrency[c], 0) + toNumber(r.basePrice, 0)
+        }
+        const baseDisplay = formatTotalsByCurrency(baseByLineCurrency)
+        const payableOne = getPayable(first)
+        const payableTotal = payableOne?.payableAmount ?? 0
+        const paidTotal = payableOne?.paidAmount ?? 0
+        const pendingTotal = payableOne?.pendingAmount ?? 0
+        const bookingCcyFallback =
+          toUpper(first.bookingCurrency, '') ||
+          (Object.keys(baseByLineCurrency).length === 1
+            ? Object.keys(baseByLineCurrency)[0]
+            : '')
         const created = Math.max(...sorted.map(r => new Date(r.createdAt || 0).getTime()))
         return {
           bookingId,
@@ -490,10 +541,9 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ ref
           serviceCount,
           serviceTitle: serviceTitle || 'Other',
           serviceDetail,
-          baseTotal,
-          baseCurrency,
+          baseDisplay,
           amount: first.bookingTotalAmount,
-          amountCurrency: first.bookingCurrency || baseCurrency,
+          amountCurrency: bookingCcyFallback || 'INR',
           payableTotal,
           paidTotal,
           pendingTotal,
@@ -696,7 +746,17 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ ref
   const exportCsv = () => {
     if (!groups.length) return
     const header = ['Supplier', 'Currency', 'Services', 'Bookings', 'Service Mix', 'Base Total', 'Payable', 'Settled', 'Pending']
-    const lines = groups.map(group => [group.supplierName, group.currency, group.serviceCount, group.bookingCount, group.serviceMix.join(' | '), group.baseTotal, group.payableTotal, group.paidTotal, group.pendingTotal])
+    const lines = groups.map(group => [
+      group.supplierName,
+      group.currencyLabel,
+      group.serviceCount,
+      group.bookingCount,
+      group.serviceMix.join(' | '),
+      formatTotalsByCurrency(group.baseByCurrency),
+      group.payableTotal,
+      group.paidTotal,
+      group.pendingTotal
+    ])
     const csv = [header, ...lines].map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
@@ -756,10 +816,10 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ ref
                   <tbody className='divide-y divide-gray-100 dark:divide-gray-800'>
                     {groups.map(group => (
                       <tr key={group.supplierId} className='cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/40' onClick={() => setSelectedSupplierId(group.supplierId)}>
-                        <td className='px-4 py-3 text-sm'><p className='font-semibold'>{group.supplierName}</p><p className='text-xs text-gray-500'>{group.currency}</p></td>
+                        <td className='px-4 py-3 text-sm'><p className='font-semibold'>{group.supplierName}</p><p className='text-xs text-gray-500'>{group.currencyLabel}</p></td>
                         <td className='px-4 py-3 text-sm'><p>{group.serviceCount} services</p><p className='line-clamp-2 text-xs text-gray-500'>{group.serviceMix.join(', ')}</p></td>
                         <td className='px-4 py-3 text-right text-sm'>{group.bookingCount}</td>
-                        <td className='px-4 py-3 text-right text-sm font-semibold'>{formatCurrency(group.baseTotal, group.currency)}</td>
+                        <td className='px-4 py-3 text-right text-sm font-semibold'>{formatTotalsByCurrency(group.baseByCurrency)}</td>
                         <td className='px-4 py-3 text-right text-sm'>{formatCurrency(group.payableTotal, group.currency)}</td>
                         <td className='px-4 py-3 text-right text-sm text-green-700'>{formatCurrency(group.paidTotal, group.currency)}</td>
                         <td className='px-4 py-3 text-right text-sm font-semibold text-rose-700'>{formatCurrency(group.pendingTotal, group.currency)}</td>
@@ -785,7 +845,7 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ ref
             <button onClick={() => setSelectedSupplierId('')} className='inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100'><FaArrowLeft />Back To Groups</button>
             <div className='mt-3'>
               <h3 className='text-base font-semibold text-gray-900 dark:text-gray-100'>{selectedGroup.supplierName}</h3>
-              <p className='text-xs text-gray-500'>Currency: {selectedGroup.currency} | Services: {selectedGroup.serviceCount}</p>
+              <p className='text-xs text-gray-500'>Currency: {selectedGroup.currencyLabel} | Services: {selectedGroup.serviceCount}</p>
             </div>
           </SurfaceCard>
 
@@ -828,7 +888,7 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ ref
                           ) : null}
                         </td>
                         <td className='px-4 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100'>
-                          {formatCurrency(b.baseTotal, b.baseCurrency)}
+                          {b.baseDisplay}
                         </td>
                         <td className='px-4 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100'>
                           {formatCurrency(b.payableTotal, b.supplierCurrency)}
@@ -911,9 +971,12 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ ref
                       const first = list[0]
                       const payable = getPayable(first)
                       const bookingLabel = `${first.bookingNumber || '-'}`
-                      const baseCurrencies = Array.from(new Set(list.map(r => toUpper(r.currency, 'INR'))))
-                      const baseCurrency = baseCurrencies.length === 1 ? baseCurrencies[0] : ''
-                      const baseTotal = list.reduce((sum, r) => sum + toNumber(r.basePrice, 0), 0)
+                      const baseTotalsByCc = list.reduce<Record<string, number>>((acc, r) => {
+                        const c = toUpper(r.currency, 'INR')
+                        acc[c] = (acc[c] || 0) + toNumber(r.basePrice, 0)
+                        return acc
+                      }, {})
+                      const baseTotalsCell = formatTotalsByCurrency(baseTotalsByCc)
                       const statusLabel = payable ? formatLabel(payable.status) : 'Not Created'
                       const actionCell = !payable ? (
                         <button
@@ -979,7 +1042,7 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ ref
                           </td>
                           <td className='px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-200'>Booking Total</td>
                           <td className='px-4 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100'>
-                            {baseCurrency ? formatCurrency(baseTotal, baseCurrency) : '-'}
+                            {baseTotalsCell}
                           </td>
                           <td className='px-4 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100'>
                             {payable ? formatCurrency(payable.payableAmount, selectedGroup.currency) : '-'}
@@ -1013,7 +1076,7 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ ref
                         <tr key={`${groupIndex}-footer`} className='bg-gray-50/70 dark:bg-gray-800/40'>
                           <td className='px-4 py-3 text-sm font-semibold text-gray-900 dark:text-gray-100'>Total</td>
                           <td className='px-4 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100'>
-                            {baseCurrency ? formatCurrency(baseTotal, baseCurrency) : '-'}
+                            {baseTotalsCell}
                           </td>
                           <td className='px-4 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100'>
                             {payable ? formatCurrency(payable.payableAmount, selectedGroup.currency) : '-'}

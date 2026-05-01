@@ -966,7 +966,7 @@ const RefundsPage = () => {
           ? 'Loading finance users...'
           : financeUsers.length === 0 && financeUsersForDropdown.length <= 1
           ? 'No accounts users found'
-          : 'Select finance person...'
+          : 'Select finance person (optional)...'
       },
       ...financeUsersForDropdown.map(user => ({
         value: user.id,
@@ -1646,10 +1646,6 @@ const RefundsPage = () => {
 
   const saveRefund = async () => {
     if (!form.bookingId || form.refundAmount === '') return
-    if (!form.assignedTo.trim()) {
-      setFormError('Select finance person.')
-      return
-    }
     if (!viewerRaisedByName) {
       setFormError('Your name could not be loaded. Refresh the page or sign in again.')
       return
@@ -1658,8 +1654,11 @@ const RefundsPage = () => {
     setLoading(true)
     setFormError('')
     try {
+      const normalizedAssignedTo = form.assignedTo.trim()
       const basePayload = {
-        assignedTo: form.assignedTo,
+        ...(editingRefundId || normalizedAssignedTo
+          ? { assignedTo: normalizedAssignedTo }
+          : {}),
         raisedByName: viewerRaisedByName,
         refundAmount: Number(form.refundAmount),
         supplierPenalty: Number(form.supplierPenalty || 0),
@@ -1999,7 +1998,7 @@ const RefundsPage = () => {
             </div>
             <div>
               <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
-                Assign Finance Person *
+                Assign Finance Person
               </label>
               <SearchableDropdown
                 value={form.assignedTo}

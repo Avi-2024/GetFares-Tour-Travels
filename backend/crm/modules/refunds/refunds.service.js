@@ -223,7 +223,9 @@ function createRefundsService({ repository, bookingsRepository, leadsRepository,
 	    async create(payload, context = {}) {
 	      const booking = await getBookingById(payload.bookingId);
 
-      await ensureAccountsAssignee(payload.assignedTo);
+	      if (payload.assignedTo) {
+	        await ensureAccountsAssignee(payload.assignedTo);
+	      }
 
 	      if (payload.paymentId) {
 	        await getPaymentById(payload.paymentId, booking.id);
@@ -260,9 +262,11 @@ function createRefundsService({ repository, bookingsRepository, leadsRepository,
 
 	      const patch = {};
 	      if (payload.assignedTo !== undefined) {
-        await ensureAccountsAssignee(payload.assignedTo);
-        patch.assigned_to = payload.assignedTo || null;
-      }
+	        if (payload.assignedTo) {
+	          await ensureAccountsAssignee(payload.assignedTo);
+	        }
+	        patch.assigned_to = payload.assignedTo || null;
+	      }
 	      if (payload.refundAmount !== undefined) {
 	        patch.refund_amount = toNumber(
 	          payload.refundAmount,

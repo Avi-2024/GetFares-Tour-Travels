@@ -26,7 +26,7 @@ type EditRefundModalProps = {
   currencyOptions: any[]
   proofFile: File | null
   proofUploadError: string
-  proofInputRef: React.RefObject<HTMLInputElement>
+  proofInputRef: React.RefObject<HTMLInputElement | null>
   handleProofFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void
   clearProofSelection: () => void
   onSave: () => void
@@ -81,7 +81,7 @@ const EditRefundModal = ({
           </button>
         </div>
 
-        <div className='p-6 space-y-4'>
+        <div className='p-6 '>
           {formError && (
             <div className='rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-200'>
               {formError}
@@ -91,7 +91,7 @@ const EditRefundModal = ({
           <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
             <div>
               <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
-                Assign Finance Person *
+                Assign Finance Person 
               </label>
               <SearchableDropdown
                 value={form.assignedTo}

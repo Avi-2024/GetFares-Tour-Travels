@@ -142,7 +142,7 @@ interface CreatePaymentFormPayload {
 
 interface CreateRefundFormPayload {
   paymentId?: string;
-  assignedTo: string;
+  assignedTo?: string;
   raisedByName: string;
   refundAmount: number;
   supplierPenalty?: number;
@@ -1664,7 +1664,6 @@ const AddRefundModal = ({
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [proofUploadError, setProofUploadError] = useState("");
   const [errors, setErrors] = useState<{
-    assignedTo?: string;
     raisedByName?: string;
     refundAmount?: string;
   }>({});
@@ -1709,7 +1708,7 @@ const AddRefundModal = ({
             value: "",
             label:
               Array.isArray(rows) && rows.length > 0 ?
-                "Select finance person..."
+                "Select finance person (optional)..."
               : "No accounts users found",
           },
           ...(Array.isArray(rows) ? rows : []).map((item: any) => ({
@@ -1785,13 +1784,9 @@ const AddRefundModal = ({
 
   const validate = () => {
     const nextErrors: {
-      assignedTo?: string;
       raisedByName?: string;
       refundAmount?: string;
     } = {};
-    if (!formData.assignedTo.trim()) {
-      nextErrors.assignedTo = "Finance person is required";
-    }
     if (!viewerRaisedByName) {
       nextErrors.raisedByName =
         "Your profile name is unavailable — refresh or sign in again";
@@ -1813,7 +1808,7 @@ const AddRefundModal = ({
     if (!validate()) return;
     onSubmit({
       paymentId: formData.paymentId || undefined,
-      assignedTo: formData.assignedTo,
+      assignedTo: formData.assignedTo.trim() || undefined,
       raisedByName: viewerRaisedByName,
       refundAmount: Number(formData.refundAmount),
       supplierPenalty: Number(formData.supplierPenalty || 0),
@@ -1866,7 +1861,7 @@ const AddRefundModal = ({
 	              />
 	            </div>
 	            <div>
-	              <label className="field-label">Assign Finance Person *</label>
+		              <label className="field-label">Assign Finance Person</label>
 	              <SearchableDropdown
 	                value={formData.assignedTo}
 	                options={financeUsers}
@@ -1876,12 +1871,7 @@ const AddRefundModal = ({
 	                searchPlaceholder="Search accounts user..."
 	                disabled={loadingFinanceUsers}
 	              />
-	              {errors.assignedTo && (
-	                <p className="text-xs text-red-500 mt-1">
-	                  {errors.assignedTo}
-	                </p>
-	              )}
-	            </div>
+		            </div>
 	            <div>
 	              <label className="field-label">Refund Amount *</label>
               <input
@@ -2681,7 +2671,9 @@ const BookingDetailPage: React.FC = () => {
       if (payload.proofFile) {
         const formData = new FormData();
         formData.append("bookingId", id);
-        formData.append("assignedTo", payload.assignedTo);
+        if (payload.assignedTo) {
+          formData.append("assignedTo", payload.assignedTo);
+        }
         formData.append("raisedByName", payload.raisedByName);
         formData.append("refundAmount", String(payload.refundAmount));
         formData.append("supplierPenalty", String(payload.supplierPenalty || 0));

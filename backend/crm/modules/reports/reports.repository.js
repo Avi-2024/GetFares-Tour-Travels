@@ -51,6 +51,10 @@ function createReportsRepository({ db, schema, logger }) {
       clauses.push(`${leadAlias}.assigned_to = ?`);
       params.push(filters.userId);
     }
+    if (filters.destination) {
+      clauses.push(`LOWER(COALESCE(${leadAlias}.destination, '')) = LOWER(?)`);
+      params.push(filters.destination);
+    }
     return {
       sql: clauses.length ? `WHERE ${clauses.join(" AND ")}` : "",
       params,
@@ -64,6 +68,24 @@ function createReportsRepository({ db, schema, logger }) {
     if (filters.userId) {
       clauses.push("q.created_by = ?");
       params.push(filters.userId);
+    }
+    return {
+      sql: clauses.length ? `WHERE ${clauses.join(" AND ")}` : "",
+      params,
+    };
+  }
+
+  function bookingLeadWhereFromRange(range, filters = {}) {
+    const clauses = [];
+    const params = [...range.params];
+    if (range.sql) clauses.push(range.sql.replace(/^WHERE\s+/i, ""));
+    if (filters.userId) {
+      clauses.push("q.created_by = ?");
+      params.push(filters.userId);
+    }
+    if (filters.destination) {
+      clauses.push("LOWER(COALESCE(l.destination, '')) = LOWER(?)");
+      params.push(filters.destination);
     }
     return {
       sql: clauses.length ? `WHERE ${clauses.join(" AND ")}` : "",
@@ -304,7 +326,15 @@ function createReportsRepository({ db, schema, logger }) {
 
     async getRevenueByDestination(filters = {}) {
       const range = buildDateRangeClause("b.created_at", filters);
-      const { sql: whereSql, params } = bookingQuotWhereFromRange(range, filters);
+      const { sql: scopedWhereSql, params } = bookingQuotWhereFromRange(range, filters);
+      const clauses = scopedWhereSql
+        ? [scopedWhereSql.replace(/^WHERE\s+/i, "")]
+        : [];
+      if (filters.destination) {
+        clauses.push("LOWER(COALESCE(l.destination, d.name, '')) = LOWER(?)");
+        params.push(filters.destination);
+      }
+      const whereSql = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
       const rows = await queryRows(
         `
           SELECT
@@ -1098,7 +1128,7 @@ function createReportsRepository({ db, schema, logger }) {
       const {
         sql: bookingWhereSql,
         params: bookingParams,
-      } = bookingQuotWhereFromRange(bookingRange, filters);
+      } = bookingLeadWhereFromRange(bookingRange, filters);
 
       const leadRange = buildDateRangeClause("l.created_at", filters);
       const { sql: leadWhereSql, params: leadParams } = leadWhereFromRange(
@@ -1127,6 +1157,7 @@ function createReportsRepository({ db, schema, logger }) {
             SUM(CASE WHEN b.status = 'CANCELLED' THEN 1 ELSE 0 END) AS cancelled_bookings
           FROM ${schema.bookingsTable} b
           LEFT JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
+          LEFT JOIN ${schema.leadsTable} l ON l.id = q.lead_id
           ${bookingWhereSql}
         `,
         bookingParams,
@@ -1136,7 +1167,9 @@ function createReportsRepository({ db, schema, logger }) {
         `
           SELECT
             COUNT(*) AS total_leads,
-            SUM(CASE WHEN l.status = 'CONVERTED' THEN 1 ELSE 0 END) AS converted_leads
+            SUM(CASE WHEN l.status = 'CONVERTED' THEN 1 ELSE 0 END) AS converted_leads,
+            SUM(CASE WHEN COALESCE(l.lead_type, 'HOLIDAY') = 'VISA' THEN 1 ELSE 0 END) AS visa_leads,
+            SUM(CASE WHEN COALESCE(l.lead_type, 'HOLIDAY') <> 'VISA' THEN 1 ELSE 0 END) AS holiday_leads
           FROM ${schema.leadsTable} l
           ${leadWhereSql}
         `,
@@ -1151,6 +1184,7 @@ function createReportsRepository({ db, schema, logger }) {
               COALESCE(b.total_amount, 0) AS total_amount
             FROM ${schema.bookingsTable} b
             LEFT JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
+            LEFT JOIN ${schema.leadsTable} l ON l.id = q.lead_id
             LEFT JOIN ${schema.visaCasesTable} vc ON vc.booking_id = b.id
             ${bookingWhereSql}
           )
@@ -1232,6 +1266,8 @@ function createReportsRepository({ db, schema, logger }) {
 
       const totalLeads = toNumber(leads.total_leads, 0);
       const convertedLeads = toNumber(leads.converted_leads, 0);
+      const holidayLeads = toNumber(leads.holiday_leads, 0);
+      const visaLeads = toNumber(leads.visa_leads, 0);
       const totalBookings = toNumber(booking.total_bookings, 0);
       const totalRevenue = toNumber(booking.total_revenue, 0);
       const totalCost = toNumber(booking.total_cost, 0);
@@ -1249,6 +1285,8 @@ function createReportsRepository({ db, schema, logger }) {
 
       return {
         totalLeads,
+        holidayLeads,
+        visaLeads,
         convertedLeads,
         conversionRatePercent:
           totalLeads > 0
@@ -1287,7 +1325,7 @@ function createReportsRepository({ db, schema, logger }) {
       const {
         sql: bookingWhereSql,
         params: bookingParams,
-      } = bookingQuotWhereFromRange(bookingRange, filters);
+      } = bookingLeadWhereFromRange(bookingRange, filters);
       return queryRows(
         `
           SELECT
@@ -1301,6 +1339,7 @@ function createReportsRepository({ db, schema, logger }) {
             SUM(COALESCE(b.total_amount, 0)) AS revenue
           FROM ${schema.bookingsTable} b
           LEFT JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
+          LEFT JOIN ${schema.leadsTable} l ON l.id = q.lead_id
           ${bookingWhereSql}
           GROUP BY
             UPPER(
@@ -1320,7 +1359,7 @@ function createReportsRepository({ db, schema, logger }) {
       const {
         sql: bookingWhereSql,
         params: bookingParams,
-      } = bookingQuotWhereFromRange(bookingRange, filters);
+      } = bookingLeadWhereFromRange(bookingRange, filters);
       return queryRows(
         `
           WITH service_revenue AS (
@@ -1336,6 +1375,7 @@ function createReportsRepository({ db, schema, logger }) {
               COALESCE(b.total_amount, 0) AS total_amount
             FROM ${schema.bookingsTable} b
             LEFT JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
+            LEFT JOIN ${schema.leadsTable} l ON l.id = q.lead_id
             LEFT JOIN ${schema.visaCasesTable} vc ON vc.booking_id = b.id
             ${bookingWhereSql}
           )
@@ -1677,5 +1717,3 @@ function createReportsRepository({ db, schema, logger }) {
 }
 
 export { createReportsRepository };
-
-

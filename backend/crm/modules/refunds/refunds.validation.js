@@ -11,7 +11,7 @@ const dateTimeString = z
 const createPayload = z.object({
   bookingId: z.string().uuid(),
   paymentId: z.string().uuid().optional(),
-  assignedTo: z.string().uuid(),
+  assignedTo: z.string().uuid().optional(),
   raisedByName: z.string().trim().min(2).max(150),
   refundAmount: z.coerce.number().positive(),
   supplierPenalty: z.coerce.number().nonnegative().optional(),
@@ -23,7 +23,7 @@ const createPayload = z.object({
 
 const updatePayload = z
   .object({
-    assignedTo: z.string().uuid().optional(),
+    assignedTo: z.union([z.string().uuid(), z.literal("")]).optional(),
     raisedByName: z.string().trim().min(2).max(150).optional(),
     refundAmount: z.coerce.number().positive().optional(),
     supplierPenalty: z.coerce.number().nonnegative().optional(),

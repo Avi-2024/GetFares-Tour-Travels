@@ -606,8 +606,13 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
             )}
           </div>
         </div>
-        <div className="px-3 py-4 text-sm font-medium text-gray-700 dark:text-gray-200">
-          {lead.leadId}
+        <div className="px-3 py-4">
+          <button
+            onClick={() => handleViewLead(lead)}
+            className="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:underline cursor-pointer"
+          >
+            {lead.leadId}
+          </button>
         </div>
         <div className="px-3 py-4 text-sm text-gray-700 dark:text-gray-200">
           <span className="line-clamp-2 break-words">{lead.source || "-"}</span>
@@ -1106,9 +1111,12 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
                           </div>
                         </td>
                         <td className="px-3 py-4 whitespace-nowrap">
-                          <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                          <button
+                            onClick={() => handleViewLead(lead)}
+                            className="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:underline cursor-pointer"
+                          >
                             {lead.leadId}
-                          </span>
+                          </button>
                         </td>
                         <td className="px-3 py-4">
                           <span className="line-clamp-2 break-words text-sm text-gray-700 dark:text-gray-200">
