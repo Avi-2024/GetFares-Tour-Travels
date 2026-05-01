@@ -60,7 +60,7 @@ function createExperienceController({ service, uploadService }) {
         const uploaded = await uploadService.uploadSingle({
           file: imageFile,
           prefix: "cms/featured-picks/banner",
-          allowVideo: false,
+          allowVideo: true,
           required: false,
         });
         payload.imageUrl = uploaded?.url || payload.imageUrl;
@@ -83,7 +83,7 @@ function createExperienceController({ service, uploadService }) {
         const uploaded = await uploadService.uploadSingle({
           file: imageFile,
           prefix: "cms/featured-picks/banner",
-          allowVideo: false,
+          allowVideo: true,
           required: false,
         });
         payload.imageUrl = uploaded?.url || payload.imageUrl;

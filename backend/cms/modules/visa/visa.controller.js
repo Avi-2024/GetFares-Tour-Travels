@@ -65,7 +65,7 @@ function createVisaController({ service, uploadService }) {
         const uploaded = await uploadService.uploadSingle({
           file: imageFile,
           prefix: "cms/visa/banner",
-          allowVideo: false,
+          allowVideo: true,
           required: false,
         });
         payload.imageUrl = uploaded?.url || payload.imageUrl;
@@ -94,7 +94,7 @@ function createVisaController({ service, uploadService }) {
         const uploaded = await uploadService.uploadSingle({
           file: imageFile,
           prefix: "cms/visa/banner",
-          allowVideo: false,
+          allowVideo: true,
           required: false,
         });
         payload.imageUrl = uploaded?.url || payload.imageUrl;

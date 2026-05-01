@@ -46,6 +46,16 @@ function createExperienceService({ repository }) {
     return value;
   }
 
+  function resolveMediaKind(mediaUrl) {
+    if (typeof mediaUrl === "string") {
+      const lowerUrl = mediaUrl.toLowerCase();
+      if (/(\.(mp4|mov|webm|ogg|m4v|avi|mkv|flv|wmv))(\?|$)/.test(lowerUrl)) {
+        return "video";
+      }
+    }
+    return "image";
+  }
+
   function toFeaturedPick(row) {
     if (!row) return null;
     const tags = parseJsonValue(row.tags, []);
@@ -76,6 +86,7 @@ function createExperienceService({ repository }) {
       duration: row.duration,
       description: row.description,
       imageUrl: row.image_url,
+      mediaKind: resolveMediaKind(row.image_url),
       buttonText: row.button_text,
       ctaUrl: row.cta_url,
       expiresOn: row.expires_on,
