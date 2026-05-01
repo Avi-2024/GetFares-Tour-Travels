@@ -18,6 +18,13 @@ function createCustomersRoutes({
     asyncHandler(controller.list),
   );
   router.get(
+    "/:id/leads",
+    requireAuth,
+    authorize("customers:read"),
+    validateRequest(validation.byId),
+    asyncHandler(controller.getLeads),
+  );
+  router.get(
     "/:id",
     requireAuth,
     authorize("customers:read"),

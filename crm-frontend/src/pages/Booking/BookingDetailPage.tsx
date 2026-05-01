@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import {
   FaFileInvoice,
@@ -13,11 +13,14 @@ import {
   FaCircleCheck,
   FaCircleExclamation,
   FaArrowLeft,
+  FaMoneyBillTransfer,
 } from "react-icons/fa6";
 import { bookingsApi } from "../../api/bookings";
 import { paymentsApi } from "../../api/payments";
+import { refundsApi } from "../../api/refunds";
 import { quotationsApi } from "../../api/quotations";
 import { reportApiError } from "../../lib/notify";
+import { useAuth } from "../../context/AuthContext";
 import SearchableDropdown from "../../components/ui/SearchableDropdown";
 
 import {
@@ -104,6 +107,21 @@ interface Payment {
   status: "pending" | "completed" | "failed";
 }
 
+interface Refund {
+  id: string;
+  bookingId: string;
+  paymentId?: string;
+  refundAmount: number;
+  supplierPenalty: number;
+  serviceCharge: number;
+  netAmount: number;
+  status: "pending" | "approved" | "rejected" | "processed";
+  gatewayRefundId?: string;
+  notes?: string;
+  proofUrl?: string;
+  createdAt: string;
+}
+
 type AttachmentType = "invoice" | "proof";
 
 interface AttachmentPreview {
@@ -119,6 +137,18 @@ interface CreatePaymentFormPayload {
   referenceId?: string;
   notes?: string;
   invoiceFile?: File;
+  proofFile?: File;
+}
+
+interface CreateRefundFormPayload {
+  paymentId?: string;
+  assignedTo: string;
+  raisedByName: string;
+  refundAmount: number;
+  supplierPenalty?: number;
+  serviceCharge?: number;
+  gatewayRefundId?: string;
+  notes?: string;
   proofFile?: File;
 }
 
@@ -538,6 +568,45 @@ const mapPaymentFromApi = (raw: any): Payment => {
     invoiceUrl: raw?.invoiceUrl ?? raw?.invoice_url ?? undefined,
     notes: raw?.notes ?? undefined,
     status,
+  };
+};
+
+const mapRefundStatus = (value?: string): Refund["status"] => {
+  switch ((value ?? "").toUpperCase()) {
+    case "APPROVED":
+      return "approved";
+    case "REJECTED":
+      return "rejected";
+    case "PROCESSED":
+      return "processed";
+    case "INITIATED":
+    case "PENDING":
+    default:
+      return "pending";
+  }
+};
+
+const mapRefundFromApi = (raw: any): Refund => {
+  const refundAmount = toNumber(raw?.refundAmount ?? raw?.refund_amount, 0);
+  const supplierPenalty = toNumber(
+    raw?.supplierPenalty ?? raw?.supplier_penalty,
+    0,
+  );
+  const serviceCharge = toNumber(raw?.serviceCharge ?? raw?.service_charge, 0);
+  return {
+    id: String(raw?.id ?? ""),
+    bookingId: String(raw?.bookingId ?? raw?.booking_id ?? ""),
+    paymentId: raw?.paymentId ?? raw?.payment_id ?? undefined,
+    refundAmount,
+    supplierPenalty,
+    serviceCharge,
+    netAmount: Math.max(refundAmount - supplierPenalty - serviceCharge, 0),
+    status: mapRefundStatus(raw?.status),
+    gatewayRefundId: raw?.gatewayRefundId ?? raw?.gateway_refund_id ?? undefined,
+    notes: raw?.notes ?? undefined,
+    proofUrl: raw?.proofUrl ?? raw?.proof_url ?? undefined,
+    createdAt:
+      toIso(raw?.createdAt ?? raw?.created_at) ?? new Date().toISOString(),
   };
 };
 
@@ -1554,6 +1623,432 @@ const AddPaymentModal = ({
   );
 };
 
+const AddRefundModal = ({
+  isOpen,
+  booking,
+  payments,
+  maxRefundable,
+  submitting,
+  onClose,
+  onSubmit,
+}: {
+  isOpen: boolean;
+  booking: Booking | null;
+  payments: Payment[];
+  maxRefundable: number;
+  submitting: boolean;
+  onClose: () => void;
+  onSubmit: (payload: CreateRefundFormPayload) => void;
+}) => {
+  const { user } = useAuth();
+  const viewerRaisedByName = useMemo(
+    () =>
+      (user?.name?.trim() || user?.email?.split("@")[0] || "").trim(),
+    [user?.name, user?.email],
+  );
+
+  const [formData, setFormData] = useState({
+    paymentId: "",
+    assignedTo: "",
+    raisedByName: "",
+    refundAmount: "",
+    supplierPenalty: "",
+    serviceCharge: "",
+    gatewayRefundId: "",
+    notes: "",
+  });
+  const [financeUsers, setFinanceUsers] = useState<
+    Array<{ value: string; label: string }>
+  >([]);
+  const [loadingFinanceUsers, setLoadingFinanceUsers] = useState(false);
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [proofUploadError, setProofUploadError] = useState("");
+  const [errors, setErrors] = useState<{
+    assignedTo?: string;
+    raisedByName?: string;
+    refundAmount?: string;
+  }>({});
+  const proofInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (!isOpen || !booking) return;
+
+    setFormData((prev) => ({
+      ...prev,
+      paymentId: "",
+      assignedTo: "",
+      raisedByName: viewerRaisedByName,
+      refundAmount: "",
+      supplierPenalty: "",
+      serviceCharge: "",
+      gatewayRefundId: "",
+      notes: "",
+    }));
+    setErrors({});
+    setProofFile(null);
+    setProofUploadError("");
+    if (proofInputRef.current) {
+      proofInputRef.current.value = "";
+    }
+  }, [isOpen, booking?.id, viewerRaisedByName]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    let cancelled = false;
+    const loadFinanceUsers = async () => {
+      setLoadingFinanceUsers(true);
+      try {
+        const response = await refundsApi.listAssignableUsers();
+        const payload = (response as any)?.data ?? response;
+        const rows =
+          (payload as any)?.data || (payload as any)?.items || payload || [];
+        if (cancelled) return;
+        setFinanceUsers([
+          {
+            value: "",
+            label:
+              Array.isArray(rows) && rows.length > 0 ?
+                "Select finance person..."
+              : "No accounts users found",
+          },
+          ...(Array.isArray(rows) ? rows : []).map((item: any) => ({
+            value: String(item?.id || ""),
+            label: `${String(item?.fullName ?? item?.full_name ?? "")}${
+              item?.email ? ` - ${String(item.email)}` : ""
+            }`,
+          })),
+        ]);
+      } catch (error) {
+        if (cancelled) return;
+        setFinanceUsers([{ value: "", label: "No accounts users found" }]);
+        reportApiError(error, "Failed to load finance users");
+      } finally {
+        if (!cancelled) {
+          setLoadingFinanceUsers(false);
+        }
+      }
+    };
+
+    void loadFinanceUsers();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
+
+  if (!isOpen || !booking) return null;
+
+  const paymentOptions = [
+    { value: "", label: "No payment link" },
+    ...payments.map((payment) => ({
+      value: payment.id,
+      label: `${payment.reference || payment.id.slice(0, 8)} - ${new Intl.NumberFormat(
+        "en-US",
+        {
+          style: "currency",
+          currency: booking.clientCurrency || "INR",
+          currencyDisplay: "code",
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 2,
+        },
+      ).format(payment.amount)}`,
+    })),
+  ];
+
+  const clearProofSelection = () => {
+    setProofFile(null);
+    setProofUploadError("");
+    if (proofInputRef.current) {
+      proofInputRef.current.value = "";
+    }
+  };
+
+  const handleProofFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (file.type !== "application/pdf" && !file.type.startsWith("image/")) {
+      setProofUploadError("Upload a PDF or image as refund proof");
+      event.target.value = "";
+      return;
+    }
+
+    if (file.size > MAX_INVOICE_FILE_SIZE) {
+      setProofUploadError("Refund proof must be 5 MB or smaller");
+      event.target.value = "";
+      return;
+    }
+
+    setProofUploadError("");
+    setProofFile(file);
+  };
+
+  const validate = () => {
+    const nextErrors: {
+      assignedTo?: string;
+      raisedByName?: string;
+      refundAmount?: string;
+    } = {};
+    if (!formData.assignedTo.trim()) {
+      nextErrors.assignedTo = "Finance person is required";
+    }
+    if (!viewerRaisedByName) {
+      nextErrors.raisedByName =
+        "Your profile name is unavailable — refresh or sign in again";
+    }
+    const refundAmount = Number(formData.refundAmount);
+    if (!formData.refundAmount.trim()) {
+      nextErrors.refundAmount = "Refund amount is required";
+    } else if (!Number.isFinite(refundAmount) || refundAmount <= 0) {
+      nextErrors.refundAmount = "Refund amount must be greater than 0";
+    } else if (refundAmount > maxRefundable) {
+      nextErrors.refundAmount = "Refund exceeds refundable amount";
+    }
+
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  };
+
+  const handleSubmit = () => {
+    if (!validate()) return;
+    onSubmit({
+      paymentId: formData.paymentId || undefined,
+      assignedTo: formData.assignedTo,
+      raisedByName: viewerRaisedByName,
+      refundAmount: Number(formData.refundAmount),
+      supplierPenalty: Number(formData.supplierPenalty || 0),
+      serviceCharge: Number(formData.serviceCharge || 0),
+      gatewayRefundId: formData.gatewayRefundId.trim() || undefined,
+      notes: formData.notes.trim() || undefined,
+      proofFile: proofFile || undefined,
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 p-4 flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+            Create Refund
+          </h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <FaXmark className="text-xl" />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-4">
+          <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-3 space-y-2">
+            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+              {booking.customerName || "Unknown"} - #{booking.bookingNumber}
+            </p>
+            <div className="flex items-center justify-between text-xs text-gray-600 dark:text-gray-300">
+              <span>Refundable</span>
+              <span className="font-semibold">
+                {new Intl.NumberFormat("en-US", {
+                  style: "currency",
+                  currency: booking.clientCurrency || "INR",
+                  currencyDisplay: "code",
+                }).format(maxRefundable)}
+              </span>
+            </div>
+          </div>
+
+	          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+	            <div>
+	              <label className="field-label">Payment Reference</label>
+              <SearchableDropdown
+                value={formData.paymentId}
+                options={paymentOptions}
+                onChange={(value) =>
+                  setFormData({ ...formData, paymentId: value })
+                }
+	                searchPlaceholder="Search payment..."
+	              />
+	            </div>
+	            <div>
+	              <label className="field-label">Assign Finance Person *</label>
+	              <SearchableDropdown
+	                value={formData.assignedTo}
+	                options={financeUsers}
+	                onChange={(value) =>
+	                  setFormData({ ...formData, assignedTo: value })
+	                }
+	                searchPlaceholder="Search accounts user..."
+	                disabled={loadingFinanceUsers}
+	              />
+	              {errors.assignedTo && (
+	                <p className="text-xs text-red-500 mt-1">
+	                  {errors.assignedTo}
+	                </p>
+	              )}
+	            </div>
+	            <div>
+	              <label className="field-label">Refund Amount *</label>
+              <input
+                type="number"
+                value={formData.refundAmount}
+                onChange={(event) =>
+                  setFormData({ ...formData, refundAmount: event.target.value })
+                }
+                className={`field-input ${
+                  errors.refundAmount ? "border-red-500" : ""
+                }`}
+                placeholder="0.00"
+                min="0"
+                max={maxRefundable}
+                step="0.01"
+              />
+	              {errors.refundAmount && (
+	                <p className="text-xs text-red-500 mt-1">
+	                  {errors.refundAmount}
+	                </p>
+	              )}
+	            </div>
+	            <div>
+	              <label className="field-label">Raised By *</label>
+	              <input
+	                type="text"
+	                readOnly
+	                value={viewerRaisedByName}
+	                title="Taken from logged-in account"
+	                className="field-input bg-gray-50 cursor-not-allowed dark:bg-gray-800"
+	              />
+	              <p className="text-xs text-gray-500 mt-2 dark:text-gray-400">
+	                Logged-in user (cannot be changed)
+	              </p>
+	              {errors.raisedByName && (
+	                <p className="text-xs text-red-500 mt-1">
+	                  {errors.raisedByName}
+	                </p>
+	              )}
+	            </div>
+	            <div>
+	              <label className="field-label">Supplier Penalty</label>
+              <input
+                type="number"
+                value={formData.supplierPenalty}
+                onChange={(event) =>
+                  setFormData({
+                    ...formData,
+                    supplierPenalty: event.target.value,
+                  })
+                }
+                className="field-input"
+                placeholder="0.00"
+                min="0"
+                step="0.01"
+              />
+            </div>
+            <div>
+              <label className="field-label">Service Charge</label>
+              <input
+                type="number"
+                value={formData.serviceCharge}
+                onChange={(event) =>
+                  setFormData({ ...formData, serviceCharge: event.target.value })
+                }
+                className="field-input"
+                placeholder="0.00"
+                min="0"
+                step="0.01"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="field-label">Gateway Refund ID</label>
+            <input
+              type="text"
+              value={formData.gatewayRefundId}
+              onChange={(event) =>
+                setFormData({ ...formData, gatewayRefundId: event.target.value })
+              }
+              className="field-input"
+              placeholder="GWR-XXXX"
+            />
+          </div>
+
+          <div>
+            <label className="field-label">Notes</label>
+            <textarea
+              value={formData.notes}
+              onChange={(event) =>
+                setFormData({ ...formData, notes: event.target.value })
+              }
+              rows={3}
+              className="field-input"
+              placeholder="Refund reason, account notes, or approval context..."
+            />
+          </div>
+
+          <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+            <p className="text-sm font-semibold text-gray-800 mb-2">
+              Refund Proof
+            </p>
+            {proofFile ?
+              <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+                <div>
+                  <p className="text-sm font-medium text-gray-800">
+                    {proofFile.name}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {formatFileSize(proofFile.size)}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="text-xs font-semibold text-red-600 hover:underline"
+                  onClick={clearProofSelection}
+                >
+                  Remove
+                </button>
+              </div>
+            : <p className="text-sm text-gray-500">
+                Upload refund proof (PDF or image, max 5 MB).
+              </p>
+            }
+            <div className="mt-3">
+              <label
+                htmlFor="booking-refund-proof-upload"
+                className="inline-flex cursor-pointer items-center rounded-lg border border-dashed border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:border-blue-500 hover:text-blue-600"
+              >
+                Upload Proof
+              </label>
+              <input
+                id="booking-refund-proof-upload"
+                ref={proofInputRef}
+                type="file"
+                accept="application/pdf,image/*"
+                className="hidden"
+                onChange={handleProofFileChange}
+              />
+            </div>
+            {proofUploadError && (
+              <p className="mt-2 text-xs text-red-500">{proofUploadError}</p>
+            )}
+          </div>
+        </div>
+
+        <div className="sticky bottom-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 p-4 flex justify-end gap-3">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={submitting || maxRefundable <= 0}
+            className="px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {submitting ? "Saving..." : "Create Refund"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const BookingDetailPage: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -1586,7 +2081,9 @@ const BookingDetailPage: React.FC = () => {
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [showPaymentsModal, setShowPaymentsModal] = useState(false);
   const [showAddPaymentModal, setShowAddPaymentModal] = useState(false);
+  const [showAddRefundModal, setShowAddRefundModal] = useState(false);
   const [savingPayment, setSavingPayment] = useState(false);
+  const [savingRefund, setSavingRefund] = useState(false);
   const [attachmentPreview, setAttachmentPreview] =
     useState<AttachmentPreview | null>(null);
 
@@ -1645,6 +2142,7 @@ const BookingDetailPage: React.FC = () => {
   const [booking, setBooking] = useState<Booking | null>(null);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [refunds, setRefunds] = useState<Refund[]>([]);
   const [history, setHistory] = useState<StatusHistory[]>([]);
   const [quotationDetails, setQuotationDetails] = useState<Record<
     string,
@@ -1784,12 +2282,13 @@ const BookingDetailPage: React.FC = () => {
     setLoading(true);
     setError("");
     try {
-      const [bookingRes, invoiceRes, historyRes, paymentRes] =
+      const [bookingRes, invoiceRes, historyRes, paymentRes, refundRes] =
         await Promise.allSettled([
           bookingsApi.getById(id),
           bookingsApi.listInvoices(id),
           bookingsApi.statusHistory(id),
           paymentsApi.list({ bookingId: id }),
+          refundsApi.list({ bookingId: id }),
         ]);
 
       if (bookingRes.status !== "fulfilled") {
@@ -1840,6 +2339,10 @@ const BookingDetailPage: React.FC = () => {
         historyRes.status === "fulfilled" ?
           (unwrapData<any[]>(historyRes.value) ?? [])
         : [];
+      const refundData =
+        refundRes.status === "fulfilled" ?
+          (unwrapData<any[]>(refundRes.value) ?? [])
+        : [];
 
       const mappedInvoices = (
         Array.isArray(invoiceData) ? invoiceData : []).map((row) =>
@@ -1878,6 +2381,11 @@ const BookingDetailPage: React.FC = () => {
       setBooking(resolvedBooking);
       setInvoices(mappedInvoices);
       setPayments(mappedPayments);
+      setRefunds(
+        (Array.isArray(refundData) ? refundData : []).map((row) =>
+          mapRefundFromApi(row),
+        ),
+      );
       setHistory(mappedHistory);
       setQuotationDetails(null);
       setQuotationComponents([]);
@@ -2141,6 +2649,75 @@ const BookingDetailPage: React.FC = () => {
       reportApiError(err, "Failed to record payment");
     } finally {
       setSavingPayment(false);
+    }
+  };
+
+  const handleOpenAddRefund = () => {
+    if (!booking) return;
+    const refundableAmount = Math.max(booking.advanceReceived, 0);
+    if (refundableAmount <= 0) {
+      showToast("No refundable amount is available", "info");
+      return;
+    }
+    setShowAddRefundModal(true);
+  };
+
+  const handleAddRefund = async (payload: CreateRefundFormPayload) => {
+    if (!booking || !id) return;
+    const refundableAmount = Math.max(booking.advanceReceived, 0);
+
+    if (!Number.isFinite(payload.refundAmount) || payload.refundAmount <= 0) {
+      showToast("Please enter a valid refund amount", "error");
+      return;
+    }
+
+    if (payload.refundAmount > refundableAmount) {
+      showToast("Refund amount cannot exceed refundable balance", "error");
+      return;
+    }
+
+    try {
+      setSavingRefund(true);
+      if (payload.proofFile) {
+        const formData = new FormData();
+        formData.append("bookingId", id);
+        formData.append("assignedTo", payload.assignedTo);
+        formData.append("raisedByName", payload.raisedByName);
+        formData.append("refundAmount", String(payload.refundAmount));
+        formData.append("supplierPenalty", String(payload.supplierPenalty || 0));
+        formData.append("serviceCharge", String(payload.serviceCharge || 0));
+        if (payload.paymentId) {
+          formData.append("paymentId", payload.paymentId);
+        }
+        if (payload.gatewayRefundId) {
+          formData.append("gatewayRefundId", payload.gatewayRefundId);
+        }
+        if (payload.notes) {
+          formData.append("notes", payload.notes);
+        }
+        formData.append("proofFile", payload.proofFile, payload.proofFile.name);
+        await refundsApi.create(formData);
+      } else {
+        await refundsApi.create({
+          bookingId: id,
+          paymentId: payload.paymentId,
+          assignedTo: payload.assignedTo,
+          raisedByName: payload.raisedByName,
+          refundAmount: payload.refundAmount,
+          supplierPenalty: payload.supplierPenalty || 0,
+          serviceCharge: payload.serviceCharge || 0,
+          gatewayRefundId: payload.gatewayRefundId,
+          notes: payload.notes,
+        });
+      }
+
+      await fetchBookingData();
+      setShowAddRefundModal(false);
+      showToast("Refund request created", "success");
+    } catch (err) {
+      reportApiError(err, "Failed to create refund");
+    } finally {
+      setSavingRefund(false);
     }
   };
 
@@ -2800,6 +3377,13 @@ const BookingDetailPage: React.FC = () => {
   }
 
   const totalPaidAmount = Math.max(booking.advanceReceived, 0);
+  const totalRefundedAmount = refunds
+    .filter((refund) => refund.status === "processed")
+    .reduce((sum, refund) => sum + refund.refundAmount, 0);
+  const pendingRefundAmount = refunds
+    .filter((refund) => refund.status === "pending" || refund.status === "approved")
+    .reduce((sum, refund) => sum + refund.refundAmount, 0);
+  const refundableAmount = Math.max(totalPaidAmount, 0);
   const remainingPaymentAmount = Math.max(
     booking.totalAmount - totalPaidAmount,
     0,
@@ -2873,6 +3457,20 @@ const BookingDetailPage: React.FC = () => {
           onClose={() => setShowAddPaymentModal(false)}
           onSubmit={(payload) => {
             void handleAddPayment(payload);
+          }}
+        />
+      ) : null}
+
+      {showAddRefundModal ? (
+        <AddRefundModal
+          isOpen
+          booking={booking}
+          payments={payments}
+          maxRefundable={refundableAmount}
+          submitting={savingRefund}
+          onClose={() => setShowAddRefundModal(false)}
+          onSubmit={(payload) => {
+            void handleAddRefund(payload);
           }}
         />
       ) : null}
@@ -3480,6 +4078,13 @@ const BookingDetailPage: React.FC = () => {
                           {remainingPaymentAmount > 0 ? "Make Payment" : "Fully Paid"}
                         </button>
                         <button
+                          onClick={handleOpenAddRefund}
+                          disabled={refundableAmount <= 0}
+                          className="px-3 py-1.5 rounded-md text-xs font-medium bg-purple-600 text-white hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-60 flex items-center gap-1"
+                        >
+                          <FaMoneyBillTransfer /> Refund
+                        </button>
+                        <button
                           onClick={() => setShowPaymentsModal(true)}
                           className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 font-medium flex items-center gap-1"
                         >
@@ -3488,7 +4093,7 @@ const BookingDetailPage: React.FC = () => {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
                       <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-lg">
                         <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
                           Booking Total
@@ -3522,6 +4127,17 @@ const BookingDetailPage: React.FC = () => {
                           )}
                         </p>
                       </div>
+                      <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-lg">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                          Refunded
+                        </p>
+                        <p className="text-xl font-bold text-purple-600 dark:text-purple-400">
+                          {formatCurrency(
+                            totalRefundedAmount,
+                            booking.clientCurrency,
+                          )}
+                        </p>
+                      </div>
                     </div>
 
                     <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
@@ -3534,6 +4150,13 @@ const BookingDetailPage: React.FC = () => {
                             Remaining:{" "}
                             {formatCurrency(
                               remainingPaymentAmount,
+                              booking.clientCurrency,
+                            )}
+                          </p>
+                          <p className="text-xs text-blue-700 dark:text-blue-400">
+                            Pending Refund:{" "}
+                            {formatCurrency(
+                              pendingRefundAmount,
                               booking.clientCurrency,
                             )}
                           </p>
@@ -3667,8 +4290,86 @@ const BookingDetailPage: React.FC = () => {
                           </div>
                         ))
                       )}
+	                      </SurfaceCard>
+                      <SurfaceCard className="mt-4">
+                        <div className="mb-3 flex items-center justify-between">
+                          <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                            Refunds
+                          </h4>
+                          <button
+                            type="button"
+                            onClick={() => navigate("/refunds")}
+                            className="text-xs font-medium text-purple-600 hover:text-purple-700 dark:text-purple-400"
+                          >
+                            Open Refunds
+                          </button>
+                        </div>
+                        {refunds.length === 0 ? (
+                          <p className="text-sm text-gray-500 dark:text-gray-400 px-1 py-2">
+                            No refunds created yet.
+                          </p>
+                        ) : (
+                          <div className="space-y-2">
+                            {refunds.slice(0, 50).map((refund) => (
+                              <div
+                                key={refund.id}
+                                className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-3"
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0 space-y-1">
+                                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                                      {formatCurrency(
+                                        refund.refundAmount,
+                                        booking.clientCurrency,
+                                      )}
+                                    </p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                                      Net:{" "}
+                                      {formatCurrency(
+                                        refund.netAmount,
+                                        booking.clientCurrency,
+                                      )}
+                                    </p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                                      Created: {formatDateTime(refund.createdAt)}
+                                    </p>
+                                    {refund.gatewayRefundId && (
+                                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                                        Gateway ID: {refund.gatewayRefundId}
+                                      </p>
+                                    )}
+                                    {refund.notes && (
+                                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                                        Notes: {refund.notes}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <span className="px-2 py-1 rounded-full text-xs font-medium capitalize bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
+                                    {refund.status}
+                                  </span>
+                                </div>
+                                {refund.proofUrl && (
+                                  <div className="mt-2">
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        handlePreviewAttachment(
+                                          refund.proofUrl as string,
+                                          `Refund Proof - ${refund.id}`,
+                                        )
+                                      }
+                                      className="inline-flex items-center gap-1 rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 text-xs text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-gray-800"
+                                    >
+                                      <FaEye /> View Proof
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </SurfaceCard>
-                    </div>
+	                    </div>
                   </div>
                 )}
               </div>
@@ -3767,6 +4468,28 @@ const BookingDetailPage: React.FC = () => {
                     )}
                   </span>
                 </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                    Refunded
+                  </span>
+                  <span className="text-sm font-semibold text-purple-600 dark:text-purple-400">
+                    {formatCurrency(
+                      totalRefundedAmount,
+                      booking.clientCurrency,
+                    )}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                    Pending Refund
+                  </span>
+                  <span className="text-sm font-semibold text-purple-600 dark:text-purple-400">
+                    {formatCurrency(
+                      pendingRefundAmount,
+                      booking.clientCurrency,
+                    )}
+                  </span>
+                </div>
                 <div className="flex justify-between items-center pt-3 border-t border-gray-100 dark:border-gray-800">
                   <span className="text-sm text-gray-600 dark:text-gray-400">
                     Advance Required
@@ -3804,6 +4527,14 @@ const BookingDetailPage: React.FC = () => {
                   <FaPlus />
                   {remainingPaymentAmount > 0 ? "Make Payment" : "Booking Fully Paid"}
                 </button>
+                <button
+                  onClick={handleOpenAddRefund}
+                  disabled={refundableAmount <= 0}
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <FaMoneyBillTransfer />
+                  Create Refund
+                </button>
               </div>
             </div>
 
@@ -3831,6 +4562,13 @@ const BookingDetailPage: React.FC = () => {
                 >
                   <FaCreditCard className="text-gray-400" />
                   View All Payments
+                </button>
+                <button
+                  onClick={() => navigate("/refunds")}
+                  className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition-colors flex items-center gap-2"
+                >
+                  <FaMoneyBillTransfer className="text-gray-400" />
+                  View Refunds
                 </button>
               </div>
             </div>
