@@ -29,6 +29,7 @@ import SearchableDropdown from '../../components/ui/SearchableDropdown'
 import { refundsApi } from '../../api/refunds'
 import { bookingsApi } from '../../api/bookings'
 import { paymentsApi } from '../../api/payments'
+import { customersApi } from '../../api/customers'
 import { reportApiError } from '../../lib/notify'
 import { useAuth } from '../../context/AuthContext'
 import { getCurrencyOptions, formatCurrency } from '../../utils/currency'
@@ -110,6 +111,7 @@ type BookingLookup = {
   customer?: string
   customerEmail?: string
   customerPhone?: string
+  currency?: string
 }
 
 type PaymentLookup = {
@@ -657,6 +659,16 @@ const unwrapBookingResponse = (res: unknown): any => {
   return inner && typeof inner === 'object' ? inner : outer
 }
 
+const unwrapListResponse = (res: unknown): any[] => {
+  const payload = (res as any)?.data ?? res
+  const data =
+    (payload as any)?.data ??
+    (payload as any)?.items ??
+    payload ??
+    []
+  return Array.isArray(data) ? data : []
+}
+
 const mapBookingApiToLookup = (booking: any): BookingLookup | null => {
   if (!booking || typeof booking !== 'object') return null
   const id = String(booking.id || '').trim()
@@ -694,7 +706,12 @@ const mapBookingApiToLookup = (booking: any): BookingLookup | null => {
       booking.customerPhone ||
       booking.customer_phone ||
       booking.customer?.phone ||
-      ''
+      '',
+    currency:
+      booking.currency ||
+      booking.clientCurrency ||
+      booking.client_currency ||
+      'INR'
   }
 }
 
@@ -1470,31 +1487,49 @@ const RefundsPage = () => {
     }
   }, [showForm, showEditModal, token])
 
-  const searchBookings = useCallback(async (query: string) => {
-    if (!token || !query.trim()) {
+  const loadBookingOptions = useCallback(async () => {
+    if (!token) {
       setBookings([])
       return
     }
 
     setLoadingBookings(true)
     try {
-      const bookingsRes = await bookingsApi.list({ 
-        page: 1, 
-        limit: 50,
-        search: query.trim()
+      const paymentOptionsRes = await customersApi.getPaymentOptions()
+      const paymentOptions = unwrapListResponse(paymentOptionsRes)
+      const bookingMap = new Map<string, BookingLookup>()
+
+      paymentOptions.forEach((customer: any) => {
+        const customerName =
+          customer?.fullName ??
+          customer?.full_name ??
+          customer?.name ??
+          'Unknown Customer'
+        const customerEmail = customer?.email ?? ''
+        const customerPhone = customer?.phone ?? ''
+        const customerCurrency =
+          customer?.clientCurrency ??
+          customer?.client_currency ??
+          'INR'
+
+        ;(Array.isArray(customer?.bookings) ? customer.bookings : []).forEach(
+          (booking: any) => {
+            const mapped = mapBookingApiToLookup({
+              id: booking?.id,
+              bookingNumber: booking?.bookingNumber ?? booking?.booking_number,
+              customer: customerName,
+              customerEmail,
+              customerPhone,
+              currency: booking?.currency ?? customerCurrency
+            })
+            if (!mapped?.id) return
+            bookingMap.set(mapped.id, mapped)
+          }
+        )
       })
 
-      const bookingsPayload = bookingsRes as any
-      const bookingsData =
-        bookingsPayload?.data?.data ||
-        bookingsPayload?.data ||
-        bookingsPayload ||
-        []
-      const bookingsList = Array.isArray(bookingsData) ? bookingsData : []
-
       setBookings(
-        bookingsList
-          .map((booking: any) => mapBookingApiToLookup(booking))
+        Array.from(bookingMap.values())
           .filter((b): b is BookingLookup => Boolean(b))
           .map(b => ({
             ...b,
@@ -1505,7 +1540,7 @@ const RefundsPage = () => {
           }))
       )
     } catch (err) {
-      console.error('Failed to search bookings:', err)
+      console.error('Failed to load refund booking options:', err)
       setBookings([])
     } finally {
       setLoadingBookings(false)
@@ -1586,6 +1621,11 @@ const RefundsPage = () => {
       setPayments([])
     }
   }, [showForm])
+
+  useEffect(() => {
+    if (!showForm) return
+    void loadBookingOptions()
+  }, [showForm, loadBookingOptions])
 
   useEffect(() => {
     if (!showForm) return
@@ -1970,13 +2010,18 @@ const RefundsPage = () => {
               <SearchableDropdown
                 value={form.bookingId}
                 onChange={value => {
+                  const selectedBooking =
+                    bookings.find(booking => booking.id === value) || null
                   setForm(current => ({
                     ...current,
                     bookingId: value,
-                    paymentId: ''
+                    paymentId: '',
+                    currency:
+                      selectedBooking?.currency ?
+                        String(selectedBooking.currency).toUpperCase()
+                      : current.currency
                   }))
                 }}
-                onSearch={searchBookings}
                 options={bookingDropdownOptions}
                 searchPlaceholder='Type booking number (e.g., BK-1776424194713-8883)'
                 disabled={loadingBookings}

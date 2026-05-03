@@ -28,6 +28,7 @@ import SearchableDropdown from "../ui/SearchableDropdown";
 import DestinationPricingManager from "../settings/DestinationPricingManager";
 import CountryManagementPanel from "../settings/CountryManagementPanel";
 import { buildAdminCountryOptions, type CountryOption } from "../../utils/countries";
+
 import UsersPage from "../../pages/users/UsersPage";
 
 type Tab =
@@ -921,7 +922,11 @@ const Settings: React.FC = () => {
         const response = await settingsApi.getAll();
         const data = extractObject<SettingsResponse>(response);
         if (data?.system) {
-          setSystemSettings((s) => ({ ...s, ...data.system }));
+          setSystemSettings((s) => ({
+            ...s,
+            ...data.system,
+          
+          }));
           updatePreferences({
             timezone: data.system.timezone,
             locale: data.system.locale,
@@ -1438,6 +1443,7 @@ const Settings: React.FC = () => {
         currency: toTrimmedOrUndefined(systemSettings.currency),
         dateFormat: toTrimmedOrUndefined(systemSettings.dateFormat),
         websiteUrl: toTrimmedOrUndefined(systemSettings.websiteUrl)
+     
       }) as SystemSettingsPayload
       if (Object.keys(payload).length === 0) {
         setError('Enter at least one system setting.')
@@ -1447,7 +1453,13 @@ const Settings: React.FC = () => {
       const data = extractObject<Partial<SystemSettingsForm>>(
         await settingsApi.updateSystem(payload),
       );
-      if (data) setSystemSettings((s) => ({ ...s, ...data }));
+      if (data) 
+        setSystemSettings((s) => ({
+          ...s,
+          ...data,
+        
+        }));
+      
       updatePreferences({
         timezone: data?.timezone ?? payload.timezone,
         locale: data?.locale ?? payload.locale,
@@ -2122,6 +2134,7 @@ const Settings: React.FC = () => {
                   }
                 />
               </div>
+             
             </div>
             <button
               onClick={() => void saveSystem()}

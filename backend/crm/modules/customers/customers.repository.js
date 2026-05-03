@@ -133,6 +133,12 @@ function createCustomersRepository({ db, logger, schema }) {
     return `${year}-${month}-${day}`;
   }
 
+  function toTimestamp(value) {
+    if (!value) return Number.NEGATIVE_INFINITY;
+    const parsed = new Date(value).getTime();
+    return Number.isFinite(parsed) ? parsed : Number.NEGATIVE_INFINITY;
+  }
+
   async function buildListContext(filters = {}) {
     const [customerColumns, leadColumns, quotationColumns, bookingColumns] =
       await Promise.all([
@@ -539,6 +545,362 @@ function createCustomersRepository({ db, logger, schema }) {
       });
   }
 
+  async function findBookingsByCustomerId(customerId, customer = {}) {
+    if (!customerId) {
+      return [];
+    }
+
+    if (canUseRawQuery()) {
+      const [
+        leadHasCustomerId,
+        leadHasSoftDelete,
+        quotationHasSoftDelete,
+        bookingHasSoftDelete,
+      ] = await Promise.all([
+        hasColumn(schema.leadsTable, "customer_id"),
+        hasColumn(schema.leadsTable, "is_deleted"),
+        hasColumn(schema.quotationsTable, "is_deleted"),
+        hasColumn(schema.bookingsTable, "is_deleted"),
+      ]);
+      const where = [];
+      const params = [];
+
+      if (leadHasCustomerId) {
+        where.push("l.customer_id = ?");
+        params.push(customerId);
+      } else {
+        const contactClauses = [];
+        if (customer.email) {
+          contactClauses.push("LOWER(COALESCE(l.email, '')) = LOWER(?)");
+          params.push(customer.email);
+        }
+        if (customer.phone) {
+          contactClauses.push("COALESCE(l.phone, '') = ?");
+          params.push(customer.phone);
+        }
+        if (!contactClauses.length) {
+          return [];
+        }
+        where.push(`(${contactClauses.join(" OR ")})`);
+      }
+
+      if (leadHasSoftDelete) {
+        where.push("COALESCE(l.is_deleted, 0) = 0");
+      }
+      if (quotationHasSoftDelete) {
+        where.push("COALESCE(q.is_deleted, 0) = 0");
+      }
+      if (bookingHasSoftDelete) {
+        where.push("COALESCE(b.is_deleted, 0) = 0");
+      }
+
+      const result = await db.query(
+        `
+          SELECT
+            b.*,
+            l.travel_to,
+            l.lead_country,
+            d.name AS destination_name
+          FROM ${schema.bookingsTable} b
+          INNER JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
+          INNER JOIN ${schema.leadsTable} l ON l.id = q.lead_id
+          LEFT JOIN ${schema.destinationsTable} d ON d.id = l.destination_id
+          WHERE ${where.join(" AND ")}
+          ORDER BY COALESCE(b.created_at, b.travel_start_date, q.created_at) DESC, b.id DESC
+        `,
+        params,
+      );
+
+      return Array.isArray(result.rows) ? result.rows : [];
+    }
+
+    const [leadRows, quotationRows, bookingRows, destinationRows] = await Promise.all([
+      db.findMany(schema.leadsTable, {}),
+      db.findMany(schema.quotationsTable, {}),
+      db.findMany(schema.bookingsTable, {}),
+      db.findMany(schema.destinationsTable, {}),
+    ]);
+
+    const normalizedEmail = normalizeEmail(customer.email);
+    const normalizedPhone = normalizePhone(customer.phone);
+    const destinationById = new Map(
+      (Array.isArray(destinationRows) ? destinationRows : []).map((row) => [
+        String(row?.id ?? ""),
+        row,
+      ]),
+    );
+    const leadById = new Map();
+
+    (Array.isArray(leadRows) ? leadRows : [])
+      .filter((row) => !(row?.is_deleted ?? row?.isDeleted ?? false))
+      .forEach((row) => {
+        const leadId = String(row?.id ?? "");
+        if (!leadId) return;
+
+        const rowCustomerId = String(row?.customer_id ?? row?.customerId ?? "");
+        const rowEmail = normalizeEmail(row?.email);
+        const rowPhone = normalizePhone(row?.phone);
+        const matchesCustomer =
+          (rowCustomerId && rowCustomerId === String(customerId)) ||
+          (normalizedEmail && rowEmail === normalizedEmail) ||
+          (normalizedPhone && rowPhone === normalizedPhone);
+
+        if (!matchesCustomer) return;
+
+        leadById.set(leadId, row);
+      });
+
+    if (!leadById.size) {
+      return [];
+    }
+
+    const quotationToLead = new Map();
+    (Array.isArray(quotationRows) ? quotationRows : [])
+      .filter((row) => !(row?.is_deleted ?? row?.isDeleted ?? false))
+      .forEach((row) => {
+        const quotationId = String(row?.id ?? "");
+        const leadId = String(row?.lead_id ?? row?.leadId ?? "");
+        if (!quotationId || !leadId || !leadById.has(leadId)) return;
+        quotationToLead.set(quotationId, leadId);
+      });
+
+    return (Array.isArray(bookingRows) ? bookingRows : [])
+      .filter((row) => !(row?.is_deleted ?? row?.isDeleted ?? false))
+      .filter((row) => {
+        const quotationId = String(row?.quotation_id ?? row?.quotationId ?? "");
+        return quotationToLead.has(quotationId);
+      })
+      .map((row) => {
+        const quotationId = String(row?.quotation_id ?? row?.quotationId ?? "");
+        const leadId = quotationToLead.get(quotationId) || "";
+        const lead = leadById.get(leadId) || null;
+        const destinationId = String(
+          lead?.destination_id ?? lead?.destinationId ?? "",
+        );
+        const destination = destinationById.get(destinationId) || null;
+
+        return {
+          ...row,
+          travel_to: lead?.travel_to ?? lead?.travelTo ?? null,
+          lead_country: lead?.lead_country ?? lead?.leadCountry ?? null,
+          destination_name:
+            destination?.name ??
+            lead?.destination_name ??
+            lead?.destinationName ??
+            null,
+        };
+      })
+      .sort((left, right) => {
+        const leftTime = toTimestamp(
+          left?.created_at ??
+            left?.createdAt ??
+            left?.travel_start_date ??
+            left?.travelStartDate,
+        );
+        const rightTime = toTimestamp(
+          right?.created_at ??
+            right?.createdAt ??
+            right?.travel_start_date ??
+            right?.travelStartDate,
+        );
+        return rightTime - leftTime;
+      });
+  }
+
+  async function findPaymentOptions() {
+    if (canUseRawQuery()) {
+      const [leadHasCustomerId, leadHasSoftDelete, quotationHasSoftDelete, bookingHasSoftDelete] =
+        await Promise.all([
+          hasColumn(schema.leadsTable, "customer_id"),
+          hasColumn(schema.leadsTable, "is_deleted"),
+          hasColumn(schema.quotationsTable, "is_deleted"),
+          hasColumn(schema.bookingsTable, "is_deleted"),
+        ]);
+
+      const leadSoftDeleteClause = leadHasSoftDelete
+        ? "AND COALESCE(l.is_deleted, 0) = 0"
+        : "";
+      const quotationSoftDeleteClause = quotationHasSoftDelete
+        ? "AND COALESCE(q.is_deleted, 0) = 0"
+        : "";
+      const bookingSoftDeleteClause = bookingHasSoftDelete
+        ? "AND COALESCE(b.is_deleted, 0) = 0"
+        : "";
+      const normalizedPhoneSql = (alias) =>
+        `REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(${alias}.phone, ''), ' ', ''), '-', ''), '(', ''), ')', ''), '+', '')`;
+      const joinClauses = [];
+
+      if (leadHasCustomerId) {
+        joinClauses.push("l.customer_id = c.id");
+      }
+      joinClauses.push(
+        "(COALESCE(c.email, '') <> '' AND LOWER(COALESCE(l.email, '')) = LOWER(COALESCE(c.email, '')))",
+      );
+      joinClauses.push(
+        `(COALESCE(c.phone, '') <> '' AND ${normalizedPhoneSql("l")} = ${normalizedPhoneSql("c")})`,
+      );
+
+      const query = `
+        SELECT DISTINCT
+          CONVERT(c.id, CHAR) AS customer_id,
+          c.full_name,
+          c.email,
+          c.phone,
+          c.client_currency,
+          CONVERT(b.id, CHAR) AS booking_id,
+          b.booking_number,
+          b.total_amount,
+          b.status,
+          b.created_at,
+          b.travel_start_date,
+          b.quotation_id,
+          l.travel_to,
+          l.lead_country,
+          d.name AS destination_name
+        FROM ${schema.tableName} c
+        INNER JOIN ${schema.leadsTable} l ON (${joinClauses.join(" OR ")})
+        INNER JOIN ${schema.quotationsTable} q ON q.lead_id = l.id
+        INNER JOIN ${schema.bookingsTable} b ON b.quotation_id = q.id
+        LEFT JOIN ${schema.destinationsTable} d ON d.id = l.destination_id
+        WHERE COALESCE(c.is_deleted, 0) = 0
+          ${leadSoftDeleteClause}
+          ${quotationSoftDeleteClause}
+          ${bookingSoftDeleteClause}
+        ORDER BY LOWER(COALESCE(c.full_name, '')), c.id, COALESCE(b.created_at, b.travel_start_date) DESC, b.id DESC
+      `;
+
+      try {
+        const result = await db.query(query);
+        return Array.isArray(result.rows) ? result.rows : [];
+      } catch (_err) {
+        // Fall through to in-memory fallback
+      }
+    }
+
+    const [customerRows, leadRows, quotationRows, bookingRows, destinationRows] = await Promise.all([
+      db.findMany(schema.tableName, {}),
+      db.findMany(schema.leadsTable, {}),
+      db.findMany(schema.quotationsTable, {}),
+      db.findMany(schema.bookingsTable, {}),
+      db.findMany(schema.destinationsTable, {}),
+    ]);
+
+    const activeCustomers = (Array.isArray(customerRows) ? customerRows : []).filter(
+      (row) => !(row?.is_deleted ?? row?.isDeleted ?? false),
+    );
+    const destinationById = new Map(
+      (Array.isArray(destinationRows) ? destinationRows : []).map((row) => [
+        String(row?.id ?? ""),
+        row,
+      ]),
+    );
+    const leadById = new Map();
+
+    (Array.isArray(leadRows) ? leadRows : [])
+      .filter((row) => !(row?.is_deleted ?? row?.isDeleted ?? false))
+      .forEach((row) => {
+        const leadId = String(row?.id ?? "");
+        if (!leadId) return;
+        leadById.set(leadId, row);
+      });
+
+    const quotationById = new Map();
+    (Array.isArray(quotationRows) ? quotationRows : [])
+      .filter((row) => !(row?.is_deleted ?? row?.isDeleted ?? false))
+      .forEach((row) => {
+        const quotationId = String(row?.id ?? "");
+        if (!quotationId) return;
+        quotationById.set(quotationId, row);
+      });
+
+    const rows = [];
+    const seen = new Set();
+
+    activeCustomers.forEach((customer) => {
+      const customerId = String(customer?.id ?? "");
+      if (!customerId) return;
+
+      const normalizedEmail = normalizeEmail(customer?.email);
+      const normalizedPhone = normalizePhone(customer?.phone);
+      const matchedLeadIds = new Set();
+
+      leadById.forEach((lead, leadId) => {
+        const rowCustomerId = String(lead?.customer_id ?? lead?.customerId ?? "");
+        const rowEmail = normalizeEmail(lead?.email);
+        const rowPhone = normalizePhone(lead?.phone);
+        const matchesCustomer =
+          (rowCustomerId && rowCustomerId === customerId) ||
+          (normalizedEmail && rowEmail === normalizedEmail) ||
+          (normalizedPhone && rowPhone === normalizedPhone);
+
+        if (matchesCustomer) {
+          matchedLeadIds.add(leadId);
+        }
+      });
+
+      if (!matchedLeadIds.size) return;
+
+      (Array.isArray(bookingRows) ? bookingRows : [])
+        .filter((row) => !(row?.is_deleted ?? row?.isDeleted ?? false))
+        .forEach((booking) => {
+          const bookingId = String(booking?.id ?? "");
+          const quotationId = String(booking?.quotation_id ?? booking?.quotationId ?? "");
+          const quotation = quotationById.get(quotationId) || null;
+          const leadId = String(quotation?.lead_id ?? quotation?.leadId ?? "");
+          if (!bookingId || !leadId || !matchedLeadIds.has(leadId)) return;
+
+          const dedupeKey = `${customerId}:${bookingId}`;
+          if (seen.has(dedupeKey)) return;
+          seen.add(dedupeKey);
+
+          const lead = leadById.get(leadId) || null;
+          const destinationId = String(
+            lead?.destination_id ?? lead?.destinationId ?? "",
+          );
+          const destination = destinationById.get(destinationId) || null;
+
+          rows.push({
+            customer_id: customerId,
+            full_name: customer?.full_name ?? customer?.fullName ?? null,
+            email: customer?.email ?? null,
+            phone: customer?.phone ?? null,
+            client_currency:
+              customer?.client_currency ?? customer?.clientCurrency ?? null,
+            booking_id: bookingId,
+            booking_number:
+              booking?.booking_number ?? booking?.bookingNumber ?? bookingId,
+            total_amount: booking?.total_amount ?? booking?.totalAmount ?? 0,
+            status: booking?.status ?? "PENDING",
+            created_at: booking?.created_at ?? booking?.createdAt ?? null,
+            travel_start_date:
+              booking?.travel_start_date ?? booking?.travelStartDate ?? null,
+            quotation_id: quotationId || null,
+            travel_to: lead?.travel_to ?? lead?.travelTo ?? null,
+            lead_country: lead?.lead_country ?? lead?.leadCountry ?? null,
+            destination_name:
+              destination?.name ??
+              lead?.destination_name ??
+              lead?.destinationName ??
+              null,
+          });
+        });
+    });
+
+    return rows.sort((left, right) => {
+      const customerCompare = String(left?.full_name ?? "").localeCompare(
+        String(right?.full_name ?? ""),
+      );
+      if (customerCompare !== 0) return customerCompare;
+      const rightTime = toTimestamp(
+        right?.created_at ?? right?.travel_start_date,
+      );
+      const leftTime = toTimestamp(
+        left?.created_at ?? left?.travel_start_date,
+      );
+      return rightTime - leftTime;
+    });
+  }
+
   async function create(payload) {
     logger.debug({ module: "customers", payload }, "Creating record");
     const sanitized = await sanitizeForTable(schema.tableName, payload);
@@ -621,10 +983,6 @@ function createCustomersRepository({ db, logger, schema }) {
           hasColumn(schema.bookingsTable, "is_deleted"),
         ]);
 
-      if (!leadHasCustomerId) {
-        return new Map();
-      }
-
       const leadSoftDeleteClause = leadHasSoftDelete
         ? "AND COALESCE(l.is_deleted, 0) = 0"
         : "";
@@ -639,28 +997,44 @@ function createCustomersRepository({ db, logger, schema }) {
         : "";
 
       const placeholders = ids.map(() => "?").join(", ");
+      const normalizedPhoneSql = (alias) =>
+        `REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(${alias}.phone, ''), ' ', ''), '-', ''), '(', ''), ')', ''), '+', '')`;
+      const joinClauses = [];
+
+      if (leadHasCustomerId) {
+        joinClauses.push("l.customer_id = c.id");
+      }
+      joinClauses.push(
+        "(COALESCE(c.email, '') <> '' AND LOWER(COALESCE(l.email, '')) = LOWER(COALESCE(c.email, '')))",
+      );
+      joinClauses.push(
+        `(COALESCE(c.phone, '') <> '' AND ${normalizedPhoneSql("l")} = ${normalizedPhoneSql("c")})`,
+      );
+
       const query = `
         SELECT
-          CONVERT(l.customer_id, CHAR) AS customer_id,
+          CONVERT(c.id, CHAR) AS customer_id,
           COUNT(DISTINCT b.id) AS total_bookings,
           MAX(COALESCE(b.created_at, b.travel_start_date)) AS last_booking_date,
-          (
-            SELECT COALESCE(NULLIF(b2.booking_number, ''), CONVERT(b2.id, CHAR))
-            FROM ${schema.bookingsTable} b2
-            INNER JOIN ${schema.quotationsTable} q2 ON q2.id = b2.quotation_id
-            WHERE q2.lead_id = l.id
-              ${bookingSubDeleteClause}
-            ORDER BY COALESCE(b2.created_at, b2.travel_start_date) DESC
-            LIMIT 1
-          ) AS last_booking_number
-        FROM ${schema.leadsTable} l
+          COALESCE(
+            SUM(
+              CASE
+                WHEN COALESCE(b.status, 'PENDING') <> 'CANCELLED' THEN COALESCE(b.total_amount, 0)
+                ELSE 0
+              END
+            ),
+            0
+          ) AS lifetime_value
+        FROM ${schema.tableName} c
+        INNER JOIN ${schema.leadsTable} l ON (${joinClauses.join(" OR ")})
         INNER JOIN ${schema.quotationsTable} q ON q.lead_id = l.id
         INNER JOIN ${schema.bookingsTable} b ON b.quotation_id = q.id
-        WHERE l.customer_id IN (${placeholders})
+        WHERE c.id IN (${placeholders})
+          AND COALESCE(c.is_deleted, 0) = 0
           ${leadSoftDeleteClause}
           ${quotationSoftDeleteClause}
           ${bookingSoftDeleteClause}
-        GROUP BY l.customer_id
+        GROUP BY c.id
       `;
 
       try {
@@ -672,7 +1046,8 @@ function createCustomersRepository({ db, logger, schema }) {
           summaryMap.set(customerId, {
             totalBookings: Number(row.total_bookings || 0),
             lastBookingDate: toDateOnly(row.last_booking_date),
-            lastBookingNumber: row.last_booking_number || null,
+            lastBookingNumber: null,
+            lifetimeValue: Number(row.lifetime_value || 0),
           });
         });
         return summaryMap;
@@ -681,19 +1056,43 @@ function createCustomersRepository({ db, logger, schema }) {
       }
     }
 
-    const [leadRows, quotationRows, bookingRows] = await Promise.all([
+    const [customerRows, leadRows, quotationRows, bookingRows] = await Promise.all([
+      db.findMany(schema.tableName, {}),
       db.findMany(schema.leadsTable, {}),
       db.findMany(schema.quotationsTable, {}),
       db.findMany(schema.bookingsTable, {}),
     ]);
 
     const idSet = new Set(ids);
+    const customerById = new Map();
+    (Array.isArray(customerRows) ? customerRows : []).forEach((row) => {
+      if (row?.is_deleted ?? row?.isDeleted ?? false) return;
+      const customerId = String(row?.id ?? "");
+      if (!customerId || !idSet.has(customerId)) return;
+      customerById.set(customerId, row);
+    });
     const leadToCustomerId = new Map();
     (Array.isArray(leadRows) ? leadRows : []).forEach((row) => {
       if (row?.is_deleted ?? row?.isDeleted ?? false) return;
-      const customerId = String(row?.customer_id ?? row?.customerId ?? "");
       const leadId = String(row?.id ?? "");
-      if (!customerId || !leadId || !idSet.has(customerId)) return;
+      if (!leadId) return;
+
+      let customerId = String(row?.customer_id ?? row?.customerId ?? "");
+      if (!customerId || !idSet.has(customerId)) {
+        const rowEmail = normalizeEmail(row?.email);
+        const rowPhone = normalizePhone(row?.phone);
+        customerId =
+          [...customerById.entries()].find(([, customer]) => {
+            const customerEmail = normalizeEmail(customer?.email);
+            const customerPhone = normalizePhone(customer?.phone);
+            return Boolean(
+              (rowEmail && customerEmail && rowEmail === customerEmail) ||
+                (rowPhone && customerPhone && rowPhone === customerPhone),
+            );
+          })?.[0] || "";
+      }
+
+      if (!customerId || !idSet.has(customerId)) return;
       leadToCustomerId.set(leadId, customerId);
     });
 
@@ -736,6 +1135,7 @@ function createCustomersRepository({ db, logger, schema }) {
           totalBookings: 0,
           lastBookingDate: null,
           lastBookingNumber: null,
+          lifetimeValue: 0,
           bookingIds: new Set(),
           lastBookingTimestamp: Number.NEGATIVE_INFINITY,
         });
@@ -745,6 +1145,9 @@ function createCustomersRepository({ db, logger, schema }) {
       if (!summary.bookingIds.has(bookingId)) {
         summary.totalBookings += 1;
         summary.bookingIds.add(bookingId);
+      }
+      if (String(row?.status ?? "PENDING").toUpperCase() !== "CANCELLED") {
+        summary.lifetimeValue += Number(row?.total_amount ?? row?.totalAmount ?? 0);
       }
 
       if (Number.isFinite(bookingTimestamp)) {
@@ -763,6 +1166,7 @@ function createCustomersRepository({ db, logger, schema }) {
         totalBookings: Number(value.totalBookings || 0),
         lastBookingDate: value.lastBookingDate || null,
         lastBookingNumber: value.lastBookingNumber || null,
+        lifetimeValue: Number(value.lifetimeValue || 0),
       });
     });
 
@@ -774,10 +1178,12 @@ function createCustomersRepository({ db, logger, schema }) {
     summarizeList,
     findById,
     findLeadsByCustomerId,
+    findBookingsByCustomerId,
     create,
     update,
     backfillFromLeads,
     findBookingSummaryByCustomerIds,
+    findPaymentOptions,
   });
 }
 

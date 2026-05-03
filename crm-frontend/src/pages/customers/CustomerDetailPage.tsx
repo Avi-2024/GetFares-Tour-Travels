@@ -170,21 +170,68 @@ const CustomerDetailPage: React.FC = () => {
         try {
           const bookingsResponse = await customersApi.getBookings(id)
           const bookingsPayload = bookingsResponse as any
-          const bookingsData = bookingsPayload?.data || bookingsPayload
+          const bookingsData =
+            bookingsPayload?.data?.data ||
+            bookingsPayload?.data ||
+            bookingsPayload?.items ||
+            bookingsPayload ||
+            []
+          const bookingsSummary = bookingsPayload?.summary || {}
 
           if (Array.isArray(bookingsData)) {
-            setRecentBookings(
-              bookingsData.slice(0, 3).map((booking: any) => ({
+            const mappedBookings = bookingsData.map((booking: any) => ({
                 id: booking.id,
                 bookingNumber:
                   booking.bookingNumber || booking.booking_number || 'N/A',
                 destination: booking.destination || 'Unknown',
                 travelDate:
-                  booking.travelStartDate || booking.travel_start_date || 'N/A',
-                amount: booking.totalAmount || booking.total_amount || 0,
+                  booking.travelDate ||
+                  booking.travelStartDate ||
+                  booking.travel_start_date ||
+                  booking.createdAt ||
+                  booking.created_at ||
+                  'N/A',
+                amount:
+                  booking.amount ||
+                  booking.totalAmount ||
+                  booking.total_amount ||
+                  0,
                 status: booking.status || 'PENDING'
               }))
-            )
+            setRecentBookings(mappedBookings)
+            setCustomer(prev => {
+              if (!prev) return prev
+              const totalBookings = Number(
+                bookingsSummary?.totalBookings ??
+                  bookingsSummary?.total_bookings ??
+                  mappedBookings.length
+              )
+              const lifetimeValue =
+                Number(prev.lifetimeValue || 0) > 0 ?
+                  prev.lifetimeValue
+                : mappedBookings.reduce(
+                    (sum, booking) => sum + Number(booking.amount || 0),
+                    0
+                  )
+              const lastBookingDate = mappedBookings.reduce<string | undefined>(
+                (latest, booking) => {
+                  const value = booking.travelDate
+                  if (!value) return latest
+                  if (!latest) return value
+                  return new Date(value).getTime() > new Date(latest).getTime() ?
+                      value
+                    : latest
+                },
+                prev.lastBookingDate
+              )
+
+              return {
+                ...prev,
+                totalBookings,
+                lifetimeValue,
+                lastBookingDate
+              }
+            })
           }
         } catch (bookingError) {
           console.log('Could not fetch bookings:', bookingError)
@@ -682,7 +729,7 @@ const CustomerDetailPage: React.FC = () => {
 
               <div className='p-6'>
                 {customerLeads.length ? (
-                  <div className='space-y-3'>
+                  <div className='max-h-[420px] space-y-3 overflow-y-auto pr-2'>
                     {customerLeads.map(lead => (
                       <div
                         key={lead.id}
@@ -731,7 +778,8 @@ const CustomerDetailPage: React.FC = () => {
               </div>
 
               <div className='p-6'>
-                <div className='space-y-3'>
+                {recentBookings.length ? (
+                  <div className='max-h-[420px] space-y-3 overflow-y-auto pr-2'>
                   {recentBookings.map(booking => (
                     <div
                       key={booking.id}
@@ -761,7 +809,12 @@ const CustomerDetailPage: React.FC = () => {
                       </div>
                     </div>
                   ))}
-                </div>
+                  </div>
+                ) : (
+                  <p className='text-sm text-gray-500 dark:text-gray-400'>
+                    No bookings found for this customer.
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -808,7 +861,9 @@ const CustomerDetailPage: React.FC = () => {
                     Last Booking
                   </span>
                   <span className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
-                    {customer.lastBookingDate || 'N/A'}
+                    {customer.lastBookingDate ?
+                      formatDate(customer.lastBookingDate).split(',')[0]
+                    : 'N/A'}
                   </span>
                 </div>
 

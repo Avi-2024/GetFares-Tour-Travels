@@ -24,6 +24,25 @@ function createCustomersController({ service }) {
     });
   }
 
+  async function getBookings(req, res) {
+    const result = await service.getBookings(req.validated.params.id, req.context);
+    res.status(200).json({
+      data: result.items,
+      summary: { totalBookings: result.totalBookings },
+    });
+  }
+
+  async function getPaymentOptions(req, res) {
+    const result = await service.getPaymentOptions(req.context);
+    res.status(200).json({
+      data: result.items,
+      summary: {
+        totalCustomers: result.totalCustomers,
+        totalBookings: result.totalBookings,
+      },
+    });
+  }
+
   async function create(req, res) {
     const result = await service.create(req.validated.body, req.context);
     res.status(201).json({ data: result });
@@ -47,6 +66,8 @@ function createCustomersController({ service }) {
     list,
     getById,
     getLeads,
+    getBookings,
+    getPaymentOptions,
     create,
     update,
     remove,
