@@ -101,6 +101,15 @@ function createReportsService({ repository, logger, currencyService }) {
       return repository.getLeadsByConsultant(scoped);
     },
 
+    async dealLines(filters = {}, context = {}) {
+      const scoped = mergeConsultantScope(filters, context);
+      logger.debug(
+        { module: "reports", requestId: context.requestId, filters: scoped },
+        "Lead deal-line report",
+      );
+      return repository.getDealLinesReport(scoped);
+    },
+
     async leadAging(filters = {}, context = {}) {
       const scoped = mergeConsultantScope(filters, context);
       logger.debug(
@@ -216,6 +225,15 @@ function createReportsService({ repository, logger, currencyService }) {
         "Call log report",
       );
       return repository.getCallLogReport(scoped);
+    },
+
+    async activityFeed(filters = {}, context = {}) {
+      const scoped = mergeConsultantScope(filters, context);
+      logger.debug(
+        { module: "reports", requestId: context.requestId, filters: scoped },
+        "Lead activity feed (non-call)",
+      );
+      return repository.getLeadActivityFeed(scoped);
     },
 
     async monthlySummary(filters = {}, context = {}) {

@@ -30,6 +30,7 @@ const sendText = z.object({
       to: z.string().min(6).max(25),
       text: z.string().min(1).max(4000),
       previewUrl: z.boolean().optional(),
+      leadId: z.string().min(10).max(64).optional(),
       phoneNumberId: z.string().min(4).max(64).optional(),
       countryId: z.string().min(4).max(64).optional(),
       countryCode: z.string().min(2).max(10).optional(),
@@ -39,6 +40,31 @@ const sendText = z.object({
     .passthrough(),
   params: z.object({}).optional(),
   query: z.object({}).optional(),
+});
+
+const listConversationMessages = z.object({
+  params: z.object({
+    leadId: z.string().min(10).max(64),
+  }),
+  query: z
+    .object({
+      region: z.string().max(16).optional(),
+    })
+    .passthrough(),
+  body: z.object({}).optional(),
+});
+
+const listThreads = z.object({
+  query: z
+    .object({
+      page: z.coerce.number().int().min(1).optional(),
+      limit: z.coerce.number().int().min(1).max(100).optional(),
+      q: z.string().max(120).optional(),
+      region: z.string().max(16).optional(),
+    })
+    .passthrough(),
+  params: z.object({}).optional(),
+  body: z.object({}).optional(),
 });
 
 const sendTemplate = z.object({
@@ -65,4 +91,6 @@ export const WhatsAppValidation = {
   configStatus,
   sendText,
   sendTemplate,
+  listConversationMessages,
+  listThreads,
 };

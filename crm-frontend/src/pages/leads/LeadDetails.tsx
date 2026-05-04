@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { FaArrowLeft, FaCheckCircle, FaClock } from 'react-icons/fa'
+import { FaArrowLeft, FaCheckCircle, FaClock, FaEnvelope, FaWhatsapp } from 'react-icons/fa'
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import StatusBadge from '../../components/ui/StatusBadge'
 import SearchableDropdown from '../../components/ui/SearchableDropdown'
@@ -198,6 +198,7 @@ const LeadDetails: React.FC = () => {
   const [quotationActionError, setQuotationActionError] = useState('')
   const [quotationActionMessage, setQuotationActionMessage] = useState('')
   const [quotationActionLoadingKey, setQuotationActionLoadingKey] = useState('')
+  const [waQuickLine, setWaQuickLine] = useState<'all' | 'in' | 'uae'>('all')
   const [quotationPdfData, setQuotationPdfData] = useState<any | null>(null)
   const pdfTemplateRef = useRef<HTMLDivElement | null>(null)
   const [conversionFollowUpMessage, setConversionFollowUpMessage] = useState('')
@@ -1539,21 +1540,71 @@ const LeadDetails: React.FC = () => {
       >
         {quotationPdfData ? <PdfTemplate data={quotationPdfData} /> : null}
       </div>
-      <div className='flex items-center gap-3'>
-        <button
-          onClick={() => navigate('/leads')}
-          className='inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
-        >
-          <FaArrowLeft className='text-sm' />
-        </button>
-        <div>
-          <h1 className='text-2xl font-bold text-gray-900 dark:text-gray-100'>
-            Lead Details
-          </h1>
-          <p className='text-sm text-gray-500'>
-            SOP workflow with compliance and SLA tracking.
-          </p>
+      <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
+        <div className='flex items-center gap-3 min-w-0'>
+          <button
+            onClick={() => navigate('/leads')}
+            className='inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
+          >
+            <FaArrowLeft className='text-sm' />
+          </button>
+          <div className='min-w-0'>
+            <h1 className='text-2xl font-bold text-gray-900 dark:text-gray-100'>
+              Lead Details
+            </h1>
+            <p className='text-sm text-gray-500'>
+              SOP workflow with compliance and SLA tracking.
+            </p>
+          </div>
         </div>
+        {lead && id ? (
+          <div className='flex flex-wrap items-center gap-2 shrink-0'>
+            <label className='sr-only' htmlFor='wa-line-quick'>
+              WhatsApp business line
+            </label>
+            <select
+              id='wa-line-quick'
+              value={waQuickLine}
+              onChange={e =>
+                setWaQuickLine(e.target.value as 'all' | 'in' | 'uae')
+              }
+              className='rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs font-medium text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200'
+            >
+              <option value='all'>WA: All numbers</option>
+              <option value='in'>WA: India</option>
+              <option value='uae'>WA: UAE</option>
+            </select>
+            <button
+              type='button'
+              onClick={() =>
+                navigate(
+                  `/whatsapp?leadId=${encodeURIComponent(id)}&region=${encodeURIComponent(waQuickLine)}`
+                )
+              }
+              className='inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700'
+            >
+              <FaWhatsapp className='text-sm' />
+              WhatsApp
+            </button>
+            {lead.email && String(lead.email).includes('@') ? (
+              <a
+                href={`mailto:${String(lead.email).trim()}?subject=${encodeURIComponent(`Lead ${String(lead.leadCode ?? lead.lead_code ?? id)}`)}`}
+                className='inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-800 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800'
+              >
+                <FaEnvelope className='text-sm text-blue-600' />
+                Email
+              </a>
+            ) : (
+              <span
+                className='inline-flex cursor-not-allowed items-center gap-1.5 rounded-lg border border-dashed border-gray-200 px-3 py-1.5 text-xs text-gray-400 dark:border-gray-700'
+                title='No email on lead'
+              >
+                <FaEnvelope className='text-sm' />
+                Email
+              </span>
+            )}
+          </div>
+        ) : null}
       </div>
 
       {error ? (

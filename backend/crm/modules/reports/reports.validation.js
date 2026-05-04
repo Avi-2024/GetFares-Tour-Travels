@@ -7,7 +7,12 @@ const baseDateRangeQuery = z.object({
 
 const queryWithOptionalUser = baseDateRangeQuery.extend({
   userId: z.string().uuid().optional(),
+  supplierId: z.string().uuid().optional(),
   destination: z.string().trim().min(1).optional(),
+  country: z.string().trim().min(1).max(160).optional(),
+  status: z.string().trim().min(1).max(40).optional(),
+  source: z.string().trim().min(1).max(120).optional(),
+  leadSource: z.string().trim().min(1).max(120).optional(),
 });
 
 const bySource = z.object({
@@ -20,6 +25,16 @@ const byConsultant = z.object({
   body: z.object({}).optional(),
   params: z.object({}).optional(),
   query: queryWithOptionalUser.optional(),
+});
+
+const dealLines = z.object({
+  body: z.object({}).optional(),
+  params: z.object({}).optional(),
+  query: queryWithOptionalUser
+    .extend({
+      limit: z.coerce.number().int().min(1).max(2500).optional(),
+    })
+    .optional(),
 });
 
 const leadAging = z.object({
@@ -150,6 +165,16 @@ const callLog = z.object({
   query: queryWithOptionalUser.optional(),
 });
 
+const activityFeed = z.object({
+  body: z.object({}).optional(),
+  params: z.object({}).optional(),
+  query: queryWithOptionalUser
+    .extend({
+      limit: z.coerce.number().int().min(1).max(500).optional(),
+    })
+    .optional(),
+});
+
 const pipelineForecast = z.object({
   body: z.object({}).optional(),
   params: z.object({}).optional(),
@@ -179,7 +204,7 @@ const financeSupplierServices = z.object({
     .extend({
       supplierId: z.string().uuid().optional(),
       page: z.coerce.number().int().min(1).optional(),
-      limit: z.coerce.number().int().min(1).max(200).optional(),
+      limit: z.coerce.number().int().min(1).max(2000).optional(),
     })
     .optional(),
 });
@@ -187,6 +212,7 @@ const financeSupplierServices = z.object({
 const ReportsValidation = {
   bySource,
   byConsultant,
+  dealLines,
   leadAging,
   lostLeads,
   monthlyRevenue,
@@ -200,6 +226,7 @@ const ReportsValidation = {
   followupsToday,
   followupsMissed,
   callLog,
+  activityFeed,
   monthlySummary,
   executiveKpis,
   conversionFunnel,

@@ -16,6 +16,14 @@ function createReportsController({ service }) {
       res.status(200).json({ data: result });
     },
 
+    async dealLines(req, res) {
+      const result = await service.dealLines(
+        req.validated?.query || req.query,
+        req.context,
+      );
+      res.status(200).json({ data: result });
+    },
+
     async leadAging(req, res) {
       const result = await service.leadAging(
         req.validated?.query || req.query,
@@ -114,6 +122,14 @@ function createReportsController({ service }) {
 
     async callLog(req, res) {
       const result = await service.callLog(
+        req.validated?.query || req.query,
+        req.context,
+      );
+      res.status(200).json({ data: result });
+    },
+
+    async activityFeed(req, res) {
+      const result = await service.activityFeed(
         req.validated?.query || req.query,
         req.context,
       );
