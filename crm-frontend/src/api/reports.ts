@@ -9,6 +9,12 @@ export const reportsApi = {
     apiRequest(withQuery("/api/reports/funnel/conversion", params)),
   revenueMonthly: (params?: Record<string, string | number | boolean>) =>
     apiRequest(withQuery("/api/reports/revenue/monthly", params)),
+  revenueByDestination: (
+    params?: Record<string, string | number | boolean>,
+  ) => apiRequest(withQuery("/api/reports/revenue/by-destination", params)),
+  targetVsAchievement: (
+    params?: Record<string, string | number | boolean>,
+  ) => apiRequest(withQuery("/api/reports/sales/target-vs-achievement", params)),
   leadsBySource: (params?: Record<string, string | number | boolean>) =>
     apiRequest(withQuery("/api/reports/leads/by-source", params)),
   leadsByConsultant: (params?: Record<string, string | number | boolean>) =>

@@ -11,6 +11,8 @@ const DOMAIN_EVENT_NAMES = Object.freeze([
   "leads.followup_overdue",
   "leads.sla_breached",
   "leads.escalated",
+  "refunds.created",
+  "refunds.updated",
 ]);
 
 function registerNotificationsSubscribers({ eventBus, service, logger }) {

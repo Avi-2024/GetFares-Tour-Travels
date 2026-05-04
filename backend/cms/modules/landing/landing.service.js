@@ -149,11 +149,7 @@ function createLandingService({ repository }) {
       excludeId,
     );
     if (duplicate) {
-      throw new AppError(
-        400,
-        `Display order ${normalizedOrder} is already taken in country "${country}"`,
-        "DISPLAY_ORDER_CONFLICT",
-      );
+      await repository.update(duplicate.id, { display_order: -1 });
     }
     return normalizedOrder;
   }

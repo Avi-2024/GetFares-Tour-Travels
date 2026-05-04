@@ -16,6 +16,7 @@ export const customersApi = {
       method: "POST",
       body: { leadId },
     }),
+  getPaymentOptions: () => apiRequest(`/api/customers/payment-options`),
   getLeads: (id: string) => apiRequest(`/api/customers/${id}/leads`),
   getBookings: (id: string) => apiRequest(`/api/customers/${id}/bookings`),
   updateSegment: (id: string, segment: string) =>

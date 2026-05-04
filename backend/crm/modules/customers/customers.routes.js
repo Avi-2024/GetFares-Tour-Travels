@@ -18,6 +18,26 @@ function createCustomersRoutes({
     asyncHandler(controller.list),
   );
   router.get(
+    "/payment-options",
+    requireAuth,
+    authorize("customers:read"),
+    asyncHandler(controller.getPaymentOptions),
+  );
+  router.get(
+    "/:id/leads",
+    requireAuth,
+    authorize("customers:read"),
+    validateRequest(validation.byId),
+    asyncHandler(controller.getLeads),
+  );
+  router.get(
+    "/:id/bookings",
+    requireAuth,
+    authorize("customers:read"),
+    validateRequest(validation.byId),
+    asyncHandler(controller.getBookings),
+  );
+  router.get(
     "/:id",
     requireAuth,
     authorize("customers:read"),

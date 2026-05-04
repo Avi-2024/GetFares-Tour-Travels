@@ -43,6 +43,56 @@ function createReportsRepository({ db, schema, logger }) {
     };
   }
 
+  function leadWhereFromRange(range, filters = {}, leadAlias = "l") {
+    const clauses = [];
+    const params = [...range.params];
+    if (range.sql) clauses.push(range.sql.replace(/^WHERE\s+/i, ""));
+    if (filters.userId) {
+      clauses.push(`${leadAlias}.assigned_to = ?`);
+      params.push(filters.userId);
+    }
+    if (filters.destination) {
+      clauses.push(`LOWER(COALESCE(${leadAlias}.destination, '')) = LOWER(?)`);
+      params.push(filters.destination);
+    }
+    return {
+      sql: clauses.length ? `WHERE ${clauses.join(" AND ")}` : "",
+      params,
+    };
+  }
+
+  function bookingQuotWhereFromRange(range, filters = {}) {
+    const clauses = [];
+    const params = [...range.params];
+    if (range.sql) clauses.push(range.sql.replace(/^WHERE\s+/i, ""));
+    if (filters.userId) {
+      clauses.push("q.created_by = ?");
+      params.push(filters.userId);
+    }
+    return {
+      sql: clauses.length ? `WHERE ${clauses.join(" AND ")}` : "",
+      params,
+    };
+  }
+
+  function bookingLeadWhereFromRange(range, filters = {}) {
+    const clauses = [];
+    const params = [...range.params];
+    if (range.sql) clauses.push(range.sql.replace(/^WHERE\s+/i, ""));
+    if (filters.userId) {
+      clauses.push("q.created_by = ?");
+      params.push(filters.userId);
+    }
+    if (filters.destination) {
+      clauses.push("LOWER(COALESCE(l.destination, '')) = LOWER(?)");
+      params.push(filters.destination);
+    }
+    return {
+      sql: clauses.length ? `WHERE ${clauses.join(" AND ")}` : "",
+      params,
+    };
+  }
+
   async function queryRows(sql, params = []) {
     if (!canUseRawQuery()) {
       return [];
@@ -66,6 +116,7 @@ function createReportsRepository({ db, schema, logger }) {
   return Object.freeze({
     async getLeadsBySource(filters = {}) {
       const range = buildDateRangeClause("l.created_at", filters);
+      const { sql: whereSql, params } = leadWhereFromRange(range, filters);
       const rows = await queryRows(
         `
           SELECT
@@ -73,11 +124,11 @@ function createReportsRepository({ db, schema, logger }) {
             COUNT(*) AS total_leads,
             SUM(CASE WHEN l.status = 'CONVERTED' THEN 1 ELSE 0 END) AS converted_leads
           FROM ${schema.leadsTable} l
-          ${range.sql}
+          ${whereSql}
           GROUP BY COALESCE(l.source, 'UNKNOWN')
           ORDER BY total_leads DESC
         `,
-        range.params,
+        params,
       );
 
       return rows.map((row) => {
@@ -150,6 +201,7 @@ function createReportsRepository({ db, schema, logger }) {
 
     async getLeadAgingReport(filters = {}) {
       const range = buildDateRangeClause("l.created_at", filters);
+      const { sql: whereSql, params } = leadWhereFromRange(range, filters);
       const rows = await queryRows(
         `
           SELECT
@@ -162,10 +214,10 @@ function createReportsRepository({ db, schema, logger }) {
             TIMESTAMPDIFF(HOUR, l.created_at, CURRENT_TIMESTAMP) AS age_hours
           FROM ${schema.leadsTable} l
           LEFT JOIN ${schema.usersTable} u ON u.id = l.assigned_to
-          ${range.sql}
+          ${whereSql}
           ORDER BY l.created_at ASC
         `,
-        range.params,
+        params,
       );
 
       return rows.map((row) => ({
@@ -181,6 +233,13 @@ function createReportsRepository({ db, schema, logger }) {
 
     async getLostLeadReport(filters = {}) {
       const range = buildDateRangeClause("l.updated_at", filters);
+      const clauses = ["l.status = 'LOST'"];
+      const params = [...range.params];
+      if (range.sql) clauses.push(range.sql.replace(/^WHERE\s+/i, ""));
+      if (filters.userId) {
+        clauses.push("l.assigned_to = ?");
+        params.push(filters.userId);
+      }
       const rows = await queryRows(
         `
           SELECT
@@ -190,11 +249,10 @@ function createReportsRepository({ db, schema, logger }) {
             l.closed_reason,
             l.updated_at AS lost_at
           FROM ${schema.leadsTable} l
-          WHERE l.status = 'LOST'
-          ${range.sql ? `AND ${range.sql.replace(/^WHERE\s+/i, "")}` : ""}
+          WHERE ${clauses.join(" AND ")}
           ORDER BY l.updated_at DESC
         `,
-        range.params,
+        params,
       );
 
       return rows.map((row) => ({
@@ -208,6 +266,7 @@ function createReportsRepository({ db, schema, logger }) {
 
     async getRevenueByMonth(filters = {}) {
       const range = buildDateRangeClause("b.created_at", filters);
+      const { sql: whereSql, params } = bookingQuotWhereFromRange(range, filters);
       const rows = await queryRows(
         `
           SELECT
@@ -216,11 +275,12 @@ function createReportsRepository({ db, schema, logger }) {
             SUM(COALESCE(b.cost_amount, 0)) AS cost,
             SUM(COALESCE(b.total_amount, 0) - COALESCE(b.cost_amount, 0)) AS profit
           FROM ${schema.bookingsTable} b
-          ${range.sql}
+          LEFT JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
+          ${whereSql}
           GROUP BY DATE_FORMAT(b.created_at, '%Y-%m')
           ORDER BY DATE_FORMAT(b.created_at, '%Y-%m')
         `,
-        range.params,
+        params,
       );
 
       return rows.map((row) => ({
@@ -233,6 +293,7 @@ function createReportsRepository({ db, schema, logger }) {
 
     async getRevenueByServiceType(filters = {}) {
       const range = buildDateRangeClause("b.created_at", filters);
+      const { sql: whereSql, params } = bookingQuotWhereFromRange(range, filters);
       const rows = await queryRows(
         `
           WITH base AS (
@@ -241,8 +302,9 @@ function createReportsRepository({ db, schema, logger }) {
               b.total_amount,
               CASE WHEN vc.id IS NULL THEN 'HOLIDAY' ELSE 'VISA' END AS service_type
             FROM ${schema.bookingsTable} b
+            LEFT JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
             LEFT JOIN ${schema.visaCasesTable} vc ON vc.booking_id = b.id
-            ${range.sql}
+            ${whereSql}
           )
           SELECT
             service_type,
@@ -252,7 +314,7 @@ function createReportsRepository({ db, schema, logger }) {
           GROUP BY service_type
           ORDER BY revenue DESC
         `,
-        range.params,
+        params,
       );
 
       return rows.map((row) => ({
@@ -264,6 +326,15 @@ function createReportsRepository({ db, schema, logger }) {
 
     async getRevenueByDestination(filters = {}) {
       const range = buildDateRangeClause("b.created_at", filters);
+      const { sql: scopedWhereSql, params } = bookingQuotWhereFromRange(range, filters);
+      const clauses = scopedWhereSql
+        ? [scopedWhereSql.replace(/^WHERE\s+/i, "")]
+        : [];
+      if (filters.destination) {
+        clauses.push("LOWER(COALESCE(l.destination, d.name, '')) = LOWER(?)");
+        params.push(filters.destination);
+      }
+      const whereSql = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
       const rows = await queryRows(
         `
           SELECT
@@ -274,11 +345,11 @@ function createReportsRepository({ db, schema, logger }) {
           LEFT JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
           LEFT JOIN ${schema.leadsTable} l ON l.id = q.lead_id
           LEFT JOIN ${schema.destinationsTable} d ON d.id = l.destination_id
-          ${range.sql}
+          ${whereSql}
           GROUP BY COALESCE(d.name, 'UNKNOWN')
           ORDER BY revenue DESC
         `,
-        range.params,
+        params,
       );
 
       return rows.map((row) => ({
@@ -338,6 +409,7 @@ function createReportsRepository({ db, schema, logger }) {
 
     async getOutstandingPayments(filters = {}) {
       const range = buildDateRangeClause("b.created_at", filters);
+      const { sql: whereSql, params } = bookingQuotWhereFromRange(range, filters);
       const rows = await queryRows(
         `
           SELECT
@@ -348,10 +420,11 @@ function createReportsRepository({ db, schema, logger }) {
             (COALESCE(b.total_amount, 0) - COALESCE(b.advance_received, 0)) AS outstanding_amount,
             b.payment_status
           FROM ${schema.bookingsTable} b
-          ${range.sql}
+          LEFT JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
+          ${whereSql}
           ORDER BY outstanding_amount DESC
         `,
-        range.params,
+        params,
       );
 
       return rows
@@ -368,6 +441,14 @@ function createReportsRepository({ db, schema, logger }) {
 
     async getPaymentModeReport(filters = {}) {
       const range = buildDateRangeClause("p.created_at", filters);
+      const clauses = [];
+      const params = [...range.params];
+      if (range.sql) clauses.push(range.sql.replace(/^WHERE\s+/i, ""));
+      if (filters.userId) {
+        clauses.push("q.created_by = ?");
+        params.push(filters.userId);
+      }
+      const whereSql = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
       const rows = await queryRows(
         `
           SELECT
@@ -375,11 +456,13 @@ function createReportsRepository({ db, schema, logger }) {
             COUNT(*) AS total_payments,
             SUM(COALESCE(p.amount, 0)) AS total_amount
           FROM ${schema.paymentsTable} p
-          ${range.sql}
+          INNER JOIN ${schema.bookingsTable} b ON b.id = p.booking_id
+          LEFT JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
+          ${whereSql}
           GROUP BY p.payment_mode
           ORDER BY total_amount DESC
         `,
-        range.params,
+        params,
       );
 
       return rows.map((row) => ({
@@ -391,6 +474,7 @@ function createReportsRepository({ db, schema, logger }) {
 
     async getProfitMarginReport(filters = {}) {
       const range = buildDateRangeClause("b.created_at", filters);
+      const { sql: whereSql, params } = bookingQuotWhereFromRange(range, filters);
       const rows = await queryRows(
         `
           SELECT
@@ -399,9 +483,10 @@ function createReportsRepository({ db, schema, logger }) {
             SUM(COALESCE(b.cost_amount, 0)) AS total_cost,
             SUM(COALESCE(b.total_amount, 0) - COALESCE(b.cost_amount, 0)) AS total_profit
           FROM ${schema.bookingsTable} b
-          ${range.sql}
+          LEFT JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
+          ${whereSql}
         `,
-        range.params,
+        params,
       );
 
       const row = rows[0] || {};
@@ -432,6 +517,10 @@ function createReportsRepository({ db, schema, logger }) {
       if (filters.to) {
         params.push(filters.to);
         where.push(`q.created_at <= ?`);
+      }
+      if (filters.userId) {
+        params.push(filters.userId);
+        where.push(`q.created_by = ?`);
       }
       if (filters.currency) {
         params.push(String(filters.currency).trim().toUpperCase());
@@ -587,6 +676,10 @@ function createReportsRepository({ db, schema, logger }) {
       if (filters.to) {
         params.push(filters.to);
         where.push(`q.created_at <= ?`);
+      }
+      if (filters.userId) {
+        params.push(filters.userId);
+        where.push(`q.created_by = ?`);
       }
       const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
 
@@ -784,6 +877,21 @@ function createReportsRepository({ db, schema, logger }) {
 
     async getVisaSummary(filters = {}) {
       const range = buildDateRangeClause("vc.created_at", filters);
+      const clauses = [];
+      const params = [...range.params];
+      if (range.sql) clauses.push(range.sql.replace(/^WHERE\s+/i, ""));
+      if (filters.userId) {
+        clauses.push("q.created_by = ?");
+        params.push(filters.userId);
+      }
+      const whereSql = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+      const scopeJoinSql = filters.userId ?
+        `
+          INNER JOIN ${schema.bookingsTable} b ON b.id = vc.booking_id
+          INNER JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
+        `
+      : "";
+
       const rows = await queryRows(
         `
           SELECT
@@ -799,9 +907,10 @@ function createReportsRepository({ db, schema, logger }) {
               END
             ) AS average_processing_days
           FROM ${schema.visaCasesTable} vc
-          ${range.sql}
+          ${scopeJoinSql}
+          ${whereSql}
         `,
-        range.params,
+        params,
       );
 
       const row = rows[0] || {};
@@ -824,6 +933,12 @@ function createReportsRepository({ db, schema, logger }) {
 
     async getTodayFollowups(filters = {}) {
       const date = filters.date || new Date().toISOString().slice(0, 10);
+      const params = [date];
+      let extra = "";
+      if (filters.userId) {
+        extra = " AND l.assigned_to = ?";
+        params.push(filters.userId);
+      }
       const rows = await queryRows(
         `
           SELECT
@@ -834,11 +949,12 @@ function createReportsRepository({ db, schema, logger }) {
             f.followup_date,
             f.is_completed
           FROM ${schema.followupsTable} f
-          LEFT JOIN ${schema.leadsTable} l ON l.id = f.lead_id
+          INNER JOIN ${schema.leadsTable} l ON l.id = f.lead_id
           WHERE DATE(f.followup_date) = ?
+          ${extra}
           ORDER BY f.followup_date ASC
         `,
-        [date],
+        params,
       );
 
       return rows.map((row) => ({
@@ -853,6 +969,12 @@ function createReportsRepository({ db, schema, logger }) {
 
     async getMissedFollowups(filters = {}) {
       const date = filters.date || new Date().toISOString().slice(0, 10);
+      const params = [date];
+      let extra = "";
+      if (filters.userId) {
+        extra = " AND l.assigned_to = ?";
+        params.push(filters.userId);
+      }
       const rows = await queryRows(
         `
           SELECT
@@ -862,12 +984,13 @@ function createReportsRepository({ db, schema, logger }) {
             f.followup_type,
             f.followup_date
           FROM ${schema.followupsTable} f
-          LEFT JOIN ${schema.leadsTable} l ON l.id = f.lead_id
+          INNER JOIN ${schema.leadsTable} l ON l.id = f.lead_id
           WHERE DATE(f.followup_date) < ?
             AND COALESCE(f.is_completed, FALSE) = FALSE
+          ${extra}
           ORDER BY f.followup_date ASC
         `,
-        [date],
+        params,
       );
 
       return rows.map((row) => ({
@@ -927,17 +1050,22 @@ function createReportsRepository({ db, schema, logger }) {
     },
 
     async getMonthlySummary(filters = {}) {
-      const where = [];
-      const params = [];
-      if (filters.from) {
-        params.push(filters.from);
-        where.push(`b.created_at >= ?`);
+      const range = buildDateRangeClause("b.created_at", filters);
+      const bookingClauses = [];
+      const bookingParams = [...range.params];
+      if (range.sql) bookingClauses.push(range.sql.replace(/^WHERE\s+/i, ""));
+      if (filters.userId) {
+        bookingClauses.push("q.created_by = ?");
+        bookingParams.push(filters.userId);
       }
-      if (filters.to) {
-        params.push(filters.to);
-        where.push(`b.created_at <= ?`);
-      }
-      const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+      const bookingWhere =
+        bookingClauses.length ?
+          `WHERE ${bookingClauses.join(" AND ")}`
+        : "";
+
+      const leadParams = [];
+      const leadWhere = filters.userId ? `WHERE assigned_to = ?` : "";
+      if (filters.userId) leadParams.push(filters.userId);
 
       const rows = await queryRows(
         `
@@ -946,6 +1074,7 @@ function createReportsRepository({ db, schema, logger }) {
               COUNT(*) AS total_leads,
               SUM(CASE WHEN status = 'CONVERTED' THEN 1 ELSE 0 END) AS converted_leads
             FROM ${schema.leadsTable}
+            ${leadWhere}
           ),
           booking_stats AS (
             SELECT
@@ -953,7 +1082,8 @@ function createReportsRepository({ db, schema, logger }) {
               SUM(COALESCE(total_amount, 0)) AS revenue,
               SUM(COALESCE(cost_amount, 0)) AS cost
             FROM ${schema.bookingsTable} b
-            ${whereSql}
+            LEFT JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
+            ${bookingWhere}
           )
           SELECT
             ls.total_leads,
@@ -965,7 +1095,7 @@ function createReportsRepository({ db, schema, logger }) {
           FROM lead_stats ls
           CROSS JOIN booking_stats bs
         `,
-        params,
+        [...leadParams, ...bookingParams],
       );
 
       const row = rows[0] || {};
@@ -995,8 +1125,28 @@ function createReportsRepository({ db, schema, logger }) {
 
     async getExecutiveKpis(filters = {}) {
       const bookingRange = buildDateRangeClause("b.created_at", filters);
+      const {
+        sql: bookingWhereSql,
+        params: bookingParams,
+      } = bookingLeadWhereFromRange(bookingRange, filters);
+
       const leadRange = buildDateRangeClause("l.created_at", filters);
+      const { sql: leadWhereSql, params: leadParams } = leadWhereFromRange(
+        leadRange,
+        filters,
+      );
+
       const refundRange = buildDateRangeClause("r.created_at", filters);
+      const refundClauses = [];
+      const refundParams = [...refundRange.params];
+      if (refundRange.sql)
+        refundClauses.push(refundRange.sql.replace(/^WHERE\s+/i, ""));
+      if (filters.userId) {
+        refundClauses.push("q.created_by = ?");
+        refundParams.push(filters.userId);
+      }
+      const refundWhereSql =
+        refundClauses.length ? `WHERE ${refundClauses.join(" AND ")}` : "";
 
       const bookingRows = await queryRows(
         `
@@ -1006,20 +1156,24 @@ function createReportsRepository({ db, schema, logger }) {
             SUM(COALESCE(b.cost_amount, 0)) AS total_cost,
             SUM(CASE WHEN b.status = 'CANCELLED' THEN 1 ELSE 0 END) AS cancelled_bookings
           FROM ${schema.bookingsTable} b
-          ${bookingRange.sql}
+          LEFT JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
+          LEFT JOIN ${schema.leadsTable} l ON l.id = q.lead_id
+          ${bookingWhereSql}
         `,
-        bookingRange.params,
+        bookingParams,
       );
 
       const leadRows = await queryRows(
         `
           SELECT
             COUNT(*) AS total_leads,
-            SUM(CASE WHEN l.status = 'CONVERTED' THEN 1 ELSE 0 END) AS converted_leads
+            SUM(CASE WHEN l.status = 'CONVERTED' THEN 1 ELSE 0 END) AS converted_leads,
+            SUM(CASE WHEN COALESCE(l.lead_type, 'HOLIDAY') = 'VISA' THEN 1 ELSE 0 END) AS visa_leads,
+            SUM(CASE WHEN COALESCE(l.lead_type, 'HOLIDAY') <> 'VISA' THEN 1 ELSE 0 END) AS holiday_leads
           FROM ${schema.leadsTable} l
-          ${leadRange.sql}
+          ${leadWhereSql}
         `,
-        leadRange.params,
+        leadParams,
       );
 
       const serviceRevenueRows = await queryRows(
@@ -1029,8 +1183,10 @@ function createReportsRepository({ db, schema, logger }) {
               CASE WHEN vc.id IS NULL THEN 'HOLIDAY' ELSE 'VISA' END AS service_type,
               COALESCE(b.total_amount, 0) AS total_amount
             FROM ${schema.bookingsTable} b
+            LEFT JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
+            LEFT JOIN ${schema.leadsTable} l ON l.id = q.lead_id
             LEFT JOIN ${schema.visaCasesTable} vc ON vc.booking_id = b.id
-            ${bookingRange.sql}
+            ${bookingWhereSql}
           )
           SELECT
             service_type,
@@ -1038,8 +1194,16 @@ function createReportsRepository({ db, schema, logger }) {
           FROM service_revenue
           GROUP BY service_type
         `,
-        bookingRange.params,
+        bookingParams,
       );
+
+      const followupExtra = filters.userId
+        ? `
+          INNER JOIN ${schema.leadsTable} fl ON fl.id = f.lead_id
+          WHERE fl.assigned_to = ?
+        `
+        : "";
+      const followupParams = filters.userId ? [filters.userId] : [];
 
       const followupRows = await queryRows(
         `
@@ -1061,7 +1225,9 @@ function createReportsRepository({ db, schema, logger }) {
               END
             ) AS overdue_followups
           FROM ${schema.followupsTable} f
+          ${followupExtra}
         `,
+        followupParams,
       );
 
       const activeAgentsRows = await queryRows(
@@ -1085,9 +1251,11 @@ function createReportsRepository({ db, schema, logger }) {
               END
             ) AS avg_refund_turnaround_days
           FROM ${schema.refundsTable} r
-          ${refundRange.sql}
+          INNER JOIN ${schema.bookingsTable} b ON b.id = r.booking_id
+          LEFT JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
+          ${refundWhereSql}
         `,
-        refundRange.params,
+        refundParams,
       );
 
       const booking = bookingRows[0] || {};
@@ -1098,6 +1266,8 @@ function createReportsRepository({ db, schema, logger }) {
 
       const totalLeads = toNumber(leads.total_leads, 0);
       const convertedLeads = toNumber(leads.converted_leads, 0);
+      const holidayLeads = toNumber(leads.holiday_leads, 0);
+      const visaLeads = toNumber(leads.visa_leads, 0);
       const totalBookings = toNumber(booking.total_bookings, 0);
       const totalRevenue = toNumber(booking.total_revenue, 0);
       const totalCost = toNumber(booking.total_cost, 0);
@@ -1115,6 +1285,8 @@ function createReportsRepository({ db, schema, logger }) {
 
       return {
         totalLeads,
+        holidayLeads,
+        visaLeads,
         convertedLeads,
         conversionRatePercent:
           totalLeads > 0
@@ -1150,6 +1322,10 @@ function createReportsRepository({ db, schema, logger }) {
 
     async getExecutiveBookingRevenueByCurrency(filters = {}) {
       const bookingRange = buildDateRangeClause("b.created_at", filters);
+      const {
+        sql: bookingWhereSql,
+        params: bookingParams,
+      } = bookingLeadWhereFromRange(bookingRange, filters);
       return queryRows(
         `
           SELECT
@@ -1162,7 +1338,9 @@ function createReportsRepository({ db, schema, logger }) {
             ) AS currency,
             SUM(COALESCE(b.total_amount, 0)) AS revenue
           FROM ${schema.bookingsTable} b
-          ${bookingRange.sql}
+          LEFT JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
+          LEFT JOIN ${schema.leadsTable} l ON l.id = q.lead_id
+          ${bookingWhereSql}
           GROUP BY
             UPPER(
               COALESCE(
@@ -1172,12 +1350,16 @@ function createReportsRepository({ db, schema, logger }) {
               )
             )
         `,
-        bookingRange.params,
+        bookingParams,
       );
     },
 
     async getExecutiveServiceRevenueByCurrency(filters = {}) {
       const bookingRange = buildDateRangeClause("b.created_at", filters);
+      const {
+        sql: bookingWhereSql,
+        params: bookingParams,
+      } = bookingLeadWhereFromRange(bookingRange, filters);
       return queryRows(
         `
           WITH service_revenue AS (
@@ -1192,8 +1374,10 @@ function createReportsRepository({ db, schema, logger }) {
               ) AS currency,
               COALESCE(b.total_amount, 0) AS total_amount
             FROM ${schema.bookingsTable} b
+            LEFT JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
+            LEFT JOIN ${schema.leadsTable} l ON l.id = q.lead_id
             LEFT JOIN ${schema.visaCasesTable} vc ON vc.booking_id = b.id
-            ${bookingRange.sql}
+            ${bookingWhereSql}
           )
           SELECT
             service_type,
@@ -1202,22 +1386,23 @@ function createReportsRepository({ db, schema, logger }) {
           FROM service_revenue
           GROUP BY service_type, currency
         `,
-        bookingRange.params,
+        bookingParams,
       );
     },
 
     async getConversionFunnel(filters = {}) {
       const range = buildDateRangeClause("l.created_at", filters);
+      const { sql: whereSql, params } = leadWhereFromRange(range, filters);
       const rows = await queryRows(
         `
           SELECT
             l.status,
             COUNT(*) AS total
           FROM ${schema.leadsTable} l
-          ${range.sql}
+          ${whereSql}
           GROUP BY l.status
         `,
-        range.params,
+        params,
       );
 
       const statusMap = new Map(
@@ -1270,6 +1455,11 @@ function createReportsRepository({ db, schema, logger }) {
 
     async getMarketingPerformance(filters = {}) {
       const range = buildDateRangeClause("l.created_at", filters);
+      const { sql: leadWhereSql, params: leadWhereParams } = leadWhereFromRange(
+        range,
+        filters,
+      );
+      const marketingParams = [...leadWhereParams, ...leadWhereParams];
       const rows = await queryRows(
         `
           WITH lead_stats AS (
@@ -1278,7 +1468,7 @@ function createReportsRepository({ db, schema, logger }) {
               COUNT(*) AS total_leads,
               SUM(CASE WHEN l.status = 'CONVERTED' THEN 1 ELSE 0 END) AS converted_leads
             FROM ${schema.leadsTable} l
-            ${range.sql}
+            ${leadWhereSql}
             GROUP BY l.campaign_id
           ),
           booking_stats AS (
@@ -1289,7 +1479,7 @@ function createReportsRepository({ db, schema, logger }) {
             FROM ${schema.leadsTable} l
             LEFT JOIN ${schema.quotationsTable} q ON q.lead_id = l.id
             LEFT JOIN ${schema.bookingsTable} b ON b.quotation_id = q.id
-            ${range.sql}
+            ${leadWhereSql}
             GROUP BY l.campaign_id
           )
           SELECT
@@ -1307,7 +1497,7 @@ function createReportsRepository({ db, schema, logger }) {
           LEFT JOIN booking_stats bs ON bs.campaign_id = c.id
           ORDER BY revenue DESC, total_leads DESC
         `,
-        range.params,
+        marketingParams,
       );
 
       return rows.map((row) => {
@@ -1406,14 +1596,26 @@ function createReportsRepository({ db, schema, logger }) {
     async getPipelineForecast(filters = {}) {
       const periodMonths = Number(filters.periodMonths || 3);
 
+      const openPipelineClause = filters.userId
+        ? " AND l.assigned_to = ?"
+        : "";
+      const openPipelineParams = filters.userId ? [filters.userId] : [];
+
       const openPipelineRows = await queryRows(
         `
           SELECT
             COUNT(*) AS open_pipeline_leads
           FROM ${schema.leadsTable} l
           WHERE l.status NOT IN ('CONVERTED', 'LOST')
+          ${openPipelineClause}
         `,
+        openPipelineParams,
       );
+
+      const trailingLeadClause = filters.userId
+        ? " AND l.assigned_to = ?"
+        : "";
+      const trailingLeadParams = filters.userId ? [filters.userId] : [];
 
       const conversionRows = await queryRows(
         `
@@ -1422,16 +1624,24 @@ function createReportsRepository({ db, schema, logger }) {
             SUM(CASE WHEN l.status = 'CONVERTED' THEN 1 ELSE 0 END) AS converted_leads
           FROM ${schema.leadsTable} l
           WHERE l.created_at >= (CURRENT_TIMESTAMP - INTERVAL 90 DAY)
+          ${trailingLeadClause}
         `,
+        trailingLeadParams,
       );
+
+      const bookingClause = filters.userId ? " AND q.created_by = ?" : "";
+      const bookingParams = filters.userId ? [filters.userId] : [];
 
       const bookingRows = await queryRows(
         `
           SELECT
             AVG(COALESCE(b.total_amount, 0)) AS avg_booking_value
           FROM ${schema.bookingsTable} b
+          LEFT JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
           WHERE b.created_at >= (CURRENT_TIMESTAMP - INTERVAL 90 DAY)
+          ${bookingClause}
         `,
+        bookingParams,
       );
 
       const seasonalityRows = await queryRows(
@@ -1440,10 +1650,13 @@ function createReportsRepository({ db, schema, logger }) {
             DATE_FORMAT(b.created_at, '%Y-%m') AS month,
             SUM(COALESCE(b.total_amount, 0)) AS revenue
           FROM ${schema.bookingsTable} b
+          LEFT JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
           WHERE b.created_at >= (CURRENT_TIMESTAMP - INTERVAL 12 MONTH)
+          ${bookingClause}
           GROUP BY DATE_FORMAT(b.created_at, '%Y-%m')
           ORDER BY DATE_FORMAT(b.created_at, '%Y-%m')
         `,
+        bookingParams,
       );
 
       const openPipeline = toNumber(
@@ -1504,5 +1717,3 @@ function createReportsRepository({ db, schema, logger }) {
 }
 
 export { createReportsRepository };
-
-

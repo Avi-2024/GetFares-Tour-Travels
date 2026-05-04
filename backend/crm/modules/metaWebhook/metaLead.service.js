@@ -598,8 +598,7 @@ function createMetaLeadService({
   }
 
   async function assertSignature(rawBody, signatureHeader, payload = {}) {
-    console.log("\n========== SIGNATURE VALIDATION ==========");
-    console.log("Allow insecure webhooks:", allowInsecureWebhooks);
+   
     
     if (allowInsecureWebhooks) {
       console.log("Skipping signature validation (insecure mode enabled)");
@@ -608,16 +607,12 @@ function createMetaLeadService({
     }
 
     const secrets = await getSignatureSecrets(payload);
-    console.log("Secrets found:", secrets.length);
     
     if (!secrets.length) {
-      console.log("No secrets configured - skipping validation");
       fileLogger.info("Signature Validation Skipped", { reason: "no_secrets" });
       return;
     }
 
-    console.log("Signature header present:", signatureHeader ? "YES" : "NO");
-    console.log("Raw body length:", rawBody?.length || 0);
     
     const isValid = isValidSignature(rawBody, signatureHeader, secrets);
     fileLogger.logSignatureValidation(isValid, secrets.length);
@@ -627,7 +622,6 @@ function createMetaLeadService({
       throw new AppError(403, "Invalid signature", "META_SIGNATURE_INVALID");
     }
     
-    console.log("Signature validation PASSED");
   }
 
   async function fetchLeadWithRetry(leadgenId, pageConfig = {}) {

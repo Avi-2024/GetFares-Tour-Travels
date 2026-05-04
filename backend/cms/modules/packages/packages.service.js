@@ -338,7 +338,7 @@ function createCmsPackagesService({ repository }) {
       return normalizedOrder;
     }
     const rows = await repository.findAllMainPackages({
-      includeDeleted: true,
+      includeDeleted: false,
       ...(country ? { country } : {}),
       ...(destinationId ? { destinationId } : {}),
     });
@@ -348,11 +348,7 @@ function createCmsPackagesService({ repository }) {
       excludeId,
     );
     if (duplicate) {
-      throw new AppError(
-        400,
-        `Display order ${normalizedOrder} is already taken for country "${country || 'all'}" and destination "${destinationId || 'all'}"`,
-        "DISPLAY_ORDER_CONFLICT",
-      );
+      await repository.updateMainPackage(duplicate.id, { display_order: -1 });
     }
     return normalizedOrder;
   }
@@ -367,7 +363,7 @@ function createCmsPackagesService({ repository }) {
       return normalizedOrder;
     }
     const rows = await repository.findAllSubPackages({
-      includeDeleted: true,
+      includeDeleted: false,
       ...(country ? { country } : {}),
     });
     const duplicate = findDisplayOrderConflict(
@@ -375,12 +371,16 @@ function createCmsPackagesService({ repository }) {
       rows,
       excludeId,
     );
+    // if (duplicate) {
+    //   throw new AppError(
+    //     400,
+    //     `Display order ${normalizedOrder} is already taken in country "${country || 'all'}"`,
+    //     "DISPLAY_ORDER_CONFLICT",
+    //   );
+    // }
+
     if (duplicate) {
-      throw new AppError(
-        400,
-        `Display order ${normalizedOrder} is already taken in country "${country || 'all'}"`,
-        "DISPLAY_ORDER_CONFLICT",
-      );
+      await repository.updateSubPackage(duplicate.id, { display_order: -1 });
     }
     return normalizedOrder;
   }

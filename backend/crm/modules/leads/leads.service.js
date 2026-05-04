@@ -2184,6 +2184,7 @@ function createLeadsService({ repository, logger, events }) {
         );
       }
 
+      const scheduleActivityStamp = resolveActivityStamp(payload);
       const followup = await repository.createFollowup({
         leadId: lead.id,
         userId: payload.userId || context.user?.id || lead.assignedTo || null,
@@ -2191,6 +2192,7 @@ function createLeadsService({ repository, logger, events }) {
         followupDate: wall,
         cadenceCode: payload.cadenceCode || null,
         notes: payload.notes,
+        createdAt: scheduleActivityStamp?.createdAt || null,
         clientTimezone: tz,
         followupLocalAt: wall,
         isScheduleOnly: true,
@@ -2209,7 +2211,6 @@ function createLeadsService({ repository, logger, events }) {
         ) || String(followup.followupDate || "").trim();
       const note = String(payload.notes || "").trim();
 
-      const scheduleActivityStamp = resolveActivityStamp(payload);
       if (scheduleActivityStamp) {
         await repository.createActivity({
           leadId: lead.id,

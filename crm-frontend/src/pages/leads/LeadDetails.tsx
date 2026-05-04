@@ -312,7 +312,15 @@ const LeadDetails: React.FC = () => {
     []
   )
 
+
+
   const formatHistoryActionDisplay = useCallback((item: any) => {
+    const activityCreated = normalizeWallClockDisplay(item?.activityCreatedAt ?? item?.activity_created_at)
+    if (activityCreated) {
+      const tz = item?.activityTimezone ?? item?.activity_timezone ?? item?.clientTimezone ?? item?.client_timezone
+      const t = tz && String(tz).trim() ? ` ${String(tz).trim()}` : ''
+      return `${activityCreated}${t}`
+    }
     const created = normalizeWallClockDisplay(item?.createdAt ?? item?.created_at)
     if (created) {
       const tz = item?.clientTimezone ?? item?.client_timezone
@@ -1229,14 +1237,19 @@ const LeadDetails: React.FC = () => {
     setFollowupScheduleOk('')
     try {
       const wall = wallClockFromDatetimeLocal(followupDraft.followupDate)
+      const createdAtTime = nowWallClockString()
+      const timezone = getBrowserTimeZone()
+      
+      console.log('Scheduling followup with createdAt:', createdAtTime, 'timezone:', timezone)
+      
       await leadsService.addFollowup(id, {
         followupType: followupDraft.followupType,
         followupLocalAt: wall,
         cadenceCode: followupDraft.cadenceCode || undefined,
         notes: followupDraft.notes || undefined,
-        clientTimezone: getBrowserTimeZone(),
-        activityCreatedAt: nowWallClockString(),
-        activityTimezone: getBrowserTimeZone()
+        clientTimezone: timezone,
+        activityCreatedAt: createdAtTime,
+        activityTimezone: timezone
       })
       setFollowupDraft({
         followupType: 'CALL',
@@ -2547,10 +2560,16 @@ const LeadDetails: React.FC = () => {
                         ) : null}
                       </div>
                       <span className='inline-flex items-center gap-1 text-xs text-gray-500'>
-                        <FaClock />
-                        {formatHistoryActionDisplay(item)}
+                        <FaClock />Schedule Time :  {formatFollowupDisplay(item)}
+                        
                       </span>
                     </div>
+                    <p className='mt-2 text-xs text-gray-500 dark:text-gray-400'>
+                      Created at:{' '}
+                      <span className='font-medium text-gray-700 dark:text-gray-200'>
+                        {formatHistoryActionDisplay(item)}
+                      </span>
+                    </p>
                     <p className='mt-2 text-xs text-gray-500 dark:text-gray-400'>
                       Action by:{' '}
                       <span className='font-medium text-gray-700 dark:text-gray-200'>

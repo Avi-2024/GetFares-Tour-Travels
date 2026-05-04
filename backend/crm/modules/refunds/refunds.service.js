@@ -40,6 +40,31 @@ function createRefundsService({ repository, bookingsRepository, leadsRepository,
     );
   }
 
+  async function ensureAccountsAssignee(userId) {
+    const user = await repository.findUserById(userId);
+    if (!user || !user.isActive) {
+      throw new AppError(
+        404,
+        "Assigned finance person not found",
+        "REFUND_ASSIGNEE_NOT_FOUND",
+      );
+    }
+
+    const role = user.roleId ? await repository.findRoleById(user.roleId) : null;
+    const roleName = String(role?.name || "")
+      .trim()
+      .toLowerCase();
+    if (roleName !== "accounts") {
+      throw new AppError(
+        409,
+        "Refund can only be assigned to accounts users",
+        "REFUND_ASSIGNEE_ROLE_INVALID",
+      );
+    }
+
+    return user;
+  }
+
   async function getById(id, context = {}) {
     logger.debug(
       { module: "refunds", requestId: context.requestId, id },
@@ -80,20 +105,48 @@ function createRefundsService({ repository, bookingsRepository, leadsRepository,
     return payment;
   }
 
-  async function getRefundableBalance(bookingId) {
-    const [paidAmount, processedRefundAmount] = await Promise.all([
-      repository.getVerifiedPaidAmount(bookingId),
-      repository.getProcessedRefundAmount(bookingId),
-    ]);
+  async function getRefundableBalance(bookingId, excludeRefundId = null) {
+    const [paidAmount, processedRefundAmount, pendingRefundHeld] =
+      await Promise.all([
+        repository.getVerifiedPaidAmount(bookingId),
+        repository.getProcessedRefundAmount(bookingId),
+        repository.getPendingRefundReservationAmount(
+          bookingId,
+          excludeRefundId,
+        ),
+      ]);
 
+    const raw =
+      paidAmount - processedRefundAmount - pendingRefundHeld;
     return {
       paidAmount,
       processedRefundAmount,
-      refundableBalance: Math.max(
-        Number((paidAmount - processedRefundAmount).toFixed(2)),
-        0,
-      ),
+      pendingRefundHeld,
+      refundableBalance: Math.max(Number(raw.toFixed(2)), 0),
     };
+  }
+
+  async function resolveRaisedByName(context = {}) {
+    const userId = context.user?.id;
+    if (!userId) {
+      throw new AppError(
+        401,
+        "Authentication required",
+        "REFUND_AUTH_REQUIRED",
+      );
+    }
+
+    const me = await repository.findUserById(userId);
+    const name = String(me?.fullName || "").trim();
+    if (name.length < 2) {
+      throw new AppError(
+        400,
+        "User profile needs a valid full name before creating refunds.",
+        "REFUND_RAISER_NAME_MISSING",
+      );
+    }
+
+    return name;
   }
 
   async function syncBookingPaymentSummary(bookingId) {
@@ -133,8 +186,12 @@ function createRefundsService({ repository, bookingsRepository, leadsRepository,
     return {
       booking_id: payload.bookingId,
       payment_id: payload.paymentId || null,
+      assigned_to: payload.assignedTo || null,
+      raised_by_name: payload.raisedByName?.trim() || null,
       refund_amount: toNumber(payload.refundAmount, 0),
       gateway_refund_id: payload.gatewayRefundId || null,
+      proof_url: payload.proofUrl || null,
+      notes: payload.notes?.trim() || null,
       supplier_penalty: toNumber(payload.supplierPenalty, 0),
       service_charge: toNumber(payload.serviceCharge, 0),
       status: REFUND_STATUS.INITIATED,
@@ -145,22 +202,34 @@ function createRefundsService({ repository, bookingsRepository, leadsRepository,
     REFUND_STATUS,
     syncBookingPaymentSummary,
 
-    async list(filters = {}, context = {}) {
+	    async list(filters = {}, context = {}) {
       logger.debug(
         { module: "refunds", requestId: context.requestId, filters },
         "Listing refunds",
       );
-      return repository.findAll(filters);
+	      return repository.findAll(filters);
+	    },
+
+    async listAssignableAccountsUsers(context = {}) {
+      logger.debug(
+        { module: "refunds", requestId: context.requestId },
+        "Listing assignable refund users",
+      );
+      return repository.findAssignableAccountsUsers();
     },
 
-    getById,
+	    getById,
 
-    async create(payload, context = {}) {
-      const booking = await getBookingById(payload.bookingId);
+	    async create(payload, context = {}) {
+	      const booking = await getBookingById(payload.bookingId);
 
-      if (payload.paymentId) {
-        await getPaymentById(payload.paymentId, booking.id);
-      }
+	      if (payload.assignedTo) {
+	        await ensureAccountsAssignee(payload.assignedTo);
+	      }
+
+	      if (payload.paymentId) {
+	        await getPaymentById(payload.paymentId, booking.id);
+	      }
 
       const policy = await getRefundableBalance(booking.id);
       const requestedRefund = toNumber(payload.refundAmount, 0);
@@ -173,12 +242,15 @@ function createRefundsService({ repository, bookingsRepository, leadsRepository,
         );
       }
 
-      const created = await repository.create(buildCreateRecord(payload));
-      events.emitCreated(created);
-      return created;
-    },
+	      const created = await repository.create({
+        ...buildCreateRecord(payload),
+        created_by: context.user?.id || null,
+      });
+	      events.emitCreated(created);
+	      return created;
+	    },
 
-    async update(id, payload, context = {}) {
+	    async update(id, payload, context = {}) {
       const existing = await getById(id, context);
       if (existing.status !== REFUND_STATUS.INITIATED) {
         throw new AppError(
@@ -188,10 +260,16 @@ function createRefundsService({ repository, bookingsRepository, leadsRepository,
         );
       }
 
-      const patch = {};
-      if (payload.refundAmount !== undefined) {
-        patch.refund_amount = toNumber(
-          payload.refundAmount,
+	      const patch = {};
+	      if (payload.assignedTo !== undefined) {
+	        if (payload.assignedTo) {
+	          await ensureAccountsAssignee(payload.assignedTo);
+	        }
+	        patch.assigned_to = payload.assignedTo || null;
+	      }
+	      if (payload.refundAmount !== undefined) {
+	        patch.refund_amount = toNumber(
+	          payload.refundAmount,
           existing.refundAmount,
         );
       }
@@ -210,24 +288,31 @@ function createRefundsService({ repository, bookingsRepository, leadsRepository,
       if (payload.gatewayRefundId !== undefined) {
         patch.gateway_refund_id = payload.gatewayRefundId || null;
       }
+      if (payload.proofUrl !== undefined) {
+        patch.proof_url = payload.proofUrl || null;
+      }
+      if (payload.notes !== undefined) {
+        patch.notes = payload.notes?.trim() || null;
+      }
 
-      const policy = await getRefundableBalance(existing.bookingId);
+      const policy = await getRefundableBalance(
+        existing.bookingId,
+        existing.id,
+      );
       const nextRefundAmount = patch.refund_amount ?? existing.refundAmount;
-      const availableForUpdate =
-        policy.refundableBalance + existing.refundAmount;
 
-      if (toNumber(nextRefundAmount, 0) > availableForUpdate) {
+      if (toNumber(nextRefundAmount, 0) > policy.refundableBalance) {
         throw new AppError(
           409,
-          `Refund amount exceeds refundable balance ${availableForUpdate}.`,
+          `Refund amount exceeds refundable balance (${policy.refundableBalance}; other pending approvals hold ${policy.pendingRefundHeld}).`,
           "REFUND_EXCEEDS_REFUNDABLE_BALANCE",
         );
       }
 
-      const updated = await repository.update(id, patch);
-      events.emitUpdated(updated);
-      return updated;
-    },
+	      const updated = await repository.update(id, patch);
+	      events.emitUpdated(updated);
+	      return updated;
+	    },
 
     async approve(id, payload = {}, context = {}) {
       const existing = await getById(id, context);
@@ -251,10 +336,11 @@ function createRefundsService({ repository, bookingsRepository, leadsRepository,
         );
       }
 
-      const updated = await repository.update(id, {
-        status: REFUND_STATUS.APPROVED,
-        approved_by: context.user?.id || null,
-      });
+	      const updated = await repository.update(id, {
+	        status: REFUND_STATUS.APPROVED,
+	        approved_by: context.user?.id || null,
+        approved_at: payload.approvedAt || new Date().toISOString(),
+	      });
 
       events.emitApproved({
         id: updated.id,
@@ -280,9 +366,12 @@ function createRefundsService({ repository, bookingsRepository, leadsRepository,
         return existing;
       }
 
-      const updated = await repository.update(id, {
-        status: REFUND_STATUS.REJECTED,
-      });
+	      const updated = await repository.update(id, {
+	        status: REFUND_STATUS.REJECTED,
+        rejected_at: payload.rejectedAt || new Date().toISOString(),
+        rejected_by: context.user?.id || null,
+        rejected_reason: payload.reason || null,
+	      });
 
       events.emitRejected({
         id: updated.id,
@@ -304,12 +393,13 @@ function createRefundsService({ repository, bookingsRepository, leadsRepository,
         );
       }
 
-      const updated = await repository.update(id, {
-        status: REFUND_STATUS.PROCESSED,
-        gateway_refund_id:
-          payload.gatewayRefundId || existing.gatewayRefundId || null,
-        processed_at: payload.processedAt || new Date().toISOString(),
-      });
+	      const updated = await repository.update(id, {
+	        status: REFUND_STATUS.PROCESSED,
+	        gateway_refund_id:
+	          payload.gatewayRefundId || existing.gatewayRefundId || null,
+	        processed_at: payload.processedAt || new Date().toISOString(),
+        processed_by: context.user?.id || null,
+	      });
 
       if (existing.paymentId && payload.markPaymentRefunded !== false) {
         const payment = await repository.findPaymentById(existing.paymentId);

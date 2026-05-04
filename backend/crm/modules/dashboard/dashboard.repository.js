@@ -327,15 +327,37 @@ class DashboardRepository {
       }).length;
     };
 
-    const currentRevenue = quotationRows
-      .filter((row) => String(row.status || '').toUpperCase() === 'APPROVED')
-      .filter((row) => inWindow(this.parseDate(row.created_at ?? row.createdAt), currentStart, currentEnd))
-      .reduce((sum, row) => sum + this.getRevenueFromQuotation(row), 0);
+    const currentRevenue = bookingRows
+      .filter((row) => String(row.status || '').toUpperCase() !== 'CANCELLED')
+      .filter((row) =>
+        inWindow(
+          this.parseDate(
+            row.created_at ??
+              row.createdAt ??
+              row.travel_start_date ??
+              row.travelStartDate,
+          ),
+          currentStart,
+          currentEnd,
+        ),
+      )
+      .reduce((sum, row) => sum + this.getRevenueFromBooking(row), 0);
 
-    const previousRevenue = quotationRows
-      .filter((row) => String(row.status || '').toUpperCase() === 'APPROVED')
-      .filter((row) => inWindow(this.parseDate(row.created_at ?? row.createdAt), previousStart, currentStart))
-      .reduce((sum, row) => sum + this.getRevenueFromQuotation(row), 0);
+    const previousRevenue = bookingRows
+      .filter((row) => String(row.status || '').toUpperCase() !== 'CANCELLED')
+      .filter((row) =>
+        inWindow(
+          this.parseDate(
+            row.created_at ??
+              row.createdAt ??
+              row.travel_start_date ??
+              row.travelStartDate,
+          ),
+          previousStart,
+          currentStart,
+        ),
+      )
+      .reduce((sum, row) => sum + this.getRevenueFromBooking(row), 0);
 
     const currentLeads = leadRows.filter((row) =>
       inWindow(this.parseDate(row.created_at ?? row.createdAt), currentStart, currentEnd),
@@ -369,26 +391,15 @@ class DashboardRepository {
     };
   }
 
-  async getRevenueFallback(range = 'week') {
+  async getRevenueFallback(range = 'week', currency) {
     const normalizedRange = this.normalizeRange(range);
-    const payments = await this.db.findMany(this.tables.payments, {});
-    const toBoolean = (value, fallback = false) => {
-      if (value === null || value === undefined) return fallback;
-      if (typeof value === 'boolean') return value;
-      if (typeof value === 'number') return value === 1;
-      const normalized = String(value).trim().toLowerCase();
-      if (['true', '1', 'yes', 'y'].includes(normalized)) return true;
-      if (['false', '0', 'no', 'n'].includes(normalized)) return false;
-      return Boolean(value);
-    };
-    const rows = (Array.isArray(payments) ? payments : []).filter((row) => {
+    const bookings = await this.db.findMany(this.tables.bookings, {});
+    const rows = (Array.isArray(bookings) ? bookings : []).filter((row) => {
       const status = String(row?.status || 'PENDING').trim().toUpperCase();
-      const isVerified = toBoolean(row?.is_verified ?? row?.isVerified, false);
-      // Match finance stats: verified payments excluding refunded.
-      return isVerified && status !== 'REFUNDED' && !this.isSoftDeleted(row);
+      return status !== 'CANCELLED' && !this.isSoftDeleted(row);
     });
-    const baseCurrency = this.normalizeCurrency(
-      this.currencyService?.baseCurrency || "AED",
+    const targetCurrency = this.normalizeCurrency(
+      currency || this.currencyService?.baseCurrency || "AED",
       "AED",
     );
 
@@ -433,48 +444,48 @@ class DashboardRepository {
       }
     }
 
-    const getCreatedAt = (row) =>
+    const getBookingDate = (row) =>
       this.parseDate(
-        row?.paid_at ??
-          row?.paidAt ??
-          row?.date ??
-          row?.created_at ??
-          row?.createdAt,
+        row?.created_at ??
+          row?.createdAt ??
+          row?.travel_start_date ??
+          row?.travelStartDate ??
+          row?.date,
       );
 
     const results = [];
     for (const bucket of buckets) {
-      const revenue = await this.sumBucketPaymentsInBase(
+      const revenue = await this.sumBucketRevenueInBase(
         rows,
         (row) => {
-          const created = getCreatedAt(row);
+          const created = getBookingDate(row);
           return (
             created &&
             created.getTime() >= bucket.start.getTime() &&
             created.getTime() < bucket.end.getTime()
           );
         },
-        baseCurrency,
+        targetCurrency,
       );
 
-      const last = await this.sumBucketPaymentsInBase(
+      const last = await this.sumBucketRevenueInBase(
         rows,
         (row) => {
-          const created = getCreatedAt(row);
+          const created = getBookingDate(row);
           return (
             created &&
             created.getTime() >= bucket.prevStart.getTime() &&
             created.getTime() < bucket.prevEnd.getTime()
           );
         },
-        baseCurrency,
+        targetCurrency,
       );
 
       results.push({
         name: this.bucketLabel(bucket.start, normalizedRange, bucket.index),
         revenue: this.roundAmount(revenue),
         last: this.roundAmount(last),
-        currency: baseCurrency,
+        currency: targetCurrency,
       });
     }
 
@@ -593,8 +604,8 @@ class DashboardRepository {
     return this.getStatsFallback(period);
   }
 
-  async getRevenue(range = 'week') {
-    return this.getRevenueFallback(range);
+  async getRevenue(range = 'week', currency) {
+    return this.getRevenueFallback(range, currency);
   }
 
   async getLeadSources(period = 'month') {
