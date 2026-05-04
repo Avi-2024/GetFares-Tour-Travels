@@ -30,6 +30,24 @@ function createWhatsappController({ service }) {
       res.status(200).json({ data: result });
     },
 
+    async listConversationMessages(req, res) {
+      const { leadId } = req.validated.params;
+      const region = req.validated.query?.region;
+      const result = await service.listConversationMessages({ leadId, region });
+      res.status(200).json({ data: result });
+    },
+
+    async listThreads(req, res) {
+      const q = req.validated.query;
+      const result = await service.listConversationThreads({
+        page: q?.page,
+        limit: q?.limit,
+        q: q?.q,
+        region: q?.region,
+      });
+      res.status(200).json({ data: result });
+    },
+
     async sendTemplate(req, res) {
       const result = await service.sendTemplateMessage(
         req.validated.body,

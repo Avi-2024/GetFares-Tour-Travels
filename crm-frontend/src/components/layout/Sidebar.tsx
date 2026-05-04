@@ -4,6 +4,7 @@ import {
   FaChartPie,
   FaChevronLeft,
   FaChevronRight,
+  FaComments,
   FaCreditCard,
   FaFileInvoiceDollar,
   FaFolderOpen,
@@ -42,6 +43,12 @@ const sections = [
         label: "Leads",
         to: "/leads",
         icon: FaUserGroup,
+        permission: "leads:read",
+      },
+      {
+        label: "WhatsApp",
+        to: "/whatsapp",
+        icon: FaComments,
         permission: "leads:read",
       },
       {

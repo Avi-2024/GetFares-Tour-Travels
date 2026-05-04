@@ -365,14 +365,25 @@ function createWhatsAppService({
         const incoming = Array.isArray(value?.messages) ? value.messages : [];
 
         incoming.forEach((message) => {
+          const type = message?.type || null;
+          let text = message?.text?.body || null;
+          if (!text && type && type !== "text") {
+            text = `[${String(type)}]`;
+          }
+          const ts = message?.timestamp;
+          const timestampMs =
+            ts !== undefined && ts !== null && String(ts).trim() !== "" ?
+              Number(ts) * 1000
+            : null;
           messages.push({
             id: message?.id || null,
             from: message?.from || null,
-            type: message?.type || null,
-            text: message?.text?.body || null,
+            type,
+            text,
             name: profileName,
             phoneNumberId: value?.metadata?.phone_number_id || null,
             displayPhoneNumber: value?.metadata?.display_phone_number || null,
+            timestampMs: Number.isFinite(timestampMs) ? timestampMs : null,
           });
         });
       });
@@ -510,7 +521,15 @@ function createWhatsAppService({
     }
 
     const messagePayload = buildTextPayload(to, text, payload.previewUrl);
-    const channel = await resolveOutboundChannel(payload);
+    let outboundPayload = { ...payload };
+    const leadIdForLog = String(payload.leadId || "").trim();
+    if (leadIdForLog && !payload.lead) {
+      const leadRow = await resolveLeadRecord(leadIdForLog);
+      if (leadRow) {
+        outboundPayload = { ...payload, lead: leadRow };
+      }
+    }
+    const channel = await resolveOutboundChannel(outboundPayload);
     logger?.info(
       {
         to,
@@ -518,7 +537,25 @@ function createWhatsAppService({
       },
       "WhatsApp outbound text resolved channel",
     );
-    return api.sendMessage(messagePayload, buildApiChannel(channel));
+    const data = await api.sendMessage(
+      messagePayload,
+      buildApiChannel(channel),
+    );
+    if (leadIdForLog && repository?.insertConversationMessage) {
+      const waId = data?.messages?.[0]?.id ?? null;
+      await repository.insertConversationMessage({
+        id: crypto.randomUUID(),
+        leadId: leadIdForLog,
+        direction: "outbound",
+        body: text,
+        waMessageId: waId,
+        phoneNumberId: channel?.phoneNumberId ?? null,
+        displayPhoneNumber: channel?.displayPhoneNumber ?? null,
+        peerPhone: to,
+        waTimestampMs: Date.now(),
+      });
+    }
+    return data;
   }
 
   async function sendTemplateMessage(payload = {}) {
@@ -645,17 +682,148 @@ function createWhatsAppService({
         origin: "whatsapp_webhook",
       });
 
+      const leadRow = result?.lead;
+      if (leadRow?.id && repository?.insertConversationMessage) {
+        await repository.insertConversationMessage({
+          id: crypto.randomUUID(),
+          leadId: leadRow.id,
+          direction: "inbound",
+          body: message.text || null,
+          waMessageId: message.id || null,
+          phoneNumberId: message.phoneNumberId || null,
+          displayPhoneNumber: message.displayPhoneNumber || null,
+          peerPhone: phone,
+          waTimestampMs: message.timestampMs ?? null,
+        });
+      }
+
       results.push({
         messageId: message.id,
         phoneNumberId: message.phoneNumberId,
         countryId: channel?.countryId || null,
         countryName: channel?.countryName || null,
-        lead: result.lead,
+        lead: leadRow,
         duplicate: result.duplicate,
       });
     }
 
     return { processed: results.length, leads: results };
+  }
+
+  function mapConversationRow(row) {
+    if (!row) return null;
+    return {
+      id: row.id,
+      leadId: row.lead_id ?? row.leadId,
+      direction: row.direction,
+      body: row.body,
+      waMessageId: row.wa_message_id ?? row.waMessageId,
+      phoneNumberId: row.phone_number_id ?? row.phoneNumberId,
+      displayPhoneNumber:
+        row.display_phone_number ?? row.displayPhoneNumber ?? null,
+      peerPhone: row.peer_phone ?? row.peerPhone,
+      waTimestampMs: row.wa_timestamp_ms ?? row.waTimestampMs ?? null,
+      createdAt: row.created_at ?? row.createdAt,
+    };
+  }
+
+  async function listConversationMessages({ leadId, region } = {}) {
+    const id = String(leadId || "").trim();
+    if (!id) {
+      throw new AppError(400, "leadId is required", "WHATSAPP_LEAD_ID_MISSING");
+    }
+    const lead = await resolveLeadRecord(id);
+    if (!lead) {
+      throw new AppError(404, "Lead not found", "LEAD_NOT_FOUND");
+    }
+
+    let regionNorm = String(region || "all").trim().toLowerCase() || "all";
+    const allowedRegion = new Set(["all", "in", "india", "uae", "ae"]);
+    if (!allowedRegion.has(regionNorm)) {
+      regionNorm = "all";
+    }
+    let phoneNumberIds = null;
+    if (regionNorm !== "all") {
+      const channels = await listConfiguredChannels();
+      phoneNumberIds = channels
+        .filter((c) => channelMatchesRegion(c, regionNorm))
+        .map((c) => c.phoneNumberId)
+        .filter(Boolean);
+      if (!phoneNumberIds.length) {
+        phoneNumberIds = null;
+      }
+    }
+
+    if (!repository?.listConversationMessages) {
+      return { lead, messages: [], region: regionNorm };
+    }
+
+    const rows = await repository.listConversationMessages(id, {
+      phoneNumberIds,
+    });
+    return {
+      lead,
+      messages: rows.map(mapConversationRow).filter(Boolean),
+      region: regionNorm,
+    };
+  }
+
+  function mapThreadRow(row) {
+    if (!row) return null;
+    return {
+      leadId: row.lead_id ?? row.leadId,
+      lastMessageAt: row.last_message_at ?? row.lastMessageAt,
+      lastSortMs: row.last_sort_ms ?? row.lastSortMs,
+      lastBody: row.last_body ?? row.lastBody,
+      fullName: row.full_name ?? row.fullName,
+      phone: row.phone,
+      leadCode: row.lead_code ?? row.leadCode,
+    };
+  }
+
+  async function listConversationThreads({ page, limit, q, region } = {}) {
+    const lim = Math.min(Math.max(Number(limit) || 50, 1), 100);
+    const pg = Math.max(Number(page) || 1, 1);
+    const offset = (pg - 1) * lim;
+
+    let regionNorm = String(region || "all").trim().toLowerCase() || "all";
+    const allowedRegion = new Set(["all", "in", "india", "uae", "ae"]);
+    if (!allowedRegion.has(regionNorm)) {
+      regionNorm = "all";
+    }
+    let phoneNumberIds = null;
+    if (regionNorm !== "all") {
+      const channels = await listConfiguredChannels();
+      phoneNumberIds = channels
+        .filter((c) => channelMatchesRegion(c, regionNorm))
+        .map((c) => c.phoneNumberId)
+        .filter(Boolean);
+      if (!phoneNumberIds.length) {
+        phoneNumberIds = null;
+      }
+    }
+
+    if (!repository?.listConversationThreads) {
+      return { items: [], page: pg, limit: lim, total: 0, region: regionNorm };
+    }
+
+    const [items, total] = await Promise.all([
+      repository.listConversationThreads({
+        limit: lim,
+        offset,
+        search: q,
+        phoneNumberIds,
+      }),
+      repository.countConversationThreads({ search: q, phoneNumberIds }),
+    ]);
+
+    return {
+      items: items.map(mapThreadRow).filter(Boolean),
+      page: pg,
+      limit: lim,
+      total,
+      region: regionNorm,
+    };
   }
 
   async function notifyLeadWelcome(payload = {}) {
@@ -803,6 +971,8 @@ function createWhatsAppService({
     handleWebhook,
     sendTextMessage,
     sendTemplateMessage,
+    listConversationMessages,
+    listConversationThreads,
     notifyLeadWelcome,
     notifyFollowupScheduled,
     notifyQuotationSent,

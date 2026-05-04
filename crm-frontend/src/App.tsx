@@ -13,6 +13,7 @@ import QuotationDetailPage from "./pages/Quotation/QuotationDetailPage";
 import Settings from "./components/layout/Settings";
 
 import LeadsDetail from "./pages/leads/LeadDetails";
+import WhatsAppInboxPage from "./pages/leads/WhatsAppInboxPage";
 import CreateLead from "./pages/leads/CreateLead";
 
 import DashboardLayout from "./components/layout/Layout";
@@ -67,6 +68,8 @@ function App() {
 
             <Route element={<PermissionRoute permission="leads:read" />}>
               <Route path="/leads" element={<Leads />} />
+              <Route path="/whatsapp" element={<WhatsAppInboxPage />} />
+              <Route path="/leads/:id/whatsapp" element={<WhatsAppInboxPage />} />
               <Route path="/leads/:id" element={<LeadsDetail />} />
               <Route path="/leads-details" element={<LeadsDetail />} />
             </Route>
