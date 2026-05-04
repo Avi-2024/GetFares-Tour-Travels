@@ -1505,12 +1505,7 @@ const QuotationDetailPage: React.FC = () => {
                 ? 'Quotation source (Visa lead)'
                 : 'Package & Template Details'}
             </h2>
-            {isVisaLeadQuotation ? (
-              <p className='mb-4 text-xs text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2'>
-                Visa lead quotation: no holiday package template. Components
-                below are insurance and visa service lines from the builder.
-              </p>
-            ) : null}
+           
             <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>
             <div>
               <p className='text-xs uppercase tracking-wide text-gray-500'>
