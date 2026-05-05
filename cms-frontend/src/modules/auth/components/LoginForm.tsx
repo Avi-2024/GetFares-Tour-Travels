@@ -2,6 +2,7 @@ import { Component, createRef } from "react";
 import type { SyntheticEvent } from "react";
 import { Button } from "../../../shared/components/button.component";
 import { LoginFormTheme } from "./login-form.theme";
+import ThemeToggle from "../../../shared/components/theme.component";
 
 interface LoginFormProps {
   username: string;
@@ -54,18 +55,21 @@ export class LoginForm extends Component<LoginFormProps> {
       <section className={themeTokens.section()}>
         <div className="w-full max-w-md">
           <div className={themeTokens.card()}>
-            <div className="mb-6 flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl">
-                <img
-                  src="/logo1.png"
-                  alt="Get2Vacation CMS"
-                  className="h-8 w-6"
-                />
+            <div className="mb-6 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl">
+                  <img
+                    src="/logo1.png"
+                    alt="Get2Vacation CMS"
+                    className="h-8 w-6"
+                  />
+                </div>
+                <div>
+                  <p className={themeTokens.brand()}>GET2VACATION CMS</p>
+                  <p className={themeTokens.title()}>Sign in to continue</p>
+                </div>
               </div>
-              <div>
-                <p className={themeTokens.brand()}>GET2VACATION CMS</p>
-                <p className={themeTokens.title()}>Sign in to continue</p>
-              </div>
+              <ThemeToggle />
             </div>
 
             <div className="mb-6">

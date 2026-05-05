@@ -107,11 +107,11 @@ class CmsEntityFormCatalog {
   ];
 
   private static currencyOptions: CmsFieldOption[] = [
-    { label: "🇮🇳 INR", value: "INR" },
-    { label: "🇦🇪 AED", value: "AED" },
-    { label: "🇺🇸 USD", value: "USD" },
-    { label: "🇪🇺 EUR", value: "EUR" },
-    { label: "🇬🇧 GBP", value: "GBP" },
+    { label: "INR", value: "INR" },
+    { label: "AED", value: "AED" },
+    { label: "USD", value: "USD" },
+    { label: "EUR", value: "EUR" },
+    { label: "GBP", value: "GBP" },
   ];
 
   private static countryOptions: CmsFieldOption[] = [
