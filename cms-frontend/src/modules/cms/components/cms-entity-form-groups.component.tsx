@@ -179,7 +179,20 @@ class CmsEntityFormGroupsComponent extends Component<CmsEntityFormGroupsProps> {
       return (
         <textarea
           value={String(value ?? "")}
-          onChange={(event) => onFieldChange(field, event.target.value)}
+          onChange={(event) => {
+            if (field.lettersOnly) {
+              const filtered = event.target.value.replace(/[^a-zA-Z\s]/g, "");
+              const capitalized = filtered.charAt(0).toUpperCase() + filtered.slice(1);
+              onFieldChange(field, capitalized);
+              return;
+            }
+            if (field.capitalizeFirst) {
+              const v = event.target.value;
+              onFieldChange(field, v.charAt(0).toUpperCase() + v.slice(1));
+              return;
+            }
+            onFieldChange(field, event.target.value);
+          }}
           rows={4}
           className={`${className} h-auto py-2`}
         />
@@ -529,6 +542,17 @@ class CmsEntityFormGroupsComponent extends Component<CmsEntityFormGroupsProps> {
           if (isDisplayOrder) {
             const num = Number(event.target.value);
             if (event.target.value !== "" && num < 1) return;
+          }
+          if (field.lettersOnly) {
+            const filtered = event.target.value.replace(/[^a-zA-Z\s]/g, "");
+            const capitalized = filtered.charAt(0).toUpperCase() + filtered.slice(1);
+            onFieldChange(field, capitalized);
+            return;
+          }
+          if (field.capitalizeFirst) {
+            const v = event.target.value;
+            onFieldChange(field, v.charAt(0).toUpperCase() + v.slice(1));
+            return;
           }
           onFieldChange(field, event.target.value);
         }}
