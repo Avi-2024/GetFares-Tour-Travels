@@ -91,6 +91,7 @@
       "bookings:read",
       "bookings:update",
       "customers:read",
+      "campaigns:read",
       "visa:read",
       "suppliers:read",
       "suppliers:create",

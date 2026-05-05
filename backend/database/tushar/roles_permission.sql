@@ -140,6 +140,7 @@ INSERT INTO tmp_role_permissions (role_code, perm_key) VALUES
 ('sales_consultant', 'bookings:read'),
 ('sales_consultant', 'bookings:update'),
 ('sales_consultant', 'customers:read'),
+('sales_consultant', 'campaigns:read'),
 ('sales_consultant', 'visa:read'),
 ('sales_consultant', 'suppliers:read'),
 ('sales_consultant', 'suppliers:create'),
