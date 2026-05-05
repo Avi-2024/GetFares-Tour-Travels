@@ -485,6 +485,10 @@ const LeadDetails: React.FC = () => {
   }, [id, leadsService])
 
   const loadCampaigns = useCallback(async () => {
+    if (!hasPermission('campaigns:read')) {
+      setCampaigns([])
+      return
+    }
     try {
       const response = await campaignsService.list()
       const rows =
@@ -493,7 +497,7 @@ const LeadDetails: React.FC = () => {
     } catch {
       setCampaigns([])
     }
-  }, [campaignsService])
+  }, [campaignsService, hasPermission])
 
   const loadLeadQuotationsForLead = useCallback(async () => {
     if (!id) return

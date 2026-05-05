@@ -1377,7 +1377,7 @@ class CmsEntityEditorModalComponent extends Component<
   }
 
   private onUploadMedia = async (file: File): Promise<void> => {
-    const allowVideo = this.props.sectionKey === "destinations";
+    const allowVideo = true;
     if (
       !file.type.startsWith("image/") &&
       !(allowVideo && file.type.startsWith("video/"))
@@ -1406,7 +1406,6 @@ class CmsEntityEditorModalComponent extends Component<
       ToastService.warning(message);
       return;
     }
-
     this.setState({
       isMediaUploading: true,
       mediaErrorMessage: "",
@@ -1825,6 +1824,7 @@ class CmsEntityEditorModalComponent extends Component<
                   mediaErrorMessage={this.state.mediaErrorMessage}
                   mediaInfoMessage={this.state.mediaInfoMessage}
                   isMediaUploading={this.state.isMediaUploading}
+                  allowVideo={true}
                   onUploadMedia={this.onUploadMedia}
                   onSetCoverMedia={this.onSetCoverMedia}
                   onMoveMediaUp={this.onMoveMediaUp}

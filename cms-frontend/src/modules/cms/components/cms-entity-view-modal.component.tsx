@@ -262,34 +262,54 @@ class CmsEntityViewModalComponent extends Component<
     const hasReferenceId = definition.fields.some(
       (field) => field.key === "referenceId",
     );
-    if (!hasReferenceId) {
+    const hasMainPackageId = definition.fields.some(
+      (field) => field.key === "mainPackageId",
+    );
+    const hasDestinationId = definition.fields.some(
+      (field) => field.key === "destinationId",
+    );
+    if (!hasReferenceId && !hasMainPackageId && !hasDestinationId) {
       this.setState({ referenceLabelById: {} });
       return;
     }
 
     try {
-      const [packages, destinations, visa] = await Promise.all([
-        this.cmsService.list("published-packages"),
-        this.cmsService.list("destinations"),
-        this.cmsService.list("visa-destinations"),
-      ]);
       const referenceLabelById: Record<string, string> = {};
 
-      packages.forEach((item) => {
-        referenceLabelById[item.id] =
-          item.row.cells.package?.value ||
-          String(item.raw.name || item.raw.title || item.id);
-      });
-      destinations.forEach((item) => {
-        referenceLabelById[item.id] =
-          item.row.cells.destination?.value ||
-          String(item.raw.name || item.raw.title || item.id);
-      });
-      visa.forEach((item) => {
-        referenceLabelById[item.id] =
-          item.row.cells.title?.value ||
-          String(item.raw.title || item.raw.name || item.id);
-      });
+      if (hasReferenceId || hasDestinationId) {
+        const [packages, destinations, visa] = await Promise.all([
+          hasReferenceId ? this.cmsService.list("published-packages") : Promise.resolve([]),
+          this.cmsService.list("destinations"),
+          hasReferenceId ? this.cmsService.list("visa-destinations") : Promise.resolve([]),
+        ]);
+        packages.forEach((item) => {
+          referenceLabelById[item.id] =
+            item.row.cells.package?.value ||
+            String(item.raw.name || item.raw.title || item.id);
+        });
+        destinations.forEach((item) => {
+          const label =
+            item.row.cells.destination?.value ||
+            String(item.raw.name || item.raw.title || item.id);
+          referenceLabelById[item.id] = label;
+          // also map snake_case id if different
+          const snakeId = String(item.raw.destination_id ?? item.raw.id ?? "");
+          if (snakeId && snakeId !== item.id) referenceLabelById[snakeId] = label;
+        });
+        visa.forEach((item) => {
+          referenceLabelById[item.id] =
+            item.row.cells.title?.value ||
+            String(item.raw.title || item.raw.name || item.id);
+        });
+      }
+
+      if (hasMainPackageId) {
+        const mainPackages = await this.cmsService.listAdminMainPackages();
+        mainPackages.forEach((item) => {
+          referenceLabelById[item.id] =
+            String(item.raw.title || item.raw.packageName || item.raw.name || item.id);
+        });
+      }
 
       this.setState({ referenceLabelById });
     } catch {
@@ -342,15 +362,59 @@ class CmsEntityViewModalComponent extends Component<
         return;
       }
 
+      // For ID reference fields, try to resolve name first from raw joined fields
+      if (field.key === "destinationId") {
+        const rawId = String(
+          this.readRawValue("destinationId") ??
+          this.readRawValue("destination_id") ??
+          "",
+        ).trim();
+        // First try joined name fields from raw
+        const joinedName = String(
+          this.readRawValue("destinationName") ??
+          this.readRawValue("destination_name") ??
+          this.readRawValue("destination") ??
+          "",
+        ).trim();
+        const lookedUp = rawId ? (this.state.referenceLabelById[rawId] ?? "") : "";
+        const resolved = joinedName || lookedUp;
+        // Only show if we have a real name (not a UUID)
+        const isUuid = /^[0-9a-f-]{36}$/i.test(resolved);
+        if (resolved && !isUuid) {
+          items.push({ key: field.key, label: field.label, value: resolved });
+        } else if (rawId && !resolved) {
+          // Still loading — skip for now, will re-render when state updates
+        }
+        return;
+      }
+
+      if (field.key === "mainPackageId") {
+        const rawId = String(this.readRawValue("mainPackageId") ?? this.readRawValue("main_package_id") ?? "").trim();
+        const lookedUp = rawId ? (this.state.referenceLabelById[rawId] ?? "") : "";
+        const isUuid = /^[0-9a-f-]{36}$/i.test(lookedUp);
+        if (lookedUp && !isUuid) {
+          items.push({ key: field.key, label: field.label, value: lookedUp });
+        }
+        return;
+      }
+
+      if (field.key === "referenceId") {
+        const rawId = String(this.readRawValue("referenceId") ?? this.readRawValue("reference_id") ?? "").trim();
+        const lookedUp = rawId ? (this.state.referenceLabelById[rawId] ?? "") : "";
+        const isUuid = /^[0-9a-f-]{36}$/i.test(lookedUp);
+        if (lookedUp && !isUuid) {
+          items.push({ key: field.key, label: field.label, value: lookedUp });
+        }
+        return;
+      }
+
       const value = this.formatFieldValue(field);
       if (value === "--") {
         return;
       }
 
       let displayValue = value;
-      if (field.key === "referenceId") {
-        displayValue = this.state.referenceLabelById[value] || value;
-      } else if (field.type === "date" || this.isLikelyDateField(field.key)) {
+      if (field.type === "date" || this.isLikelyDateField(field.key)) {
         displayValue = this.formatDateValue(value);
       }
 
