@@ -19,6 +19,7 @@ interface CmsEntityMediaEditorProps {
   mediaErrorMessage: string;
   mediaInfoMessage?: string;
   isMediaUploading?: boolean;
+  allowVideo?: boolean;
   onUploadMedia: (file: File) => Promise<void> | void;
   onSetCoverMedia: (clientId: string) => void;
   onMoveMediaUp: (index: number) => void;
@@ -41,11 +42,18 @@ class CmsEntityMediaEditorComponent extends Component<CmsEntityMediaEditorProps>
       mediaErrorMessage,
       mediaInfoMessage,
       isMediaUploading = false,
+      allowVideo = false,
       onSetCoverMedia,
       onMoveMediaUp,
       onMoveMediaDown,
       onRemoveMedia,
     } = this.props;
+
+    const acceptAttr = allowVideo ? "image/*,video/*" : "image/*";
+    const addLabel = allowVideo ? "Add Image / Video" : "Add Image";
+    const hintText = allowVideo
+      ? "Image or video preview shown here. Upload happens on Save."
+      : "Image preview shown here. Upload happens on Save.";
 
     return (
       <section className="rounded-2xl border border-[var(--border)] bg-(--surface) p-4">
@@ -55,17 +63,17 @@ class CmsEntityMediaEditorComponent extends Component<CmsEntityMediaEditorProps>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <label className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-xl border border-[var(--border)] bg-(--surface) px-3 text-xs font-semibold text-[var(--text-primary)] transition hover:bg-(--background-soft)">
             <Upload size={13} />
-            {isMediaUploading ? "Selecting..." : "Add Image"}
+            {isMediaUploading ? "Selecting..." : addLabel}
             <input
               type="file"
-              accept="image/*"
+              accept={acceptAttr}
               onChange={this.handleFileChange}
               disabled={isMediaUploading}
               className="hidden"
             />
           </label>
           <p className="text-xs text-[var(--text-secondary)]">
-            Image preview shown here. Upload happens on Save.
+            {hintText}
           </p>
         </div>
 
