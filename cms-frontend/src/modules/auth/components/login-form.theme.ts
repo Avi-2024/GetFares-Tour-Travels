@@ -78,7 +78,7 @@ class LoginFormTheme {
   }
 
   public eyeButton(): string {
-    return `absolute right-3 top-1/2 -translate-y-1/2 flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition-colors ${
+    return `absolute right-3 top-1/2 -translate-y-1/2 flex items-center justify-center text-slate-400 transition-colors ${
       this.isDark ? "hover:text-slate-300" : "hover:text-slate-600"
     }`;
   }

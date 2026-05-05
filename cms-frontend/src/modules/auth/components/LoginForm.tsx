@@ -104,7 +104,7 @@ export class LoginForm extends Component<LoginFormProps> {
                     disabled={loading}
                     className={`${themeTokens.input()} pl-10 pr-12`}
                   />
-                  <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none">
                     <div className={themeTokens.statusBadge()}>
                       <svg
                         width="14"
