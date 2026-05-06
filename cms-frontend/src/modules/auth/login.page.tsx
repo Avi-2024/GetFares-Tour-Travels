@@ -8,6 +8,7 @@ import {
   ThemeContext,
   type IThemeContext,
 } from "../../shared/contexts/ThemeContext";
+import ThemeToggle from "../../shared/components/theme.component";
 
 interface LoginPageState {
   loading: boolean;
