@@ -20,6 +20,11 @@ export const quotationsApi = {
   getById: (id: string) => apiRequest(`/api/quotations/${id}`),
   generatePdf: (id: string) =>
     apiRequest(`/api/quotations/${id}/generate-pdf`, { method: "POST" }),
+  uploadPdf: (id: string, formData: FormData) =>
+    apiRequest(`/api/quotations/${id}/upload-pdf`, {
+      method: "POST",
+      body: formData,
+    }),
   send: (id: string, payload?: unknown) =>
     apiRequest(`/api/quotations/${id}/send`, { method: "POST", body: payload }),
   trackViewed: (id: string) =>

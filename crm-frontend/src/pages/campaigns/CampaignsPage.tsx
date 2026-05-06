@@ -27,6 +27,7 @@ type Campaign = {
   budget: number;
   actualSpend: number;
   leadsGenerated: number;
+  convertedLeads: number;
   revenueGenerated: number;
   revenueCurrency: string;
   metaCampaignId?: string;
@@ -57,6 +58,7 @@ type CampaignSummary = {
   budget: number;
   actualSpend: number;
   leadsGenerated: number;
+  convertedLeads: number;
   revenueGenerated: number;
   revenueCurrency: string;
 };
@@ -124,6 +126,7 @@ const normalizeCampaign = (item: any): Campaign => ({
   budget: Number(item.budget || 0),
   actualSpend: Number(item.actualSpend || 0),
   leadsGenerated: Number(item.leadsGenerated || 0),
+  convertedLeads: Number(item.convertedLeads || 0),
   revenueGenerated: Number(item.revenueGenerated || 0),
   revenueCurrency: String(item.revenueCurrency || "AED").toUpperCase(),
   metaCampaignId: item.metaCampaignId || "",
@@ -283,6 +286,7 @@ const emptySummary: CampaignSummary = {
   budget: 0,
   actualSpend: 0,
   leadsGenerated: 0,
+  convertedLeads: 0,
   revenueGenerated: 0,
   revenueCurrency: "AED",
 };
@@ -361,6 +365,7 @@ const CampaignsPage: React.FC = () => {
           budget: Number(response?.data?.budget || 0),
           actualSpend: Number(response?.data?.actualSpend || 0),
           leadsGenerated: Number(response?.data?.leadsGenerated || 0),
+          convertedLeads: Number(response?.data?.convertedLeads || 0),
           revenueGenerated: Number(response?.data?.revenueGenerated || 0),
           revenueCurrency: String(response?.data?.revenueCurrency || "AED").toUpperCase(),
         });
@@ -536,6 +541,7 @@ const CampaignsPage: React.FC = () => {
       "Status",
       "Actual Spend",
       "Meta Leads",
+      "Converted Leads",
       "CRM Revenue",
       "Meta Campaign ID",
       "Meta Adset ID",
@@ -551,6 +557,7 @@ const CampaignsPage: React.FC = () => {
       getCampaignStatus(campaign),
       campaign.actualSpend,
       campaign.leadsGenerated,
+      campaign.convertedLeads,
       campaign.revenueGenerated,
       campaign.metaCampaignId || "",
       campaign.metaAdsetId || "",
@@ -791,12 +798,15 @@ const CampaignsPage: React.FC = () => {
                       <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                         Meta Leads
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                        CRM Revenue
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                        ROI
-                      </th>
+	                      <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+	                        Converted Leads
+	                      </th>
+	                      <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+	                        CRM Revenue
+	                      </th>
+	                      <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+	                        ROI
+	                      </th>
                       <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                         Status
                       </th>
@@ -808,7 +818,7 @@ const CampaignsPage: React.FC = () => {
 		                  <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
 		                    {paginatedCampaigns.length === 0 ? (
 		                      <tr>
-		                        <td colSpan={9} className="px-6 py-10 text-center text-sm text-gray-500">
+			                        <td colSpan={10} className="px-6 py-10 text-center text-sm text-gray-500">
 		                          No campaigns found.
 		                        </td>
 		                      </tr>
@@ -826,7 +836,7 @@ const CampaignsPage: React.FC = () => {
 		                          <React.Fragment key={campaign.id}>
 		                            {showCountryDivider ? (
 		                              <tr className="bg-gray-50/80 dark:bg-gray-950/80">
-		                                <td colSpan={9} className="px-6 py-3">
+			                                <td colSpan={10} className="px-6 py-3">
 		                                  <div className="flex items-center justify-between gap-3">
 	                                    <div className="flex items-center gap-3">
 	                                      <span
@@ -891,15 +901,21 @@ const CampaignsPage: React.FC = () => {
 	                                </p>
 	                               
 	                              </td>
-		                              <td className="px-6 py-4">
-		                                <p className="text-sm text-gray-900 dark:text-gray-100">
-		                                  {campaign.leadsGenerated}
-		                                </p>
-		                                <p className="text-xs text-gray-500">Meta tracked</p>
-		                              </td>
-		                              <td className="px-6 py-4">
-		                                <p className="text-sm font-medium text-green-600">
-		                                  {getRevenueLabel(campaign)}
+			                              <td className="px-6 py-4">
+			                                <p className="text-sm text-gray-900 dark:text-gray-100">
+			                                  {campaign.leadsGenerated}
+			                                </p>
+			                                <p className="text-xs text-gray-500">Meta tracked</p>
+			                              </td>
+			                              <td className="px-6 py-4">
+			                                <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
+			                                  {campaign.convertedLeads}
+			                                </p>
+			                                <p className="text-xs text-gray-500">CRM converted</p>
+			                              </td>
+			                              <td className="px-6 py-4">
+			                                <p className="text-sm font-medium text-green-600">
+			                                  {getRevenueLabel(campaign)}
 		                                </p>
 		                                <p className="text-xs text-gray-500">{`CRM revenue ${campaign.revenueCurrency}`}</p>
 		                              </td>
@@ -994,13 +1010,17 @@ const CampaignsPage: React.FC = () => {
                     <p className="text-xs uppercase tracking-wide text-slate-400">Meta Spend</p>
                     <p className="mt-2 text-xl font-semibold text-slate-950 dark:text-white">{formatCurrency(selectedCampaign.actualSpend)}</p>
                   </div>
-                  <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-950">
-                    <p className="text-xs uppercase tracking-wide text-slate-400">Meta Leads</p>
-                    <p className="mt-2 text-xl font-semibold text-slate-950 dark:text-white">{selectedCampaign.leadsGenerated}</p>
-                  </div>
-                  <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-950">
-                    <p className="text-xs uppercase tracking-wide text-slate-400">{`CRM Revenue (${selectedCampaign.revenueCurrency})`}</p>
-                    <p className="mt-2 text-xl font-semibold text-emerald-600">{getRevenueLabel(selectedCampaign)}</p>
+	                  <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-950">
+	                    <p className="text-xs uppercase tracking-wide text-slate-400">Meta Leads</p>
+	                    <p className="mt-2 text-xl font-semibold text-slate-950 dark:text-white">{selectedCampaign.leadsGenerated}</p>
+	                  </div>
+	                  <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-950">
+	                    <p className="text-xs uppercase tracking-wide text-slate-400">Converted Leads</p>
+	                    <p className="mt-2 text-xl font-semibold text-emerald-700 dark:text-emerald-300">{selectedCampaign.convertedLeads}</p>
+	                  </div>
+	                  <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-950">
+	                    <p className="text-xs uppercase tracking-wide text-slate-400">{`CRM Revenue (${selectedCampaign.revenueCurrency})`}</p>
+	                    <p className="mt-2 text-xl font-semibold text-emerald-600">{getRevenueLabel(selectedCampaign)}</p>
                   </div>
                   <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-950">
                     <p className="text-xs uppercase tracking-wide text-slate-400">ROI</p>

@@ -86,6 +86,34 @@ function createCampaignsRepository({ db, logger, schema }) {
     return [];
   }
 
+  async function findConvertedLeadBucketsByCampaignIds(campaignIds = []) {
+    const uniqueIds = [...new Set(campaignIds.filter(Boolean).map((id) => String(id)))];
+    if (!uniqueIds.length) {
+      return [];
+    }
+
+    const placeholders = uniqueIds.map(() => "?").join(", ");
+    const sql = `
+      SELECT
+        c.id AS campaign_id,
+        COUNT(DISTINCT l.id) AS converted_leads
+      FROM ${schema.tableName} c
+      LEFT JOIN leads l
+        ON l.campaign_id = c.id
+        OR (
+          l.campaign_id IS NULL
+          AND c.meta_campaign_id IS NOT NULL
+          AND l.meta_campaign_id = c.meta_campaign_id
+        )
+      WHERE c.id IN (${placeholders})
+        AND UPPER(COALESCE(l.status, '')) = 'CONVERTED'
+      GROUP BY c.id
+    `;
+
+    const result = await db.query(sql, uniqueIds);
+    return Array.isArray(result?.rows) ? result.rows : Array.isArray(result) ? result : [];
+  }
+
   async function create(payload) {
     logger.debug({ module: "campaigns", payload }, "Creating record");
     return db.insert(schema.tableName, payload);
@@ -106,6 +134,7 @@ function createCampaignsRepository({ db, logger, schema }) {
     findAll,
     findById,
     findRevenueBucketsByCampaignIds,
+    findConvertedLeadBucketsByCampaignIds,
     create,
     update,
     remove,

@@ -1459,17 +1459,11 @@ const LeadDetails: React.FC = () => {
       const formData = new FormData()
       formData.append('quotationId', selectedLeadQuotation.id)
       formData.append('pdf', pdfBlob, `quotation-${pdfData.quoteReference || selectedLeadQuotation.id}.pdf`)
-      const token = localStorage.getItem('auth_token')
-      const uploadRes = await fetch(`/api/quotations/${selectedLeadQuotation.id}/upload-pdf`, {
-        method: 'POST',
-        body: formData,
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      })
-      if (!uploadRes.ok) {
-        throw new Error('Failed to upload PDF')
-      }
-      const uploadData = await uploadRes.json()
-      const pdfUrl = uploadData?.pdfUrl
+      const uploadData: any = await quotationsApi.uploadPdf(
+        selectedLeadQuotation.id,
+        formData
+      )
+      const pdfUrl = uploadData?.data?.pdfUrl ?? uploadData?.pdfUrl
 
       await quotationsApi.send(selectedLeadQuotation.id, {
         channel,

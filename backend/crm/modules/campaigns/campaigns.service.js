@@ -114,6 +114,7 @@ function buildSummary(rows = [], revenueCurrency = "AED") {
       budget: acc.budget + Number(item?.budget || 0),
       actualSpend: acc.actualSpend + Number(item?.actual_spend || 0),
       leadsGenerated: acc.leadsGenerated + Number(item?.leads_generated || 0),
+      convertedLeads: acc.convertedLeads + Number(item?.converted_leads || 0),
       revenueGenerated: acc.revenueGenerated + Number(item?.revenue_generated || 0),
       revenueCurrency: acc.revenueCurrency,
     }),
@@ -122,6 +123,7 @@ function buildSummary(rows = [], revenueCurrency = "AED") {
       budget: 0,
       actualSpend: 0,
       leadsGenerated: 0,
+      convertedLeads: 0,
       revenueGenerated: 0,
       revenueCurrency,
     },
@@ -253,6 +255,27 @@ async function hydrateCampaignRevenue(
   }));
 }
 
+async function hydrateCampaignConvertedLeads(repository, rows = []) {
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return [];
+  }
+
+  const convertedLeadBuckets = await repository.findConvertedLeadBucketsByCampaignIds(
+    rows.map((item) => item?.id).filter(Boolean),
+  );
+  const convertedLeadsByCampaignId = new Map(
+    convertedLeadBuckets.map((item) => [
+      String(item?.campaign_id || ""),
+      Number(item?.converted_leads || 0),
+    ]),
+  );
+
+  return rows.map((item) => ({
+    ...item,
+    converted_leads: convertedLeadsByCampaignId.get(String(item.id)) ?? 0,
+  }));
+}
+
 function mapCreatePayload(payload) {
   return {
     name: payload.name,
@@ -300,6 +323,7 @@ function toCampaign(entity) {
     budget: entity.budget,
     actualSpend: entity.actual_spend,
     leadsGenerated: entity.leads_generated,
+    convertedLeads: Number(entity.converted_leads || 0),
     revenueGenerated: entity.revenue_generated,
     revenueCurrency: normalizeCurrency(entity.revenue_currency || "AED"),
     metaCampaignId: entity.meta_campaign_id,
@@ -330,7 +354,8 @@ function createCampaignsService({ repository, leadsRepository, logger, events, c
       rows,
       getRequestedRevenueCurrency(filters, currencyService),
     );
-    return hydratedRows.map(toCampaign);
+    const campaignRows = await hydrateCampaignConvertedLeads(repository, hydratedRows);
+    return campaignRows.map(toCampaign);
   }
 
   async function summary(filters = {}, context = {}) {
@@ -358,7 +383,8 @@ function createCampaignsService({ repository, leadsRepository, logger, events, c
       rows,
       getRequestedRevenueCurrency(filters, currencyService),
     );
-    const filteredRows = hydratedRows.filter((item) =>
+    const campaignRows = await hydrateCampaignConvertedLeads(repository, hydratedRows);
+    const filteredRows = campaignRows.filter((item) =>
       matchesCampaignFilters(item, filters),
     );
     return buildSummary(
@@ -385,7 +411,11 @@ function createCampaignsService({ repository, leadsRepository, logger, events, c
       [item],
       getRequestedRevenueCurrency({}, currencyService),
     );
-    return toCampaign(hydratedItem || item);
+    const [campaignItem] = await hydrateCampaignConvertedLeads(
+      repository,
+      [hydratedItem || item],
+    );
+    return toCampaign(campaignItem || hydratedItem || item);
   }
 
   async function create(payload) {
