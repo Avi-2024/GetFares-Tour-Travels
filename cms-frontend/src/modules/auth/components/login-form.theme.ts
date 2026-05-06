@@ -68,10 +68,8 @@ class LoginFormTheme {
   }
 
   public statusBadge(): string {
-    return `flex h-8 w-8 items-center justify-center rounded-lg border text-emerald-500 ${
-      this.isDark ?
-        "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
-      : "border-emerald-100 bg-emerald-50"
+    return `flex items-center justify-center text-emerald-500 ${
+      this.isDark ? "text-emerald-400" : "text-emerald-500"
     }`;
   }
 
@@ -80,7 +78,7 @@ class LoginFormTheme {
   }
 
   public eyeButton(): string {
-    return `absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 transition-colors ${
+    return `absolute right-3 top-1/2 -translate-y-1/2 flex items-center justify-center text-slate-400 transition-colors ${
       this.isDark ? "hover:text-slate-300" : "hover:text-slate-600"
     }`;
   }

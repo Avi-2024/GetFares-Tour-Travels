@@ -32,6 +32,7 @@ interface CmsListObjectField {
   label: string;
   type?: "text" | "textarea" | "number";
   placeholder?: string;
+  lettersOnly?: boolean;
 }
 
 interface CmsEntityFieldDefinition {
@@ -48,6 +49,8 @@ interface CmsEntityFieldDefinition {
   addLabel?: string;
   groupKey: string;
   autoSlugSource?: string;
+  lettersOnly?: boolean;
+  capitalizeFirst?: boolean;
 }
 
 interface CmsEntityGroupDefinition {
@@ -104,11 +107,11 @@ class CmsEntityFormCatalog {
   ];
 
   private static currencyOptions: CmsFieldOption[] = [
-    { label: "🇮🇳 INR", value: "INR" },
-    { label: "🇦🇪 AED", value: "AED" },
-    { label: "🇺🇸 USD", value: "USD" },
-    { label: "🇪🇺 EUR", value: "EUR" },
-    { label: "🇬🇧 GBP", value: "GBP" },
+    { label: "INR", value: "INR" },
+    { label: "AED", value: "AED" },
+    { label: "USD", value: "USD" },
+    { label: "EUR", value: "EUR" },
+    { label: "GBP", value: "GBP" },
   ];
 
   private static countryOptions: CmsFieldOption[] = [
@@ -201,6 +204,7 @@ class CmsEntityFormCatalog {
             type: "text",
             required: true,
             groupKey: "basic",
+            lettersOnly: true,
           },
           { key: "tag", label: "Tag", type: "text", groupKey: "basic" },
           {
@@ -291,6 +295,7 @@ class CmsEntityFormCatalog {
             type: "text",
             required: true,
             groupKey: "basic",
+            capitalizeFirst: true,
           },
           {
             key: "slug",

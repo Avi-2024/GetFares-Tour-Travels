@@ -183,13 +183,7 @@ class CmsSectionEntryMapper {
             ),
           ),
           amount: new CmsTableCell(
-            `${this.accessor.getText(
-              record,
-              "amountCurrency",
-              "amount_currency",
-              "startingPriceCurrency",
-              "starting_price_currency",
-            )} ${this.accessor.getText(record, "amount", "startingPrice", "starting_price")}`.trim(),
+            this.accessor.getText(record, "amount", "startingPrice", "starting_price"),
           ),
           destination: new CmsTableCell(
             this.accessor.getText(

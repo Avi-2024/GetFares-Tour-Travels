@@ -1127,24 +1127,8 @@ const QuotationDetailPage: React.FC = () => {
       formData.append('quotationId', id)
       formData.append('pdf', pdfBlob, `quotation-${quotation?.quoteNumber || id}.pdf`)
 
-      // Get auth token from localStorage
-      const token = localStorage.getItem('auth_token')
-
-      // Upload PDF to backend via proxy
-      const uploadRes = await fetch(`/api/quotations/${id}/upload-pdf`, {
-        method: 'POST',
-        body: formData,
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-
-      if (!uploadRes.ok) {
-        throw new Error('Failed to upload PDF')
-      }
-
-      const uploadData = await uploadRes.json()
-      const pdfUrl = uploadData.pdfUrl
+      const uploadData: any = await quotationsApi.uploadPdf(id, formData)
+      const pdfUrl = uploadData?.data?.pdfUrl ?? uploadData?.pdfUrl
 
       // Send quotation with PDF link
       await quotationsApi.send(id, {

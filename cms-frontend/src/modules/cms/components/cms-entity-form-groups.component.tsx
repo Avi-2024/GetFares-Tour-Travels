@@ -148,7 +148,7 @@ class CmsEntityFormGroupsComponent extends Component<CmsEntityFormGroupsProps> {
         : (currencyField.options ?? []);
       return (
         <div className="flex items-stretch">
-          <div className="w-34 shrink-0">
+          <div className="w-36 shrink-0">
             <SearchDropDown
               value={currencyValue}
               options={currencyOptions.map((option) => ({
@@ -158,7 +158,7 @@ class CmsEntityFormGroupsComponent extends Component<CmsEntityFormGroupsProps> {
               }))}
               placeholder="Currency"
               onChange={(nextValue) => onFieldChange(currencyField, nextValue)}
-              className="h-10 w-full rounded-l-xl rounded-r-none border border-(--border) border-r-0 bg-(--surface) px-9 pr-9 text-sm text-(--text-primary) outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--ring)"
+              className="h-10 w-full rounded-l-xl rounded-r-none border border-(--border) border-r-0 bg-(--surface) pl-9 pr-12 text-sm text-(--text-primary) outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--ring)"
             />
           </div>
           <input
@@ -179,9 +179,22 @@ class CmsEntityFormGroupsComponent extends Component<CmsEntityFormGroupsProps> {
       return (
         <textarea
           value={String(value ?? "")}
-          onChange={(event) => onFieldChange(field, event.target.value)}
+          onChange={(event) => {
+            if (field.lettersOnly) {
+              const filtered = event.target.value.replace(/[^a-zA-Z\s]/g, "");
+              const capitalized = filtered.charAt(0).toUpperCase() + filtered.slice(1);
+              onFieldChange(field, capitalized);
+              return;
+            }
+            if (field.capitalizeFirst) {
+              const v = event.target.value;
+              onFieldChange(field, v.charAt(0).toUpperCase() + v.slice(1));
+              return;
+            }
+            onFieldChange(field, event.target.value);
+          }}
           rows={4}
-          className={`${className} h-auto py-2`}
+          className={`${className} h-auto py-2 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-(--border)`}
         />
       );
     }
@@ -529,6 +542,17 @@ class CmsEntityFormGroupsComponent extends Component<CmsEntityFormGroupsProps> {
           if (isDisplayOrder) {
             const num = Number(event.target.value);
             if (event.target.value !== "" && num < 1) return;
+          }
+          if (field.lettersOnly) {
+            const filtered = event.target.value.replace(/[^a-zA-Z\s]/g, "");
+            const capitalized = filtered.charAt(0).toUpperCase() + filtered.slice(1);
+            onFieldChange(field, capitalized);
+            return;
+          }
+          if (field.capitalizeFirst) {
+            const v = event.target.value;
+            onFieldChange(field, v.charAt(0).toUpperCase() + v.slice(1));
+            return;
           }
           onFieldChange(field, event.target.value);
         }}
