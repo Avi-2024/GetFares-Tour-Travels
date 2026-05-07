@@ -6,9 +6,11 @@ import { useAuth } from '../../context/AuthContext'
 import { toast } from 'sonner'
 import { reportApiError } from '../../lib/notify'
 import {
+  fetchWhatsappConfigStatus,
   fetchWhatsappConversationMessages,
   fetchWhatsappThreads,
   sendWhatsappText,
+  type WhatsappConfigStatus,
   type WhatsappConversationMessage,
   type WhatsappThreadSummary
 } from '../../api/endpoints/whatsapp.api'
@@ -137,6 +139,8 @@ export default function WhatsAppInboxPage (): React.ReactElement {
   const [threadsTotal, setThreadsTotal] = useState(0)
   const [threadsPage, setThreadsPage] = useState(1)
   const [threadsLoading, setThreadsLoading] = useState(true)
+  const [configStatus, setConfigStatus] = useState<WhatsappConfigStatus | null>(null)
+  const [configError, setConfigError] = useState('')
 
   const [selectedLeadId, setSelectedLeadId] = useState(resolvedLeadFromRoute)
   const [syntheticLead, setSyntheticLead] =
@@ -218,6 +222,28 @@ export default function WhatsAppInboxPage (): React.ReactElement {
   useEffect(() => {
     void reloadThreadsFirstPage()
   }, [reloadThreadsFirstPage])
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadConfigStatus () {
+      try {
+        const data = await fetchWhatsappConfigStatus()
+        if (cancelled) return
+        setConfigStatus(data)
+        setConfigError('')
+      } catch (e) {
+        if (cancelled) return
+        setConfigStatus(null)
+        setConfigError('Could not read WhatsApp setup status.')
+      }
+    }
+
+    void loadConfigStatus()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const loadMoreThreads = useCallback(async () => {
     const next = threadsPage + 1
@@ -341,6 +367,24 @@ export default function WhatsAppInboxPage (): React.ReactElement {
     return rows
   }, [threads, syntheticLead])
 
+  const configuredLines = useMemo(() => {
+    return (configStatus?.channels || [])
+      .map(channel => {
+        const label =
+          String(
+            channel.sourceLabel ||
+              channel.countryName ||
+              channel.countryCode ||
+              channel.displayPhoneNumber ||
+              'WhatsApp line'
+          ).trim() || 'WhatsApp line'
+        const phone = String(channel.displayPhoneNumber || '').trim()
+        const phoneId = String(channel.phoneNumberId || '').trim()
+        return phone ? `${label} (${phone})` : phoneId ? `${label} [${phoneId}]` : label
+      })
+      .filter(Boolean)
+  }, [configStatus])
+
   const handleSend = async () => {
     if (!selectedLeadId || !peerPhone) {
       toast.error('Lead phone missing.')
@@ -435,6 +479,39 @@ export default function WhatsAppInboxPage (): React.ReactElement {
             </div>
           </div>
           <div className='border-b border-[#2a3942] px-2 py-2 space-y-2'>
+            {configError ? (
+              <div className='rounded-lg border border-amber-600/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100'>
+                {configError}
+              </div>
+            ) : configStatus ? (
+              <div
+                className={`rounded-lg border px-3 py-2 text-[11px] ${
+                  configStatus.ready
+                    ? 'border-emerald-600/30 bg-emerald-500/10 text-emerald-100'
+                    : 'border-amber-600/30 bg-amber-500/10 text-amber-100'
+                }`}
+              >
+                <p className='font-semibold'>
+                  {configStatus.ready ? 'WhatsApp setup ready.' : 'WhatsApp setup incomplete.'}
+                </p>
+                <p className='mt-1 text-[#cfd8dc]'>
+                  Inbox reads webhook and outbound logs.
+                </p>
+                <p className='mt-1 text-[#cfd8dc]'>
+                  System user assignment is not used here.
+                </p>
+                {configuredLines.length > 0 ? (
+                  <p className='mt-1 text-[#cfd8dc]'>
+                    Lines: {configuredLines.join(', ')}
+                  </p>
+                ) : null}
+                {!configStatus.ready && configStatus.missing.length > 0 ? (
+                  <p className='mt-1 text-[#ffd9a8]'>
+                    Missing: {configStatus.missing.join(', ')}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
             <div className='relative'>
               <FaSearch className='pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#8696a0] text-sm' />
               <input
@@ -460,7 +537,7 @@ export default function WhatsAppInboxPage (): React.ReactElement {
             ) : sidebarRows.length === 0 ? (
               <p className='p-4 text-sm text-[#8696a0]'>
                 No threads yet. Inbound messages appear after Meta webhook is
-                connected. Open a lead and use WhatsApp to start.
+                connected. Outbound sends also create rows here.
               </p>
             ) : (
               sidebarRows.map(row => {
@@ -653,7 +730,7 @@ export default function WhatsAppInboxPage (): React.ReactElement {
       <p className='mt-2 hidden sm:block px-1 text-[11px] text-gray-500 dark:text-gray-400'>
         Threads list only leads with rows in{' '}
         <code className='font-mono text-[10px]'>whatsapp_conversation_messages</code>
-        . New clients appear after the first webhook or outbound send.
+        . New clients appear after webhook capture or first outbound send.
       </p>
     </div>
   )

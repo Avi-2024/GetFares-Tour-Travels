@@ -530,6 +530,13 @@ function createWhatsAppService({
       }
     }
     const channel = await resolveOutboundChannel(outboundPayload);
+    if (!channel) {
+      throw new AppError(
+        500,
+        "No WhatsApp channel configured",
+        "WHATSAPP_CHANNEL_NOT_CONFIGURED",
+      );
+    }
     logger?.info(
       {
         to,
@@ -578,6 +585,13 @@ function createWhatsAppService({
       payload.components,
     );
     const channel = await resolveOutboundChannel(payload);
+    if (!channel) {
+      throw new AppError(
+        500,
+        "No WhatsApp channel configured",
+        "WHATSAPP_CHANNEL_NOT_CONFIGURED",
+      );
+    }
     logger?.info(
       {
         to,
@@ -708,6 +722,18 @@ function createWhatsAppService({
     }
 
     return { processed: results.length, leads: results };
+  }
+
+  function channelMatchesRegion(channel, regionNorm) {
+    const code = String(channel?.countryCode || "").trim().toLowerCase();
+    const name = String(channel?.countryName || "").trim().toLowerCase();
+    if (regionNorm === "in" || regionNorm === "india") {
+      return code === "in" || name === "india";
+    }
+    if (regionNorm === "uae" || regionNorm === "ae") {
+      return code === "ae" || name === "uae" || name === "united arab emirates";
+    }
+    return false;
   }
 
   function mapConversationRow(row) {
