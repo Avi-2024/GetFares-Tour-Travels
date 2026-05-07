@@ -262,6 +262,14 @@ const config = Object.freeze({
       )
       .filter(Boolean),
   },
+  push: {
+    enabled: env.PUSH_ENABLED,
+    vapidSubject:
+      env.PUSH_VAPID_SUBJECT ||
+      "mailto:admin@getfares.example",
+    vapidPublicKey: env.PUSH_VAPID_PUBLIC_KEY || null,
+    vapidPrivateKey: env.PUSH_VAPID_PRIVATE_KEY || null,
+  },
 });
 
 export { config, env };
