@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { FaArrowLeft, FaCheckCircle, FaClock, FaEnvelope, FaWhatsapp } from 'react-icons/fa'
+import { FaArrowLeft, FaCheckCircle, FaClock, FaEnvelope, FaListUl, FaWhatsapp } from 'react-icons/fa'
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import StatusBadge from '../../components/ui/StatusBadge'
 import SearchableDropdown from '../../components/ui/SearchableDropdown'
@@ -209,6 +209,7 @@ const LeadDetails: React.FC = () => {
   const [assigning, setAssigning] = useState(false)
   const [campaigns, setCampaigns] = useState<any[]>([])
   const [showSavedQualification, setShowSavedQualification] = useState(false)
+  const [showCustomFields, setShowCustomFields] = useState(false)
 
   const createdAtLabel = useMemo(() => {
     const wall = lead?.clientCreatedAt ?? lead?.client_created_at
@@ -836,6 +837,38 @@ const LeadDetails: React.FC = () => {
     },
     [campaigns, qualification.campaignId, qualification.leadCountry]
   )
+
+  const customFieldEntries = useMemo(() => {
+    const raw = lead?.dynamicFields ?? lead?.dynamic_fields ?? null
+    if (!raw) return []
+    if (typeof raw !== 'object' || Array.isArray(raw)) return []
+    const obj = raw as Record<string, unknown>
+
+    const labelsRaw =
+      lead?.dynamicFieldLabels ?? lead?.dynamic_field_labels ?? null
+    const labels =
+      labelsRaw && typeof labelsRaw === 'object' && !Array.isArray(labelsRaw)
+        ? (labelsRaw as Record<string, unknown>)
+        : {}
+
+    return Object.keys(obj)
+      .sort((a, b) => a.localeCompare(b))
+      .map(key => {
+        const labelValue = labels[key]
+        const label =
+          typeof labelValue === 'string' && labelValue.trim()
+            ? labelValue.trim()
+            : key
+        const value = obj[key]
+        return {
+          key,
+          label,
+          value:
+            value === null || value === undefined ? '' : String(value).trim()
+        }
+      })
+      .filter(item => item.value)
+  }, [lead])
 
   const countryOptions = useMemo(
     () => [
@@ -1532,6 +1565,62 @@ const LeadDetails: React.FC = () => {
 
   return (
     <div className='space-y-6'>
+      {showCustomFields ? (
+        <div
+          className='fixed inset-0 z-[70] flex items-end justify-center bg-black/40 p-4 sm:items-center'
+          role='dialog'
+          aria-modal='true'
+          onClick={() => setShowCustomFields(false)}
+        >
+          <div
+            className='w-full max-w-3xl rounded-2xl bg-white p-4 shadow-xl dark:bg-gray-900'
+            onClick={e => e.stopPropagation()}
+          >
+            <div className='flex items-start justify-between gap-3'>
+              <div className='min-w-0'>
+                <p className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                  Custom Fields
+                </p>
+                <p className='text-xs text-gray-500'>
+                  {customFieldEntries.length} field(s)
+                </p>
+              </div>
+              <button
+                type='button'
+                onClick={() => setShowCustomFields(false)}
+                className='rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-800 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800'
+              >
+                Close
+              </button>
+            </div>
+
+            <div className='mt-3 max-h-[65vh] overflow-auto rounded-xl border border-gray-200 dark:border-gray-700'>
+              {customFieldEntries.length === 0 ? (
+                <div className='p-4 text-sm text-gray-500'>
+                  No custom fields on this lead.
+                </div>
+              ) : (
+                <div className='divide-y divide-gray-100 dark:divide-gray-800'>
+                  {customFieldEntries.map(item => (
+                    <div
+                      key={item.key}
+                      className='grid grid-cols-1 gap-1 p-3 sm:grid-cols-[260px_1fr]'
+                    >
+                      <div className='text-xs font-semibold text-gray-700 dark:text-gray-200'>
+                        {item.label}
+                      
+                      </div>
+                      <div className='text-sm text-gray-900 dark:text-gray-100 break-words whitespace-pre-wrap'>
+                        {item.value}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
       <div
         ref={pdfTemplateRef}
         style={{ display: 'none', position: 'absolute', top: '-9999px' }}
@@ -1583,6 +1672,20 @@ const LeadDetails: React.FC = () => {
             >
               <FaWhatsapp className='text-sm' />
               WhatsApp
+            </button>
+            <button
+              type='button'
+              onClick={() => setShowCustomFields(true)}
+              className='inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-800 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800'
+              title='View custom form fields'
+            >
+              <FaListUl className='text-sm text-gray-500' />
+              Custom Fields
+              {customFieldEntries.length ? (
+                <span className='ml-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'>
+                  {customFieldEntries.length}
+                </span>
+              ) : null}
             </button>
             {lead.email && String(lead.email).includes('@') ? (
               <a

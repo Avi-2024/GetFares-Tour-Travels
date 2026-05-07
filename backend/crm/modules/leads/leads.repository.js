@@ -335,6 +335,7 @@ function createLeadsRepository({ db, logger, schema }) {
       fullName: customer?.fullName ?? row.full_name ?? row.fullName ?? null,
       phone: customer?.phone ?? row.phone ?? null,
       email: customer?.email ?? row.email ?? null,
+      city: row.city ?? null,
       panNumber: customer?.panNumber ?? row.pan_number ?? row.panNumber ?? null,
       addressLine:
         customer?.addressLine ?? row.address_line ?? row.addressLine ?? null,
@@ -373,6 +374,9 @@ function createLeadsRepository({ db, logger, schema }) {
         row.preferred_hotel_category ?? row.preferredHotelCategory ?? null,
       travelPurpose: row.travel_purpose ?? row.travelPurpose ?? null,
       source: row.source ?? null,
+      platform: row.platform ?? null,
+      campaignName: row.campaign_name ?? row.campaignName ?? null,
+      adName: row.ad_name ?? row.adName ?? null,
       campaignId: row.campaign_id ?? row.campaignId ?? null,
       utmSource: row.utm_source ?? row.utmSource ?? null,
       utmMedium: row.utm_medium ?? row.utmMedium ?? null,
@@ -426,6 +430,14 @@ function createLeadsRepository({ db, logger, schema }) {
         row.client_created_at ?? row.clientCreatedAt ?? null,
       clientTimezone:
         row.client_timezone ?? row.clientTimezone ?? null,
+      dynamicFields:
+        typeof (row.dynamic_fields ?? row.dynamicFields) === "string" ?
+          JSON.parse(row.dynamic_fields ?? row.dynamicFields)
+        : (row.dynamic_fields ?? row.dynamicFields) || {},
+      dynamicFieldLabels:
+        typeof (row.dynamic_field_labels ?? row.dynamicFieldLabels) === "string" ?
+          JSON.parse(row.dynamic_field_labels ?? row.dynamicFieldLabels)
+        : (row.dynamic_field_labels ?? row.dynamicFieldLabels) || {},
     };
   }
 
@@ -1398,6 +1410,66 @@ function createLeadsRepository({ db, logger, schema }) {
     }
   }
 
+  async function upsertLeadDynamicFields(
+    leadId,
+    { fields = {}, labels = {} } = {},
+  ) {
+    const tableName = "lead_dynamic_fields";
+    const tableExists = await hasTable(tableName);
+    if (!tableExists || !leadId) {
+      return { upserted: 0, skipped: true };
+    }
+
+    if (!fields || typeof fields !== "object") {
+      return { upserted: 0, skipped: true };
+    }
+
+    const entries = Object.entries(fields)
+      .map(([key, value]) => ({
+        field_key: String(key || "").trim().toLowerCase(),
+        field_value: value === undefined || value === null ? null : String(value),
+        field_label:
+          labels && typeof labels === "object" && labels[key] ?
+            String(labels[key]).trim()
+          : null,
+      }))
+      .filter((item) => item.field_key);
+
+    if (!entries.length) {
+      return { upserted: 0, skipped: true };
+    }
+
+    let upserted = 0;
+
+    for (const item of entries) {
+      try {
+        await db.insert(tableName, {
+          lead_id: leadId,
+          field_key: item.field_key,
+          field_label: item.field_label,
+          field_value: item.field_value,
+        });
+        upserted += 1;
+      } catch (error) {
+        if (!isDuplicateKeyError(error)) {
+          throw error;
+        }
+        await db.update(
+          tableName,
+          // db.update requires primary key for some adapters; fallback to query.
+          // If adapter cannot update by filter, we skip silently.
+          (await db.findOne(tableName, { lead_id: leadId, field_key: item.field_key }))?.id,
+          {
+            field_label: item.field_label,
+            field_value: item.field_value,
+          },
+        ).catch(() => null);
+      }
+    }
+
+    return { upserted, skipped: false };
+  }
+
   return Object.freeze({
     normalizeEmail,
     normalizePhone,
@@ -2355,6 +2427,8 @@ function createLeadsRepository({ db, logger, schema }) {
       const row = await db.update(schema.tableName, id, sanitized);
       return mapRowToDomain(row);
     },
+
+    upsertLeadDynamicFields,
 
     async createAssignmentHistory(payload = {}) {
       const tableName = schema.assignmentHistoryTable;

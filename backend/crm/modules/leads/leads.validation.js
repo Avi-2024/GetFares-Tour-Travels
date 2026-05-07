@@ -66,6 +66,7 @@ const basePayload = z.object({
   leadCountry: z.string().min(2).max(100).optional(),
   country: z.string().min(2).max(100).optional(),
   countryId: z.string().uuid().optional(),
+  city: z.string().trim().max(150).optional(),
   phone: z.string().min(6).max(20).optional(),
   email: z.string().email().optional(),
   panNumber: z.string().min(8).max(20).optional(),
@@ -81,6 +82,9 @@ const basePayload = z.object({
   budget: z.coerce.number().nonnegative().optional(),
   salary: z.coerce.number().nonnegative().optional(),
   source: z.string().min(2).max(100).optional(),
+  platform: z.string().trim().max(40).optional(),
+  campaignName: z.string().trim().max(150).optional(),
+  adName: z.string().trim().max(150).optional(),
   campaignId: z.string().uuid().optional(),
   utmSource: z.string().max(100).optional(),
   utmMedium: z.string().max(100).optional(),
@@ -111,6 +115,8 @@ const basePayload = z.object({
   clientTimezone: optionalClientTimezone,
   activityCreatedAt: optionalWallClock,
   activityTimezone: optionalClientTimezone,
+  dynamicFields: z.record(z.string().max(2000)).optional(),
+  dynamicFieldLabels: z.record(z.string().max(255)).optional(),
 });
 
 const create = z.object({

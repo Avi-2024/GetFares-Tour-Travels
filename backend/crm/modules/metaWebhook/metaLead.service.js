@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { AppError } from "../../core/errors/index.js";
 import { getWebhookFileLogger } from "./webhookFileLogger.js";
+import { LeadFieldsUtils } from "../leads/leadFields.utils.js";
 
 const META_SOURCE = "Meta Lead Ads";
 const META_UTM_SOURCE = "meta";
@@ -8,33 +9,15 @@ const META_UTM_MEDIUM = "lead_ads";
 const GRAPH_FETCH_RETRY_LIMIT = 3;
 const GRAPH_FETCH_RETRY_DELAYS_MS = [250, 750];
 
-const EMAIL_KEYS = ["email", "email_address", "emailaddress"];
-const PHONE_KEYS = [
-  "phone_number",
-  "phone",
-  "mobile_phone",
-  "mobile",
-  "whatsapp_number",
-  "whatsapp",
-];
-const FULL_NAME_KEYS = ["full_name", "fullname", "name"];
-const FIRST_NAME_KEYS = ["first_name", "firstname", "first"];
-const LAST_NAME_KEYS = ["last_name", "lastname", "last", "surname"];
-
-function normalizeKey(key) {
-  return String(key || "")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, "_");
-}
-
-function normalizeValue(value) {
-  if (value === null || value === undefined) {
-    return null;
-  }
-  const text = String(value).trim();
-  return text.length ? text : null;
-}
+const {
+  normalizeFieldKey: normalizeKey,
+  normalizeFieldValue: normalizeValue,
+  flattenMetaFieldData,
+  pickFirst,
+  deriveFullName,
+  splitFixedAndDynamicFields,
+  FIXED_FIELD_ALIASES,
+} = LeadFieldsUtils;
 
 function normalizeCampaignCountry(value) {
   const normalized = normalizeValue(value);
@@ -62,63 +45,7 @@ function normalizeLeadgenId(value) {
   return normalized.replace(/^l:/i, "");
 }
 
-function flattenFieldData(fieldData = []) {
-  if (!Array.isArray(fieldData)) {
-    return {};
-  }
-
-  return fieldData.reduce((acc, entry) => {
-    const key = normalizeKey(entry?.name);
-    if (!key) {
-      return acc;
-    }
-
-    const value = Array.isArray(entry?.values)
-      ? entry.values[0]
-      : entry?.values ?? entry?.value;
-    const normalized = normalizeValue(value);
-    if (normalized) {
-      acc[key] = normalized;
-    }
-    return acc;
-  }, {});
-}
-
-function pickFirst(fields, keys) {
-  for (const key of keys) {
-    const normalized = normalizeKey(key);
-    const value = fields[normalized];
-    if (value) {
-      return value;
-    }
-  }
-  return null;
-}
-
-function deriveFullName({ fullName, firstName, lastName, email, phone, hint }) {
-  if (fullName) {
-    return fullName;
-  }
-
-  const combined = [firstName, lastName].filter(Boolean).join(" ").trim();
-  if (combined) {
-    return combined;
-  }
-
-  if (email) {
-    return email.split("@")[0];
-  }
-
-  if (phone) {
-    return phone;
-  }
-
-  if (hint) {
-    return `Meta Lead ${String(hint).slice(-6)}`;
-  }
-
-  return `Lead ${Date.now()}`;
-}
+// flattenMetaFieldData, pickFirst, deriveFullName moved to shared utilities.
 
 function buildNotes(metaLead = {}, leadgenId, event = {}) {
   const parts = [];
@@ -185,12 +112,14 @@ function extractLeadgenEvents(payload = {}) {
 }
 
 function buildLeadPayload(metaLead = {}, event = {}, pageConfig = {}, campaign = null) {
-  const fields = flattenFieldData(metaLead.field_data);
-  const email = pickFirst(fields, EMAIL_KEYS);
-  const phone = pickFirst(fields, PHONE_KEYS);
-  const fullName = pickFirst(fields, FULL_NAME_KEYS);
-  const firstName = pickFirst(fields, FIRST_NAME_KEYS);
-  const lastName = pickFirst(fields, LAST_NAME_KEYS);
+  const { fields, labels } = flattenMetaFieldData(metaLead.field_data);
+  const email = pickFirst(fields, FIXED_FIELD_ALIASES.email);
+  const phone = pickFirst(fields, FIXED_FIELD_ALIASES.phone);
+  const fullName = pickFirst(fields, FIXED_FIELD_ALIASES.fullName);
+  const firstName = pickFirst(fields, FIXED_FIELD_ALIASES.firstName);
+  const lastName = pickFirst(fields, FIXED_FIELD_ALIASES.lastName);
+  const city = pickFirst(fields, FIXED_FIELD_ALIASES.city);
+  const { dynamic, dynamicLabels } = splitFixedAndDynamicFields({ fields, labels });
   const metaCampaignId = String(
     metaLead.campaign_id || event.campaignId || "",
   ).trim() || null;
@@ -206,6 +135,10 @@ function buildLeadPayload(metaLead = {}, event = {}, pageConfig = {}, campaign =
     }),
     email,
     phone,
+    city,
+    platform: "meta",
+    campaignName: campaign?.name || null,
+    adName: null,
     source: pageConfig.sourceLabel || META_SOURCE,
     leadCountry: pageConfig.countryName || null,
     country: pageConfig.countryName || null,
@@ -222,6 +155,8 @@ function buildLeadPayload(metaLead = {}, event = {}, pageConfig = {}, campaign =
     utmMedium: META_UTM_MEDIUM,
     utmCampaign: metaCampaignId,
     notes: buildNotes(metaLead, event.leadgenId, event),
+    dynamicFields: dynamic,
+    dynamicFieldLabels: dynamicLabels,
   };
 }
 
