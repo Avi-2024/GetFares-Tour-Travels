@@ -78,11 +78,17 @@ web_modules/
 .yarn-integrity
 
 # dotenv environment variable files
+*.env
+/frontend/.env
+/backend/.env
+/backend/uploads
 .env
 .env.development.local
 .env.test.local
 .env.production.local
 .env.local
+backend/images
+frontend/.env
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache
@@ -204,3 +210,6 @@ $RECYCLE.BIN/
 
 # Custom rules (everything added below won't be overriden by 'Generate .gitignore File' if you use 'Update' option)
 
+crm-frontend/test-results/
+crm-frontend/playwright-report/
+crm-frontend/blob-report/

@@ -1,0 +1,99 @@
+trigger:
+- main
+
+resources:
+- repo: self
+
+variables:
+  dockerRegistryServiceConnection: "dscprd"
+  imageRepository: "crmfrontendprd"
+  containerRegistry: "crprdenv.azurecr.io"
+  dockerfilePath: "crm-frontend/DockerFile"
+  tag: "$(Build.BuildId)"
+  imagePullSecret: "cr-secret"
+  selfHostedPool: "selfpool"
+
+stages:
+
+# =========================
+# BUILD STAGE
+# =========================
+- stage: Build
+  displayName: Build stage
+  jobs:
+  - job: Build
+    displayName: Build and Push Image
+    pool:
+      name: $(selfHostedPool)
+
+    steps:
+
+    # 🐳 Build & Push Docker Image
+    - task: Docker@2
+      displayName: Build and push image to ACR
+      inputs:
+        command: buildAndPush
+        repository: $(imageRepository)
+        dockerfile: $(dockerfilePath)
+        containerRegistry: $(dockerRegistryServiceConnection)
+        buildContext: $(Build.SourcesDirectory)/crm-frontend
+        tags: |
+          $(tag)
+
+    # 📦 Copy Kubernetes manifest
+    - task: CopyFiles@2
+      displayName: Copy k8.yaml
+      inputs:
+        SourceFolder: "$(Build.SourcesDirectory)/crm-frontend"
+        Contents: "k8.yaml"
+        TargetFolder: "$(Build.ArtifactStagingDirectory)"
+
+    # 📤 Publish artifact
+    - task: PublishPipelineArtifact@1
+      displayName: Publish K8S artifact
+      inputs:
+        targetPath: "$(Build.ArtifactStagingDirectory)"
+        artifact: "K8S"
+        publishLocation: "pipeline"
+
+
+# =========================
+# DEPLOY STAGE
+# =========================
+- stage: Deploy
+  displayName: Deploy stage
+  dependsOn: Build
+
+  jobs:
+  - deployment: Deploy
+    displayName: Deploy to AKS
+    pool:
+      name: $(selfHostedPool)
+    environment: "env.default"
+
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+
+          # 🔑 Create image pull secret
+          - task: KubernetesManifest@0
+            displayName: Create imagePullSecret
+            inputs:
+              action: createSecret
+              kubernetesServiceConnection: "scprd"
+              namespace: "prd"
+              secretType: dockerRegistry
+              secretName: $(imagePullSecret)
+              dockerRegistryEndpoint: $(dockerRegistryServiceConnection)
+
+          # 🚀 Deploy to AKS
+          - task: KubernetesManifest@0
+            displayName: Deploy to Kubernetes
+            inputs:
+              action: deploy
+              kubernetesServiceConnection: "scprd"
+              namespace: "prd"
+              manifests: "$(Pipeline.Workspace)/K8S/k8.yaml"
+              containers: "$(containerRegistry)/$(imageRepository):$(tag)"
+              imagePullSecrets: "$(imagePullSecret)"

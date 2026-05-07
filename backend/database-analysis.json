@@ -1,0 +1,343 @@
+{
+  "connection": true,
+  "tables": {
+    "roles": {
+      "exists": true
+    },
+    "permissions": {
+      "exists": true
+    },
+    "role_permissions": {
+      "exists": true
+    },
+    "users": {
+      "exists": true
+    },
+    "login_audit": {
+      "exists": true
+    },
+    "destinations": {
+      "exists": true
+    },
+    "destination_pricing": {
+      "exists": true
+    },
+    "campaigns": {
+      "exists": true
+    },
+    "leads": {
+      "exists": true
+    },
+    "queued_leads": {
+      "exists": true
+    },
+    "lead_activities": {
+      "exists": true
+    },
+    "followups": {
+      "exists": true
+    },
+    "quotations": {
+      "exists": true
+    },
+    "quotation_items": {
+      "exists": true
+    },
+    "quotation_views": {
+      "exists": true
+    },
+    "bookings": {
+      "exists": true
+    },
+    "booking_approvals": {
+      "exists": false
+    },
+    "booking_items": {
+      "exists": false
+    },
+    "payments": {
+      "exists": true
+    },
+    "supplier_payables": {
+      "exists": true
+    },
+    "supplier_payable_settlements": {
+      "exists": true
+    },
+    "packages": {
+      "exists": true
+    },
+    "package_itineraries": {
+      "exists": false
+    },
+    "settings": {
+      "exists": false
+    },
+    "token_blacklist": {
+      "exists": true
+    },
+    "system_datetime_preferences": {
+      "exists": false
+    },
+    "automation_job_runs": {
+      "exists": true
+    },
+    "lead_followup_alert_logs": {
+      "exists": true
+    },
+    "followup_workflow_history": {
+      "exists": false
+    },
+    "followup_status_snapshots": {
+      "exists": false
+    },
+    "notification_logs": {
+      "exists": false
+    }
+  },
+  "constraints": {
+    "roles": {
+      "columns": 7,
+      "foreignKeys": 0,
+      "indexes": 3
+    },
+    "permissions": {
+      "columns": 7,
+      "foreignKeys": 0,
+      "indexes": 4
+    },
+    "role_permissions": {
+      "columns": 5,
+      "foreignKeys": 2,
+      "indexes": 6
+    },
+    "users": {
+      "columns": 21,
+      "foreignKeys": 3,
+      "indexes": 9
+    },
+    "login_audit": {
+      "columns": 5,
+      "foreignKeys": 1,
+      "indexes": 2
+    },
+    "destinations": {
+      "columns": 20,
+      "foreignKeys": 0,
+      "indexes": 11
+    },
+    "destination_pricing": {
+      "columns": 10,
+      "foreignKeys": 2,
+      "indexes": 3
+    },
+    "campaigns": {
+      "columns": 13,
+      "foreignKeys": 0,
+      "indexes": 3
+    },
+    "leads": {
+      "columns": 52,
+      "foreignKeys": 4,
+      "indexes": 26
+    },
+    "queued_leads": {
+      "columns": 7,
+      "foreignKeys": 1,
+      "indexes": 5
+    },
+    "lead_activities": {
+      "columns": 6,
+      "foreignKeys": 2,
+      "indexes": 5
+    },
+    "followups": {
+      "columns": 12,
+      "foreignKeys": 2,
+      "indexes": 8
+    },
+    "quotations": {
+      "columns": 66,
+      "foreignKeys": 9,
+      "indexes": 20
+    },
+    "quotation_items": {
+      "columns": 5,
+      "foreignKeys": 1,
+      "indexes": 2
+    },
+    "quotation_views": {
+      "columns": 6,
+      "foreignKeys": 1,
+      "indexes": 3
+    },
+    "bookings": {
+      "columns": 30,
+      "foreignKeys": 2,
+      "indexes": 11
+    },
+    "payments": {
+      "columns": 19,
+      "foreignKeys": 2,
+      "indexes": 7
+    },
+    "supplier_payables": {
+      "columns": 10,
+      "foreignKeys": 2,
+      "indexes": 5
+    },
+    "supplier_payable_settlements": {
+      "columns": 11,
+      "foreignKeys": 4,
+      "indexes": 6
+    },
+    "packages": {
+      "columns": 34,
+      "foreignKeys": 2,
+      "indexes": 8
+    },
+    "token_blacklist": {
+      "columns": 8,
+      "foreignKeys": 1,
+      "indexes": 6
+    },
+    "automation_job_runs": {
+      "columns": 9,
+      "foreignKeys": 0,
+      "indexes": 3
+    },
+    "lead_followup_alert_logs": {
+      "columns": 6,
+      "foreignKeys": 1,
+      "indexes": 5
+    }
+  },
+  "dataIntegrity": {
+    "Users without roles": 0,
+    "Leads with invalid destinations": 0,
+    "Leads with invalid campaigns": 0,
+    "Leads with invalid assignees": 0,
+    "Quotations with invalid leads": 0,
+    "Bookings with invalid quotations": 0
+  },
+  "indexes": {},
+  "rbac": {
+    "roles": 9,
+    "users": 3,
+    "permissions": 51,
+    "rolePermissions": 170
+  },
+  "issues": [
+    "Missing table: booking_approvals",
+    "Missing table: booking_items",
+    "Missing table: package_itineraries",
+    "Missing table: settings",
+    "Missing table: system_datetime_preferences",
+    "Missing table: followup_workflow_history",
+    "Missing table: followup_status_snapshots",
+    "Missing table: notification_logs",
+    "2 automation jobs have failed"
+  ],
+  "automation": [
+    {
+      "job_name": "booking_deadline_alerts",
+      "status": "FAILED",
+      "count": 6,
+      "last_run": "2026-04-09T07:51:07.000Z"
+    },
+    {
+      "job_name": "booking_deadline_alerts",
+      "status": "RUNNING",
+      "count": 31,
+      "last_run": "2026-04-09T07:41:34.000Z"
+    },
+    {
+      "job_name": "booking_travel_reminders",
+      "status": "RUNNING",
+      "count": 32,
+      "last_run": "2026-04-09T07:41:32.000Z"
+    },
+    {
+      "job_name": "booking_travel_reminders",
+      "status": "SKIPPED",
+      "count": 6,
+      "last_run": "2026-04-09T07:51:06.000Z"
+    },
+    {
+      "job_name": "lead_followup_automation",
+      "status": "RUNNING",
+      "count": 41,
+      "last_run": "2026-04-09T07:49:38.000Z"
+    },
+    {
+      "job_name": "lead_followup_automation",
+      "status": "SKIPPED",
+      "count": 8,
+      "last_run": "2026-04-09T07:51:01.000Z"
+    },
+    {
+      "job_name": "lead_followup_reminders",
+      "status": "RUNNING",
+      "count": 159,
+      "last_run": "2026-04-09T07:50:37.000Z"
+    },
+    {
+      "job_name": "lead_followup_reminders",
+      "status": "SUCCESS",
+      "count": 11,
+      "last_run": "2026-04-09T07:51:00.000Z"
+    },
+    {
+      "job_name": "lead_queue_distribution",
+      "status": "RUNNING",
+      "count": 35,
+      "last_run": "2026-04-09T07:41:29.000Z"
+    },
+    {
+      "job_name": "lead_queue_distribution",
+      "status": "SUCCESS",
+      "count": 7,
+      "last_run": "2026-04-09T07:51:03.000Z"
+    },
+    {
+      "job_name": "lead_sla_breaches",
+      "status": "RUNNING",
+      "count": 57,
+      "last_run": "2026-04-09T07:49:35.000Z"
+    },
+    {
+      "job_name": "lead_sla_breaches",
+      "status": "SUCCESS",
+      "count": 8,
+      "last_run": "2026-04-09T07:50:59.000Z"
+    },
+    {
+      "job_name": "quotation_reminders",
+      "status": "RUNNING",
+      "count": 33,
+      "last_run": "2026-04-09T07:41:31.000Z"
+    },
+    {
+      "job_name": "quotation_reminders",
+      "status": "SKIPPED",
+      "count": 6,
+      "last_run": "2026-04-09T07:51:04.000Z"
+    },
+    {
+      "job_name": "supplier_payable_deadline_alerts",
+      "status": "FAILED",
+      "count": 6,
+      "last_run": "2026-04-09T07:51:09.000Z"
+    },
+    {
+      "job_name": "supplier_payable_deadline_alerts",
+      "status": "RUNNING",
+      "count": 31,
+      "last_run": "2026-04-09T07:41:35.000Z"
+    }
+  ],
+  "metrics": {
+    "sizeMB": "2.61",
+    "tables": 64
+  }
+}

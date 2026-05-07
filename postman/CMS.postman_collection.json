@@ -1,0 +1,4227 @@
+{
+  "info": {
+    "_postman_id": "baf44639-0286-4578-9c55-8eb6b7914ea2",
+    "name": "CMS",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "publicCmsBasePath",
+      "value": "/api/public/cms"
+    },
+    {
+      "key": "cmsEmail",
+      "value": "cms@gmail.com"
+    },
+    {
+      "key": "cmsPassword",
+      "value": "12345678"
+    },
+    {
+      "key": "cmsToken",
+      "value": ""
+    },
+    {
+      "key": "cmsUserId",
+      "value": ""
+    },
+    {
+      "key": "cmsUserRole",
+      "value": ""
+    },
+    {
+      "key": "landingPlaceId",
+      "value": "00000000-0000-0000-0000-000000000001"
+    },
+    {
+      "key": "destinationId",
+      "value": "00000000-0000-0000-0000-000000000002"
+    },
+    {
+      "key": "destinationSlug",
+      "value": "maldives"
+    },
+    {
+      "key": "destinationMediaId",
+      "value": "00000000-0000-0000-0000-000000000003"
+    },
+    {
+      "key": "seasonId",
+      "value": "00000000-0000-0000-0000-000000000004"
+    },
+    {
+      "key": "packageId",
+      "value": "00000000-0000-0000-0000-000000000005"
+    },
+    {
+      "key": "mainPackageId",
+      "value": "00000000-0000-0000-0000-000000000006"
+    },
+    {
+      "key": "subPackageId",
+      "value": "00000000-0000-0000-0000-000000000007"
+    },
+    {
+      "key": "visaDestinationId",
+      "value": "00000000-0000-0000-0000-000000000008"
+    },
+    {
+      "key": "visaSlug",
+      "value": "schengen-visa"
+    },
+    {
+      "key": "featuredPickId",
+      "value": "00000000-0000-0000-0000-000000000009"
+    },
+    {
+      "key": "seasonCardId",
+      "value": "00000000-0000-0000-0000-000000000010"
+    },
+    {
+      "key": "heroSectionKey",
+      "value": "home-hero"
+    },
+    {
+      "key": "mediaAssetId",
+      "value": "00000000-0000-0000-0000-000000000011"
+    },
+    {
+      "key": "sampleImagePath",
+      "value": "C:/path/to/sample-image.jpg"
+    },
+    {
+      "key": "sampleVideoPath",
+      "value": "C:/path/to/sample-video.mp4"
+    },
+    {
+      "key": "sampleImageUrl",
+      "value": "https://images.unsplash.com/photo-1514282401047-d79a71a590e8?w=1600"
+    },
+    {
+      "key": "sampleVideoUrl",
+      "value": "https://samplelib.com/lib/preview/mp4/sample-5s.mp4"
+    },
+    {
+      "key": "country",
+      "value": "UAE"
+    },
+    {
+      "key": "region",
+      "value": "Asia"
+    },
+    {
+      "key": "category",
+      "value": "honeymoon"
+    },
+    {
+      "key": "countryId",
+      "value": "00000000-0000-0000-0000-000000000012"
+    },
+    {
+      "key": "countryIds",
+      "value": "[\"{{countryId}}\"]"
+    },
+    {
+      "key": "countryCode",
+      "value": "IN"
+    }
+  ],
+  "item": [
+    {
+      "name": "cms",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{cmsToken}}",
+            "type": "string"
+          }
+        ]
+      },
+      "item": [
+        {
+          "name": "Auth",
+          "item": [
+            {
+              "name": "Login (Get CMS Token)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/auth/login",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "auth",
+                    "login"
+                  ],
+                  "query": []
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"{{cmsEmail}}\",\n  \"password\": \"{{cmsPassword}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "auth": {
+                  "type": "noauth"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('login ok', function(){ pm.expect(pm.response.code).to.be.oneOf([200,201]); });",
+                      "let payload = {};",
+                      "try { payload = pm.response.json(); } catch (e) {}",
+                      "const token = payload?.data?.accessToken || payload?.accessToken || payload?.token || null;",
+                      "const user = payload?.data?.user || payload?.user || null;",
+                      "if (token) pm.collectionVariables.set('cmsToken', token);",
+                      "if (user?.id) pm.collectionVariables.set('cmsUserId', String(user.id));",
+                      "if (user?.role) pm.collectionVariables.set('cmsUserRole', String(user.role));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get Current User",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/auth/me",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "auth",
+                    "me"
+                  ],
+                  "query": []
+                }
+              }
+            },
+            {
+              "name": "Logout",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/auth/logout",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "auth",
+                    "logout"
+                  ],
+                  "query": []
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.collectionVariables.unset('cmsToken');",
+                      "pm.collectionVariables.unset('cmsUserId');",
+                      "pm.collectionVariables.unset('cmsUserRole');"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Countries",
+          "item": [
+            {
+              "name": "List Countries",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/countries?countryId={{countryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "countries"
+                  ],
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Get Country By ID",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/countries/{{countryId}}?countryId={{countryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "countries",
+                    "{{countryId}}"
+                  ],
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Get Country By Code",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/countries/code/{{countryCode}}?countryId={{countryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "countries",
+                    "code",
+                    "{{countryCode}}"
+                  ],
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Create Country",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/countries",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "countries"
+                  ],
+                  "query": []
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"India\",\n  \"code\": \"IND\",\n  \"codeAlpha2\": \"IN\",\n  \"currencyCode\": \"INR\",\n  \"currencySymbol\": \"Rs\",\n  \"phoneCode\": \"+91\",\n  \"isActive\": true,\n  \"displayOrder\": 1\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "let payload = {}; try { payload = pm.response.json(); } catch (e) {}",
+                      "const id = payload?.data?.id || payload?.id; if (id) pm.collectionVariables.set('countryId', String(id));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Update Country",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/countries/{{countryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "countries",
+                    "{{countryId}}"
+                  ],
+                  "query": []
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"displayOrder\": 2,\n  \"isActive\": true\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Delete Country",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/countries/{{countryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "countries",
+                    "{{countryId}}"
+                  ],
+                  "query": []
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Landing Places",
+          "item": [
+            {
+              "name": "List Landing Places",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "cms?countryId={{countryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms"
+                  ],
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "List Deleted Landing Places",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "cms/deleted?countryId={{countryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "deleted"
+                  ],
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Get Landing Place By ID",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "cms/{{landingPlaceId}}?countryId={{countryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "{{landingPlaceId}}"
+                  ],
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Create Landing Place",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms"
+                  ],
+                  "query": []
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Maldives\",\n  \"slug\": \"maldives\",\n  \"subtitle\": \"Luxury Escape\",\n  \"description\": \"Premium island experiences.\",\n  \"tag\": \"luxury\",\n  \"ctaText\": \"View Details\",\n  \"ctaUrl\": \"/destinations/maldives\",\n  \"displayOrder\": 1,\n  \"isActive\": true,\n  \"imageUrl\": \"{{sampleImageUrl}}\",\n  \"countryIds\": [\n    \"{{countryId}}\"\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "let payload = {};",
+                      "try { payload = pm.response.json(); } catch (e) {}",
+                      "const value = payload?.data?.id;",
+                      "if (value) pm.collectionVariables.set('landingPlaceId', String(value));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Update Landing Place",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/{{landingPlaceId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "{{landingPlaceId}}"
+                  ],
+                  "query": []
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"subtitle\": \"Luxury Escape Updated\",\n  \"tag\": \"luxury-updated\",\n  \"countryIds\": [\n    \"{{countryId}}\"\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Update Landing Place Status",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/{{landingPlaceId}}/status",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "{{landingPlaceId}}",
+                    "status"
+                  ],
+                  "query": []
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"isActive\": true\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Soft Delete Landing Place",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/{{landingPlaceId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "{{landingPlaceId}}"
+                  ],
+                  "query": []
+                }
+              }
+            },
+            {
+              "name": "Restore Landing Place",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/{{landingPlaceId}}/restore",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "{{landingPlaceId}}",
+                    "restore"
+                  ],
+                  "query": []
+                }
+              }
+            },
+            {
+              "name": "Hard Delete Landing Place",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/{{landingPlaceId}}/hard-delete",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "{{landingPlaceId}}",
+                    "hard-delete"
+                  ],
+                  "query": []
+                }
+              }
+            },
+            {
+              "name": "Reorder Landing Places",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/reorder",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "reorder"
+                  ],
+                  "query": []
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"ids\": [\n    \"{{landingPlaceId}}\"\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Destinations",
+          "item": [
+            {
+              "name": "List Destinations",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "cms/destinations?countryId={{countryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "destinations"
+                  ],
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "List Deleted Destinations",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "cms/destinations/deleted?countryId={{countryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "destinations",
+                    "deleted"
+                  ],
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Get Destination By ID",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "cms/destinations/{{destinationId}}?countryId={{countryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "destinations",
+                    "{{destinationId}}"
+                  ],
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Get Destination By Slug",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "cms/destinations/slug/{{destinationSlug}}?countryId={{countryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "destinations",
+                    "slug",
+                    "{{destinationSlug}}"
+                  ],
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Create Destination",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/destinations",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "destinations"
+                  ],
+                  "query": []
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Japan\",\n  \"slug\": \"japan\",\n  \"shortDescription\": \"Short description\",\n  \"description\": \"Long description\",\n  \"region\": \"{{region}}\",\n  \"categories\": [\n    \"honeymoon\"\n  ],\n  \"seasonFocus\": [\n    \"summer\"\n  ],\n  \"titleImageUrl\": \"{{sampleImageUrl}}\",\n  \"heroImageUrl\": \"{{sampleImageUrl}}\",\n  \"thumbnailUrl\": \"{{sampleImageUrl}}\",\n  \"keyHighlights\": [\n    \"Highlight 1\"\n  ],\n  \"services\": [\n    {\n      \"title\": \"Checklist\",\n      \"description\": \"Checklist details\"\n    }\n  ],\n  \"bestTimeToVisit\": [\n    {\n      \"iconName\": \"cloud\",\n      \"color\": \"#2563EB\",\n      \"title\": \"Dry Season\",\n      \"from\": \"Nov\",\n      \"to\": \"Apr\",\n      \"description\": \"Good weather\",\n      \"suggestion\": \"Best Time\"\n    }\n  ],\n  \"isActive\": true,\n  \"countryIds\": [\n    \"{{countryId}}\"\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "let payload = {};",
+                      "try { payload = pm.response.json(); } catch (e) {}",
+                      "const value = payload?.data?.id;",
+                      "if (value) pm.collectionVariables.set('destinationId', String(value));",
+                      "let payload = {};",
+                      "try { payload = pm.response.json(); } catch (e) {}",
+                      "const value = payload?.data?.slug;",
+                      "if (value) pm.collectionVariables.set('destinationSlug', String(value));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Update Destination",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "destinations",
+                    "{{destinationId}}"
+                  ],
+                  "query": []
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"shortDescription\": \"Updated short description\",\n  \"countryIds\": [\n    \"{{countryId}}\"\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Update Destination Status",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}/status",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "destinations",
+                    "{{destinationId}}",
+                    "status"
+                  ],
+                  "query": []
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"isActive\": true\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Soft Delete Destination",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "destinations",
+                    "{{destinationId}}"
+                  ],
+                  "query": []
+                }
+              }
+            },
+            {
+              "name": "Restore Destination",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}/restore",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "destinations",
+                    "{{destinationId}}",
+                    "restore"
+                  ],
+                  "query": []
+                }
+              }
+            },
+            {
+              "name": "Hard Delete Destination",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}/hard-delete",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "destinations",
+                    "{{destinationId}}",
+                    "hard-delete"
+                  ],
+                  "query": []
+                }
+              }
+            },
+            {
+              "name": "List Destination Media",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "cms/destinations/{{destinationId}}/media?countryId={{countryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "destinations",
+                    "{{destinationId}}",
+                    "media"
+                  ],
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Add Destination Media",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}/media",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "destinations",
+                    "{{destinationId}}",
+                    "media"
+                  ],
+                  "query": []
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"mediaUrl\": \"{{sampleImageUrl}}\",\n  \"mediaType\": \"image\",\n  \"title\": \"Gallery Item\",\n  \"caption\": \"Media caption\",\n  \"displayOrder\": 1\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "let payload = {};",
+                      "try { payload = pm.response.json(); } catch (e) {}",
+                      "const value = payload?.data?.id;",
+                      "if (value) pm.collectionVariables.set('destinationMediaId', String(value));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Update Destination Media",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}/media/{{destinationMediaId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "destinations",
+                    "{{destinationId}}",
+                    "media",
+                    "{{destinationMediaId}}"
+                  ],
+                  "query": []
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"caption\": \"Updated caption\",\n  \"displayOrder\": 2\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Delete Destination Media",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}/media/{{destinationMediaId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "destinations",
+                    "{{destinationId}}",
+                    "media",
+                    "{{destinationMediaId}}"
+                  ],
+                  "query": []
+                }
+              }
+            },
+            {
+              "name": "Hard Delete Destination Media",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}/media/{{destinationMediaId}}/hard-delete",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "destinations",
+                    "{{destinationId}}",
+                    "media",
+                    "{{destinationMediaId}}",
+                    "hard-delete"
+                  ],
+                  "query": []
+                }
+              }
+            },
+            {
+              "name": "List Destination Seasons",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "cms/destinations/{{destinationId}}/seasons?countryId={{countryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "destinations",
+                    "{{destinationId}}",
+                    "seasons"
+                  ],
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Add Destination Season",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}/seasons",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "destinations",
+                    "{{destinationId}}",
+                    "seasons"
+                  ],
+                  "query": []
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"fromMonth\": \"Mar\",\n  \"toMonth\": \"May\",\n  \"title\": \"Spring\",\n  \"description\": \"Pleasant weather\",\n  \"tag\": \"recommended\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "let payload = {};",
+                      "try { payload = pm.response.json(); } catch (e) {}",
+                      "const value = payload?.data?.id;",
+                      "if (value) pm.collectionVariables.set('seasonId', String(value));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Update Destination Season",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}/seasons/{{seasonId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "destinations",
+                    "{{destinationId}}",
+                    "seasons",
+                    "{{seasonId}}"
+                  ],
+                  "query": []
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"tag\": \"best-time\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Delete Destination Season",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}/seasons/{{seasonId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "destinations",
+                    "{{destinationId}}",
+                    "seasons",
+                    "{{seasonId}}"
+                  ],
+                  "query": []
+                }
+              }
+            },
+            {
+              "name": "Hard Delete Destination Season",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}/seasons/{{seasonId}}/hard-delete",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "destinations",
+                    "{{destinationId}}",
+                    "seasons",
+                    "{{seasonId}}",
+                    "hard-delete"
+                  ],
+                  "query": []
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Packages",
+          "item": [
+            {
+              "name": "List Packages",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "cms/packages/published?countryId={{countryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "packages",
+                    "published"
+                  ],
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "List Deleted Packages",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "cms/packages/published/deleted?countryId={{countryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "packages",
+                    "published",
+                    "deleted"
+                  ],
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Get Package By ID",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "cms/packages/published/{{packageId}}?countryId={{countryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "packages",
+                    "published",
+                    "{{packageId}}"
+                  ],
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Create Package",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/packages/published",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "packages",
+                    "published"
+                  ],
+                  "query": []
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Published Package\",\n  \"title\": \"Published Package\",\n  \"destination\": \"Maldives\",\n  \"duration\": \"5D/4N\",\n  \"startingPriceCurrency\": \"INR\",\n  \"startingPrice\": 28999,\n  \"packageCategory\": \"luxury\",\n  \"description\": \"Package description\",\n  \"highlights\": [\n    \"Highlight 1\"\n  ],\n  \"inclusions\": [\n    \"Hotel\"\n  ],\n  \"exclusions\": [\n    \"Flights\"\n  ],\n  \"status\": \"DRAFT\",\n  \"displayOrder\": 1\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "let payload = {};",
+                      "try { payload = pm.response.json(); } catch (e) {}",
+                      "const value = payload?.data?.id;",
+                      "if (value) pm.collectionVariables.set('packageId', String(value));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Update Package",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/packages/published/{{packageId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "packages",
+                    "published",
+                    "{{packageId}}"
+                  ],
+                  "query": []
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"startingPriceCurrency\": \"AED\",\n  \"startingPrice\": 1499\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Soft Delete Package",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/packages/published/{{packageId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "packages",
+                    "published",
+                    "{{packageId}}"
+                  ],
+                  "query": []
+                }
+              }
+            },
+            {
+              "name": "Restore Package",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/packages/published/{{packageId}}/restore",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "packages",
+                    "published",
+                    "{{packageId}}",
+                    "restore"
+                  ],
+                  "query": []
+                }
+              }
+            },
+            {
+              "name": "Hard Delete Package",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/packages/published/{{packageId}}/hard-delete",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "packages",
+                    "published",
+                    "{{packageId}}",
+                    "hard-delete"
+                  ],
+                  "query": []
+                }
+              }
+            },
+            {
+              "name": "List Parent Packages",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "cms/packages/main?countryId={{countryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "packages",
+                    "main"
+                  ],
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "List Deleted Parent Packages",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "cms/packages/main/deleted?countryId={{countryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "packages",
+                    "main",
+                    "deleted"
+                  ],
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Get Parent Package By ID",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "cms/packages/main/{{mainPackageId}}?countryId={{countryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "packages",
+                    "main",
+                    "{{mainPackageId}}"
+                  ],
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Create Parent Package",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/packages/main",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "packages",
+                    "main"
+                  ],
+                  "query": []
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"Maldives Parent Package\",\n  \"amountCurrency\": \"INR\",\n  \"amount\": 20999,\n  \"destinationId\": \"{{destinationId}}\",\n  \"description\": \"Parent package description\",\n  \"highlights\": [\n    \"Top highlight\"\n  ],\n  \"features\": [\n    {\n      \"iconName\": \"timer\",\n      \"description\": \"4 Days / 3 Nights\"\n    }\n  ],\n  \"inclusions\": [\n    {\n      \"iconName\": \"hotel\",\n      \"description\": \"Hotel\"\n    }\n  ],\n  \"metaTitle\": \"SEO title\",\n  \"metaDescription\": \"SEO desc\",\n  \"keywords\": \"maldives,luxury\",\n  \"displayOrder\": 1,\n  \"isFeatured\": true,\n  \"countryIds\": [\n    \"{{countryId}}\"\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "let payload = {};",
+                      "try { payload = pm.response.json(); } catch (e) {}",
+                      "const value = payload?.data?.id;",
+                      "if (value) pm.collectionVariables.set('mainPackageId', String(value));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Update Parent Package",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/packages/main/{{mainPackageId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "packages",
+                    "main",
+                    "{{mainPackageId}}"
+                  ],
+                  "query": []
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"description\": \"Updated description\",\n  \"highlights\": [\n    \"Updated highlight\"\n  ],\n  \"countryIds\": [\n    \"{{countryId}}\"\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Soft Delete Parent Package",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/packages/main/{{mainPackageId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "packages",
+                    "main",
+                    "{{mainPackageId}}"
+                  ],
+                  "query": []
+                }
+              }
+            },
+            {
+              "name": "Restore Parent Package",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/packages/main/{{mainPackageId}}/restore",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "packages",
+                    "main",
+                    "{{mainPackageId}}",
+                    "restore"
+                  ],
+                  "query": []
+                }
+              }
+            },
+            {
+              "name": "Hard Delete Parent Package",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/packages/main/{{mainPackageId}}/hard-delete",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "packages",
+                    "main",
+                    "{{mainPackageId}}",
+                    "hard-delete"
+                  ],
+                  "query": []
+                }
+              }
+            },
+            {
+              "name": "List Sub Packages By Parent",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "cms/packages/main/{{mainPackageId}}/sub?countryId={{countryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "packages",
+                    "main",
+                    "{{mainPackageId}}",
+                    "sub"
+                  ],
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "List Deleted Sub Packages",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "cms/packages/sub/deleted?countryId={{countryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "packages",
+                    "sub",
+                    "deleted"
+                  ],
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Get Sub Package By ID",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "cms/packages/sub/{{subPackageId}}?countryId={{countryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "packages",
+                    "sub",
+                    "{{subPackageId}}"
+                  ],
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Create Sub Package",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/packages/sub",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "packages",
+                    "sub"
+                  ],
+                  "query": []
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"mainPackageId\": \"{{mainPackageId}}\",\n  \"title\": \"Sub package title\",\n  \"image\": \"{{sampleImageUrl}}\",\n  \"rating\": 0,\n  \"location\": \"Maldives\",\n  \"durationDays\": 3,\n  \"durationNights\": 2,\n  \"startingPriceCurrency\": \"INR\",\n  \"startingPrice\": 58999,\n  \"transport\": \"Boat\",\n  \"description\": \"Sub description\",\n  \"snapshot\": \"Sub snapshot\",\n  \"features\": [\n    {\n      \"title\": \"Feature 1\",\n      \"description\": \"Feature details\"\n    }\n  ],\n  \"itineraries\": [\n    {\n      \"day\": 1,\n      \"title\": \"Day 1\",\n      \"description\": \"Plan\",\n      \"features\": [\n        {\n          \"title\": \"Sightseeing\",\n          \"description\": \"Details\"\n        }\n      ]\n    }\n  ],\n  \"highlights\": [\n    \"H1\"\n  ],\n  \"inclusions\": [\n    \"I1\"\n  ],\n  \"exclusions\": [\n    \"E1\"\n  ],\n  \"paymentTerms\": [\n    \"P1\"\n  ],\n  \"cancellationPolicy\": [\n    \"C1\"\n  ],\n  \"tnc\": [\n    \"T1\"\n  ],\n  \"impNotes\": [\n    \"N1\"\n  ],\n  \"metaTitle\": \"meta\",\n  \"metaDescription\": \"meta desc\",\n  \"keywords\": \"k1,k2\",\n  \"displayOrder\": 1\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "let payload = {};",
+                      "try { payload = pm.response.json(); } catch (e) {}",
+                      "const value = payload?.data?.id;",
+                      "if (value) pm.collectionVariables.set('subPackageId', String(value));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Update Sub Package",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/packages/sub/{{subPackageId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "packages",
+                    "sub",
+                    "{{subPackageId}}"
+                  ],
+                  "query": []
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"startingPriceCurrency\": \"AED\",\n  \"startingPrice\": 9999\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Soft Delete Sub Package",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/packages/sub/{{subPackageId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "packages",
+                    "sub",
+                    "{{subPackageId}}"
+                  ],
+                  "query": []
+                }
+              }
+            },
+            {
+              "name": "Restore Sub Package",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/packages/sub/{{subPackageId}}/restore",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "packages",
+                    "sub",
+                    "{{subPackageId}}",
+                    "restore"
+                  ],
+                  "query": []
+                }
+              }
+            },
+            {
+              "name": "Hard Delete Sub Package",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/packages/sub/{{subPackageId}}/hard-delete",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "packages",
+                    "sub",
+                    "{{subPackageId}}",
+                    "hard-delete"
+                  ],
+                  "query": []
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Visa",
+          "item": [
+            {
+              "name": "List Visa Destinations",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "cms/visa?countryId={{countryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "visa"
+                  ],
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "List Deleted Visa Destinations",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "cms/visa/deleted?countryId={{countryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "visa",
+                    "deleted"
+                  ],
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Get Visa Destination By ID",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "cms/visa/{{visaDestinationId}}?countryId={{countryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "visa",
+                    "{{visaDestinationId}}"
+                  ],
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Get Visa Destination By Slug",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "cms/visa/slug/{{visaSlug}}?countryId={{countryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "visa",
+                    "slug",
+                    "{{visaSlug}}"
+                  ],
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Create Visa Destination",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/visa",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "visa"
+                  ],
+                  "query": []
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"Schengen Visa\",\n  \"slug\": \"schengen-visa\",\n  \"imageUrl\": \"{{sampleImageUrl}}\",\n  \"subDescription\": \"Visa short description\",\n  \"priceCurrency\": \"EUR\",\n  \"priceAmount\": 199,\n  \"highlights\": [\n    \"Highlight 1\"\n  ],\n  \"overviewTitle\": \"Overview\",\n  \"overviewDescription\": \"Overview text\",\n  \"quickSupportTitle\": \"Quick Support\",\n  \"quickSupportDescription\": \"Support text\",\n  \"supportIncluded\": [\n    \"Support item\"\n  ],\n  \"visaDetails\": [\n    {\n      \"title\": \"Processing\",\n      \"description\": \"5 days\"\n    }\n  ],\n  \"requirements\": [\n    \"Passport\"\n  ],\n  \"metaTitle\": \"Visa meta\",\n  \"metaDescription\": \"Visa meta description\",\n  \"keywords\": \"visa,schengen\",\n  \"displayOrder\": 1,\n  \"isActive\": true,\n  \"countryIds\": [\n    \"{{countryId}}\"\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "let payload = {};",
+                      "try { payload = pm.response.json(); } catch (e) {}",
+                      "const value = payload?.data?.id;",
+                      "if (value) pm.collectionVariables.set('visaDestinationId', String(value));",
+                      "let payload = {};",
+                      "try { payload = pm.response.json(); } catch (e) {}",
+                      "const value = payload?.data?.slug;",
+                      "if (value) pm.collectionVariables.set('visaSlug', String(value));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Update Visa Destination",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/visa/{{visaDestinationId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "visa",
+                    "{{visaDestinationId}}"
+                  ],
+                  "query": []
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"priceCurrency\": \"INR\",\n  \"priceAmount\": 14999,\n  \"countryIds\": [\n    \"{{countryId}}\"\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Update Visa Status",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/visa/{{visaDestinationId}}/status",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "visa",
+                    "{{visaDestinationId}}",
+                    "status"
+                  ],
+                  "query": []
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"isActive\": true\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Soft Delete Visa Destination",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/visa/{{visaDestinationId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "visa",
+                    "{{visaDestinationId}}"
+                  ],
+                  "query": []
+                }
+              }
+            },
+            {
+              "name": "Restore Visa Destination",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/visa/{{visaDestinationId}}/restore",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "visa",
+                    "{{visaDestinationId}}",
+                    "restore"
+                  ],
+                  "query": []
+                }
+              }
+            },
+            {
+              "name": "Hard Delete Visa Destination",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/visa/{{visaDestinationId}}/hard-delete",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "visa",
+                    "{{visaDestinationId}}",
+                    "hard-delete"
+                  ],
+                  "query": []
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Experience",
+          "item": [
+            {
+              "name": "List Creative Toolkit",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "cms/experience/creative-toolkit?countryId={{countryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "experience",
+                    "creative-toolkit"
+                  ],
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "List Deleted Creative Toolkit",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "cms/experience/creative-toolkit/deleted?countryId={{countryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "experience",
+                    "creative-toolkit",
+                    "deleted"
+                  ],
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Get Creative Toolkit By ID",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "cms/experience/creative-toolkit/{{featuredPickId}}?countryId={{countryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "experience",
+                    "creative-toolkit",
+                    "{{featuredPickId}}"
+                  ],
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Create Creative Toolkit",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/experience/creative-toolkit",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "experience",
+                    "creative-toolkit"
+                  ],
+                  "query": []
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"Summer Offer\",\n  \"slug\": \"summer-offer\",\n  \"subtitle\": \"Limited Deal\",\n  \"category\": \"offers\",\n  \"campaignType\": \"featured\",\n  \"sectionKey\": \"featured-hot-picks\",\n  \"referenceId\": \"{{packageId}}\",\n  \"rating\": 4.8,\n  \"offerCurrency\": \"AED\",\n  \"originalPrice\": 5299,\n  \"discountedPrice\": 4199,\n  \"badgeText\": \"discounted\",\n  \"duration\": \"5D/4N\",\n  \"description\": \"Offer description\",\n  \"imageUrl\": \"{{sampleImageUrl}}\",\n  \"buttonText\": \"Book now\",\n  \"ctaUrl\": \"/offers/summer\",\n  \"expiresOn\": \"2026-12-31\",\n  \"tags\": [\n    \"summer\"\n  ],\n  \"highlights\": [\n    \"Limited seats\"\n  ],\n  \"displayOrder\": 1,\n  \"isActive\": true,\n  \"countryIds\": [\n    \"{{countryId}}\"\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "let payload = {};",
+                      "try { payload = pm.response.json(); } catch (e) {}",
+                      "const value = payload?.data?.id;",
+                      "if (value) pm.collectionVariables.set('featuredPickId', String(value));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Update Creative Toolkit",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/experience/creative-toolkit/{{featuredPickId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "experience",
+                    "creative-toolkit",
+                    "{{featuredPickId}}"
+                  ],
+                  "query": []
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"offerCurrency\": \"INR\",\n  \"originalPrice\": 99999,\n  \"discountedPrice\": 79999,\n  \"countryIds\": [\n    \"{{countryId}}\"\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Update Creative Toolkit Status",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/experience/creative-toolkit/{{featuredPickId}}/status",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "experience",
+                    "creative-toolkit",
+                    "{{featuredPickId}}",
+                    "status"
+                  ],
+                  "query": []
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"isActive\": true\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Soft Delete Creative Toolkit",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/experience/creative-toolkit/{{featuredPickId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "experience",
+                    "creative-toolkit",
+                    "{{featuredPickId}}"
+                  ],
+                  "query": []
+                }
+              }
+            },
+            {
+              "name": "Restore Creative Toolkit",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/experience/creative-toolkit/{{featuredPickId}}/restore",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "experience",
+                    "creative-toolkit",
+                    "{{featuredPickId}}",
+                    "restore"
+                  ],
+                  "query": []
+                }
+              }
+            },
+            {
+              "name": "Hard Delete Creative Toolkit",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/experience/creative-toolkit/{{featuredPickId}}/hard-delete",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "experience",
+                    "creative-toolkit",
+                    "{{featuredPickId}}",
+                    "hard-delete"
+                  ],
+                  "query": []
+                }
+              }
+            },
+            {
+              "name": "List Season Cards",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "cms/experience/season-cards?countryId={{countryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "experience",
+                    "season-cards"
+                  ],
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "List Deleted Season Cards",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "cms/experience/season-cards/deleted?countryId={{countryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "experience",
+                    "season-cards",
+                    "deleted"
+                  ],
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Get Season Card By ID",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "cms/experience/season-cards/{{seasonCardId}}?countryId={{countryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "experience",
+                    "season-cards",
+                    "{{seasonCardId}}"
+                  ],
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Create Season Card",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/experience/season-cards",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "experience",
+                    "season-cards"
+                  ],
+                  "query": []
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"destinationId\": \"{{destinationId}}\",\n  \"title\": \"Spring\",\n  \"fromMonth\": \"Mar\",\n  \"toMonth\": \"May\",\n  \"description\": \"Season card desc\",\n  \"tag\": \"recommended\",\n  \"iconName\": \"leaf\",\n  \"color\": \"#22c55e\",\n  \"isActive\": true\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "let payload = {};",
+                      "try { payload = pm.response.json(); } catch (e) {}",
+                      "const value = payload?.data?.id;",
+                      "if (value) pm.collectionVariables.set('seasonCardId', String(value));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Update Season Card",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/experience/season-cards/{{seasonCardId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "experience",
+                    "season-cards",
+                    "{{seasonCardId}}"
+                  ],
+                  "query": []
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"description\": \"Updated season card description\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Update Season Card Status",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/experience/season-cards/{{seasonCardId}}/status",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "experience",
+                    "season-cards",
+                    "{{seasonCardId}}",
+                    "status"
+                  ],
+                  "query": []
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"isActive\": true\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Soft Delete Season Card",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/experience/season-cards/{{seasonCardId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "experience",
+                    "season-cards",
+                    "{{seasonCardId}}"
+                  ],
+                  "query": []
+                }
+              }
+            },
+            {
+              "name": "Restore Season Card",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/experience/season-cards/{{seasonCardId}}/restore",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "experience",
+                    "season-cards",
+                    "{{seasonCardId}}",
+                    "restore"
+                  ],
+                  "query": []
+                }
+              }
+            },
+            {
+              "name": "Hard Delete Season Card",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/experience/season-cards/{{seasonCardId}}/hard-delete",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "experience",
+                    "season-cards",
+                    "{{seasonCardId}}",
+                    "hard-delete"
+                  ],
+                  "query": []
+                }
+              }
+            },
+            {
+              "name": "List Hero Sections",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "cms/experience/hero-sections?countryId={{countryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "experience",
+                    "hero-sections"
+                  ],
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Upsert Hero Section",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/experience/hero-sections/{{heroSectionKey}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "experience",
+                    "hero-sections",
+                    "{{heroSectionKey}}"
+                  ],
+                  "query": []
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"Hero title\",\n  \"subtitle\": \"Hero subtitle\",\n  \"description\": \"Hero description\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Media Assets",
+          "item": [
+            {
+              "name": "Upload Media",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/media/upload",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "media",
+                    "upload"
+                  ],
+                  "query": []
+                },
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "media",
+                      "type": "file",
+                      "src": "{{sampleImagePath}}",
+                      "disabled": true
+                    }
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "let payload = {};",
+                      "try { payload = pm.response.json(); } catch (e) {}",
+                      "const value = payload?.data?.url || payload?.url;",
+                      "if (value) pm.collectionVariables.set('sampleImageUrl', String(value));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "List Media Assets",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "cms/media?entityType=destination&entityId={{destinationId}}&countryId={{countryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "media"
+                  ],
+                  "query": [
+                    {
+                      "key": "entityType",
+                      "value": "destination"
+                    },
+                    {
+                      "key": "entityId",
+                      "value": "{{destinationId}}"
+                    },
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Create Media Asset",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/media",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "media"
+                  ],
+                  "query": []
+                },
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "entityType",
+                      "value": "destination",
+                      "type": "text"
+                    },
+                    {
+                      "key": "entityId",
+                      "value": "{{destinationId}}",
+                      "type": "text"
+                    },
+                    {
+                      "key": "mediaKind",
+                      "value": "image",
+                      "type": "text"
+                    },
+                    {
+                      "key": "mediaUrl",
+                      "value": "{{sampleImageUrl}}",
+                      "type": "text"
+                    },
+                    {
+                      "key": "thumbnailUrl",
+                      "value": "{{sampleImageUrl}}",
+                      "type": "text"
+                    },
+                    {
+                      "key": "title",
+                      "value": "Media Asset",
+                      "type": "text"
+                    },
+                    {
+                      "key": "altText",
+                      "value": "Alt text",
+                      "type": "text"
+                    },
+                    {
+                      "key": "displayOrder",
+                      "value": "1",
+                      "type": "text"
+                    },
+                    {
+                      "key": "isPrimary",
+                      "value": "false",
+                      "type": "text"
+                    }
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "let payload = {};",
+                      "try { payload = pm.response.json(); } catch (e) {}",
+                      "const value = payload?.data?.id;",
+                      "if (value) pm.collectionVariables.set('mediaAssetId', String(value));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get Media Asset By ID",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "cms/media/{{mediaAssetId}}?countryId={{countryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "media",
+                    "{{mediaAssetId}}"
+                  ],
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Update Media Asset",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/media/{{mediaAssetId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "media",
+                    "{{mediaAssetId}}"
+                  ],
+                  "query": []
+                },
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "title",
+                      "value": "Updated Media Asset",
+                      "type": "text"
+                    },
+                    {
+                      "key": "displayOrder",
+                      "value": "2",
+                      "type": "text"
+                    },
+                    {
+                      "key": "isPrimary",
+                      "value": "false",
+                      "type": "text"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Update Media Asset Status",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/media/{{mediaAssetId}}/status",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "media",
+                    "{{mediaAssetId}}",
+                    "status"
+                  ],
+                  "query": []
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"isActive\": true\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Delete Media Asset",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/media/{{mediaAssetId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "media",
+                    "{{mediaAssetId}}"
+                  ],
+                  "query": []
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "website",
+      "item": [
+        {
+          "name": "Home",
+          "item": [
+            {
+              "name": "Home",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}{{publicCmsBasePath}}/home?country={{country}}",
+                "auth": {
+                  "type": "noauth"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Landing Places",
+          "item": [
+            {
+              "name": "Landing Places",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}{{publicCmsBasePath}}/landing-places?country={{country}}",
+                "auth": {
+                  "type": "noauth"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Destinations",
+          "item": [
+            {
+              "name": "List Destinations",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}{{publicCmsBasePath}}/destinations?region={{region}}&category={{category}}&isPopular=true&country={{country}}",
+                "auth": {
+                  "type": "noauth"
+                }
+              }
+            },
+            {
+              "name": "Destination By Slug",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}{{publicCmsBasePath}}/destinations/{{destinationSlug}}?country={{country}}",
+                "auth": {
+                  "type": "noauth"
+                }
+              }
+            },
+            {
+              "name": "Destination Highlights",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}{{publicCmsBasePath}}/destinations/{{destinationSlug}}/highlights?country={{country}}",
+                "auth": {
+                  "type": "noauth"
+                }
+              }
+            },
+            {
+              "name": "Destination Media",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}{{publicCmsBasePath}}/destinations/{{destinationSlug}}/media?country={{country}}",
+                "auth": {
+                  "type": "noauth"
+                }
+              }
+            },
+            {
+              "name": "Destination Season Cards",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}{{publicCmsBasePath}}/destinations/{{destinationSlug}}/season-cards?country={{country}}",
+                "auth": {
+                  "type": "noauth"
+                }
+              }
+            },
+            {
+              "name": "Destination Packages",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}{{publicCmsBasePath}}/destinations/{{destinationSlug}}/packages?country={{country}}",
+                "auth": {
+                  "type": "noauth"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Packages",
+          "item": [
+            {
+              "name": "Published Packages",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}{{publicCmsBasePath}}/packages/published?country={{country}}",
+                "auth": {
+                  "type": "noauth"
+                }
+              }
+            },
+            {
+              "name": "Parent Packages",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}{{publicCmsBasePath}}/packages/main?country={{country}}",
+                "auth": {
+                  "type": "noauth"
+                }
+              }
+            },
+            {
+              "name": "Sub Packages By Parent",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}{{publicCmsBasePath}}/packages/main/{{mainPackageId}}/sub?country={{country}}",
+                "auth": {
+                  "type": "noauth"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Visa",
+          "item": [
+            {
+              "name": "Visa Destinations",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}{{publicCmsBasePath}}/visa-destinations?country={{country}}",
+                "auth": {
+                  "type": "noauth"
+                }
+              }
+            },
+            {
+              "name": "Visa Destination By Slug",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}{{publicCmsBasePath}}/visa-destinations/{{visaSlug}}?country={{country}}",
+                "auth": {
+                  "type": "noauth"
+                }
+              }
+            },
+            {
+              "name": "Visa Details By Slug",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}{{publicCmsBasePath}}/visa-destinations/{{visaSlug}}/details?country={{country}}&sectionType=",
+                "auth": {
+                  "type": "noauth"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Experience",
+          "item": [
+            {
+              "name": "Featured Picks",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}{{publicCmsBasePath}}/featured-picks?country={{country}}&campaignType=&sectionKey=",
+                "auth": {
+                  "type": "noauth"
+                }
+              }
+            },
+            {
+              "name": "Creative Toolkit",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}{{publicCmsBasePath}}/creative-toolkit?country={{country}}&campaignType=&sectionKey=",
+                "auth": {
+                  "type": "noauth"
+                }
+              }
+            },
+            {
+              "name": "Season Cards",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}{{publicCmsBasePath}}/season-cards?country={{country}}&destinationSlug={{destinationSlug}}&destinationId=",
+                "auth": {
+                  "type": "noauth"
+                }
+              }
+            },
+            {
+              "name": "Hero Sections",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}{{publicCmsBasePath}}/hero-sections?country={{country}}",
+                "auth": {
+                  "type": "noauth"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

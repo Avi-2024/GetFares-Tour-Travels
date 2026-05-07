@@ -1,0 +1,57 @@
+# Travel CRM - Modular Monolith (Node.js + Express)
+
+Production-ready, feature-first scaffold for Travel CRM.
+
+## Architecture Highlights
+
+- Modular monolith with feature encapsulation.
+- Layering: Controller -> Service -> Repository.
+- Shared core for cross-cutting concerns.
+- Module factories with dependency injection.
+
+## Run
+
+```bash
+npm install
+npm run dev
+```
+
+## Database Migration
+
+Project supports PostgreSQL and MySQL.
+
+```bash
+npm run db:migrate
+npm run db:seed:rbac
+```
+
+PostgreSQL:
+
+- Set `DATABASE_URL=postgresql://...`.
+- Ensure `pgcrypto` allowed.
+
+MySQL:
+
+- Set `DATABASE_CLIENT=mysql`.
+- Use either:
+  - `DATABASE_URL=mysql://user:password@host:3306/travel_crm`
+  - or `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_DATABASE`
+- Run MySQL schema migration:
+  - `database/migrations/001_initial.mysql.sql`
+
+## Health & Metrics
+
+```bash
+GET /health
+GET /health/live
+GET /health/ready
+GET /metrics
+GET /metrics/json
+```
+
+## Backup/Restore
+
+```bash
+npm run db:backup
+npm run db:restore -- --file=database/backups/<file>.dump --yes
+```

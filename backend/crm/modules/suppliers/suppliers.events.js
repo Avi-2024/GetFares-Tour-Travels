@@ -1,0 +1,55 @@
+function createSuppliersEvents({ eventBus, logger }) {
+  return Object.freeze({
+    emitCreated(payload) {
+      logger.info({ id: payload.id }, "suppliers.created");
+      eventBus.emit("suppliers.created", payload);
+    },
+    emitUpdated(payload) {
+      logger.info({ id: payload.id }, "suppliers.updated");
+      eventBus.emit("suppliers.updated", payload);
+    },
+    emitDeleted(payload) {
+      logger.info({ id: payload.id }, "suppliers.deleted");
+      eventBus.emit("suppliers.deleted", payload);
+    },
+    emitPayableCreated(payload) {
+      logger.info(
+        { id: payload.id, supplierId: payload.supplierId },
+        "suppliers.payable_created",
+      );
+      eventBus.emit("suppliers.payable_created", payload);
+    },
+    emitPayableUpdated(payload) {
+      logger.info(
+        { id: payload.id, supplierId: payload.supplierId },
+        "suppliers.payable_updated",
+      );
+      eventBus.emit("suppliers.payable_updated", payload);
+    },
+    emitPayableSettled(payload) {
+      logger.info(
+        {
+          payableId: payload.payable?.id,
+          settlementId: payload.settlement?.id,
+          supplierId: payload.payable?.supplierId,
+        },
+        "suppliers.payable_settled",
+      );
+      eventBus.emit("suppliers.payable_settled", payload);
+    },
+    emitPayableDeadlineAlert(payload) {
+      logger.warn(
+        {
+          payableId: payload.payableId,
+          supplierId: payload.supplierId,
+          alertType: payload.alertType,
+          alertDate: payload.alertDate,
+        },
+        "suppliers.payable_deadline_alert",
+      );
+      eventBus.emit("suppliers.payable_deadline_alert", payload);
+    },
+  });
+}
+
+export { createSuppliersEvents };

@@ -1,0 +1,1279 @@
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
+import { FaArrowLeft, FaCheckCircle } from 'react-icons/fa'
+import {
+  PhoneInput,
+  type CountryIso2,
+  type PhoneInputRefType
+} from 'react-international-phone'
+import 'react-international-phone/style.css'
+import CurrencyInput, { formatValue } from 'react-currency-input-field'
+import SurfaceCard from '../../components/ui/SurfaceCard'
+import SearchableDropdown from '../../components/ui/SearchableDropdown'
+import { reportApiError } from '../../lib/notify'
+import { useLeadsService } from '../../hooks/useLeadsService'
+import { useCampaignsService } from '../../hooks/useCampaignsService'
+import { Country } from 'country-state-city'
+import {
+  getCurrencyLocaleByCode
+} from '../../utils/currency'
+import { getNationalityOptions } from '../../utils/nationality'
+import { nowWallClockString } from '../../utils/clientWallClock'
+import { getBrowserTimeZone } from '../../utils/dateTimePreferences'
+
+type LeadType = 'HOLIDAY' | 'VISA' | null
+
+type FormState = {
+  firstName: string
+  lastName: string
+  email: string
+  phone: string
+  leadCountry: string
+  nationality: string
+  clientCurrency: string
+  location: string
+  destinationName: string
+  travelDate: string
+  travelEndDate: string
+  adultsCount: string
+  childrenCount: string
+  budget: string
+  visaRequired: 'YES' | 'NO' | ''
+  preferredHotelCategory: '3_STAR' | '4_STAR' | '5_STAR' | 'ANY' | ''
+  travelPurpose: string
+  leadSource: string
+  campaignId: string
+  notes: string
+}
+
+const HIDDEN_FIELDS_BY_TYPE: Record<NonNullable<LeadType>, string[]> = {
+  VISA: ['leadSource', 'preferredHotelCategory', 'visaRequired', 'travelPurpose'],
+  HOLIDAY: []
+}
+
+const initialForm: FormState = {
+  firstName: '',
+  lastName: '',
+  email: '',
+  phone: '',
+  leadCountry: '',
+  nationality: '',
+  clientCurrency: 'INR',
+  location: '',
+  destinationName: '',
+  travelDate: '',
+  travelEndDate: '',
+  adultsCount: '2',
+  childrenCount: '0',
+  budget: '',
+  visaRequired: '',
+  preferredHotelCategory: '',
+  travelPurpose: '',
+  leadSource: 'Website',
+  campaignId: '',
+  notes: ''
+}
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const PHONE_E164_DIGITS_MIN = 8
+const PHONE_E164_DIGITS_MAX = 15
+
+const normalizePrefillPhone = (value: unknown): string => {
+  const raw = String(value ?? '').trim()
+  if (!raw) return ''
+  const digits = raw.replace(/\D/g, '')
+  if (!digits) return ''
+  const clipped = digits.slice(0, PHONE_E164_DIGITS_MAX)
+  return raw.startsWith('+') ? `+${clipped}` : `+${clipped}`
+}
+
+type CurrencyMeta = {
+  code: string
+  locale: string
+  symbol: string
+}
+
+const COUNTRY_CURRENCY_MAP: Record<string, CurrencyMeta> = {
+  in: { code: 'INR', locale: 'hi-IN', symbol: '₹' },
+  us: { code: 'USD', locale: 'en-US', symbol: '$' },
+  gb: { code: 'GBP', locale: 'en-GB', symbol: '£' },
+  ae: { code: 'AED', locale: 'en-AE', symbol: 'د.إ' },
+  eu: { code: 'EUR', locale: 'de-DE', symbol: '€' }
+}
+
+const FALLBACK_CURRENCY_META: CurrencyMeta = COUNTRY_CURRENCY_MAP.in
+
+const detectLocaleCountryIso2 = (): CountryIso2 => {
+  if (typeof navigator === 'undefined' || !navigator.language) {
+    return 'in'
+  }
+  const locale = navigator.language
+  const region = locale.includes('-') ? locale.split('-')[1]?.toLowerCase() : ''
+  return (region || 'in') as CountryIso2
+}
+
+const getLocalTodayIsoDate = (): string => {
+  const now = new Date()
+  const timezoneOffsetMs = now.getTimezoneOffset() * 60 * 1000
+  return new Date(now.getTime() - timezoneOffsetMs).toISOString().split('T')[0]
+}
+
+const createCountryCurrencyMap = (): Record<string, string> => {
+  const map: Record<string, string> = {
+    'India': 'INR',
+    'United States': 'USD',
+    'United Kingdom': 'GBP',
+    'United Arab Emirates': 'AED',
+    'Saudi Arabia': 'SAR',
+    'Qatar': 'QAR',
+    'Kuwait': 'KWD',
+    'Oman': 'OMR',
+    'Bahrain': 'BHD',
+    'Canada': 'CAD',
+    'Australia': 'AUD',
+    'Singapore': 'SGD',
+    'Malaysia': 'MYR',
+    'Thailand': 'THB',
+    'Indonesia': 'IDR',
+    'Japan': 'JPY',
+    'China': 'CNY',
+    'South Korea': 'KRW',
+    'Hong Kong': 'HKD',
+    'New Zealand': 'NZD',
+    'Switzerland': 'CHF',
+    'Sweden': 'SEK',
+    'Norway': 'NOK',
+    'Denmark': 'DKK',
+    'Poland': 'PLN',
+    'Czech Republic': 'CZK',
+    'Hungary': 'HUF',
+    'Russia': 'RUB',
+    'Turkey': 'TRY',
+    'South Africa': 'ZAR',
+    'Egypt': 'EGP',
+    'Nigeria': 'NGN',
+    'Kenya': 'KES',
+    'Brazil': 'BRL',
+    'Mexico': 'MXN',
+    'Argentina': 'ARS',
+    'Chile': 'CLP',
+    'Colombia': 'COP',
+    'Peru': 'PEN',
+    'Israel': 'ILS',
+    'Philippines': 'PHP',
+    'Vietnam': 'VND',
+    'Bangladesh': 'BDT',
+    'Pakistan': 'PKR',
+    'Sri Lanka': 'LKR',
+    'Nepal': 'NPR',
+    'Maldives': 'MVR',
+    'Mauritius': 'MUR',
+    'Seychelles': 'SCR'
+  }
+
+  const euroCountries = [
+    'Germany', 'France', 'Italy', 'Spain', 'Portugal', 'Netherlands',
+    'Belgium', 'Austria', 'Greece', 'Ireland', 'Finland', 'Luxembourg',
+    'Slovenia', 'Cyprus', 'Malta', 'Slovakia', 'Estonia', 'Latvia',
+    'Lithuania', 'Croatia'
+  ]
+  euroCountries.forEach(country => {
+    map[country] = 'EUR'
+  })
+
+  return map
+}
+
+const COUNTRY_CURRENCY_NAME_MAP = createCountryCurrencyMap()
+
+const createInitialFormState = (): FormState => {
+  const iso2 = detectLocaleCountryIso2()
+  const matchedCountry = Country.getAllCountries().find(
+    country => String(country.isoCode || '').toLowerCase() === iso2
+  )
+  const localeCurrencyCode = String(matchedCountry?.currency || '')
+    .trim()
+    .toUpperCase()
+  const resolvedCurrency =
+    COUNTRY_CURRENCY_MAP[iso2]?.code ||
+    localeCurrencyCode ||
+    FALLBACK_CURRENCY_META.code
+
+  return {
+    ...initialForm,
+    leadCountry: matchedCountry?.name || '',
+    nationality: matchedCountry?.name || '',
+    clientCurrency: resolvedCurrency
+  }
+}
+
+const CreateLead: React.FC = () => {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const customerData = location.state?.customer
+  const leadsService = useLeadsService()
+  const campaignsService = useCampaignsService()
+  const [leadType, setLeadType] = useState<LeadType>(null)
+  const [form, setForm] = useState<FormState>(() => createInitialFormState())
+  // const [campaigns, setCampaigns] = useState<any[]>([])
+  const [destinations, setDestinations] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+  const [apiError, setApiError] = useState('')
+  const [duplicateWarning, setDuplicateWarning] = useState('')
+  const [duplicateLead, setDuplicateLead] = useState<any>(null)
+  const [showErrors, setShowErrors] = useState(false)
+  const [childAges, setChildAges] = useState<string[]>([])
+  const [phoneCountryIso2, setPhoneCountryIso2] = useState<CountryIso2>(() =>
+    detectLocaleCountryIso2()
+  )
+  const minTravelDate = useMemo(() => getLocalTodayIsoDate(), [])
+  const phoneInputRef = useRef<PhoneInputRefType>(null)
+
+  const isFieldVisible = (fieldName: string) => {
+    if (!leadType) return true
+    return !HIDDEN_FIELDS_BY_TYPE[leadType]?.includes(fieldName)
+  }
+
+  const handleLeadTypeSelect = (type: 'HOLIDAY' | 'VISA') => {
+    setLeadType(type)
+    const baseForm = createInitialFormState()
+
+    if (customerData) {
+      const nameParts = (customerData.fullName || '').split(' ')
+      setForm({
+        ...baseForm,
+        firstName: nameParts[0] || '',
+        lastName: nameParts.slice(1).join(' ') || '',
+        email: customerData.email || '',
+        phone: normalizePrefillPhone(customerData.phone),
+        leadCountry: customerData.leadCountry || baseForm.leadCountry,
+        nationality: customerData.nationality || baseForm.nationality,
+        clientCurrency: customerData.clientCurrency || baseForm.clientCurrency,
+        location: customerData.addressLine || ''
+      })
+    } else {
+      setForm(baseForm)
+    }
+
+    setChildAges([])
+    setShowErrors(false)
+    setApiError('')
+    setDuplicateWarning('')
+  }
+
+  const handleBackToSelection = () => {
+    setLeadType(null)
+    setForm(createInitialFormState())
+    setChildAges([])
+    setShowErrors(false)
+    setApiError('')
+    setDuplicateWarning('')
+  }
+
+  useEffect(() => {
+    const loadData = async () => {
+      const [, destinationsRes] = await Promise.allSettled([
+        campaignsService.list({ status: 'ACTIVE' }),
+        leadsService.getDestinations()
+      ])
+
+      // if (campaignsRes.status === 'fulfilled') {
+      //   setCampaigns((campaignsRes.value as any).data || [])
+      // } else {
+      //   setCampaigns([])
+      // }
+
+      if (destinationsRes.status === 'fulfilled') {
+        const list = destinationsRes.value
+        setDestinations(Array.isArray(list) ? list : [])
+      } else {
+        setDestinations([])
+      }
+    }
+    void loadData()
+  }, [campaignsService, leadsService])
+
+  useEffect(() => {
+    const checkDuplicates = async () => {
+      const email = form.email.trim()
+      const phone = form.phone.replace(/\D/g, '')
+
+      if (!email && !phone) {
+        setDuplicateWarning('')
+        setDuplicateLead(null)
+        return
+      }
+
+      if (email && !EMAIL_PATTERN.test(email)) {
+        setDuplicateWarning('')
+        setDuplicateLead(null)
+        return
+      }
+
+      if (phone && phone.length < PHONE_E164_DIGITS_MIN) {
+        setDuplicateWarning('')
+        setDuplicateLead(null)
+        return
+      }
+
+      try {
+        const result = await leadsService.checkDuplicate(
+          email || undefined,
+          phone || undefined
+        )
+        if ((result as any).data.isDuplicate) {
+          const matches = (result as any).data.matches || []
+          setDuplicateLead(matches[0] || null)
+          const leadIds = matches.map((m: any) => m.leadId || m.lead_id || m.id).filter(Boolean)
+          const leadIdText = leadIds.length > 0 ? ` (Lead ID: ${leadIds.join(', ')})` : ''
+          setDuplicateWarning(
+            `Similar lead exists${leadIdText}. Click "Use Existing Data" to prefill the form.`
+          )
+        } else {
+          setDuplicateWarning('')
+          setDuplicateLead(null)
+        }
+      } catch {
+        setDuplicateWarning('')
+        setDuplicateLead(null)
+      }
+    }
+
+    const timer = setTimeout(() => {
+      void checkDuplicates()
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [form.email, form.phone, leadsService])
+
+  const validation = useMemo(() => {
+    const email = form.email.trim()
+    const phoneDigits = form.phone.replace(/\D/g, '')
+    const phoneLooksValid =
+      form.phone.trim().startsWith('+') &&
+      phoneDigits.length >= PHONE_E164_DIGITS_MIN &&
+      phoneDigits.length <= PHONE_E164_DIGITS_MAX
+
+    const adultsCountValue = Number(form.adultsCount || 0)
+    const childrenCountValue = Number(form.childrenCount || 0)
+    const adultsCountSafe = Number.isFinite(adultsCountValue)
+      ? adultsCountValue
+      : 0
+    const childrenCountSafe = Number.isFinite(childrenCountValue)
+      ? childrenCountValue
+      : 0
+    const isTravelStartDateInPast =
+      form.travelDate.trim() !== '' && form.travelDate < minTravelDate
+    const isTravelEndDateInPast =
+      form.travelEndDate.trim() !== '' && form.travelEndDate < minTravelDate
+    const isTravelEndBeforeStart =
+      form.travelDate.trim() !== '' &&
+      form.travelEndDate.trim() !== '' &&
+      form.travelEndDate < form.travelDate
+
+    return {
+      firstName: !form.firstName.trim(),
+      lastName: !form.lastName.trim(),
+      email: !email || !EMAIL_PATTERN.test(email),
+      phone: !phoneLooksValid,
+      leadCountry: !form.leadCountry,
+      nationality: !form.nationality,
+      clientCurrency: !form.clientCurrency.trim(),
+      destinationName: !form.destinationName.trim(),
+      travelDate: !form.travelDate || isTravelStartDateInPast,
+      travelEndDate:
+        !form.travelEndDate || isTravelEndDateInPast || isTravelEndBeforeStart,
+      adultsChildren:
+        adultsCountSafe < 0 || childrenCountSafe < 0 || adultsCountSafe < 1,
+      childrenAges:
+        childrenCountSafe > 0 &&
+        (childAges.length !== childrenCountSafe ||
+          childAges.some(age => {
+            const numericAge = Number(age)
+            return (
+              age.trim() === '' ||
+              !Number.isFinite(numericAge) ||
+              numericAge < 0 ||
+              numericAge > 18
+            )
+          })),
+      budget: false,
+      visaRequired: false,
+      preferredHotelCategory: false,
+      travelPurpose: false
+    }
+  }, [form, childAges, minTravelDate])
+
+  const hasError = useMemo(
+    () => Object.values(validation).some(Boolean),
+    [validation]
+  )
+
+  const currencyOptions = useMemo(
+    () => [
+      { value: '', label: 'Select currency' },
+      { value: 'INR', label: 'INR - Indian Rupee' },
+      { value: 'USD', label: 'USD - US Dollar' },
+      { value: 'EUR', label: 'EUR - Euro' },
+      { value: 'GBP', label: 'GBP - British Pound' },
+      { value: 'AED', label: 'AED - UAE Dirham' },
+      { value: 'SAR', label: 'SAR - Saudi Riyal' },
+      { value: 'QAR', label: 'QAR - Qatari Riyal' },
+      { value: 'KWD', label: 'KWD - Kuwaiti Dinar' },
+      { value: 'OMR', label: 'OMR - Omani Rial' },
+      { value: 'BHD', label: 'BHD - Bahraini Dinar' },
+      { value: 'CAD', label: 'CAD - Canadian Dollar' },
+      { value: 'AUD', label: 'AUD - Australian Dollar' },
+      { value: 'SGD', label: 'SGD - Singapore Dollar' },
+      { value: 'MYR', label: 'MYR - Malaysian Ringgit' },
+      { value: 'THB', label: 'THB - Thai Baht' },
+      { value: 'JPY', label: 'JPY - Japanese Yen' },
+      { value: 'CNY', label: 'CNY - Chinese Yuan' },
+      { value: 'CHF', label: 'CHF - Swiss Franc' },
+      { value: 'ZAR', label: 'ZAR - South African Rand' },
+      { value: 'BRL', label: 'BRL - Brazilian Real' },
+      { value: 'MXN', label: 'MXN - Mexican Peso' },
+      { value: 'TRY', label: 'TRY - Turkish Lira' },
+      { value: 'RUB', label: 'RUB - Russian Ruble' }
+    ],
+    []
+  )
+
+  const allCountryNames = useMemo(
+    () => Country.getAllCountries().map(country => country.name),
+    []
+  )
+
+
+  const destinationOptions = useMemo(
+    () => {
+      const destinationNames = destinations
+        .map(destination => {
+          if (typeof destination === 'string') return destination
+          if (!destination || typeof destination !== 'object') return ''
+          return (
+            destination.name ||
+            destination.destinationName ||
+            destination.country ||
+            ''
+          )
+        })
+        .map(name => String(name).trim())
+        .filter(Boolean)
+
+      const mergedNames = Array.from(
+        new Set([...allCountryNames, ...destinationNames])
+      ).sort((a, b) => a.localeCompare(b))
+
+      return [
+        { value: '', label: 'Select destination' },
+        ...mergedNames.map(name => ({
+          value: name,
+          label: name
+        }))
+      ]
+    }, [allCountryNames, destinations])
+
+  const visaOptions = useMemo(
+    () => [
+      { value: '', label: 'Select visa requirement' },
+      { value: 'YES', label: 'Yes' },
+      { value: 'NO', label: 'No' }
+    ],
+    []
+  )
+
+  const hotelCategoryOptions = useMemo(
+    () => [
+      { value: '', label: 'Select hotel category' },
+      { value: '3_STAR', label: '3 Star' },
+      { value: '4_STAR', label: '4 Star' },
+      { value: '5_STAR', label: '5 Star' },
+      { value: '7_STAR', label: '7 Star' },
+      { value: 'ANY', label: 'Any' }
+    ],
+    []
+  )
+
+  const travelPurposeOptions = useMemo(
+    () => [
+      { value: '', label: 'Select purpose' },
+      { value: 'LEISURE', label: 'Leisure' },
+      { value: 'BUSINESS', label: 'Business' },
+      { value: 'HONEYMOON', label: 'Honeymoon' },
+      { value: 'FAMILY', label: 'Family' },
+      { value: 'ADVENTURE', label: 'Adventure' }
+    ],
+    []
+  )
+
+  const leadSourceOptions = useMemo(
+    () => [
+      { value: 'Website', label: 'Website' },
+      { value: 'Phone', label: 'Phone' },
+      { value: 'Referral', label: 'Referral' },
+      { value: 'Social', label: 'Social' },
+      { value: 'WalkIn', label: 'WalkIn' }
+    ],
+    []
+  )
+
+  // const campaignOptions = useMemo(
+  //   () => [
+  //     { value: '', label: 'Select campaign (optional)' },
+  //     ...campaigns.map(campaign => ({
+  //       value: String(campaign.id),
+  //       label: campaign.name
+  //     }))
+  //   ],
+  //   [campaigns]
+  // )
+
+  const countryOptions = useMemo(
+    () => [
+      { value: '', label: 'Select country' },
+      ...allCountryNames.map(name => ({
+        value: name,
+        label: name
+      }))
+    ],
+    [allCountryNames]
+  )
+
+  const nationalityOptions = useMemo(() => getNationalityOptions(), [])
+
+  const countryMetaByName = useMemo(() => {
+    const map = new Map<
+      string,
+      { iso2: CountryIso2; currency: string }
+    >()
+    Country.getAllCountries().forEach(country => {
+      if (country.name) {
+        map.set(country.name, {
+          iso2: String(country.isoCode || '').toLowerCase() as CountryIso2,
+          currency: COUNTRY_CURRENCY_NAME_MAP[country.name] || ''
+        })
+      }
+    })
+    return map
+  }, [])
+
+  const countryNameByIso2 = useMemo(() => {
+    const map = new Map<CountryIso2, string>()
+    Country.getAllCountries().forEach(country => {
+      const iso2 = String(country.isoCode || '').toLowerCase() as CountryIso2
+      if (country.name) {
+        map.set(iso2, country.name)
+      }
+    })
+    return map
+  }, [])
+
+  const resolveCurrencyForIso2 = (iso2: CountryIso2): string => {
+    const countryName = countryNameByIso2.get(iso2)
+    if (!countryName) return 'INR'
+    return COUNTRY_CURRENCY_NAME_MAP[countryName] || COUNTRY_CURRENCY_MAP[iso2]?.code || 'INR'
+  }
+
+  const selectedCurrencyMeta = useMemo(() => {
+    const currencyCode = form.clientCurrency.trim().toUpperCase()
+    if (!currencyCode) return FALLBACK_CURRENCY_META
+    const localeMap = getCurrencyLocaleByCode()
+    const resolvedLocale =
+      localeMap.get(currencyCode) || FALLBACK_CURRENCY_META.locale
+    return {
+      code: currencyCode,
+      locale: resolvedLocale,
+      symbol: FALLBACK_CURRENCY_META.symbol
+    }
+  }, [form.clientCurrency])
+
+  const formattedBudgetPreview = useMemo(() => {
+    if (!form.budget) return ''
+    const numericBudget = Number((form.budget || '').replace(/,/g, ''))
+    if (!Number.isFinite(numericBudget)) return ''
+    try {
+      return formatValue({
+        value: form.budget,
+        intlConfig: {
+          locale: selectedCurrencyMeta.locale,
+          currency: selectedCurrencyMeta.code
+        }
+      })
+    } catch {
+      return ''
+    }
+  }, [form.budget, selectedCurrencyMeta])
+
+  const handleLeadCountryChange = (countryName: string) => {
+    const meta = countryMetaByName.get(countryName)
+    if (!meta) {
+      setForm(prev => ({
+        ...prev,
+        leadCountry: countryName,
+        nationality:
+          !prev.nationality || prev.nationality === prev.leadCountry
+            ? countryName
+            : prev.nationality
+      }))
+      return
+    }
+
+    setPhoneCountryIso2(meta.iso2)
+    setForm(prev => ({
+      ...prev,
+      leadCountry: countryName,
+      nationality:
+        !prev.nationality || prev.nationality === prev.leadCountry
+          ? countryName
+          : prev.nationality,
+      clientCurrency: meta.currency || prev.clientCurrency || 'INR'
+    }))
+  }
+
+  const handlePhoneChange = (
+    phone: string,
+    meta: { country: { iso2: CountryIso2 } }
+  ) => {
+
+    const digitsOnly = phone.replace(/\D/g, '');
+    if (digitsOnly.length > PHONE_E164_DIGITS_MAX) return 
+
+    const iso2 = meta.country?.iso2
+    if (!iso2) {
+      setForm(prev => ({ ...prev, phone }))
+      return
+    }
+
+    const mappedCountryName = countryNameByIso2.get(iso2)
+    setPhoneCountryIso2(iso2)
+    setForm(prev => ({
+      ...prev,
+      phone,
+      leadCountry: mappedCountryName || prev.leadCountry,
+      nationality:
+        !prev.nationality || prev.nationality === prev.leadCountry
+          ? mappedCountryName || prev.nationality
+          : prev.nationality,
+      clientCurrency: resolveCurrencyForIso2(iso2)
+    }))
+  }
+
+  const handleSubmit = async () => {
+    setShowErrors(true)
+    if (hasError) {
+      setApiError('Fix highlighted fields, then try again.')
+      return
+    }
+
+    setLoading(true)
+    setApiError('')
+    const fullName = [form.firstName, form.lastName]
+      .map(value => value.trim())
+      .filter(Boolean)
+      .join(' ')
+    const normalizedPhone = form.phone.replace(/\D/g, '')
+    const normalizedBudget = Number((form.budget || '').replace(/,/g, ''))
+    const adultsCountNumber = Number(form.adultsCount || 0)
+    const childrenCountNumber = Number(form.childrenCount || 0)
+    const cleanChildAges = childAges
+      .map(age => age.trim())
+      .filter(age => age !== '')
+      .map(age => Number(age))
+      .filter(age => Number.isFinite(age) && age >= 0 && age <= 18)
+
+    const childAgesNote =
+      childrenCountNumber > 0
+        ? `Child Ages: ${cleanChildAges.map(age => String(age)).join(', ')}`
+        : ''
+
+    const mergedNotes = [form.notes.trim(), childAgesNote]
+      .filter(Boolean)
+      .join('\n')
+
+    try {
+      await leadsService.createLead({
+        fullName,
+        email: form.email.trim(),
+        phone: normalizedPhone,
+        clientCreatedAt: nowWallClockString(),
+        clientTimezone: getBrowserTimeZone(),
+        leadCountry: form.leadCountry,
+        nationality: form.nationality.trim(),
+        addressLine: form.location.trim() || undefined,
+        clientCurrency: form.clientCurrency.trim().toUpperCase(),
+        destinationName: form.destinationName.trim(),
+        travelDate: form.travelDate,
+        travelEndDate: form.travelEndDate,
+        adultsCount: adultsCountNumber,
+        childrenCount: childrenCountNumber,
+        childAges: cleanChildAges.length > 0 ? cleanChildAges : undefined,
+        ...(form.budget.trim() && Number.isFinite(normalizedBudget)
+          ? leadType === 'VISA'
+            ? { salary: normalizedBudget }
+            : { budget: normalizedBudget }
+          : {}),
+        visaRequired: form.visaRequired
+          ? form.visaRequired === 'YES'
+          : undefined,
+        preferredHotelCategory: form.preferredHotelCategory,
+        travelPurpose: form.travelPurpose.trim(),
+        source: form.leadSource.trim() || 'Website',
+        campaignId: form.campaignId || undefined,
+        notes: mergedNotes || undefined,
+        leadType,
+        status: 'OPEN',
+        qualificationCompleted: true,
+        allowDuplicate: true
+      })
+      navigate('/leads')
+    } catch (error) {
+      reportApiError(error, 'Could not create lead.', setApiError)
+      setLoading(false)
+    }
+  }
+
+  const fieldError = (key: keyof typeof validation) =>
+    showErrors && validation[key]
+
+  if (!leadType) {
+    return (
+      <div className='mx-auto max-w-9xl space-y-6 px-0'>
+        <div className='flex items-center gap-3'>
+          <button
+            onClick={() => navigate('/leads')}
+            className='inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
+            aria-label='Back to leads'
+          >
+            <FaArrowLeft className='text-sm' />
+          </button>
+          <div>
+            <h1 className='text-2xl font-bold text-gray-900 dark:text-gray-100'>
+              Create New Lead
+            </h1>
+            <p className='text-sm text-gray-500'>
+              Select the type of lead you want to create
+            </p>
+          </div>
+        </div>
+
+        <div className='grid grid-cols-1 gap-6 md:grid-cols-2'>
+          <button
+            onClick={() => handleLeadTypeSelect('HOLIDAY')}
+            className='group relative overflow-hidden rounded-xl border-2 border-gray-200 bg-white p-8 text-left transition-all hover:border-blue-500 hover:shadow-lg dark:border-gray-700 dark:bg-gray-800 dark:hover:border-blue-500'
+          >
+            <div className='absolute right-4 top-4 text-4xl opacity-20 transition-opacity group-hover:opacity-35'>
+              🏖️
+            </div>
+            <h3 className='text-xl font-bold text-gray-900 dark:text-gray-100'>
+              Holiday Lead
+            </h3>
+            <p className='mt-2 text-sm text-gray-600 dark:text-gray-400'>
+              For holiday packages, tours, and leisure travel bookings
+            </p>
+            <ul className='mt-4 space-y-2 text-sm text-gray-500 dark:text-gray-500'>
+              <li>• Hotel preferences</li>
+              <li>• Travel packages</li>
+              <li>• Campaign tracking</li>
+              <li>• Lead source attribution</li>
+            </ul>
+            <div className='mt-6 inline-flex items-center text-sm font-medium text-blue-600 dark:text-blue-400'>
+              Select Tourist Lead →
+            </div>
+          </button>
+
+          <button
+            onClick={() => handleLeadTypeSelect('VISA')}
+            className='group relative overflow-hidden rounded-xl border-2 border-gray-200 bg-white p-8 text-left transition-all hover:border-green-500 hover:shadow-lg dark:border-gray-700 dark:bg-gray-800 dark:hover:border-green-500'
+          >
+            <div className='absolute right-4 top-4 text-4xl opacity-20 transition-opacity group-hover:opacity-35'>
+              ✈️
+            </div>
+            <h3 className='text-xl font-bold text-gray-900 dark:text-gray-100'>
+              Visa Lead
+            </h3>
+            <p className='mt-2 text-sm text-gray-600 dark:text-gray-400'>
+              For visa applications and immigration services
+            </p>
+            <ul className='mt-4 space-y-2 text-sm text-gray-500 dark:text-gray-500'>
+              <li>• Visa processing</li>
+              <li>• Document management</li>
+              <li>• Application tracking</li>
+              <li>• Simplified workflow</li>
+            </ul>
+            <div className='mt-6 inline-flex items-center text-sm font-medium text-green-600 dark:text-green-400'>
+              Select Visa Lead →
+            </div>
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className='mx-auto max-w-9xl space-y-6'>
+      <div className='flex items-center gap-3'>
+        <button
+          onClick={handleBackToSelection}
+          className='inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
+          aria-label='Back to lead type selection'
+        >
+          <FaArrowLeft className='text-sm' />
+        </button>
+        <div className='flex-1'>
+          <h1 className='text-2xl font-bold text-gray-900 dark:text-gray-100'>
+            Create {leadType === 'HOLIDAY' ? 'Holiday' : 'Visa'} Lead
+          </h1>
+          <p className='text-sm text-gray-500'>
+            SOP qualification capture for first response. PAN can be collected
+            later after payment or finance onboarding.
+          </p>
+        </div>
+        <span className='inline-flex items-center rounded-full bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'>
+          {leadType === 'HOLIDAY' ? '🏖️ Holiday' : '✈️ Visa'} Lead
+        </span>
+      </div>
+
+      {duplicateWarning ? (
+        <div className='rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-200 flex items-center justify-between'>
+          <span>{duplicateWarning}</span>
+          {duplicateLead && (
+            <button
+              onClick={() => {
+                const lead = duplicateLead
+                const nameParts = (lead.fullName || lead.full_name || '').split(' ')
+                setForm({
+                  firstName: nameParts[0] || '',
+                  lastName: nameParts.slice(1).join(' ') || '',
+                  email: lead.email || '',
+                  phone: normalizePrefillPhone(lead.phone),
+                  leadCountry: lead.leadCountry || lead.lead_country || '',
+                  nationality: lead.nationality || '',
+                  clientCurrency: lead.clientCurrency || lead.client_currency || 'INR',
+                  location: lead.addressLine || lead.address_line || '',
+                  destinationName: lead.destinationName || lead.destination_name || lead.destination || '',
+                  travelDate: lead.travelDate || lead.travel_date || '',
+                  travelEndDate: lead.travelEndDate || lead.travel_end_date || '',
+                  adultsCount: String(lead.adultsCount || lead.adults_count || '2'),
+                  childrenCount: String(lead.childrenCount || lead.children_count || '0'),
+                  budget: String(lead.budget || ''),
+                  visaRequired: lead.visaRequired ? 'YES' : lead.visaRequired === false ? 'NO' : '',
+                  preferredHotelCategory: lead.preferredHotelCategory || lead.preferred_hotel_category || '',
+                  travelPurpose: lead.travelPurpose || lead.travel_purpose || '',
+                  leadSource: lead.source || 'Website',
+                  campaignId: lead.campaignId || lead.campaign_id || '',
+                  notes: lead.notes || ''
+                })
+                setDuplicateWarning('')
+              }}
+              className='ml-3 rounded-lg bg-amber-600 px-3 py-1 text-xs font-medium text-white hover:bg-amber-700'
+            >
+              Use Existing Data
+            </button>
+          )}
+        </div>
+      ) : null}
+
+      {apiError ? (
+        <div className='rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-200'>
+          {apiError}
+        </div>
+      ) : null}
+
+      <SurfaceCard>
+        <h2 className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
+          Customer & Qualification Details
+        </h2>
+        <div className='mt-4 grid grid-cols-1 gap-4 md:grid-cols-2'>
+          <Field
+            label='First Name *'
+            value={form.firstName}
+            onChange={value => { 
+              const Onlyletters=/^[a-zA-Z\s]*$/
+              if (!Onlyletters.test(value)) return
+              setForm(prev => ({ ...prev, firstName: value }))}}
+            error={fieldError('firstName')}
+          />
+          <Field
+            label='Last Name *'
+            value={form.lastName}
+            onChange={value => {
+              const Onlyletters=/^[a-zA-Z\s]*$/
+              if (!Onlyletters.test(value)) return
+              setForm(prev => ({ ...prev, lastName: value }))}}
+            error={fieldError('lastName')}
+          />
+          <Field
+            label='Email *'
+            value={form.email}
+            onChange={value => setForm(prev => ({ ...prev, email: value }))}
+            error={fieldError('email')}
+            type='email'
+          />
+          <div>
+            <label className='field-label'>Phone *</label>
+            <PhoneInput
+              ref={phoneInputRef}
+              value={form.phone}
+              defaultCountry={phoneCountryIso2}
+              onChange={handlePhoneChange}
+              inputClassName={`field-input !w-full ${fieldError('phone') ? '!border-red-500' : ''
+                }`}
+              countrySelectorStyleProps={{
+                buttonClassName:
+                  'h-[52px] rounded-l-xl border border-gray-200 dark:border-gray-700'
+              }}
+              inputProps={{
+                name: 'phone',
+                required: true,
+                autoComplete: 'tel',
+                placeholder: 'Phone number'
+              }}
+            />
+           
+          </div>
+          <div>
+            <label className='field-label'>Lead Country *</label>
+            <SearchableDropdown
+              value={form.leadCountry}
+              options={countryOptions}
+              hasError={fieldError('leadCountry')}
+              searchPlaceholder='Search country...'
+              onChange={handleLeadCountryChange}
+            />
+          </div>
+          <div>
+            <label className='field-label'>Nationality *</label>
+            <SearchableDropdown
+              value={form.nationality}
+              options={nationalityOptions}
+              hasError={fieldError('nationality')}
+              searchPlaceholder='Search nationality...'
+              onChange={value =>
+                setForm(prev => ({ ...prev, nationality: value }))
+              }
+            />
+          </div>
+          <div>
+            <label className='field-label'>Client Currency *</label>
+            <SearchableDropdown
+              value={form.clientCurrency}
+              options={currencyOptions}
+              hasError={fieldError('clientCurrency')}
+              searchPlaceholder='Search currency...'
+              onChange={value =>
+                setForm(prev => ({
+                  ...prev,
+                  clientCurrency: String(value || '').toUpperCase()
+                }))
+              }
+            />
+            {form.leadCountry && COUNTRY_CURRENCY_NAME_MAP[form.leadCountry] && (
+              <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+                💡 Auto-selected based on {form.leadCountry}. You can change it manually.
+              </p>
+            )}
+          </div>
+
+          <Field
+            label='Address / Location'
+            value={form.location}
+            onChange={value => setForm(prev => ({ ...prev, location: value }))}
+          />
+          <div>
+            <label className='field-label'>Destination *</label>
+            <SearchableDropdown
+              value={form.destinationName}
+              options={destinationOptions}
+              hasError={fieldError('destinationName')}
+              searchPlaceholder='Search destination...'
+              onChange={value =>
+                setForm(prev => ({ ...prev, destinationName: value }))
+              }
+            />
+          </div>
+          <div>
+            <label className='field-label'>Travel Start Date *</label>
+            <input
+              type='date'
+              className={`field-input ${fieldError('travelDate') ? 'border-red-500' : ''
+                }`}
+              value={form.travelDate}
+              onChange={event =>
+                setForm(prev => ({ ...prev, travelDate: event.target.value }))
+              }
+            />
+            {fieldError('travelDate') && form.travelDate && form.travelDate < minTravelDate && (
+              <p className='mt-1 text-xs text-red-600 dark:text-red-400'>
+                Travel date cannot be in the past
+              </p>
+            )}
+          </div>
+          <div>
+            <label className='field-label'>Travel End Date *</label>
+            <input
+              type='date'
+              className={`field-input ${fieldError('travelEndDate') ? 'border-red-500' : ''
+                }`}
+              value={form.travelEndDate}
+              onChange={event =>
+                setForm(prev => ({ ...prev, travelEndDate: event.target.value }))
+              }
+            />
+            {fieldError('travelEndDate') && form.travelEndDate && form.travelEndDate < minTravelDate && (
+              <p className='mt-1 text-xs text-red-600 dark:text-red-400'>
+                Travel end date cannot be in the past
+              </p>
+            )}
+            {fieldError('travelEndDate') && form.travelDate && form.travelEndDate && form.travelEndDate < form.travelDate && (
+              <p className='mt-1 text-xs text-red-600 dark:text-red-400'>
+                Travel end date must be after start date
+              </p>
+            )}
+          </div>
+          <div className='grid grid-cols-2 gap-2'>
+            <div>
+              <label className='field-label'>Adults *</label>
+              <input
+                type='number'
+                min={1}
+                max={999}
+                className={`field-input ${fieldError('adultsChildren') ? 'border-red-500' : ''
+                  }`}
+                value={form.adultsCount}
+                onChange={event => {
+                  const value = Number(event.target.value)
+                  if (value > 999) return
+                  setForm(prev => ({
+                    ...prev,
+                    adultsCount: event.target.value
+                  }))
+                }}
+              />
+            </div>
+            <div>
+              <label className='field-label'>Children *</label>
+              <input
+                type='number'
+                min={0}
+                max={99}
+                className={`field-input ${fieldError('adultsChildren') ? 'border-red-500' : ''
+                  }`}
+                value={form.childrenCount}
+                onChange={event => {
+                  const rawValue = event.target.value
+                  const value = Number(rawValue)
+                  if(value>99) return
+                  const nextCount = Math.max(
+                    0,
+                    Math.floor(Number(rawValue || 0))
+                  )
+                  setForm(prev => ({
+                    ...prev,
+                    childrenCount: rawValue
+                  }))
+                  setChildAges(prev => {
+                    if (nextCount === prev.length) return prev
+                    if (nextCount < prev.length) return prev.slice(0, nextCount)
+                    return [
+                      ...prev,
+                      ...Array.from(
+                        { length: nextCount - prev.length },
+                        () => ''
+                      )
+                    ]
+                  })
+                }}
+              />
+            </div>
+          </div>
+          {Number(form.childrenCount || 0) > 0 ? (
+            <div className='md:col-span-2'>
+              <label className='field-label'>Children Ages *</label>
+              <div className='grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3'>
+                {Array.from({ length: Number(form.childrenCount || 0) }).map(
+                  (_, index) => (
+                    <input
+                      key={`child-age-${index}`}
+                      type='number'
+                      min={0}
+                      max={18}
+                      step='1'
+                      placeholder={`Child ${index + 1} age`}
+                      className={`field-input ${fieldError('childrenAges') ? 'border-red-500' : ''
+                        }`}
+                      value={childAges[index] ?? ''}
+                      onChange={event =>
+                        setChildAges(prev => {
+                          const next = [...prev]
+                          next[index] = event.target.value
+                          return next
+                        })
+                      }
+                    />
+                  )
+                )}
+              </div>
+            </div>
+          ) : null}
+          <div>
+            <label className='field-label'>
+              {leadType === 'VISA' ? 'Salary' : 'Budget'}
+            </label>
+            <CurrencyInput
+              id='lead-budget'
+              name='lead-budget'
+              value={form.budget}
+              decimalsLimit={2}
+              maxLength={16}
+              allowNegativeValue={false}
+              intlConfig={{
+                locale: selectedCurrencyMeta.locale,
+                currency: selectedCurrencyMeta.code
+              }}
+              className={`field-input ${fieldError('budget') ? 'border-red-500' : ''
+                }`}
+              placeholder={leadType === 'VISA' ? 'Enter salary' : 'Enter budget'}
+              onValueChange={(value?: string) =>
+                setForm(prev => ({ ...prev, budget: value || '' }))
+              }
+            />
+            {formattedBudgetPreview ? (
+              <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+                Preview: {formattedBudgetPreview}
+              </p>
+            ) : null}
+          </div>
+          {isFieldVisible('visaRequired') && (
+            <div>
+              <label className='field-label'>Visa Required</label>
+              <SearchableDropdown
+                value={form.visaRequired}
+                options={visaOptions}
+                hasError={fieldError('visaRequired')}
+                searchPlaceholder='Search visa requirement...'
+                onChange={value =>
+                  setForm(prev => ({
+                    ...prev,
+                    visaRequired: value as 'YES' | 'NO' | ''
+                  }))
+                }
+              />
+            </div>
+          )}
+          {isFieldVisible('preferredHotelCategory') && (
+            <div>
+              <label className='field-label'>Preferred Hotel Category </label>
+              <SearchableDropdown
+                value={form.preferredHotelCategory}
+                options={hotelCategoryOptions}
+                hasError={fieldError('preferredHotelCategory')}
+                searchPlaceholder='Search hotel category...'
+                onChange={value =>
+                  setForm(prev => ({
+                    ...prev,
+                    preferredHotelCategory: value as
+                      | '3_STAR'
+                      | '4_STAR'
+                      | '5_STAR'
+                      | 'ANY'
+                      | ''
+                  }))
+                }
+              />
+            </div>
+          )}
+          <div>
+            <label className='field-label'>Purpose of Travel </label>
+            <SearchableDropdown
+              value={form.travelPurpose}
+              options={travelPurposeOptions}
+              hasError={fieldError('travelPurpose')}
+              searchPlaceholder='Search purpose...'
+              onChange={value =>
+                setForm(prev => ({ ...prev, travelPurpose: value }))
+              }
+            />
+          </div>
+          {isFieldVisible('leadSource') && (
+            <div>
+              <label className='field-label'>Lead Source</label>
+              <SearchableDropdown
+                value={form.leadSource}
+                options={leadSourceOptions}
+                searchPlaceholder='Search lead source...'
+                onChange={value =>
+                  setForm(prev => ({ ...prev, leadSource: value }))
+                }
+              />
+            </div>
+          )}
+          {/* {isFieldVisible('leadSource') && (
+            <div>
+              <label className='field-label'>Campaign</label>
+              <SearchableDropdown
+                value={form.campaignId}
+                options={campaignOptions}
+                searchPlaceholder='Search campaign...'
+                onChange={value =>
+                  setForm(prev => ({ ...prev, campaignId: value }))
+                }
+              />
+            </div>
+          )} */}
+
+          <div className='md:col-span-2'>
+            <label className='field-label'>Notes</label>
+            <textarea
+              rows={4}
+              className='field-input'
+              value={form.notes}
+              onChange={event =>
+                setForm(prev => ({ ...prev, notes: event.target.value }))
+              }
+            />
+          </div>
+        </div>
+      </SurfaceCard>
+
+      <div className='flex justify-end'>
+        <button
+          onClick={() => void handleSubmit()}
+          disabled={loading}
+          className='inline-flex items-center gap-2 rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-60'
+        >
+          {loading ? 'Creating...' : 'Create Lead'}
+          <FaCheckCircle />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+const Field = ({
+  label,
+  value,
+  onChange,
+  error,
+  type = 'text'
+}: {
+  label: string
+  value: string
+  onChange: (value: string) => void
+  error?: boolean
+  type?: 'text' | 'email' | 'tel'
+}) => (
+  <div>
+    <label className='field-label'>
+      {label}
+      {label.includes('*') ? '' : null}
+    </label>
+    <input
+      type={type}
+      className={`field-input ${error ? 'border-red-500' : ''}`}
+      value={value}
+      onChange={event => onChange(event.target.value)}
+    />
+  </div>
+)
+
+export default CreateLead

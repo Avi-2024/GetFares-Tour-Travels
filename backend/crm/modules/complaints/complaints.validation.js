@@ -1,0 +1,129 @@
+import { z } from "zod";
+
+const complaintStatus = z.enum(["OPEN", "IN_PROGRESS", "RESOLVED"]);
+const complaintSortBy = z.enum(["createdAt", "status", "issueType"]);
+const complaintSortOrder = z.enum(["asc", "desc"]);
+
+const createPayload = z.object({
+  bookingId: z.string().uuid().optional(),
+  assignedTo: z.string().uuid().optional(),
+  issueType: z.string().trim().min(2).max(150),
+  description: z.string().trim().min(5).max(4000),
+  status: complaintStatus.optional(),
+});
+
+const updatePayload = z
+  .object({
+    assignedTo: z.string().uuid().nullable().optional(),
+    issueType: z.string().trim().min(2).max(150).optional(),
+    description: z.string().trim().min(5).max(4000).optional(),
+    status: complaintStatus.optional(),
+  })
+  .refine(
+    (value) => Object.keys(value).length > 0,
+    "At least one field is required for update",
+  );
+
+const create = z.object({
+  body: createPayload,
+  params: z.object({}).optional(),
+  query: z.object({}).optional(),
+});
+
+const update = z.object({
+  body: updatePayload,
+  params: z.object({ id: z.string().uuid() }),
+  query: z.object({}).optional(),
+});
+
+const byId = z.object({
+  body: z.object({}).optional(),
+  params: z.object({ id: z.string().uuid() }),
+  query: z.object({}).optional(),
+});
+
+const list = z.object({
+  body: z.object({}).optional(),
+  params: z.object({}).optional(),
+  query: z
+    .object({
+      page: z.coerce.number().int().positive().optional(),
+      limit: z.coerce.number().int().positive().max(50).optional(),
+      search: z.string().trim().max(150).optional(),
+      sortBy: complaintSortBy.optional(),
+      sortOrder: complaintSortOrder.optional(),
+      createdFrom: z.string().date().optional(),
+      createdTo: z.string().date().optional(),
+      status: complaintStatus.optional(),
+      assignedTo: z.string().uuid().optional(),
+      bookingId: z.string().uuid().optional(),
+    })
+    .optional(),
+});
+
+const createActivity = z.object({
+  body: z.object({
+    note: z.string().trim().min(2).max(2000),
+    userId: z.string().uuid().optional(),
+  }),
+  params: z.object({ id: z.string().uuid() }),
+  query: z.object({}).optional(),
+});
+
+const listActivities = z.object({
+  body: z.object({}).optional(),
+  params: z.object({ id: z.string().uuid() }),
+  query: z
+    .object({
+      page: z.coerce.number().int().positive().optional(),
+      limit: z.coerce.number().int().positive().optional(),
+    })
+    .optional(),
+});
+
+const statusTransition = z.object({
+  body: z.object({
+    status: complaintStatus,
+    reason: z.string().trim().max(2000).optional(),
+  }),
+  params: z.object({ id: z.string().uuid() }),
+  query: z.object({}).optional(),
+});
+
+const statusHistory = z.object({
+  body: z.object({}).optional(),
+  params: z.object({ id: z.string().uuid() }),
+  query: z.object({}).optional(),
+});
+
+const assign = z.object({
+  body: z.object({
+    userId: z.string().uuid(),
+    note: z.string().trim().max(2000).optional(),
+  }),
+  params: z.object({ id: z.string().uuid() }),
+  query: z.object({}).optional(),
+});
+
+const escalate = z.object({
+  body: z.object({
+    reason: z.string().trim().min(2).max(2000),
+  }),
+  params: z.object({ id: z.string().uuid() }),
+  query: z.object({}).optional(),
+});
+
+const ComplaintsValidation = {
+  create,
+  update,
+  byId,
+  list,
+  createActivity,
+  listActivities,
+  statusTransition,
+  statusHistory,
+  assign,
+  escalate,
+};
+
+export { ComplaintsValidation };

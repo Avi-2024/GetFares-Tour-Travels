@@ -1,0 +1,878 @@
+
+
+===== PAGE 1 =====
+HOLIDAYS  / VISAS  SOP  
+ 
+1. LEAD MANAGEMENT SOP  
+Lead Sources:  
+• Meta Ads  
+• Website Enquiry  
+• Walk -in 
+• WhatsApp  
+• Referral  
+• Corporate  
+ 
+Step 1: Lead Response Time  
+1. Response Timeline  
+• All leads must be responded to within 15 minutes of lead generation or 
+capture.  
+• This applies to leads from all sources: Meta ads, website, WhatsApp, phone 
+calls, walk -ins, email inquiries, or any third -party platforms.  
+Purpose:  
+• Quick engagement increases the likelihood of lead conversion.  
+• Reduces risk of competitor outreach capturing the lead.  
+ 
+2. Mode of Initial Contact  
+Step 1 – Call:  
+• Call the lead first to establish direct communication.  
+• Introduce yourself, your travel agency, and the services relevant to the lead 
+(e.g., Schengen/US/UK visas, holiday packages).  
+• Keep the conversation concise, professional, and engaging.  
+• Identify client eligibility and readiness.  
+
+===== PAGE 2 =====
+Step 2 – WhatsApp Follow -Up: 
+• If the call is not answered, immediately send a WhatsApp message.  
+• Include:  
+o Your name & agency name  
+o Reference to their inquiry (destination or visa type)  
+o A clear CTA: “Please share a convenient time for a call” or “Click here 
+to start your application”  
+• WhatsApp ensures the lead sees your message even if they miss the call.  
+ 
+3. Lead Status Updates  
+• Immediately update CRM / lead tracking sheet after every contact attempt.  
+• Track the following statuses:  
+1) Contacted – Answered  
+2) Contacted – No Answer  
+3) Follow -Up Scheduled  
+4) Quote Sent  
+5) Payment Pending  
+6) Not Interested  
+7) Closed / Converted  
+• Ensure all notes about client eligibility, preferred travel dates, and special 
+requests are recorded.  
+Purpose:  
+• Maintains accurate records for sales reporting, follow -ups, and performance 
+metrics.  
+• Allows other team members to see lead history and avoid repeated outreach.  
+ 
+4. Escalation & Monitoring (Team Leader / Manager):  
+• If a lead is not contacted within 15 minutes, escalate to the Holidays/Travel 
+Manager  (auto CRM feature) . 
+• Monitor response time daily to ensure compliance.  
+• KPIs to track:  
+o Average lead response time  
+
+===== PAGE 3 =====
+o % of leads contacted within 15 minutes  
+o Lead conversion ratio  
+ 
+5. Best Practices  
+• Use call scripts for consistency and professionalism  (Will be created 
+separately) . 
+• Keep WhatsApp messages short, personalized, and action oriented.  
+• Prioritize high -value or paid ad leads first.  
+• Avoid delays during peak hours; shall assign backup staff if needed.  
+ 
+Step 2: Lead Qualification Script  
+1. Initial Approach by Consultant  
+• Contact Method: Call the lead first (WhatsApp follow -up if no answer)  
+• Tone: Professional, friendly, and consultative  
+• Introduction:  
+“Hello  Mr. ABC , this is Suhail  from Get2Vacations . I’m following up on your travel 
+enquiry to assist you with the best options for your trip.”  
+ 
+2. Qualification Questions  
+The consultant must ask the following 7 key questions:  
+1. Destination:  
+o Purpose: Identify visa requirements, travel logistics, and package 
+suitability  
+o Example: “Which country or countries are you planning to visit?”  
+2. Travel Dates:  
+o Purpose: Determine urgency, package availability, and airfare 
+availability  
+o Example: “When are you planning to travel?”  
+3. Number of Adults / Children / Infants:  
+
+===== PAGE 4 =====
+o Purpose: Helps calculate package costs, hotel rooms, transfers, and visa 
+applications  
+o Example: “How many adults and children will be traveling?”  
+4. Budget Range:  
+o Purpose: Align package recommendations with client affordability  
+o Example: “What is your approximate budget for this trip?  Or How 
+much are you willing to spend on this trip? ” 
+5. Visa Required:  
+o Purpose: Check eligibility, document requirements, and processing 
+timeline  
+o Example: “Do you require assistance with a visa?”  
+6. Preferred Hotel Category:  
+o Purpose: Customize hotel options (3 */4*/5*) and tailor quotation  
+o Example: “Do you have a preferred hotel category or standard you 
+would like us to arrange?”  
+7. Purpose of Travel:  
+o Purpose: Understand trip type for better package suggestions (e.g., 
+honeymoon, leisure, business)  
+o Example: “Is this trip for leisure, honeymoon, family vacation, or 
+business?”  
+ 
+3. Lead Categorization  
+After collecting responses, mark the lead based on urgency:  
+Lead Type  Definition  Action Priority  
+Hot Travel within 30 days  Immediate follow -up; high -priority 
+quotation; rapid visa assistance  
+Warm  Travel within 1 –3 months  Follow -up within 2 hours; prepare 
+quotation; monitor interest  
+Cold  Exploring / Travel >3 
+months away  Add to nurturing list; occasional 
+follow -ups; maintain engagement  
+ 
+CRM Action:  
+
+===== PAGE 5 =====
+• Update lead type in CRM / sheet immediately after qualification  
+• Record all answers to the 7 questions for future reference  
+• Schedule follow -up according to lead type  
+ 
+ 
+4. Consultant Notes & Best Practices  
+• Ask all 7 questions in every lead conversation; do not skip.  
+• Maintain a friendly yet professional tone; avoid sounding like an 
+interrogation.  
+• Listen actively to objections or additional requests; note them in CRM.  
+• For Hot leads, escalate to senior consultant / priority processing for quotation 
+and visa documentation.  
+• For Cold leads, do not push aggressively; instead, add to email/WhatsApp 
+nurturing campaigns.  
+ 
+5. Key Performance Indicators (KPIs)  
+• % of leads successfully qualified within 1 call  
+• Number of Hot/Warm leads vs total leads received  
+• Lead -to-conversion ratio by category (Hot/Warm/Cold)  
+• Response time for Hot leads  
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+===== PAGE 6 =====
+2. PACKAGE CREATION SOP  
+1. Ready Package (Static Packages)  
+Static Packages: Pre -designed holiday packages that are pre -costed, standardized, 
+and ready for sale.  
+Key Features:  
+Feature  Details  
+Pre-costed  All costs, including hotel, transfers, sightseeing, 
+and optional meals, are already calculated.  
+Fixed Markup  Standard profit margin applied; no ad -hoc pricing 
+adjustments.  
+Standard Inclusions  Includes common components such as hotel stay, 
+airport transfers, guided tours, and optional travel 
+insurance (as per package).  
+Approved by Department 
+Head  Packages must be reviewed and authorized by the 
+Holidays Department Head before going live. 
+Ensures accuracy, profitability, and operational 
+feasibility.  
+ 
+Benefits:  
+• Quick to sell; minimal preparation required  
+• Easy for consultants to communicate and close leads  
+• High operational efficiency with pre -approved suppliers and services  
+• Reduces errors in pricing and inclusions  
+Process:  
+1. Check package availability with supplier.  
+2. Confirm rates and services included.  
+3. Apply fixed markup as per approved structure.  
+4. Upload package in CRM / website for sale.  
+5. Send to client immediately upon inquiry.  
+ 
+Customized Package  
+Customized Packages: Tailor -made holiday packages prepared individually for each 
+client based on their requirements.  
+
+===== PAGE 7 =====
+Key Features:  
+Feature  Details  
+Supplier Rate Check  Verify current hotel, transfer, and sightseeing 
+rates with suppliers. Essential for dynamic 
+pricing.  
+Flight Costing  Include airfare based on requested travel dates, 
+class, and airline preferences. Consider fare 
+rules, cancellation, and baggage charges.  
+Visa Costing (if required)  Calculate visa fees, processing charges, and 
+additional documentation costs (Schengen, US, 
+UK, or worldwide).  
+Insurance Add -On Offer optional travel insurance; include 
+premium in quotation if client agrees.  
+Markup Applied as per 
+Margin Structure  Apply profit margin according to the company’s 
+approved margin structure; adjust based on 
+package complexity.  
+ 
+ 
+ 
+Benefits:  
+• Tailored solutions for client -specific needs (dates, hotels, destinations)  
+• Ability to upsell premium services and optional add -ons 
+• Can accommodate complex itineraries (multi -city trips, customized 
+experiences)  
+• Flexibility in responding to high -value clients or special requests  
+Process:  
+1. Gather client requirements via Lead Qualification Script.  
+2. Check supplier availability and rates.  
+3. Prepare detailed quotation including flights, hotels, visa, insurance, and other 
+add-ons. 
+4. Apply approved markup.  
+5. Submit quotation to client and follow up per Lead Follow -Up SOP.  
+6. Confirm services only after client approval and payment (advance or full).  
+ 
+
+===== PAGE 8 =====
+Comparison: Ready vs Customized Packages  
+Feature  Ready Package  Customized Package  
+Preparation Time  Minimal  Moderate to High  
+Pricing  Fixed / pre -approved  Dynamic based on client 
+requests  
+Flexibility  Low  High  
+Inclusions  Standardized  Tailored to client 
+requirements  
+Approval  Department Head  Consultant + Department 
+Head (for pricing & margin)  
+Best For  Quick conversions, general 
+holidays  High -value clients, complex 
+itineraries, special 
+requirements  
+ 
+Markup Structure (Example)  
+• Land package: 12 –18% 
+• Flights: AED 150 –400 per ticket  
+• Visa: Fixed margin  
+• Insurance: 20 –30% 
+(We can adjust based on  our company policy.)  
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+===== PAGE 9 =====
+3. QUOTATION SOP  
+1. Quotation Content Requirements  
+Every quotation, whether for a Ready Package, Customized Package, or Complex 
+Itinerary, must include the following details:  
+Component  Details / Purpose  
+Destination 
+Name  Specify the exact country/city or cities being proposed. Helps 
+client understand the scope of travel.  
+Travel Dates  Include start and end dates , or indicate flexibility if applicable. 
+Essential for flights, hotel booking, and visa planning.  
+Hotel Details  Mention hotel name, star category, room type, number of rooms, 
+meal plan, and check -in/check -out timings.  
+Inclusions  Clearly list services included in the package: hotel, transfers, 
+sightseeing, meals, travel insurance (if any), visa assistance.  
+Exclusions  Specify what is not included, e.g., airfare taxes, optional 
+excursions, personal expenses, tips, visa fees (if applicable). 
+Prevents client disputes.  
+Visa Details  Mention visa type, fees, processing timeline, and documents 
+required (if applicable). Essential for Schengen, US, UK, or 
+worldwide visas.  
+Payment Terms  Clearly state: advance required, balance payment timeline, non -
+refundable amounts, and payment modes.  
+Cancellation 
+Policy  Include supplier -specific cancellation rules, refund conditions, 
+and deadlines. Highlight any non -refundable services.  
+Price Validity  Mention the date/time until which the quoted price is valid. 
+Helps create urgency and protects against supplier rate 
+fluctuations.  
+ 
+2. Quotation Response Time  
+Timely delivery is critical for lead conversion. Follow these guidelines:  
+Package Type  Response Time  Notes / Exceptions  
+Ready Packages 
+(Static)  Within 30 minutes  Pre-costed and pre -approved; quick 
+delivery expected.  
+Customized Itinerary  Within 2 working 
+hours  Requires supplier rate check, flight 
+costing, visa calculation, insurance 
+add-ons. 
+Complex Itinerary  Maximum 6 hours  Multi -country or complex 
+itineraries requiring multiple 
+suppliers. Exception: South East 
+Asia (Japan & South Korea) – may 
+
+===== PAGE 10 =====
+require longer due to dynamic rates 
+& limited availability.  
+ 
+Best Practices:  
+• Prioritize Hot leads for immediate response.  
+• Use quotation templates to reduce time and maintain consistency.  
+• Ensure accuracy before sending; double -check pricing, dates, and inclusions.  
+• Attach any supporting documents (hotel confirmation, flight options, visa 
+checklist) if available.  
+• Update CRM with quotation sent timestamp for tracking and reporting.  
+ 
+3. Approval & Quality Control  
+• Ready Packages: Department Head approval done during package creation; 
+quotation can be sent immediately.  
+• Customized / Complex Packages:  
+o Consultant prepares the quotation  
+o Department Head reviews pricing, markup, and inclusions (High 
+Value files)  
+o Approval logged in CRM/email before sending to client  
+• All quotations must maintain professional formatting, clear terms, and 
+branding.  
+ 
+4. Follow -Up After Quotation  
+• Follow the Lead Follow -Up SOP after sending quotation:  
+o Same day evening follow -up for Hot and Warm Leads  
+o Next day for Cold leads  
+• Document client feedback in CRM for further action.  
+• Track quotation -to-booking conversion rate for monitoring and improvement.  
+
+===== PAGE 11 =====
+4. FOLLOW -UP AND COMMUNICATION  SOP  
+  Follow -Up 1: Same Day (Evening)  
+Purpose: Confirm quotation receipt & initiate engagement  
+If Call is Answered:  
+• Confirm proposal received  
+• Clarify doubts  
+• Reinforce urgency  
+If No Answer:  
+• Send WhatsApp message: “Tried reaching you regarding your travel enquiry. 
+Please let me know a convenient time to call.”  
+• Send brief email (if available) attaching quotation again  
+• Mark CRM as “FU1 – No Answer”  
+ 
+  Follow -Up 2: Day 2 (Morning)  
+Purpose: Re -engage & identify objections  
+If Call is Answered:  
+• Ask for feedback  
+• Identify budget/decision concerns  
+• Offer revised options  
+If No Answer:  
+• Send follow -up WhatsApp reminder  
+• Send voice note (optional – more personal impact)  
+• Update CRM as “FU2 – No Answer”  
+• Schedule evening retry  
+ 
+  Follow -Up 3: Day 2 (Evening)  
+Purpose: Create urgency & decision push  
+
+===== PAGE 12 =====
+If Call is Answered:  
+• Inform about availability / fare validity  
+• Ask for confirmation timeline  
+If No Answer:  
+• Send urgency message:  
+“Availability and fares are subject to change. Kindly confirm to secure the 
+current price.”  
+• Mark CRM as “FU3 – No Response”  
+• Schedule Final Reminder  
+ 
+  Follow -Up 4: Day 3 (Morning) – Final Reminder  
+Purpose: Last opportunity before closure  
+If Call is Answered:  
+• Confirm decision  
+• Offer last assistance  
+If No Answer:  
+• Send Final Message:  
+“We will release the booking today due to no confirmation. Please let us 
+know if you would like to proceed.”  
+• Send email (formal closure warning)  
+• Mark CRM as “Final Reminder – No Response”  
+ 
+  Day 4 – Closure (Non -Responsive Leads)  
+If client remains unresponsive after all attempts:  
+Procedure:  
+• Release any blocked services  
+• Update CRM as “Closed – No Response”  
+• Stop active follow -ups 
+• Add to remarketing database (if applicable)  
+
+===== PAGE 13 =====
+ 
+Special Scenarios  
+• Phone Switched Off: Retry after 3 –4 hours same day  
+• Invalid Number: Send email immediately and mark as “Invalid Contact”  
+• Client Reads WhatsApp but No Reply: Continue as per schedule until Final 
+Reminder  
+• Client Requests Call Later: Schedule specific time and treat as priority  
+ 
+Compliance Rule  
+A lead cannot be marked as “Closed – No Response” unless:  
+• 4 call attempts completed  
+• 2 WhatsApp messages sent  
+• 1 Final Reminder sent  
+• All logged in CRM  
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+===== PAGE 14 =====
+5. PAYMENT SOP  
+Booking Confirmation Rules:  
+1. Minimum 50% Advance Payment  
+• A minimum of 50% advance payment is mandatory to initiate booking 
+confirmation.  
+• Advance payment is required to block and secure hotel rooms, flights, 
+transfers, tours, or any land services.  
+• No services will be held or blocked beyond supplier time limits without 
+receipt of advance payment.  
+• The advance amount must reflect in the company account or valid payment 
+proof must be shared before processing.  
+• Verbal confirmations or email approvals without payment will not be treated 
+as confirmed bookings.  
+Purpose:  
+To secure inventory, minimize cancellation risk, and protect the company from 
+supplier penalties.  
+ 
+2. 100% Payment for Non -Refundable Bookings  
+• For all non -refundable or instant purchase bookings (e.g., promotional airfares, 
+special hotel offers, peak season deals), 100% payment is mandatory upfront.  
+• These bookings cannot be cancelled, amended, or refunded once 
+issued/confirmed.  
+• Clients must be informed clearly in writing about non -refundable terms before 
+collecting payment.  
+• Written approval from the client is required before issuing non -refundable 
+services.  
+Purpose:  
+To avoid financial liability arising from non -refundable supplier policies.  
+ 
+3. Balance Payment Before D -2 (As Per Cancellation Policy)  
+• The balance payment must be cleared before D -2, i.e., 2 days prior to the 
+supplier’s final payment deadline.  
+• For each service (hotel, land package, or flight), the supplier’s last date of 
+payment will be considered the reference for D -2. 
+
+===== PAGE 15 =====
+• Failure to pay the balance by this timeline may result in automatic 
+cancellation or release of blocked services as per the supplier’s policy.  
+• Any cancellation fees or penalties imposed due to delayed balance payment 
+will be charged to the client.  
+Purpose:  
+To ensure bookings are fully secured and to comply with supplier payment terms, 
+minimizing the risk of service cancellation or penalties.  
+ 
+4. No Service Confirmation Without Payment Proof  
+No booking will be processed, ticketed, or confirmed without valid payment proof.  
+Acceptable payment proof includes:  
+• Bank transfer confirmation  
+• Online payment receipt  
+• POS transaction slip  
+• Official company payment confirmation  
+Screenshot without transaction reference or pending transaction proof will not be 
+considered valid confirmation.  
+Booking confirmation timeline (ticketing/voucher issuance) begins only after 
+payment validation.  
+Purpose:  
+To maintain financial control, avoid fraudulent claims, and ensure accounting 
+compliance.  
+ 
+Compliance Rule  
+• Sales team must clearly communicate payment terms at quotation stage.  
+• Payment deadlines must be mentioned in writing (email/WhatsApp).  
+• CRM must reflect payment status before marking booking as confirmed.  
+• Accounts team confirmation is mandatory for large -value bookings.  
+ 
+ 
+ 
+
+===== PAGE 16 =====
+6. BOOKING CONFIRMATION SOP  
+Before Payment (Blocking Stage)  
+• Block hotel and land arrangements with DMC for 24 –48 hours (as per supplier 
+policy)  
+• Block flight seats (if applicable) as per airline fare rules (time -limit based)  
+• Share payment deadline with client clearly (mention fare/room release time)  
+• Record blocking deadline in CRM  
+• Follow up with client before blocking expiry (minimum 4 hours prior)  
+ 
+B. After Payment Received  
+• Reconfirm hotel and land arrangements with DMC immediately  
+• Convert blocked services to confirmed status  
+• Issue hotel & land vouchers within 48 hours of payment receipt  
+• Issue flight tickets within 30 minutes of payment receipt (subject to fare validity)  
+• Update CRM status to “Confirmed”  
+• Send payment receipt to client  
+ 
+C. Pre -Departure Process  
+• Send final itinerary PDF 2 days prior to departure  
+• Reconfirm all services with DMC 72 hours prior to arrival  
+• Share emergency contact details (DMC + company)  
+• Send visa checklist (if required)  
+• Send travel tips & destination guidelines  
+• Send travel insurance copy (if included)  
+• Verify flight schedule changes 24 –48 hours prior  
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+===== PAGE 17 =====
+7. DOCUMENTATION SOP  
+Timeline: Must be completed and sent to client 72 hours before departure  
+Responsible: Assigned Holiday Consultant  
+ 
+1. PASSPORT VALIDITY CHECK  
+Verification Points:  
+• Passport validity minimum  (subject to destinations) : 
+o 6 months validity from return date (most destinations)  
+• Minimum 2 –3 blank pages  
+• Correct passport number (match with tickets & visa)  
+• Name spelling matches flight ticket exactly  
+• No damage to passport  
+What to Send to Client:  
+• Reminder note:  
+Please carry original passport used for booking.  
+• Reconfirm passport number via WhatsApp/email  (Only in case original 
+passport has not being shared)  
+Internal Control:  
+• Re-verify passport copy saved in CRM  
+• Cross -check with airline PNR  
+ 
+2. VISA DOCUMENT CHECK  
+Verification Points:  
+• Visa validity dates  
+• Visa type (single/multiple entry)  
+• Entry validity  
+• Duration of stay allowed  
+• Passport number printed correctly  
+
+===== PAGE 18 =====
+• Name spelling accurate  
+Send to Client:  
+• Visa copy (PDF)  
+• Print instruction:  
+Kindly carry 2 printed copies of visa.  
+• Immigration tips (if required)  
+Extra Checks:  
+• Transit visa requirement.  
+• Additional documents required at arrival?  
+• Return ticket attached?  
+ 
+3. TRAVEL INSURANCE CHECK  
+Verification Points:  
+• Insurance dates cover full travel period  
+• Coverage includes:  
+o Medical emergency  
+o COVID (if applicable)  
+o Repatriation  
+• Correct passenger names  
+• Passport number correct  
+Send to Client:  
+• Insurance certificate (PDF)  
+• Emergency insurance contact number  
+• Claim process instructions  
+ 
+4. FLIGHT TICKET VERIFICATION  
+Double Check:  
+• Passenger names correct (as passport)  
+
+===== PAGE 19 =====
+• Departure & return dates correct  
+• Flight numbers  
+• Terminal details  
+• Baggage allowance  
+• Seat selection (if applicable)  
+• Meal selection (if applicable)  
+• Transit duration & airport change (if any)  
+Send to Client:  
+• E-ticket copy  
+• PNR number  
+• Online check -in instructions  
+• Airport reporting time:  
+Please reach airport 3 hours before departure.  
+5. HOTEL VOUCHER CHECK  
+Verification Points:  
+• Hotel name & address  
+• Check -in & check -out dates  
+• Room type  
+• Meal plan (BB/HB/AI)  
+• Number of guests correct  
+• Child age mentioned properly  
+• Special requests mentioned (if any)  
+Send to Client:  
+• Hotel voucher PDF  
+• Hotel contact number  
+• Google Maps location link  
+• Early check -in policy note  
+ 
+
+===== PAGE 20 =====
+AIRPORT TRANSFER DETAILS  
+Check:  
+• Arrival flight details shared with DMC  
+• Pickup name board confirmation  
+• Emergency driver contact  
+• Pickup location instructions  
+Send to Client:  
+• Driver contact number  
+• Meeting point instructions  
+• Local DMC emergency number  
+ 
+7. TOUR & ACTIVITY CONFIRMATION  
+Verify:  
+• Tour dates  
+• Pickup time  
+• Pickup location  
+• Dress code (if applicable)  
+• Voucher attached  
+• Contact person  
+Send:  
+• Day-wise tour schedule  
+• Important timing reminders  
+ 
+8. EMERGENCY CONTACT SHEET (Very Important)  
+Prepare a simple PDF including:  
+• Travel Consultant Name  
+• Office landline  
+• Emergency mobile number  
+
+===== PAGE 21 =====
+• On Ground contact  
+• Insurance emergency  
+• Airline contact  
+• Hotel contact  
+• Embassy contact (if international)  
+ 
+9. FINAL ITINERARY PDF (Professional Format)  
+Include:  
+• Day-wise plan  
+• Hotel details  
+• Tours  
+• Flight details  
+• Emergency contacts  
+• Important travel tips  
+• Visa info  
+ 
+10. FINAL CLIENT CONFIRMATION MESSAGE  
+Send 72 hours before departure:  
+ 
+Sample Message:  
+Dear XYZ,  
+Please find attached your final travel documents for your upcoming trip.  
+Kindly review all details carefully and confirm receipt.  
+Wishing you a pleasant and memorable journey.  
+We remain available for any assistance.  
+ 
+INTERNAL CONTROL CHECK (Department Head Review)  
+For bookings above AED 25,000:  
+
+===== PAGE 22 =====
+Margin checked  
+All vouchers verified  
+DMC payment cleared  
+Client balance cleared  
+Special requests handled  
+ 
+CRM STATUS UPDATE  
+Change pipeline stage to:  
+“Travel Ready”  
+After departure:  
+“Travel In Progress”  
+ 
+COMMON MISTAKES TO AVOID  
+Sending wrong hotel dates  
+Visa validity not matching travel dates  
+No baggage details mentioned  
+Driver not informed of flight delay  
+Child age mismatch in hotel booking  
+ 
+PRO TIP FOR UAE MARKET  
+Send documents in 2 formats:  
+• PDF (official)  
+• WhatsApp compressed version (easy access during travel)  
+ 
+8. POST -SALES SOP  
+After client travels:  
+• Send feedback message  
+• Request Google review  
+• Ask for referral  
+• Add to remarketing list  
+ 
+
+===== PAGE 23 =====
+9. CANCELLATION AND REFUND SOP  
+1. CANCELLATION REQUEST RECEIPT  
+  Rule 1: Written Confirmation Mandatory  
+No cancellation will be processed without:  
+• Email from registered email ID  
+OR 
+• WhatsApp message with written confirmation  
+Must mention:  
+• Booking reference number  
+• Passenger name  
+• Travel dates  
+• Reason for cancellation  
+ 
+2. IMMEDIATE INTERNAL ACTION (Within 2 Hours)  
+Consultant must:  
+1. Check cancellation policy of:  
+o Airline  
+o Hotel  
+o DMC  
+o Visa  
+o Insurance  
+o Tours & transfers  
+2. Verify payment status:  
+o Full payment received?  
+o Partial payment?  
+o Outstanding balance?  
+3. Update CRM status:  
+“Cancellation Requested”  
+
+===== PAGE 24 =====
+ 
+3. SUPPLIER POLICY VERIFICATION  
+  Airline  
+• Refundable / Non -refundable?  
+• Refund penalty?  
+• No-show charges?  
+• Credit shell option?  
+  Hotel / DMC  
+• Free cancellation window?  
+• Partial refund?  
+• 100% retention?  
+• Rebooking allowed?  
+  Visa  
+• Visa fee is NON -refundable (standard rule)  
+• Service charge non -refundable  
+  Insurance  
+• Usually non -refundable once issued  
+• Check policy clause  
+ 
+4. SERVICE CHARGE POLICY (Company Protection)  
+Your agency must clearly apply:  
+Suggested Structure:  
+• Service fee: AED 150 –300 per person (depending on package value)  
+OR 
+• 5–10% handling fee  
+Service fee is:  
+• Non -refundable  
+• Separate from supplier penalty  
+
+===== PAGE 25 =====
+ 
+5. CLIENT COMMUNICATION FORMAT  
+Within 24 hours, send:  
+Example Cancellation Response:  
+Dear XYZ,  
+We have reviewed the cancellation request for your booking reference 1234  
+As per policy, the applicable cancellation charges are as follows:  
+Airline: AED  
+Hotel/DMC: AED  
+Visa: Non -refundable  
+Service Charges: AED  
+Total refundable amount: AED  
+Kindly confirm your acceptance so we may proceed with the cancellation process.  
+ 
+No cance llation  without  client approv al. 
+ 
+6. REFUND CALCULATION PROCESS  
+Formula:  
+Total Amount Paid  
+– Supplier Penalty  
+– Visa Charges  
+– Service Charges  
+= Refundable Amount  
+Double verify before sending.  
+Department Head approval required for:  
+• Refund above AED 10,000  
+• Disputed cases  
+ 
+7. REFUND TIMELINE POLICY  
+Clearly communicate:  
+
+===== PAGE 26 =====
+• Airline refunds: 15 –30 working days  
+• DMC refunds: 7 –21 working days  
+• Credit shell: As per airline validity  
+Mention:  
+“Refund timelines depend on supplier processing time.”  
+Never promise fixed refund date unless funds received.  
+ 
+8. PROCESSING REFUND  
+Once funds received:  
+1. Inform client  
+2. Process bank transfer within 3 –5 working days  
+3. Send payment proof  
+4. Update CRM status:  
+“Cancelled – Refunded”  
+9. NO-SHOW POLICY  
+If client does not travel and no cancellation requested:  
+• 100% charges applicable  
+• No refund  
+• Document proof in CRM  
+ 
+10. FORCE MAJEURE CASES  
+Applicable in:  
+• Medical emergency  
+• Visa rejection  
+• Airline cancellation  
+• Natural disasters  
+Process:  
+• Request medical certificate (if applicable)  
+
+===== PAGE 27 =====
+• Attempt rescheduling before cancellation  
+• Negotiate with supplier  
+Department Head must intervene in such cases.  
+ 
+11. CREDIT SHELL OPTION (Retention Strategy)  
+Before refund, always offer:  
+• Date change  
+• Destination change  
+• Travel credit valid for 6 –12 months  
+This protects revenue.  
+ 
+12. INTERNAL CONTROL CHECK  
+Consultant must ensure:  
+• Cancellation request saved  
+• Supplier confirmation saved  
+• Refund calculation approved  
+• Client acceptance received  
+• Refund proof saved  
+ 
+COMMON MISTAKES TO AVOID  
+• Cancelling before checking full policy  
+• Promising full refund  
+• Ignoring service charge  
+• Not documenting approval  
+• Processing refund before receiving supplier refund  
+ 
+10. DAILY REPORTING SOP  
+Consultant must submit daily:  
+• Leads received  
+• Quotes sent  
+
+===== PAGE 28 =====
+• Converted  
+• Revenue generated  
+• Pending cases  
+• Issues faced  
+Daily 10 -minute review meeting.  
+ 

@@ -1,0 +1,56 @@
+import dotenv from "dotenv";
+
+dotenv.config();
+
+const config = Object.freeze({
+  env: process.env.NODE_ENV || "development",
+  port: process.env.PORT || 3000,
+
+  database: {
+    client: process.env.DATABASE_CLIENT,
+    url: process.env.DATABASE_URL,
+    mysql: {
+      host: process.env.MYSQL_HOST,
+      port: parseInt(process.env.MYSQL_PORT || "3306", 10),
+      user: process.env.MYSQL_USER,
+      password: process.env.MYSQL_PASSWORD,
+      database: process.env.MYSQL_DATABASE,
+    },
+  },
+
+  jwt: {
+    secret: process.env.JWT_SECRET || "your-secret-key-change-in-production",
+    expiresIn: process.env.JWT_EXPIRES_IN || "7d",
+  },
+
+  cors: {
+    origin: process.env.CORS_ORIGIN || "*",
+    credentials: true,
+  },
+
+  upload: {
+    maxFileSize: parseInt(process.env.MAX_FILE_SIZE || "1073741824", 10), // 1GB
+    allowedImageTypes: ["image/jpeg", "image/png", "image/webp", "image/gif"],
+    allowedVideoTypes: ["video/mp4", "video/webm"],
+  },
+
+  cache: {
+    enabled: process.env.CACHE_ENABLED === "true",
+    ttl: parseInt(process.env.CACHE_TTL || "3600", 10), // 1 hour
+    redisUrl: process.env.REDIS_URL,
+  },
+
+  storage: {
+    type: process.env.STORAGE_TYPE || "local", // 'local' or 'azure'
+    azureBlob: {
+      container: process.env.AZURE_STORAGE_CONTAINER,
+      connectionString: process.env.AZURE_STORAGE_CONNECTION_STRING,
+    },
+    local: {
+      uploadDir: process.env.UPLOAD_DIR || "./uploads",
+      publicUrl: process.env.PUBLIC_URL || "http://localhost:3000",
+    },
+  },
+});
+
+export { config };

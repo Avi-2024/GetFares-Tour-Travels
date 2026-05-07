@@ -1,0 +1,145 @@
+{
+  "info": {
+    "_postman_id": "6f7d2e25-4d2c-4fe9-9f4a-2cc7f4991101",
+    "name": "Travel CRM - Meta Webhook",
+    "description": "Meta Lead Ads webhook testing collection for Travel CRM.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "CRM Webhook",
+      "item": [
+        {
+          "name": "Verify Webhook",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/webhook/meta?hub.mode=subscribe&hub.verify_token={{metaVerifyToken}}&hub.challenge={{hubChallenge}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "webhook",
+                "meta"
+              ],
+              "query": [
+                {
+                  "key": "hub.mode",
+                  "value": "subscribe"
+                },
+                {
+                  "key": "hub.verify_token",
+                  "value": "{{metaVerifyToken}}"
+                },
+                {
+                  "key": "hub.challenge",
+                  "value": "{{hubChallenge}}"
+                }
+              ]
+            },
+            "description": "Meta subscription verification callback."
+          },
+          "response": []
+        },
+        {
+          "name": "Simulate Leadgen Webhook",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/webhook/meta",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "webhook",
+                "meta"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"object\": \"page\",\n  \"entry\": [\n    {\n      \"id\": \"{{metaPageId}}\",\n      \"time\": 1770000000,\n      \"changes\": [\n        {\n          \"field\": \"leadgen\",\n          \"value\": {\n            \"leadgen_id\": \"{{metaLeadgenId}}\",\n            \"form_id\": \"{{metaFormId}}\",\n            \"page_id\": \"{{metaPageId}}\",\n            \"ad_id\": \"{{metaAdId}}\",\n            \"created_time\": 1770000000\n          }\n        }\n      ]\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Simulates Meta sending leadgen webhook to CRM."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Meta Graph API",
+      "item": [
+        {
+          "name": "Fetch Lead Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{metaAccessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{metaGraphBaseUrl}}/{{metaGraphVersion}}/{{metaLeadgenId}}?fields={{metaGraphFields}}",
+              "host": [
+                "{{metaGraphBaseUrl}}"
+              ],
+              "path": [
+                "{{metaGraphVersion}}",
+                "{{metaLeadgenId}}"
+              ],
+              "query": [
+                {
+                  "key": "fields",
+                  "value": "{{metaGraphFields}}"
+                }
+              ]
+            },
+            "description": "Fetches lead fields directly from Meta Graph API."
+          },
+          "response": []
+        },
+        {
+          "name": "Inspect Page Subscriptions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{metaAccessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{metaGraphBaseUrl}}/{{metaGraphVersion}}/{{metaPageId}}/subscribed_apps",
+              "host": [
+                "{{metaGraphBaseUrl}}"
+              ],
+              "path": [
+                "{{metaGraphVersion}}",
+                "{{metaPageId}}",
+                "subscribed_apps"
+              ]
+            },
+            "description": "Checks app subscription on selected page."
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": []
+}

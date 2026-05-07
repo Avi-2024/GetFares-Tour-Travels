@@ -1,0 +1,444 @@
+import type { CmsTableEntry } from "../types/cms-table-entry.type";
+import type {
+  UniversalFilterColumn,
+  UniversalFilterIndex,
+  UniversalFilterSuggestion,
+  UniversalFilterToken,
+} from "../models/cms-column-filter.model";
+
+class CmsSectionFilterController {
+  private static readonly EXCLUDED_KEYS = new Set([
+    "id",
+    "createdat",
+    "updatedat",
+    "created_at",
+    "updated_at",
+    "__v",
+  ]);
+
+  public buildFilterColumns(
+    rows: CmsTableEntry[],
+    sectionColumns: { key: string; label: string }[],
+  ): UniversalFilterColumn[] {
+    const baseColumns = sectionColumns.map((column) => ({
+      key: column.key,
+      label: column.label,
+    }));
+    const discovered = new Map<string, UniversalFilterColumn>();
+    for (const column of baseColumns) {
+      discovered.set(column.key, {
+        key: column.key,
+        label: column.label,
+        type: "string",
+      });
+    }
+
+    for (const row of rows) {
+      for (const [rawKey, rawValue] of Object.entries(row.raw || {})) {
+        const key = String(rawKey || "").trim();
+        if (!key) {
+          continue;
+        }
+        const normalizedKey = this.normalizeText(key);
+        if (CmsSectionFilterController.EXCLUDED_KEYS.has(normalizedKey)) {
+          continue;
+        }
+        if (rawValue === null || rawValue === undefined) {
+          continue;
+        }
+        if (!discovered.has(key)) {
+          discovered.set(key, {
+            key,
+            label: this.toColumnLabel(key),
+            type: "string",
+          });
+        }
+      }
+    }
+
+    const columns = Array.from(discovered.values());
+    return columns.map((column) => {
+      const values = rows
+        .flatMap((entry) => this.getValuesForKey(entry, column.key))
+        .map((value) => this.normalizeText(value))
+        .filter((value) => value.length > 0 && value !== "--");
+      const uniqueValues = new Set(values);
+      const type =
+        uniqueValues.size > 1 && uniqueValues.size <= 50 ? "enum" : "string";
+      return {
+        ...column,
+        type,
+      };
+    });
+  }
+
+  public buildFilterIndex(
+    rows: CmsTableEntry[],
+    columns: UniversalFilterColumn[],
+  ): UniversalFilterIndex {
+    const index: UniversalFilterIndex = {};
+    for (const column of columns) {
+      const seen = new Set<string>();
+      const values: string[] = [];
+      for (const row of rows) {
+        const candidateValues = this.getValuesForKey(row, column.key);
+        for (const rawValue of candidateValues) {
+          const normalized = this.normalizeText(rawValue);
+          if (!normalized || normalized === "--" || seen.has(normalized)) {
+            continue;
+          }
+          seen.add(normalized);
+          values.push(rawValue.trim());
+        }
+      }
+      values.sort((first, second) => first.localeCompare(second));
+      index[column.key] = values;
+    }
+    return index;
+  }
+
+  public createToken(
+    rawInput: string,
+    columns: UniversalFilterColumn[],
+    index: UniversalFilterIndex,
+  ): UniversalFilterToken | null {
+    const trimmedInput = rawInput.trim();
+    if (!trimmedInput) {
+      return null;
+    }
+
+    const colonIndex = trimmedInput.indexOf(":");
+    if (colonIndex > -1) {
+      const keyPart = trimmedInput.slice(0, colonIndex);
+      const valuePart = trimmedInput.slice(colonIndex + 1);
+      const resolvedKey = this.resolveColumnKey(keyPart, columns);
+      const normalizedValue = this.normalizeText(valuePart);
+      if (!resolvedKey || !normalizedValue) {
+        return null;
+      }
+      return {
+        key: resolvedKey,
+        value: valuePart.trim(),
+      };
+    }
+
+    const normalizedInput = this.normalizeText(trimmedInput);
+    if (!normalizedInput) {
+      return null;
+    }
+
+    for (const column of columns) {
+      const matched = (index[column.key] ?? []).find((value) =>
+        this.normalizeText(value).includes(normalizedInput),
+      );
+      if (matched) {
+        return {
+          key: column.key,
+          value: matched,
+        };
+      }
+    }
+
+    return null;
+  }
+
+  public getSuggestions(
+    rawInput: string,
+    columns: UniversalFilterColumn[],
+    index: UniversalFilterIndex,
+    activeFilters: UniversalFilterToken[],
+    limit = 10,
+  ): UniversalFilterSuggestion[] {
+    const trimmedInput = rawInput.trim();
+    if (!trimmedInput) {
+      return columns
+        .slice(0, limit)
+        .map((column) => ({
+          key: column.key,
+          value: "",
+          label: `${column.key}:`,
+        }));
+    }
+
+    const suggestions: UniversalFilterSuggestion[] = [];
+    const dedupe = new Set<string>();
+    const activeSet = new Set(
+      activeFilters.map(
+        (filter) =>
+          `${filter.key}:${this.normalizeText(filter.value)}`,
+      ),
+    );
+
+    const pushSuggestion = (
+      key: string,
+      value: string,
+      label?: string,
+    ): void => {
+      const normalized = this.normalizeText(value);
+      if (!normalized) {
+        return;
+      }
+      const dedupeKey = `${key}:${normalized}`;
+      if (dedupe.has(dedupeKey) || activeSet.has(dedupeKey)) {
+        return;
+      }
+      dedupe.add(dedupeKey);
+      suggestions.push({
+        key,
+        value,
+        label: label ?? `${key}: ${value}`,
+      });
+    };
+
+    const colonIndex = trimmedInput.indexOf(":");
+    if (colonIndex > -1) {
+      const keyQuery = this.normalizeText(trimmedInput.slice(0, colonIndex));
+      const valueQuery = this.normalizeText(trimmedInput.slice(colonIndex + 1));
+      const matchingColumns = columns.filter((column) => {
+        const normalizedKey = this.normalizeText(column.key);
+        const normalizedLabel = this.normalizeText(column.label);
+        if (!keyQuery) {
+          return true;
+        }
+        return (
+          normalizedKey.includes(keyQuery) || normalizedLabel.includes(keyQuery)
+        );
+      });
+
+      for (const column of matchingColumns) {
+        const values = index[column.key] ?? [];
+        for (const value of values) {
+          const normalizedValue = this.normalizeText(value);
+          if (valueQuery && !normalizedValue.includes(valueQuery)) {
+            continue;
+          }
+          pushSuggestion(
+            column.key,
+            value,
+            `${column.key}: ${value}`,
+          );
+          if (suggestions.length >= limit) {
+            return suggestions;
+          }
+        }
+      }
+
+      return suggestions;
+    }
+
+    const normalizedInput = this.normalizeText(trimmedInput);
+    const matchingColumns = columns.filter((column) => {
+      const normalizedKey = this.normalizeText(column.key);
+      const normalizedLabel = this.normalizeText(column.label);
+      return (
+        normalizedKey.includes(normalizedInput) ||
+        normalizedLabel.includes(normalizedInput)
+      );
+    });
+
+    for (const column of matchingColumns) {
+      for (const value of index[column.key] ?? []) {
+        pushSuggestion(column.key, value, `${column.key}: ${value}`);
+        if (suggestions.length >= limit) {
+          return suggestions;
+        }
+      }
+    }
+
+    for (const column of columns) {
+      for (const value of index[column.key] ?? []) {
+        if (!this.normalizeText(value).includes(normalizedInput)) {
+          continue;
+        }
+        pushSuggestion(column.key, value, `${column.key}: ${value}`);
+        if (suggestions.length >= limit) {
+          return suggestions;
+        }
+      }
+    }
+
+    return suggestions;
+  }
+
+  public matchesFilters(
+    entry: CmsTableEntry,
+    activeFilters: UniversalFilterToken[],
+  ): boolean {
+    if (activeFilters.length === 0) {
+      return true;
+    }
+
+    for (const filter of activeFilters) {
+      const normalizedFilter = this.normalizeText(filter.value);
+      const valuePool = this.getValuesForKey(entry, filter.key)
+        .map((value) => this.normalizeText(value))
+        .filter((value) => value.length > 0);
+      const normalizedCell = valuePool.join(" | ");
+      if (!normalizedFilter) {
+        continue;
+      }
+
+      if (normalizedFilter === "missing") {
+        const isMissing =
+          !normalizedCell || normalizedCell === "--" || normalizedCell === "n/a";
+        if (!isMissing) {
+          return false;
+        }
+        continue;
+      }
+
+      if (!normalizedCell.includes(normalizedFilter)) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  public hasAnyActiveFilters(activeFilters: UniversalFilterToken[]): boolean {
+    return activeFilters.length > 0;
+  }
+
+  public toDDMMYYYY(value: string): string {
+    const date = this.parseDateValue(value);
+    if (!date) {
+      return value;
+    }
+    return this.formatDateDDMMYYYY(date);
+  }
+
+  private resolveColumnKey(
+    keyPart: string,
+    columns: UniversalFilterColumn[],
+  ): string | null {
+    const normalizedQuery = this.normalizeText(keyPart);
+    if (!normalizedQuery) {
+      return null;
+    }
+
+    const exact = columns.find(
+      (column) =>
+        this.normalizeText(column.key) === normalizedQuery ||
+        this.normalizeText(column.label) === normalizedQuery,
+    );
+    if (exact) {
+      return exact.key;
+    }
+
+    const partial = columns.find((column) => {
+      const normalizedKey = this.normalizeText(column.key);
+      const normalizedLabel = this.normalizeText(column.label);
+      return (
+        normalizedKey.includes(normalizedQuery) ||
+        normalizedLabel.includes(normalizedQuery)
+      );
+    });
+
+    return partial?.key ?? null;
+  }
+
+  private normalizeText(value: string): string {
+    return value.trim().toLowerCase();
+  }
+
+  private toColumnLabel(key: string): string {
+    return key
+      .replace(/_/g, " ")
+      .replace(/([a-z])([A-Z])/g, "$1 $2")
+      .replace(/\s+/g, " ")
+      .trim()
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+  }
+
+  private getValuesForKey(entry: CmsTableEntry, key: string): string[] {
+    const values: string[] = [];
+    const cellValue = entry.row.cells[key]?.value;
+    if (typeof cellValue === "string" && cellValue.trim()) {
+      values.push(cellValue.trim());
+    }
+    const rawValue = entry.raw[key];
+    values.push(...this.flattenValue(rawValue));
+    return Array.from(new Set(values.filter((value) => value.trim().length > 0)));
+  }
+
+  private flattenValue(value: unknown): string[] {
+    if (value === null || value === undefined) {
+      return [];
+    }
+    if (typeof value === "string") {
+      return [value];
+    }
+    if (typeof value === "number" || typeof value === "boolean") {
+      return [String(value)];
+    }
+    if (Array.isArray(value)) {
+      return value.flatMap((item) => this.flattenValue(item));
+    }
+    if (typeof value === "object") {
+      return Object.values(value as Record<string, unknown>).flatMap((item) =>
+        this.flattenValue(item),
+      );
+    }
+    return [];
+  }
+
+  private parseDateValue(value: string): Date | null {
+    const trimmedValue = value.trim();
+    if (!trimmedValue || trimmedValue === "--") {
+      return null;
+    }
+
+    const parsed = Date.parse(trimmedValue);
+    if (!Number.isNaN(parsed)) {
+      return new Date(parsed);
+    }
+
+    const normalized = trimmedValue.toLowerCase();
+    if (normalized === "today") {
+      return new Date();
+    }
+    if (normalized === "yesterday") {
+      const date = new Date();
+      date.setDate(date.getDate() - 1);
+      return date;
+    }
+
+    const relativeMatch = normalized.match(
+      /^(\d+)\s*(min|mins|minute|minutes|hour|hours|day|days|week|weeks)\s*ago$/,
+    );
+    if (!relativeMatch) {
+      return null;
+    }
+
+    const amount = Number(relativeMatch[1]);
+    const unit = relativeMatch[2];
+    if (Number.isNaN(amount)) {
+      return null;
+    }
+
+    const date = new Date();
+    if (unit.startsWith("min")) {
+      date.setMinutes(date.getMinutes() - amount);
+      return date;
+    }
+    if (unit.startsWith("hour")) {
+      date.setHours(date.getHours() - amount);
+      return date;
+    }
+    if (unit.startsWith("day")) {
+      date.setDate(date.getDate() - amount);
+      return date;
+    }
+    date.setDate(date.getDate() - amount * 7);
+    return date;
+  }
+
+  private formatDateDDMMYYYY(value: Date): string {
+    const day = String(value.getDate()).padStart(2, "0");
+    const month = String(value.getMonth() + 1).padStart(2, "0");
+    const year = value.getFullYear();
+    return `${day}/${month}/${year}`;
+  }
+}
+
+export { CmsSectionFilterController };

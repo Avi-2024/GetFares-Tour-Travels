@@ -1,0 +1,1397 @@
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { useLocation } from 'react-router-dom'
+import { FaArrowLeft, FaBuilding, FaDownload, FaRotate, FaXmark } from 'react-icons/fa6'
+import { FaSearch } from 'react-icons/fa'
+import SurfaceCard from '../../components/ui/SurfaceCard'
+import EmptyState from '../../components/ui/EmptyState'
+import SearchableDropdown from '../../components/ui/SearchableDropdown'
+import { reportsApi } from '../../api/reports'
+import { suppliersApi } from '../../api/suppliers'
+import { reportApiError } from '../../lib/notify'
+import { currencyService } from '../../services/currencyService'
+
+type SupplierServiceBreakdownProps = { refreshKey?: number }
+
+type Row = {
+  id: string
+  bookingId: string
+  bookingNumber: string
+  bookingStatus: string
+  paymentStatus: string
+  leadName: string
+  customerName: string
+  destination: string
+  bookingTotalAmount: number
+  bookingCurrency: string
+  quoteNumber: string
+  serviceLabel: string
+  supplierId: string
+  supplierName: string
+  basePrice: number
+  currency: string
+  createdAt: string
+}
+
+type Payable = {
+  id: string
+  bookingId: string
+  supplierId: string
+  payableAmount: number
+  paidAmount: number
+  pendingAmount: number
+  status: string
+}
+
+type Settlement = {
+  id: string
+  bookingNumber: string
+  settlementAmount: number
+  paymentMode: string
+  settlementDate: string
+  reference: string
+}
+
+type Group = {
+  supplierId: string
+  supplierName: string
+  currency: string
+  /** Supplier / payout currency (same for payable columns when one supplier). */
+  currencyLabel: string
+  serviceCount: number
+  bookingCount: number
+  serviceMix: string[]
+  /** Base supplier cost summed per quote line currency — never merge unlike-for-unlike amounts. */
+  baseByCurrency: Record<string, number>
+  payableTotal: number
+  paidTotal: number
+  pendingTotal: number
+  rows: Row[]
+}
+
+type Pagination = { page: number; limit: number; totalItems: number; totalPages: number }
+
+type CreateState = {
+  row: Row
+  payableAmount: string
+  supplierCurrency: string
+  rateSource: 'api' | 'custom'
+  customRate: string
+  fxLoading: boolean
+  fxError: string
+  dueDate: string
+  paymentReference: string
+  error: string
+}
+
+type SettleState = {
+  row: Row
+  payable: Payable
+  amount: string
+  paymentMode: string
+  settlementDate: string
+  reference: string
+  notes: string
+  error: string
+}
+
+const unwrapData = (response: unknown): any => (response as { data?: unknown })?.data ?? response
+const toNumber = (value: unknown, fallback = 0) => {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : fallback
+}
+const toUpper = (value: unknown, fallback = '') => String(value ?? fallback).trim().toUpperCase()
+const formatLabel = (value: string) =>
+  value
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, char => char.toUpperCase())
+const formatDateTime = (value: string) => {
+  if (!value) return '-'
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return '-'
+  return parsed.toLocaleString()
+}
+const formatCurrency = (amount: number, currency = 'INR') => {
+  try {
+    return new Intl.NumberFormat(currency === 'INR' ? 'en-IN' : 'en-US', {
+      style: 'currency',
+      currency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(amount)
+  } catch (_err) {
+    return `${toNumber(amount, 0).toFixed(2)} ${currency}`
+  }
+}
+
+/** Labels money per currency bucket (no bogus cross-ccy sums). */
+const formatTotalsByCurrency = (totals: Record<string, number>) => {
+  const parts = Object.entries(totals)
+    .filter(([, amt]) => Math.abs(toNumber(amt, 0)) > 1e-9)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([cur, amt]) => formatCurrency(toNumber(amt, 0), cur || 'INR'))
+  return parts.length ? parts.join(' · ') : formatCurrency(0, 'INR')
+}
+
+/** Single display currency label when homogeneous; warns when mixed vs supplier currency. */
+const summarizeCurrenciesLabel = (
+  totals: Record<string, number>,
+  supplierCurrency: string
+) => {
+  const keys = Object.keys(totals).filter(k => Math.abs(toNumber(totals[k], 0)) > 1e-9)
+  const sup = toUpper(supplierCurrency, 'INR')
+  if (keys.length === 0) return sup
+  if (keys.length === 1) {
+    const c = keys[0]
+    return c === sup ? c : `${c} (supplier ${sup})`
+  }
+  return `Mixed (${keys.sort().join(', ')}) · supplier ${sup}`
+}
+
+const pickSupplierCurrency = (
+  supplierId: string,
+  supplierCurrencyById: Record<string, string>,
+  fallbackCurrency: string
+) => {
+  const fromSupplier = toUpper(supplierCurrencyById[supplierId], '')
+  if (fromSupplier) return fromSupplier
+  return toUpper(fallbackCurrency, 'INR')
+}
+
+const mapPayable = (item: any): Payable => {
+  const payableAmount = toNumber(item?.payableAmount ?? item?.payable_amount, 0)
+  const paidAmount = toNumber(item?.paidAmount ?? item?.paid_amount, 0)
+  return {
+    id: String(item?.id ?? ''),
+    bookingId: String(item?.bookingId ?? item?.booking_id ?? ''),
+    supplierId: String(item?.supplierId ?? item?.supplier_id ?? ''),
+    payableAmount,
+    paidAmount,
+    pendingAmount: toNumber(item?.pendingAmount ?? item?.pending_amount, Math.max(0, payableAmount - paidAmount)),
+    status: toUpper(item?.status, 'PENDING')
+  }
+}
+
+const mapSettlement = (item: any): Settlement => ({
+  id: String(item?.id ?? ''),
+  bookingNumber: String(item?.bookingNumber ?? item?.booking_number ?? '-'),
+  settlementAmount: toNumber(item?.settlementAmount ?? item?.settlement_amount, 0),
+  paymentMode: toUpper(item?.paymentMode ?? item?.payment_mode, 'BANK_TRANSFER'),
+  settlementDate: String(item?.settlementDate ?? item?.settlement_date ?? ''),
+  reference: String(item?.reference ?? '')
+})
+
+const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ refreshKey = 0 }) => {
+  const location = useLocation()
+  const [rows, setRows] = useState<Row[]>([])
+  const [payablesBySupplier, setPayablesBySupplier] = useState<Record<string, Payable[]>>({})
+  const [supplierCurrencyById, setSupplierCurrencyById] = useState<Record<string, string>>({})
+  const [ledgerRows, setLedgerRows] = useState<Settlement[]>([])
+  const [selectedSupplierId, setSelectedSupplierId] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [payablesLoading, setPayablesLoading] = useState(false)
+  const [ledgerLoading, setLedgerLoading] = useState(false)
+  const [actionLoading, setActionLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [search, setSearch] = useState('')
+  const [supplierFilter, setSupplierFilter] = useState('')
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
+  const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 20, totalItems: 0, totalPages: 1 })
+  const [createModal, setCreateModal] = useState<CreateState | null>(null)
+  const [settleModal, setSettleModal] = useState<SettleState | null>(null)
+  const [detailsPage, setDetailsPage] = useState(1)
+  const [expandedBookingIds, setExpandedBookingIds] = useState<Set<string>>(
+    () => new Set()
+  )
+  const detailsPageSize = 20
+
+  const paymentModes = useMemo(
+    () => ['BANK_TRANSFER', 'UPI', 'CASH', 'CARD', 'CHEQUE', 'OTHER'],
+    []
+  )
+
+  const fetchRows = useCallback(async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const params: Record<string, string | number | boolean> = { page: pagination.page, limit: pagination.limit }
+      if (supplierFilter) params.supplierId = supplierFilter
+      if (fromDate) params.from = fromDate
+      if (toDate) params.to = toDate
+      const response = await reportsApi.financeSupplierServices(params)
+      const data = unwrapData(response)
+      const list = Array.isArray(data?.rows) ? data.rows : []
+      setRows(
+        list.map((item: any, index: number) => ({
+          id: String(item?.id ?? `row-${index}`),
+          bookingId: String(item?.bookingId ?? ''),
+          bookingNumber: String(item?.bookingNumber ?? '-'),
+          bookingStatus: toUpper(item?.bookingStatus, ''),
+          paymentStatus: toUpper(item?.paymentStatus, ''),
+          leadName: String(item?.leadName ?? 'Unknown lead'),
+          customerName: String(item?.customerName ?? item?.customer_name ?? item?.leadName ?? 'Unknown lead'),
+          destination: String(item?.destination ?? 'N/A'),
+          bookingTotalAmount: toNumber(item?.bookingTotalAmount ?? item?.booking_total_amount, 0),
+          bookingCurrency: toUpper(item?.bookingCurrency ?? item?.booking_client_currency, 'INR'),
+          quoteNumber: String(item?.quoteNumber ?? '-'),
+          serviceLabel: String(item?.serviceLabel ?? 'OTHER'),
+          supplierId: String(item?.supplierId ?? ''),
+          supplierName: String(item?.supplierName ?? 'Not selected'),
+          basePrice: toNumber(item?.basePrice, 0),
+          currency: toUpper(item?.currency, 'INR'),
+          createdAt: String(item?.createdAt ?? '')
+        }))
+      )
+      setPagination({
+        page: toNumber(data?.pagination?.page, pagination.page),
+        limit: toNumber(data?.pagination?.limit, pagination.limit),
+        totalItems: toNumber(data?.pagination?.totalItems, 0),
+        totalPages: Math.max(1, toNumber(data?.pagination?.totalPages, 1))
+      })
+    } catch (err) {
+      setRows([])
+      reportApiError(err, 'Failed to load supplier-service rows', setError)
+    } finally {
+      setLoading(false)
+    }
+  }, [fromDate, pagination.limit, pagination.page, supplierFilter, toDate])
+
+  const fetchSupplierCurrencies = useCallback(async () => {
+    try {
+      const response = await suppliersApi.list({ page: 1, limit: 400 })
+      const data = unwrapData(response)
+      const list = Array.isArray(data?.rows)
+        ? data.rows
+        : Array.isArray(data)
+          ? data
+          : []
+      const mapped = Object.fromEntries(
+        list.map((item: any) => [
+          String(item?.id ?? ''),
+          toUpper(item?.supplierCurrency ?? item?.supplier_currency, 'INR')
+        ])
+      )
+      setSupplierCurrencyById(mapped)
+    } catch (_err) {
+      setSupplierCurrencyById({})
+    }
+  }, [])
+
+  const fetchPayables = useCallback(async (targetRows: Row[]) => {
+    const supplierIds = Array.from(
+      new Set(targetRows.map(row => row.supplierId).filter(id => Boolean(id) && id !== 'UNASSIGNED'))
+    )
+    if (!supplierIds.length) {
+      setPayablesBySupplier({})
+      return
+    }
+    setPayablesLoading(true)
+    try {
+      const pairs = await Promise.all(
+        supplierIds.map(async supplierId => {
+          const response = await suppliersApi.listPayables(supplierId, { page: 1, limit: 500 })
+          const data = unwrapData(response)
+          const list = Array.isArray(data) ? data : []
+          return [supplierId, list.map(mapPayable)] as const
+        })
+      )
+      setPayablesBySupplier(Object.fromEntries(pairs))
+    } catch (err) {
+      setPayablesBySupplier({})
+      reportApiError(err, 'Failed to load supplier payables', setError)
+    } finally {
+      setPayablesLoading(false)
+    }
+  }, [])
+
+  const fetchLedger = useCallback(
+    async (supplierId: string) => {
+      if (!supplierId) {
+        setLedgerRows([])
+        return
+      }
+      setLedgerLoading(true)
+      try {
+        const response = await suppliersApi.listSupplierSettlements(supplierId, { page: 1, limit: 120 })
+        const data = unwrapData(response)
+        const list = Array.isArray(data?.rows) ? data.rows : Array.isArray(data) ? data : []
+        setLedgerRows(list.map(mapSettlement))
+      } catch (err) {
+        const payables = payablesBySupplier[supplierId] || []
+        if (!payables.length) {
+          setLedgerRows([])
+          reportApiError(err, 'Failed to load settlement history', setError)
+        } else {
+          const settled = await Promise.allSettled(
+            payables.map(payable => suppliersApi.listPayableSettlements(payable.id, { page: 1, limit: 50 }))
+          )
+          const fallbackRows = settled.flatMap(result => {
+            if (result.status !== 'fulfilled') return []
+            const payload = unwrapData(result.value)
+            const list = Array.isArray(payload?.rows) ? payload.rows : Array.isArray(payload) ? payload : []
+            return list
+          })
+          setLedgerRows(fallbackRows.map(mapSettlement))
+        }
+      } finally {
+        setLedgerLoading(false)
+      }
+    },
+    [payablesBySupplier]
+  )
+
+  useEffect(() => {
+    void fetchRows()
+  }, [fetchRows, refreshKey])
+  useEffect(() => {
+    void fetchSupplierCurrencies()
+  }, [fetchSupplierCurrencies])
+  useEffect(() => {
+    void fetchPayables(rows)
+  }, [fetchPayables, rows])
+  useEffect(() => {
+    setPagination(prev => ({ ...prev, page: 1 }))
+  }, [supplierFilter, fromDate, toDate])
+  useEffect(() => {
+    void fetchLedger(selectedSupplierId)
+  }, [fetchLedger, selectedSupplierId])
+
+  const getPayable = useCallback(
+    (row: Row) => (payablesBySupplier[row.supplierId] || []).find(item => item.bookingId === row.bookingId) || null,
+    [payablesBySupplier]
+  )
+
+  const supplierOptions = useMemo(
+    () => [
+      { value: '', label: 'All Suppliers' },
+      ...Array.from(
+        new Map(
+          rows
+            .filter(row => Boolean(row.supplierId))
+            .map(row => [
+              row.supplierId,
+              {
+                value: row.supplierId,
+                label: row.supplierId === 'UNASSIGNED' ? 'Supplier not assigned' : row.supplierName || 'Unknown Supplier'
+              }
+            ])
+        ).values()
+      )
+    ],
+    [rows]
+  )
+
+  const filteredRows = useMemo(() => {
+    const query = search.trim().toLowerCase()
+    if (!query) return rows
+    return rows.filter(row =>
+      [row.leadName, row.customerName, row.destination, row.bookingNumber, row.quoteNumber, row.serviceLabel, row.supplierName]
+        .join(' ')
+        .toLowerCase()
+        .includes(query)
+    )
+  }, [rows, search])
+
+  const groups = useMemo(() => {
+    const map = new Map<string, Group>()
+    filteredRows.forEach(row => {
+      const supplierKey = row.supplierId && row.supplierId !== '' ? row.supplierId : 'UNASSIGNED'
+      if (!map.has(supplierKey)) {
+        const supplierCurrency =
+          supplierKey === 'UNASSIGNED'
+            ? toUpper(row.currency, 'INR')
+            : pickSupplierCurrency(supplierKey, supplierCurrencyById, row.currency)
+        const sc = supplierCurrency || 'INR'
+        map.set(supplierKey, {
+          supplierId: supplierKey,
+          supplierName:
+            supplierKey === 'UNASSIGNED' ? 'Supplier not assigned' : row.supplierName || 'Unknown Supplier',
+          currency: sc,
+          currencyLabel: sc,
+          serviceCount: 0,
+          bookingCount: 0,
+          serviceMix: [],
+          baseByCurrency: {},
+          payableTotal: 0,
+          paidTotal: 0,
+          pendingTotal: 0,
+          rows: []
+        })
+      }
+      const group = map.get(supplierKey)!
+      group.rows.push(row)
+      group.serviceCount += 1
+      const lineCur = toUpper(row.currency, 'INR')
+      group.baseByCurrency[lineCur] =
+        toNumber(group.baseByCurrency[lineCur], 0) + toNumber(row.basePrice, 0)
+      if (!group.serviceMix.includes(row.serviceLabel)) group.serviceMix.push(row.serviceLabel)
+    })
+    map.forEach(group => {
+      group.bookingCount = new Set(group.rows.map(item => item.bookingId)).size
+      group.rows.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      group.serviceMix.sort((a, b) => a.localeCompare(b))
+      group.currencyLabel = summarizeCurrenciesLabel(group.baseByCurrency, group.currency)
+
+      const seenPayKey = new Set<string>()
+      for (const row of group.rows) {
+        const payable = getPayable(row)
+        if (!payable) continue
+        const key = payable.id?.trim()
+          ? `id:${payable.id}`
+          : `booking:${payable.bookingId}:${payable.supplierId}`
+        if (seenPayKey.has(key)) continue
+        seenPayKey.add(key)
+        group.payableTotal += payable.payableAmount
+        group.paidTotal += payable.paidAmount
+        group.pendingTotal += payable.pendingAmount
+      }
+    })
+    return Array.from(map.values()).sort((a, b) => a.supplierName.localeCompare(b.supplierName))
+  }, [filteredRows, getPayable, supplierCurrencyById])
+
+  const selectedGroup = useMemo(
+    () => groups.find(group => group.supplierId === selectedSupplierId) || null,
+    [groups, selectedSupplierId]
+  )
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search || '')
+    const supplierId = String(params.get('supplierId') || '').trim()
+    if (supplierId && supplierId !== selectedSupplierId) {
+      setSelectedSupplierId(supplierId)
+    }
+  }, [location.search, selectedSupplierId])
+
+  useEffect(() => {
+    setDetailsPage(1)
+    setExpandedBookingIds(new Set())
+  }, [selectedSupplierId])
+
+  const bookingDetailGroups = useMemo(() => {
+    if (!selectedGroup) return []
+    const byBooking = new Map<string, Row[]>()
+    selectedGroup.rows.forEach(r => {
+      const key = r.bookingId || r.bookingNumber || r.id
+      const list = byBooking.get(key) || []
+      list.push(r)
+      byBooking.set(key, list)
+    })
+    return Array.from(byBooking.entries())
+      .map(([key, list]) => ({
+        key,
+        rows: list.slice().sort((a, b) => a.serviceLabel.localeCompare(b.serviceLabel))
+      }))
+      .sort((a, b) => {
+        const left = Math.max(...a.rows.map(r => new Date(r.createdAt || 0).getTime()))
+        const right = Math.max(...b.rows.map(r => new Date(r.createdAt || 0).getTime()))
+        return right - left
+      })
+  }, [selectedGroup])
+
+  const detailsTotalPages = Math.max(
+    1,
+    Math.ceil(bookingDetailGroups.length / detailsPageSize)
+  )
+
+  const pagedBookingDetailGroups = useMemo(() => {
+    const start = (detailsPage - 1) * detailsPageSize
+    return bookingDetailGroups.slice(start, start + detailsPageSize)
+  }, [bookingDetailGroups, detailsPage])
+
+  const bookingSummaryRows = useMemo(() => {
+    if (!selectedGroup) return []
+    const supplierCurrency = selectedGroup.currency || 'INR'
+    const byBooking = new Map<string, Row[]>()
+    for (const row of selectedGroup.rows) {
+      if (!row.bookingId) continue
+      const list = byBooking.get(row.bookingId) || []
+      list.push(row)
+      byBooking.set(row.bookingId, list)
+    }
+    return Array.from(byBooking.entries())
+      .map(([bookingId, lineRows]) => {
+        const sorted = lineRows.slice().sort((a, b) => a.serviceLabel.localeCompare(b.serviceLabel))
+        const first = sorted[0]
+        const serviceCount = sorted.filter(r => Boolean(r.serviceLabel)).length
+        const serviceTitle = [...new Set(sorted.map(r => r.serviceLabel).filter(Boolean))].join(', ')
+        const serviceDetail = sorted.map(r => `${r.serviceLabel}: ${formatCurrency(r.basePrice, r.currency)}`).join(' | ')
+        const baseByLineCurrency: Record<string, number> = {}
+        for (const r of sorted) {
+          const c = toUpper(r.currency, 'INR')
+          baseByLineCurrency[c] =
+            toNumber(baseByLineCurrency[c], 0) + toNumber(r.basePrice, 0)
+        }
+        const baseDisplay = formatTotalsByCurrency(baseByLineCurrency)
+        const payableOne = getPayable(first)
+        const payableTotal = payableOne?.payableAmount ?? 0
+        const paidTotal = payableOne?.paidAmount ?? 0
+        const pendingTotal = payableOne?.pendingAmount ?? 0
+        const bookingCcyFallback =
+          toUpper(first.bookingCurrency, '') ||
+          (Object.keys(baseByLineCurrency).length === 1
+            ? Object.keys(baseByLineCurrency)[0]
+            : '')
+        const created = Math.max(...sorted.map(r => new Date(r.createdAt || 0).getTime()))
+        return {
+          bookingId,
+          customer: first.customerName || first.leadName || 'Unknown',
+          bookingNumber: first.bookingNumber,
+          destination: first.destination || 'N/A',
+          serviceCount,
+          serviceTitle: serviceTitle || 'Other',
+          serviceDetail,
+          baseDisplay,
+          amount: first.bookingTotalAmount,
+          amountCurrency: bookingCcyFallback || 'INR',
+          payableTotal,
+          paidTotal,
+          pendingTotal,
+          supplierCurrency,
+          status: first.bookingStatus || 'PENDING',
+          sortTs: created
+        }
+      })
+      .sort((a, b) => b.sortTs - a.sortTs)
+  }, [getPayable, selectedGroup])
+
+  const openCreateModal = (row: Row) => {
+    const bookingCurrency = toUpper(row.currency, 'INR')
+    const supplierCurrency = pickSupplierCurrency(row.supplierId, supplierCurrencyById, row.currency)
+    const sameCurrency = bookingCurrency === supplierCurrency
+    setCreateModal({
+      row,
+      payableAmount: String(row.basePrice || ''),
+      supplierCurrency,
+      rateSource: sameCurrency ? 'custom' : 'api',
+      customRate: sameCurrency ? '1' : '',
+      fxLoading: false,
+      fxError: '',
+      dueDate: '',
+      paymentReference: '',
+      error: ''
+    })
+  }
+
+  useEffect(() => {
+    if (!createModal) return
+    const from = toUpper(createModal.row.currency, 'INR')
+    const to = toUpper(createModal.supplierCurrency, 'INR')
+    const baseAmount = toNumber(createModal.row.basePrice, 0)
+    if (from === to) {
+      setCreateModal(prev =>
+        prev
+          ? {
+              ...prev,
+              payableAmount: String(baseAmount),
+              customRate: prev.customRate || '1',
+              fxLoading: false,
+              fxError: ''
+            }
+          : prev
+      )
+      return
+    }
+    if (createModal.rateSource === 'custom') {
+      const unitRate = toNumber(createModal.customRate, NaN)
+      if (!Number.isFinite(unitRate) || unitRate <= 0) {
+        setCreateModal(prev =>
+          prev
+            ? { ...prev, payableAmount: '', fxLoading: false, fxError: 'Enter valid custom rate.' }
+            : prev
+        )
+        return
+      }
+      setCreateModal(prev =>
+        prev
+          ? {
+              ...prev,
+              payableAmount: String(Number((baseAmount * unitRate).toFixed(2))),
+              fxLoading: false,
+              fxError: ''
+            }
+          : prev
+      )
+      return
+    }
+    let cancelled = false
+    setCreateModal(prev => (prev ? { ...prev, fxLoading: true, fxError: '' } : prev))
+    void currencyService
+      .convert(baseAmount, from, to)
+      .then(converted => {
+        if (cancelled) return
+        const unitRate = baseAmount > 0 ? converted / baseAmount : 0
+        setCreateModal(prev =>
+          prev
+            ? {
+                ...prev,
+                payableAmount: String(Number(converted.toFixed(2))),
+                customRate:
+                  Number.isFinite(unitRate) && unitRate > 0
+                    ? String(Number(unitRate.toFixed(6)))
+                    : prev.customRate,
+                fxLoading: false,
+                fxError: ''
+              }
+            : prev
+        )
+      })
+      .catch(() => {
+        if (cancelled) return
+        setCreateModal(prev =>
+          prev
+            ? {
+                ...prev,
+                fxLoading: false,
+                fxError: `API conversion failed (${from} -> ${to}). Use custom rate.`
+              }
+            : prev
+        )
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [
+    createModal?.customRate,
+    createModal?.supplierCurrency,
+    createModal?.rateSource,
+    createModal?.row.basePrice,
+    createModal?.row.currency
+  ])
+
+  const openSettleModal = (row: Row, payable: Payable) => {
+    setSettleModal({
+      row,
+      payable,
+      amount: String(payable.pendingAmount || ''),
+      paymentMode: 'BANK_TRANSFER',
+      settlementDate: new Date().toISOString().slice(0, 16),
+      reference: '',
+      notes: '',
+      error: ''
+    })
+  }
+
+  const saveCreate = async () => {
+    if (!createModal) return
+    const amount = Number(createModal.payableAmount)
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setCreateModal(prev =>
+        prev ? { ...prev, error: 'Payable amount must be greater than 0.' } : prev
+      )
+      return
+    }
+    if (!createModal.row.supplierId || createModal.row.supplierId === 'UNASSIGNED' || !createModal.row.bookingId) {
+      setCreateModal(prev =>
+        prev ? { ...prev, error: 'Valid supplier and booking are required.' } : prev
+      )
+      return
+    }
+
+    setActionLoading(true)
+    try {
+      await suppliersApi.createPayable(createModal.row.supplierId, {
+        bookingId: createModal.row.bookingId,
+        payableAmount: amount,
+        dueDate: createModal.dueDate || undefined,
+        paymentReference: createModal.paymentReference || undefined
+      })
+      setCreateModal(null)
+      await fetchPayables(rows)
+      if (selectedSupplierId) {
+        await fetchLedger(selectedSupplierId)
+      }
+    } catch (err) {
+      const msg = reportApiError(err, 'Failed to create payable')
+      setCreateModal(prev => (prev ? { ...prev, error: msg } : prev))
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const saveSettle = async () => {
+    if (!settleModal) return
+    const amount = Number(settleModal.amount)
+    if (!Number.isFinite(amount) || amount <= 0 || amount > settleModal.payable.pendingAmount) {
+      setSettleModal(prev =>
+        prev
+          ? { ...prev, error: 'Settlement amount must be > 0 and <= pending.' }
+          : prev
+      )
+      return
+    }
+
+    setActionLoading(true)
+    try {
+      await suppliersApi.settlePayable(settleModal.payable.id, {
+        amount,
+        paymentMode: settleModal.paymentMode,
+        settlementDate: settleModal.settlementDate
+          ? new Date(settleModal.settlementDate).toISOString()
+          : undefined,
+        reference: settleModal.reference || undefined,
+        notes: settleModal.notes || undefined
+      })
+      setSettleModal(null)
+      await fetchPayables(rows)
+      await fetchLedger(settleModal.row.supplierId || selectedSupplierId)
+    } catch (err) {
+      const msg = reportApiError(err, 'Failed to settle payable')
+      setSettleModal(prev => (prev ? { ...prev, error: msg } : prev))
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const exportCsv = () => {
+    if (!groups.length) return
+    const header = ['Supplier', 'Currency', 'Services', 'Bookings', 'Service Mix', 'Base Total', 'Payable', 'Settled', 'Pending']
+    const lines = groups.map(group => [
+      group.supplierName,
+      group.currencyLabel,
+      group.serviceCount,
+      group.bookingCount,
+      group.serviceMix.join(' | '),
+      formatTotalsByCurrency(group.baseByCurrency),
+      group.payableTotal,
+      group.paidTotal,
+      group.pendingTotal
+    ])
+    const csv = [header, ...lines].map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `supplier-accounting-grouped-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  return (
+    <div className='space-y-4'>
+      <SurfaceCard className='border border-blue-200 bg-blue-50/70 p-4 dark:border-blue-900 dark:bg-blue-900/20'>
+        <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
+          <div>
+            <h3 className='text-sm font-semibold text-blue-900 dark:text-blue-100'>Supplier Services - Grouped Accountant View</h3>
+            <p className='text-sm text-blue-800 dark:text-blue-200'>Supplier-wise grouping. Click a supplier row to open full service pricing + settlement ledger page.</p>
+          </div>
+          <div className='flex items-center gap-2'>
+            <button onClick={() => void fetchRows()} disabled={loading} className='inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-50'><FaRotate className={loading ? 'animate-spin' : ''} />Refresh</button>
+            <button onClick={exportCsv} disabled={!groups.length} className='inline-flex items-center gap-2 rounded-lg border border-green-500 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-50'><FaDownload />Export</button>
+          </div>
+        </div>
+      </SurfaceCard>
+
+      {error ? <div className='rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700'>{error}</div> : null}
+
+      {!selectedGroup ? (
+        <>
+          <SurfaceCard className='border border-gray-200 p-4 dark:border-gray-800'>
+            <div className='grid grid-cols-1 gap-3 lg:grid-cols-4'>
+              <div className='relative lg:col-span-2'>
+                <FaSearch className='pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400' />
+                <input type='text' value={search} onChange={e => setSearch(e.target.value)} className='field-input !pl-9' placeholder='Search supplier, lead, booking, service...' />
+              </div>
+              <SearchableDropdown value={supplierFilter} onChange={setSupplierFilter} options={supplierOptions} placeholder='All Suppliers' className='w-full' />
+              <div className='grid grid-cols-2 gap-2'>
+                <input type='date' value={fromDate} onChange={e => setFromDate(e.target.value)} className='field-input' />
+                <input type='date' value={toDate} onChange={e => setToDate(e.target.value)} className='field-input' />
+              </div>
+            </div>
+          </SurfaceCard>
+
+          <SurfaceCard className='overflow-hidden border border-gray-200 dark:border-gray-800'>
+            {!groups.length ? (
+              <div className='p-6'>
+                <EmptyState
+                  title={loading ? 'Loading...' : 'No suppliers found'}
+                  description='No report rows. Use MySQL/MSSQL backend; need quotations with bookings (not cancelled).'
+                  icon={<FaBuilding className='text-4xl' />}
+                />
+              </div>
+            ) : (
+              <div className='w-full max-w-full overflow-x-auto'>
+                <table className='w-full min-w-[980px]'>
+                  <thead className='bg-gray-50 dark:bg-gray-800/60'><tr><th className='px-4 py-3 text-left text-xs font-semibold text-gray-500'>Supplier</th><th className='px-4 py-3 text-left text-xs font-semibold text-gray-500'>Services / Mix</th><th className='px-4 py-3 text-right text-xs font-semibold text-gray-500'>Bookings</th><th className='px-4 py-3 text-right text-xs font-semibold text-gray-500'>Base</th><th className='px-4 py-3 text-right text-xs font-semibold text-gray-500'>Payable</th><th className='px-4 py-3 text-right text-xs font-semibold text-gray-500'>Settled</th><th className='px-4 py-3 text-right text-xs font-semibold text-gray-500'>Pending</th><th className='px-4 py-3 text-left text-xs font-semibold text-gray-500'>Open</th></tr></thead>
+                  <tbody className='divide-y divide-gray-100 dark:divide-gray-800'>
+                    {groups.map(group => (
+                      <tr key={group.supplierId} className='cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/40' onClick={() => setSelectedSupplierId(group.supplierId)}>
+                        <td className='px-4 py-3 text-sm'><p className='font-semibold'>{group.supplierName}</p><p className='text-xs text-gray-500'>{group.currencyLabel}</p></td>
+                        <td className='px-4 py-3 text-sm'><p>{group.serviceCount} services</p><p className='line-clamp-2 text-xs text-gray-500'>{group.serviceMix.join(', ')}</p></td>
+                        <td className='px-4 py-3 text-right text-sm'>{group.bookingCount}</td>
+                        <td className='px-4 py-3 text-right text-sm font-semibold'>{formatTotalsByCurrency(group.baseByCurrency)}</td>
+                        <td className='px-4 py-3 text-right text-sm'>{formatCurrency(group.payableTotal, group.currency)}</td>
+                        <td className='px-4 py-3 text-right text-sm text-green-700'>{formatCurrency(group.paidTotal, group.currency)}</td>
+                        <td className='px-4 py-3 text-right text-sm font-semibold text-rose-700'>{formatCurrency(group.pendingTotal, group.currency)}</td>
+                        <td className='px-4 py-3 text-sm'><button className='rounded-lg border border-blue-500 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50' onClick={e => { e.stopPropagation(); setSelectedSupplierId(group.supplierId) }}>Open Accountant Page</button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <div className='flex items-center justify-between border-t border-gray-200 px-4 py-3 text-xs text-gray-500 dark:border-gray-800'>
+              <p>Page {pagination.page} of {pagination.totalPages} | Total {pagination.totalItems}{payablesLoading ? ' | Loading payables...' : ''}</p>
+              <div className='flex items-center gap-2'>
+                <button onClick={() => setPagination(prev => ({ ...prev, page: Math.max(1, prev.page - 1) }))} disabled={pagination.page <= 1 || loading} className='rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-700 disabled:opacity-40'>Previous</button>
+                <button onClick={() => setPagination(prev => ({ ...prev, page: Math.min(prev.totalPages, prev.page + 1) }))} disabled={pagination.page >= pagination.totalPages || loading} className='rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-700 disabled:opacity-40'>Next</button>
+              </div>
+            </div>
+          </SurfaceCard>
+        </>
+      ) : (
+        <>
+          <SurfaceCard className='border border-gray-200 p-4 dark:border-gray-800'>
+            <button onClick={() => setSelectedSupplierId('')} className='inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100'><FaArrowLeft />Back To Groups</button>
+            <div className='mt-3'>
+              <h3 className='text-base font-semibold text-gray-900 dark:text-gray-100'>{selectedGroup.supplierName}</h3>
+              <p className='text-xs text-gray-500'>Currency: {selectedGroup.currencyLabel} | Services: {selectedGroup.serviceCount}</p>
+            </div>
+          </SurfaceCard>
+
+          <SurfaceCard className='overflow-hidden border border-gray-200 p-0 dark:border-gray-800'>
+            <div className='border-b border-gray-200 px-4 py-3 text-sm font-semibold dark:border-gray-800'>
+              Bookings ({bookingSummaryRows.length}) — same layout as supplier page
+            </div>
+            {bookingSummaryRows.length ? (
+              <div className='w-full max-w-full overflow-x-auto'>
+                <table className='w-full min-w-[960px]'>
+                  <thead className='border-b border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/60'>
+                    <tr>
+                      <th className='px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600 dark:text-gray-400'>Customer</th>
+                      <th className='px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600 dark:text-gray-400'>Booking ID</th>
+                      <th className='px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600 dark:text-gray-400'>Destination</th>
+                      <th className='px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600 dark:text-gray-400'>Service</th>
+                      <th className='px-4 py-3 text-right text-xs font-semibold uppercase text-gray-600 dark:text-gray-400'>Base Price</th>
+                      <th className='px-4 py-3 text-right text-xs font-semibold uppercase text-gray-600 dark:text-gray-400'>Payable</th>
+                      <th className='px-4 py-3 text-right text-xs font-semibold uppercase text-gray-600 dark:text-gray-400'>Paid</th>
+                      <th className='px-4 py-3 text-right text-xs font-semibold uppercase text-gray-600 dark:text-gray-400'>Pending</th>
+                      <th className='px-4 py-3 text-right text-xs font-semibold uppercase text-gray-600 dark:text-gray-400'>Amount</th>
+                      <th className='px-4 py-3 text-center text-xs font-semibold uppercase text-gray-600 dark:text-gray-400'>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className='divide-y divide-gray-100 dark:divide-gray-800'>
+                    {bookingSummaryRows.map(b => (
+                      <tr key={b.bookingId} className='hover:bg-gray-50 dark:hover:bg-gray-800/50'>
+                        <td className='px-4 py-3 text-sm text-gray-900 dark:text-gray-100'>{b.customer}</td>
+                        <td className='px-4 py-3 text-sm font-mono text-gray-600 dark:text-gray-400'>{b.bookingNumber}</td>
+                        <td className='px-4 py-3 text-sm text-gray-700 dark:text-gray-300'>{b.destination}</td>
+                        <td className='px-4 py-3 text-sm text-gray-700 dark:text-gray-300'>
+                          <div className='flex flex-wrap items-center gap-2'>
+                            <span>{b.serviceTitle}</span>
+                            <span className='rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-200'>
+                              {Number(b.serviceCount || 0)} services
+                            </span>
+                          </div>
+                          {b.serviceDetail ? (
+                            <div className='mt-1 text-xs text-gray-500 dark:text-gray-400'>{b.serviceDetail}</div>
+                          ) : null}
+                        </td>
+                        <td className='px-4 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                          {b.baseDisplay}
+                        </td>
+                        <td className='px-4 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                          {formatCurrency(b.payableTotal, b.supplierCurrency)}
+                        </td>
+                        <td className='px-4 py-3 text-right text-sm font-semibold text-green-700'>
+                          {formatCurrency(b.paidTotal, b.supplierCurrency)}
+                        </td>
+                        <td className='px-4 py-3 text-right text-sm font-semibold text-rose-700'>
+                          {formatCurrency(b.pendingTotal, b.supplierCurrency)}
+                        </td>
+                        <td className='px-4 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                          {formatCurrency(b.amount, b.amountCurrency)}
+                        </td>
+                        <td className='px-4 py-3 text-center'>
+                          <span
+                            className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium capitalize ${
+                              b.status.toLowerCase() === 'confirmed'
+                                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                                : b.status.toLowerCase() === 'pending'
+                                  ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+                                  : b.status.toLowerCase() === 'cancelled'
+                                    ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+                                    : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                            }`}
+                          >
+                            {formatLabel(b.status || 'pending')}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className='px-4 py-6 text-sm text-gray-500'>No booking rows for this supplier in the current report page.</div>
+            )}
+          </SurfaceCard>
+
+          <SurfaceCard className='overflow-hidden border border-gray-200 dark:border-gray-800'>
+            <div className='border-b border-gray-200 px-4 py-3 text-sm font-semibold dark:border-gray-800'>Service & Price Details</div>
+            <div className='flex flex-col gap-2 border-b border-gray-100 px-4 py-3 text-xs text-gray-600 dark:border-gray-800 dark:text-gray-300 sm:flex-row sm:items-center sm:justify-between'>
+              <div>
+                Bookings: {bookingDetailGroups.length} | Showing: {pagedBookingDetailGroups.length} | Page {detailsPage} / {detailsTotalPages}
+              </div>
+              <div className='flex items-center gap-2'>
+                <button
+                  onClick={() => setExpandedBookingIds(new Set(bookingDetailGroups.map(g => g.key)))}
+                  className='rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800'
+                >
+                  Expand all (page)
+                </button>
+                <button
+                  onClick={() => setExpandedBookingIds(new Set())}
+                  className='rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800'
+                >
+                  Collapse all
+                </button>
+                <button
+                  onClick={() => setDetailsPage(p => Math.max(1, p - 1))}
+                  disabled={detailsPage <= 1}
+                  className='rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-700 disabled:opacity-40 dark:border-gray-700 dark:text-gray-200'
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() => setDetailsPage(p => Math.min(detailsTotalPages, p + 1))}
+                  disabled={detailsPage >= detailsTotalPages}
+                  className='rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-700 disabled:opacity-40 dark:border-gray-700 dark:text-gray-200'
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+            <div className='w-full max-w-full overflow-x-auto'>
+              <table className='w-full min-w-[960px]'>
+                <thead className='bg-gray-50 dark:bg-gray-800/60'><tr><th className='px-4 py-3 text-left text-xs font-semibold text-gray-500'>Lead</th><th className='px-4 py-3 text-left text-xs font-semibold text-gray-500'>Booking</th><th className='px-4 py-3 text-left text-xs font-semibold text-gray-500'>Service</th><th className='px-4 py-3 text-right text-xs font-semibold text-gray-500'>Base Price</th><th className='px-4 py-3 text-right text-xs font-semibold text-gray-500'>Payable</th><th className='px-4 py-3 text-right text-xs font-semibold text-gray-500'>Paid</th><th className='px-4 py-3 text-right text-xs font-semibold text-gray-500'>Pending</th><th className='px-4 py-3 text-left text-xs font-semibold text-gray-500'>Status</th><th className='px-4 py-3 text-left text-xs font-semibold text-gray-500'>Action</th></tr></thead>
+                <tbody className='divide-y divide-gray-100 dark:divide-gray-800'>
+                  {pagedBookingDetailGroups.flatMap((group, groupIndex) => {
+                      const list = group.rows
+                      const first = list[0]
+                      const payable = getPayable(first)
+                      const bookingLabel = `${first.bookingNumber || '-'}`
+                      const baseTotalsByCc = list.reduce<Record<string, number>>((acc, r) => {
+                        const c = toUpper(r.currency, 'INR')
+                        acc[c] = (acc[c] || 0) + toNumber(r.basePrice, 0)
+                        return acc
+                      }, {})
+                      const baseTotalsCell = formatTotalsByCurrency(baseTotalsByCc)
+                      const statusLabel = payable ? formatLabel(payable.status) : 'Not Created'
+                      const actionCell = !payable ? (
+                        <button
+                          onClick={() => openCreateModal(first)}
+                          disabled={actionLoading || first.supplierId === 'UNASSIGNED'}
+                          title={first.supplierId === 'UNASSIGNED' ? 'Assign a supplier on the quote first' : undefined}
+                          className='rounded-lg border border-blue-500 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-40'
+                        >
+                          Create Payable
+                        </button>
+                      ) : payable.pendingAmount > 0 ? (
+                        <button
+                          onClick={() => openSettleModal(first, payable)}
+                          disabled={actionLoading}
+                          className='rounded-lg border border-green-500 px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-50 disabled:opacity-40'
+                        >
+                          Settle Payment
+                        </button>
+                      ) : (
+                        <span className='rounded-full bg-green-100 px-2 py-1 text-xs font-semibold text-green-700'>
+                          Settled
+                        </span>
+                      )
+
+                      const expanded = expandedBookingIds.has(group.key)
+                      const groupRowSpan = (expanded ? list.length : 0) + 2
+                      const toggleExpand = () =>
+                        setExpandedBookingIds(prev => {
+                          const next = new Set(prev)
+                          if (next.has(group.key)) next.delete(group.key)
+                          else next.add(group.key)
+                          return next
+                        })
+
+                      const bookingTotalRow = (
+                        <tr key={`${groupIndex}-booking-total`} className='bg-gray-50/70 dark:bg-gray-800/40'>
+                          <td className='px-4 py-3 align-top text-sm' rowSpan={groupRowSpan}>
+                            <p className='font-semibold text-gray-900 dark:text-gray-100'>{first.leadName}</p>
+                            <p className='text-xs text-gray-500'>{first.quoteNumber}</p>
+                          </td>
+                          <td className='px-4 py-3 align-top text-sm' rowSpan={groupRowSpan}>
+                            <button
+                              type='button'
+                              onClick={toggleExpand}
+                              className='flex w-full items-center justify-between gap-2 text-left'
+                            >
+                              <span className='font-semibold text-gray-900 dark:text-gray-100'>{bookingLabel}</span>
+                              <span className='rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-200'>
+                                {list.length} services
+                              </span>
+                            </button>
+                            <div className='mt-1 flex flex-wrap gap-1'>
+                              <span className='rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-medium text-green-700 dark:bg-green-900/30 dark:text-green-300'>
+                                {formatLabel(first.bookingStatus || 'PENDING')}
+                              </span>
+                              <span className='rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-200'>
+                                {formatLabel(first.paymentStatus || 'PENDING')}
+                              </span>
+                            </div>
+                            <div className='mt-1 text-[11px] text-gray-500'>
+                              {expanded ? 'Hide services' : 'Show services'}
+                            </div>
+                          </td>
+                          <td className='px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-200'>Booking Total</td>
+                          <td className='px-4 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                            {baseTotalsCell}
+                          </td>
+                          <td className='px-4 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                            {payable ? formatCurrency(payable.payableAmount, selectedGroup.currency) : '-'}
+                          </td>
+                          <td className='px-4 py-3 text-right text-sm font-semibold text-green-700'>
+                            {payable ? formatCurrency(payable.paidAmount, selectedGroup.currency) : '-'}
+                          </td>
+                          <td className='px-4 py-3 text-right text-sm font-semibold text-rose-700'>
+                            {payable ? formatCurrency(payable.pendingAmount, selectedGroup.currency) : '-'}
+                          </td>
+                          <td className='px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100'>{statusLabel}</td>
+                          <td className='px-4 py-3 text-sm'>{actionCell}</td>
+                        </tr>
+                      )
+
+                      const serviceRows = expanded ? list.map(row => (
+                        <tr key={`${groupIndex}-service-${row.id}`}>
+                          <td className='px-4 py-3 text-sm text-gray-900 dark:text-gray-100'>{row.serviceLabel}</td>
+                          <td className='px-4 py-3 text-right text-sm font-semibold'>
+                            {formatCurrency(row.basePrice, row.currency)}
+                          </td>
+                          <td className='px-4 py-3 text-right text-sm text-gray-400'>-</td>
+                          <td className='px-4 py-3 text-right text-sm text-gray-400'>-</td>
+                          <td className='px-4 py-3 text-right text-sm text-gray-400'>-</td>
+                          <td className='px-4 py-3 text-sm text-gray-400'>-</td>
+                          <td className='px-4 py-3 text-sm text-gray-400'>-</td>
+                        </tr>
+                      )) : []
+
+                      const footerTotalRow = (
+                        <tr key={`${groupIndex}-footer`} className='bg-gray-50/70 dark:bg-gray-800/40'>
+                          <td className='px-4 py-3 text-sm font-semibold text-gray-900 dark:text-gray-100'>Total</td>
+                          <td className='px-4 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                            {baseTotalsCell}
+                          </td>
+                          <td className='px-4 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                            {payable ? formatCurrency(payable.payableAmount, selectedGroup.currency) : '-'}
+                          </td>
+                          <td className='px-4 py-3 text-right text-sm font-semibold text-green-700'>
+                            {payable ? formatCurrency(payable.paidAmount, selectedGroup.currency) : '-'}
+                          </td>
+                          <td className='px-4 py-3 text-right text-sm font-semibold text-rose-700'>
+                            {payable ? formatCurrency(payable.pendingAmount, selectedGroup.currency) : '-'}
+                          </td>
+                          <td className='px-4 py-3 text-sm'></td>
+                          <td className='px-4 py-3 text-sm'></td>
+                        </tr>
+                      )
+
+                      return [bookingTotalRow, ...serviceRows, footerTotalRow]
+                    })}
+                </tbody>
+              </table>
+            </div>
+          </SurfaceCard>
+
+          <SurfaceCard className='overflow-hidden border border-gray-200 dark:border-gray-800'>
+            <div className='border-b border-gray-200 px-4 py-3 text-sm font-semibold dark:border-gray-800'>Settlement Ledger</div>
+            {ledgerLoading ? (
+              <div className='p-4 text-sm text-gray-500'>Loading settlement history...</div>
+            ) : !ledgerRows.length ? (
+              <div className='p-4 text-sm text-gray-500'>No settlement history.</div>
+            ) : (
+              <div className='max-h-[380px] overflow-auto'>
+                <table className='w-full min-w-[700px]'>
+                  <thead className='sticky top-0 bg-gray-50 dark:bg-gray-800/60'><tr><th className='px-4 py-3 text-left text-xs font-semibold text-gray-500'>Date</th><th className='px-4 py-3 text-left text-xs font-semibold text-gray-500'>Booking</th><th className='px-4 py-3 text-right text-xs font-semibold text-gray-500'>Amount</th><th className='px-4 py-3 text-left text-xs font-semibold text-gray-500'>Mode</th><th className='px-4 py-3 text-left text-xs font-semibold text-gray-500'>Reference</th></tr></thead>
+                  <tbody className='divide-y divide-gray-100 dark:divide-gray-800'>
+                    {ledgerRows.map(item => (
+                      <tr key={item.id}>
+                        <td className='px-4 py-3 text-sm'>{formatDateTime(item.settlementDate)}</td>
+                        <td className='px-4 py-3 text-sm'>{item.bookingNumber}</td>
+                        <td className='px-4 py-3 text-right text-sm font-semibold text-green-700'>{formatCurrency(item.settlementAmount, selectedGroup.currency)}</td>
+                        <td className='px-4 py-3 text-sm'>{formatLabel(item.paymentMode)}</td>
+                        <td className='px-4 py-3 text-sm'>{item.reference || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </SurfaceCard>
+        </>
+      )}
+
+      {createModal ? (
+        <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4'>
+          <div className='w-full max-w-lg rounded-xl bg-white shadow-2xl dark:bg-gray-900'>
+            <div className='flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-800'>
+              <div>
+                <h3 className='text-base font-semibold'>Create Supplier Payable</h3>
+                <p className='text-xs text-gray-500'>
+                  {createModal.row.supplierName} | {createModal.row.bookingNumber}
+                </p>
+              </div>
+              <button
+                onClick={() => setCreateModal(null)}
+                className='text-gray-500 hover:text-gray-700'
+              >
+                <FaXmark />
+              </button>
+            </div>
+            <div className='space-y-3 px-5 py-4'>
+              <div className='rounded-lg border border-blue-100 bg-blue-50/70 px-3 py-2 text-xs text-blue-900 dark:border-blue-900/40 dark:bg-blue-900/20 dark:text-blue-200'>
+                Service currency: {toUpper(createModal.row.currency, 'INR')} | Supplier currency: {createModal.supplierCurrency}
+              </div>
+              <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
+                <div>
+                  <label className='field-label'>Rate Source</label>
+                  <SearchableDropdown
+                    value={createModal.rateSource}
+                    onChange={value =>
+                      setCreateModal(prev =>
+                        prev
+                          ? {
+                              ...prev,
+                              rateSource: value === 'custom' ? 'custom' : 'api',
+                              fxError: ''
+                            }
+                          : prev
+                      )
+                    }
+                    options={[
+                      { value: 'api', label: 'API rate' },
+                      { value: 'custom', label: 'Custom rate' }
+                    ]}
+                    placeholder='Rate source'
+                    className='w-full'
+                  />
+                </div>
+                <div>
+                  <label className='field-label'>
+                    1 {toUpper(createModal.row.currency, 'INR')} = ? {createModal.supplierCurrency}
+                  </label>
+                  <input
+                    type='number'
+                    min='0'
+                    step='0.000001'
+                    value={createModal.customRate}
+                    onChange={event =>
+                      setCreateModal(prev =>
+                        prev
+                          ? {
+                              ...prev,
+                              customRate: event.target.value,
+                              rateSource: 'custom',
+                              fxError: ''
+                            }
+                          : prev
+                      )
+                    }
+                    className='field-input'
+                    placeholder='Rate'
+                  />
+                </div>
+              </div>
+              <div>
+                <label className='field-label'>Payable Amount * ({createModal.supplierCurrency})</label>
+                <input
+                  type='number'
+                  min='0'
+                  step='0.01'
+                  value={createModal.payableAmount}
+                  onChange={event =>
+                    setCreateModal(prev =>
+                      prev
+                        ? { ...prev, payableAmount: event.target.value, error: '' }
+                        : prev
+                    )
+                  }
+                  className='field-input'
+                />
+                {createModal.fxLoading ? (
+                  <p className='mt-1 text-xs text-blue-700'>Converting using API rate...</p>
+                ) : null}
+                {createModal.fxError ? (
+                  <p className='mt-1 text-xs text-amber-700'>{createModal.fxError}</p>
+                ) : null}
+              </div>
+              <div>
+                <label className='field-label'>Due Date</label>
+                <input
+                  type='date'
+                  value={createModal.dueDate}
+                  onChange={event =>
+                    setCreateModal(prev =>
+                      prev ? { ...prev, dueDate: event.target.value } : prev
+                    )
+                  }
+                  className='field-input'
+                />
+              </div>
+              <div>
+                <label className='field-label'>Payment Reference</label>
+                <input
+                  type='text'
+                  value={createModal.paymentReference}
+                  onChange={event =>
+                    setCreateModal(prev =>
+                      prev
+                        ? { ...prev, paymentReference: event.target.value, error: '' }
+                        : prev
+                    )
+                  }
+                  className='field-input'
+                />
+              </div>
+              {createModal.error ? (
+                <p className='rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700'>
+                  {createModal.error}
+                </p>
+              ) : null}
+            </div>
+            <div className='flex items-center justify-end gap-2 border-t border-gray-200 px-5 py-4 dark:border-gray-800'>
+              <button
+                onClick={() => setCreateModal(null)}
+                className='rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100'
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => void saveCreate()}
+                disabled={actionLoading}
+                className='rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50'
+              >
+                {actionLoading ? 'Saving...' : 'Create'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {settleModal ? (
+        <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4'>
+          <div className='w-full max-w-xl rounded-xl bg-white shadow-2xl dark:bg-gray-900'>
+            <div className='flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-800'>
+              <div>
+                <h3 className='text-base font-semibold'>Settle Supplier Payment</h3>
+                <p className='text-xs text-gray-500'>
+                  Pending:{' '}
+                  {formatCurrency(settleModal.payable.pendingAmount, selectedGroup?.currency || settleModal.row.currency)}
+                </p>
+              </div>
+              <button
+                onClick={() => setSettleModal(null)}
+                className='text-gray-500 hover:text-gray-700'
+              >
+                <FaXmark />
+              </button>
+            </div>
+            <div className='space-y-3 px-5 py-4'>
+              <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
+                <div>
+                  <label className='field-label'>Settlement Amount * ({selectedGroup?.currency || toUpper(settleModal.row.currency, 'INR')})</label>
+                  <input
+                    type='number'
+                    min='0'
+                    step='0.01'
+                    value={settleModal.amount}
+                    onChange={event =>
+                      setSettleModal(prev =>
+                        prev ? { ...prev, amount: event.target.value, error: '' } : prev
+                      )
+                    }
+                    className='field-input'
+                  />
+                </div>
+                <div>
+                  <label className='field-label'>Payment Mode *</label>
+                  <SearchableDropdown
+                    value={settleModal.paymentMode}
+                    onChange={value =>
+                      setSettleModal(prev =>
+                        prev ? { ...prev, paymentMode: value } : prev
+                      )
+                    }
+                    options={paymentModes.map(mode => ({
+                      value: mode,
+                      label: formatLabel(mode)
+                    }))}
+                    placeholder='Select mode'
+                    className='w-full'
+                  />
+                </div>
+                <div>
+                  <label className='field-label'>Settlement Date</label>
+                  <input
+                    type='datetime-local'
+                    value={settleModal.settlementDate}
+                    onChange={event =>
+                      setSettleModal(prev =>
+                        prev ? { ...prev, settlementDate: event.target.value } : prev
+                      )
+                    }
+                    className='field-input'
+                  />
+                </div>
+                <div>
+                  <label className='field-label'>Reference</label>
+                  <input
+                    type='text'
+                    value={settleModal.reference}
+                    onChange={event =>
+                      setSettleModal(prev =>
+                        prev ? { ...prev, reference: event.target.value } : prev
+                      )
+                    }
+                    className='field-input'
+                  />
+                </div>
+              </div>
+              <div>
+                <label className='field-label'>Notes</label>
+                <textarea
+                  rows={3}
+                  value={settleModal.notes}
+                  onChange={event =>
+                    setSettleModal(prev =>
+                      prev ? { ...prev, notes: event.target.value } : prev
+                    )
+                  }
+                  className='field-input'
+                />
+              </div>
+              {settleModal.error ? (
+                <p className='rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700'>
+                  {settleModal.error}
+                </p>
+              ) : null}
+            </div>
+            <div className='flex items-center justify-end gap-2 border-t border-gray-200 px-5 py-4 dark:border-gray-800'>
+              <button
+                onClick={() => setSettleModal(null)}
+                className='rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100'
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => void saveSettle()}
+                disabled={actionLoading}
+                className='rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50'
+              >
+                {actionLoading ? 'Settling...' : 'Settle'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+export default SupplierServiceBreakdown

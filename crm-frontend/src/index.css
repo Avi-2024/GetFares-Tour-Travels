@@ -1,0 +1,127 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-gray-50 text-gray-900 antialiased transition-colors duration-200 dark:bg-gray-950 dark:text-gray-100;
+  }
+}
+
+@layer components {
+  .surface-card {
+    @apply rounded-2xl border border-gray-200/80 bg-white p-6 shadow-sm transition-all duration-200 dark:border-gray-700 dark:bg-gray-900;
+  }
+
+  .field-label {
+    @apply mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-200;
+  }
+
+  .field-input {
+    @apply w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none transition-all duration-200 placeholder:text-gray-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:focus:ring-blue-900/60;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .scrollbar-thin-muted {
+    -ms-overflow-style: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.3) transparent;
+  }
+
+  .scrollbar-thin-muted::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .scrollbar-thin-muted::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin-muted::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.35);
+    border-radius: 9999px;
+  }
+
+  .scrollbar-thin-muted::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.5);
+  }
+
+  .status-dropdown-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+  }
+
+  .status-dropdown-scroll::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .status-dropdown-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .status-dropdown-scroll::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.35);
+    border-radius: 9999px;
+  }
+
+  .status-dropdown-scroll::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.5);
+  }
+
+  /* PDF export only: keep Included Services chips aligned inside pills */
+  .pdf-export-mode .pdf-service-chip-wrap {
+    align-items: center;
+    gap: 6px;
+  }
+
+  .pdf-export-mode .pdf-service-chip {
+    display: inline-flex;
+    align-items: center;
+    line-height: 1.2;
+    white-space: nowrap;
+    vertical-align: middle;
+    transform: translateZ(0);
+  }
+
+  /* Remove number input spinners */
+  input[type='number']::-webkit-inner-spin-button,
+  input[type='number']::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  input[type='number'] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+}
+
+
+.leads-table-scroll {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(107, 114, 128, 0.22) transparent;
+          }
+
+          .leads-table-scroll::-webkit-scrollbar {
+            height: 5px;
+          }
+
+          .leads-table-scroll::-webkit-scrollbar-track {
+            background: transparent;
+          }
+
+          .leads-table-scroll::-webkit-scrollbar-thumb {
+            background: rgba(107, 114, 128, 0.22);
+            border-radius: 9999px;
+          }
+
+          .leads-table-scroll:hover::-webkit-scrollbar-thumb {
+            background: rgba(107, 114, 128, 0.35);
+          }
