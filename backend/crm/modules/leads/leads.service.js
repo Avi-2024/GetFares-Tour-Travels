@@ -418,6 +418,39 @@ function createLeadsService({ repository, logger, events }) {
     return repository.normalizePhone(phone);
   }
 
+  async function applyVisibilityScope(mappedFilters = {}, context = {}) {
+    const nextFilters = { ...mappedFilters };
+    const userId = context.user?.id || null;
+    const userRole = normalizeRoleToken(context.user?.role);
+    const isAgent = isAgentRole(userRole);
+    const isManager = isManagerRole(userRole);
+
+    if (isAgent && userId) {
+      nextFilters.assignedTo = userId;
+      const agentCountrySet = await getUserCountrySet(userId);
+      if (agentCountrySet.size > 0) {
+        nextFilters.allowedCountries = [...agentCountrySet];
+      }
+    }
+
+    if (isManager && userId) {
+      const [managerCountrySet, managedAgentIds] = await Promise.all([
+        getUserCountrySet(userId),
+        repository.findManagedAgentIds(userId),
+      ]);
+      const visibleAssigneeIds = [userId, ...managedAgentIds].filter(Boolean);
+      if (visibleAssigneeIds.length > 0) {
+        nextFilters.visibleAssigneeIds = [...new Set(visibleAssigneeIds)];
+        nextFilters.includeUnassigned = true;
+      }
+      if (managerCountrySet.size > 0) {
+        nextFilters.allowedCountries = [...managerCountrySet];
+      }
+    }
+
+    return nextFilters;
+  }
+
   function normalizeLeadType(value) {
     if (!value) {
       return "HOLIDAY";
@@ -1878,35 +1911,8 @@ function createLeadsService({ repository, logger, events }) {
         sortBy: normalizeSortBy(filters.sortBy),
       };
 
-      const userId = context.user?.id || null;
-      const userRole = normalizeRoleToken(context.user?.role);
-      const isAgent = isAgentRole(userRole);
-      const isManager = isManagerRole(userRole);
-
-      if (isAgent && userId) {
-        mappedFilters.assignedTo = userId;
-        const agentCountrySet = await getUserCountrySet(userId);
-        if (agentCountrySet.size > 0) {
-          mappedFilters.allowedCountries = [...agentCountrySet];
-        }
-      }
-
-      if (isManager && userId) {
-        const [managerCountrySet, managedAgentIds] = await Promise.all([
-          getUserCountrySet(userId),
-          repository.findManagedAgentIds(userId),
-        ]);
-        const visibleAssigneeIds = [userId, ...managedAgentIds].filter(Boolean);
-        if (visibleAssigneeIds.length > 0) {
-          mappedFilters.visibleAssigneeIds = [...new Set(visibleAssigneeIds)];
-          mappedFilters.includeUnassigned = true;
-        }
-        if (managerCountrySet.size > 0) {
-          mappedFilters.allowedCountries = [...managerCountrySet];
-        }
-      }
-
-      const result = await repository.findAll(mappedFilters);
+      const scopedFilters = await applyVisibilityScope(mappedFilters, context);
+      const result = await repository.findAll(scopedFilters);
       const rows = Array.isArray(result?.items) ? result.items : [];
       const total = Number.isFinite(Number(result?.total)) ?
         Math.max(0, Number(result.total))
@@ -1928,6 +1934,31 @@ function createLeadsService({ repository, logger, events }) {
           totalPages: Math.max(1, Math.ceil(total / safeLimit)),
         },
       };
+    },
+
+    async listStats(filters = {}, context = {}) {
+      logger.debug(
+        { module: "leads", requestId: context.requestId, filters },
+        "Listing lead stats",
+      );
+      const mappedFilters = {
+        ...filters,
+        search: filters.search ? String(filters.search).trim() : undefined,
+        quickFilter: normalizeQuickFilter(filters.quickFilter),
+        status:
+          filters.status ? normalizeLeadStatus(filters.status) : undefined,
+        email: filters.email ? String(filters.email).trim() : undefined,
+        phone: filters.phone ? String(filters.phone).trim() : undefined,
+        leadId: filters.leadId ? String(filters.leadId).trim() : undefined,
+        destination:
+          filters.destination ? String(filters.destination).trim() : undefined,
+        fromDate: filters.fromDate || undefined,
+        toDate: filters.toDate || undefined,
+        sla: normalizeSlaFilter(filters.sla),
+      };
+
+      const scopedFilters = await applyVisibilityScope(mappedFilters, context);
+      return repository.findStats(scopedFilters);
     },
 
     async listDestinations(filters = {}, context = {}) {

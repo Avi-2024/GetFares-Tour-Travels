@@ -8,6 +8,14 @@ function createLeadsController({ service }) {
       res.status(200).json({ data: result });
     },
 
+    async listStats(req, res) {
+      const result = await service.listStats(
+        req.validated?.query || req.query,
+        req.context,
+      );
+      res.status(200).json({ data: result });
+    },
+
 
 
 

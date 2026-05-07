@@ -19,6 +19,13 @@ function createLeadsRoutes({
     asyncHandler(controller.list),
   );
   router.get(
+    "/stats",
+    requireAuth,
+    authorize("leads:read"),
+    validateRequest(validation.stats),
+    asyncHandler(controller.listStats),
+  );
+  router.get(
     "/destinations",
     requireAuth,
     authorize("leads:read"),

@@ -128,6 +128,22 @@ export type LeadFollowupsResponse =
   | { data?: LeadFollowupRecord[] }
   | LeadFollowupRecord[];
 
+export type LeadStatsResponse =
+  | {
+      data?: {
+        totalLeads?: number;
+        newToday?: number;
+        followupActive?: number;
+        slaBreached?: number;
+      };
+    }
+  | {
+      totalLeads?: number;
+      newToday?: number;
+      followupActive?: number;
+      slaBreached?: number;
+    };
+
 export type LeadActivityCreatePayload = {
   lead_id: string;
   notes?: string;
@@ -139,6 +155,8 @@ export type LeadActivityCreatePayload = {
 export const createLeadsDatasource = (client: HttpClient) => ({
   list: (params?: LeadsQuery) =>
     client.get<LeadsListResponse>("/api/leads", { params }),
+  getStats: (params?: LeadsQuery) =>
+    client.get<LeadStatsResponse>("/api/leads/stats", { params }),
   create: (payload: unknown) => client.post("/api/leads", payload),
   getById: (id: string) => client.get(`/api/leads/${id}`),
   update: (id: string, payload: unknown) => client.patch(`/api/leads/${id}`, payload),

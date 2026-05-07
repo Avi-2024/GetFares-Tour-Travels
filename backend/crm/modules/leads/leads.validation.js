@@ -209,6 +209,8 @@ const listDestinations = z.object({
     .optional(),
 });
 
+const stats = list;
+
 const assign = z.object({
   body: z
     .object({
@@ -370,6 +372,7 @@ const LeadsValidation = {
   update,
   byId,
   list,
+  stats,
   listDestinations,
   assign,
   distribute,

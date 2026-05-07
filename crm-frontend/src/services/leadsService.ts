@@ -54,6 +54,13 @@ export type LeadsPagination = {
   totalPages: number;
 };
 
+export type LeadStatsSummary = {
+  totalLeads: number;
+  newToday: number;
+  followupActive: number;
+  slaBreached: number;
+};
+
 const extractStringList = (response: unknown) => {
   const payload = (response as { data?: unknown })?.data ?? response;
   if (Array.isArray(payload)) {
@@ -228,6 +235,19 @@ const extractFollowups = (response: LeadFollowupsResponse) => {
   return Array.isArray(rows) ? (rows as LeadFollowupRecord[]) : [];
 };
 
+const extractStats = (response: unknown): LeadStatsSummary => {
+  const payload = (response as { data?: unknown })?.data ?? response;
+  const record =
+    payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
+
+  return {
+    totalLeads: normalizeCount(record.totalLeads, 0),
+    newToday: normalizeCount(record.newToday, 0),
+    followupActive: normalizeCount(record.followupActive, 0),
+    slaBreached: normalizeCount(record.slaBreached, 0),
+  };
+};
+
 const normalizePriority = (lead: LeadApiRecord): LeadPriority => {
   if (lead.priorityLevel !== undefined && lead.priorityLevel !== null) {
     const numeric =
@@ -395,6 +415,10 @@ export const createLeadsService = (datasource: LeadsDatasource) => ({
       items: items.map((lead, index) => toListItem(lead, index)),
       pagination,
     };
+  },
+  getLeadStats: async (params?: LeadsQuery): Promise<LeadStatsSummary> => {
+    const response = await datasource.getStats(params);
+    return extractStats(response);
   },
   listLeadsRaw: async (params?: LeadsQuery): Promise<LeadApiRecord[]> => {
     const nextParams = {

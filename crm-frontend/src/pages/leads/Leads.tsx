@@ -32,6 +32,13 @@ interface LeadStats {
   slaBreached: number;
 }
 
+const EMPTY_LEAD_STATS: LeadStats = {
+  totalLeads: 0,
+  newToday: 0,
+  followupActive: 0,
+  slaBreached: 0,
+};
+
 const quickFilters = [
   { key: "ALL", label: "All" },
   { key: "ACTIVE", label: "Active" },
@@ -130,6 +137,7 @@ const Leads: React.FC = () => {
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState("");
   const [fetchedLeads, setFetchedLeads] = useState<LeadListItem[]>([]);
+  const [leadStats, setLeadStats] = useState<LeadStats>(EMPTY_LEAD_STATS);
   const [pagination, setPagination] = useState<LeadsPagination | null>(null);
   const [destinationNames, setDestinationNames] = useState<string[]>([]);
   const destinationsFetchedRef = React.useRef(false);
@@ -299,8 +307,13 @@ const Leads: React.FC = () => {
       setError("");
       try {
         const query = buildLeadQuery(page, pageSize);
-        const result = await leadsService.listLeadsPage(query);
+        const { page: _page, limit: _limit, ...statsQuery } = query;
+        const [result, stats] = await Promise.all([
+          leadsService.listLeadsPage(query),
+          leadsService.getLeadStats(statsQuery),
+        ]);
         setFetchedLeads(result.items);
+        setLeadStats(stats);
         setPagination(
           result.pagination || {
             page,
@@ -312,6 +325,7 @@ const Leads: React.FC = () => {
       } catch (err) {
         reportApiError(err, "Failed to load leads", setError);
         setFetchedLeads([]);
+        setLeadStats(EMPTY_LEAD_STATS);
         setPagination({
           page: 1,
           limit: pageSize,
@@ -341,21 +355,6 @@ const Leads: React.FC = () => {
   const totalPages = Math.max(1, pagination?.totalPages ?? 1);
   const rows = fetchedLeads;
   const effectiveTotalPages = totalPages;
-
-  const leadStats = useMemo<LeadStats>(
-    () => ({
-      totalLeads: pagination?.total ?? fetchedLeads.length,
-      newToday: fetchedLeads.filter((lead) => lead.statusLabel === "NEW")
-        .length,
-      followupActive: fetchedLeads.filter(
-        (lead) =>
-          lead.statusLabel.startsWith("FOLLOW_UP") ||
-          lead.statusLabel === "FINAL_REMINDER",
-      ).length,
-      slaBreached: fetchedLeads.filter((lead) => lead.slaBreached).length,
-    }),
-    [fetchedLeads, pagination?.total],
-  );
 
   const activeFilterCount = useMemo(() => {
     let count = 0;
