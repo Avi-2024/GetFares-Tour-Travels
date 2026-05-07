@@ -292,7 +292,7 @@ function createWhatsappRepository({ db, logger }) {
       FROM (
         SELECT w.lead_id
         FROM ${messagesTableName} w
-        LEFT JOIN leads l ON l.id = w.lead_id
+        LEFT JOIN leads l ON l.id COLLATE utf8mb4_0900_ai_ci = w.lead_id COLLATE utf8mb4_0900_ai_ci
         WHERE 1 = 1 ${outerPhone}
         ${searchClause}
         GROUP BY w.lead_id
@@ -368,7 +368,7 @@ function createWhatsappRepository({ db, logger }) {
         MAX(l.phone) AS phone,
         MAX(l.lead_code) AS lead_code
       FROM ${messagesTableName} w
-      LEFT JOIN leads l ON l.id = w.lead_id
+      LEFT JOIN leads l ON l.id COLLATE utf8mb4_0900_ai_ci = w.lead_id COLLATE utf8mb4_0900_ai_ci
       WHERE 1 = 1 ${outerPhone}
       ${searchClause}
       GROUP BY w.lead_id

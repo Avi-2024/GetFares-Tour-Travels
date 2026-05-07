@@ -38,6 +38,25 @@ export type WhatsappThreadsPayload = {
   region: string
 }
 
+export type WhatsappConfigStatus = {
+  ready: boolean
+  checks: Record<string, boolean>
+  missing: string[]
+  multiChannel: boolean
+  channels: Array<{
+    phoneNumberId?: string | null
+    displayPhoneNumber?: string | null
+    countryId?: string | null
+    countryCode?: string | null
+    countryName?: string | null
+    sourceLabel?: string | null
+  }>
+  webhook: {
+    verifyPath: string
+    receivePath: string
+  }
+}
+
 export async function fetchWhatsappConversationMessages (
   leadId: string,
   region?: string
@@ -70,6 +89,13 @@ export async function fetchWhatsappThreads (params: {
     region: r
   })
   const body = await apiClient.get<{ data: WhatsappThreadsPayload }>(url)
+  return body.data
+}
+
+export async function fetchWhatsappConfigStatus (): Promise<WhatsappConfigStatus> {
+  const body = await apiClient.get<{ data: WhatsappConfigStatus }>(
+    '/api/whatsapp/config-status'
+  )
   return body.data
 }
 
