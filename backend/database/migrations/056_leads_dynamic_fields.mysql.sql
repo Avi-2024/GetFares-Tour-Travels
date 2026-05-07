@@ -1,5 +1,3 @@
--- Dynamic lead fields (Meta forms and other sources)
--- Hybrid model: fixed columns + flexible JSON + optional key/value table.
 
 ALTER TABLE leads
   ADD COLUMN platform VARCHAR(40) NULL,

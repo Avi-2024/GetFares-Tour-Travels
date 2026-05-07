@@ -176,6 +176,11 @@ const envSchema = z.object({
   CURRENCY_USE_MOCK: z.string().optional(),
   CURRENCY_BASE: z.string().default("AED"),
   CURRENCY_SUPPORTED: z.string().default("AED,USD,EUR,GBP,INR,SAR"),
+
+  PUSH_ENABLED: z.coerce.boolean().default(false),
+  PUSH_VAPID_SUBJECT: z.string().optional(),
+  PUSH_VAPID_PUBLIC_KEY: z.string().optional(),
+  PUSH_VAPID_PRIVATE_KEY: z.string().optional(),
 }).superRefine((data, ctx) => {
   const explicitClient = String(data.DATABASE_CLIENT || "")
     .trim()
