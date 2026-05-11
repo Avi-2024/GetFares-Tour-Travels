@@ -11,6 +11,10 @@ import type {
 import {
   deriveSopStatusLabel,
   normalizeStatusToken,
+<<<<<<< HEAD
+=======
+  resolveLeadDisplayedStatus,
+>>>>>>> test
   type CanonicalLeadStatus,
   type SopStatusLabel,
 } from "../utils/leadStatus";
@@ -38,6 +42,11 @@ export type LeadListItem = {
   salary?: number | null;
   status: CanonicalLeadStatus;
   statusLabel: SopStatusLabel;
+<<<<<<< HEAD
+=======
+  /** Pipeline SOP plus custom_status_label when set (badges, export). */
+  statusDisplay: string;
+>>>>>>> test
   subStatus: string | null;
   priority: LeadPriority;
   sla: string;
@@ -207,6 +216,19 @@ const extractListPayload = (response: LeadsListResponse) => {
   return { items, pagination };
 };
 
+<<<<<<< HEAD
+=======
+function extractCustomStatusPresetItems(response: unknown): string[] {
+  const root = (response as { data?: unknown })?.data ?? response;
+  const wrapper = root as { items?: unknown };
+  const items = wrapper?.items ?? (root as string[]);
+  if (!Array.isArray(items)) return [];
+  return items
+    .map((item) => (typeof item === "string" ? item.trim() : String(item ?? "").trim()))
+    .filter(Boolean);
+}
+
+>>>>>>> test
 const extractArray = (response: unknown) => {
   const payload = (response as { data?: unknown })?.data ?? response;
   if (Array.isArray(payload)) return payload;
@@ -334,6 +356,21 @@ const normalizeCanonicalStatus = (value: unknown): CanonicalLeadStatus => {
 const toListItem = (lead: LeadApiRecord, index: number): LeadListItem => {
   const status = normalizeCanonicalStatus(lead.status);
   const statusLabel = deriveSopStatusLabel(lead.status, lead.subStatus, lead.statusLabel);
+<<<<<<< HEAD
+=======
+  const customRaw =
+    (lead as LeadApiRecord & { customStatusLabel?: string | null })
+      .customStatusLabel ??
+    (lead as LeadApiRecord & { custom_status_label?: string | null })
+      .custom_status_label ??
+    null;
+  const statusDisplay = resolveLeadDisplayedStatus({
+    customStatusLabel: customRaw,
+    canonicalStatus: lead.status,
+    subStatus: lead.subStatus,
+    providedStatusLabel: lead.statusLabel,
+  });
+>>>>>>> test
   const leadIdFromBackend = toPlainText(
     (lead as LeadApiRecord & { leadCode?: string | null; lead_code?: string | null })
       .leadCode ??
@@ -390,6 +427,10 @@ const toListItem = (lead: LeadApiRecord, index: number): LeadListItem => {
           : null,
     status,
     statusLabel,
+<<<<<<< HEAD
+=======
+    statusDisplay,
+>>>>>>> test
     subStatus: lead.subStatus ?? null,
     priority: normalizePriority(lead),
     sla: lead.sla ?? lead.slaStatus ?? "N/A",
@@ -485,6 +526,17 @@ export const createLeadsService = (datasource: LeadsDatasource) => ({
     extra?: { activityCreatedAt?: string; activityTimezone?: string },
   ) => datasource.disableCalls(id, disabled, extra),
   submitPublicLead: (payload: unknown) => datasource.publicCapture(payload),
+<<<<<<< HEAD
+=======
+  listCustomStatusPresets: async (): Promise<string[]> => {
+    const response = await datasource.listCustomStatusPresets();
+    return extractCustomStatusPresetItems(response);
+  },
+  addCustomStatusPreset: async (label: string): Promise<string[]> => {
+    const response = await datasource.addCustomStatusPreset(label.trim());
+    return extractCustomStatusPresetItems(response);
+  },
+>>>>>>> test
 });
 
 export type LeadsService = ReturnType<typeof createLeadsService>;

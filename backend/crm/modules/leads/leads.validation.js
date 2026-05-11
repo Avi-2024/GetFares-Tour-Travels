@@ -110,6 +110,11 @@ const basePayload = z.object({
   qualificationCompleted: z.boolean().optional(),
   closedReason: z.string().max(1000).optional(),
   nextFollowupDate: z.string().date().optional(),
+<<<<<<< HEAD
+=======
+  statusTransitionCustom: z.union([z.string().max(4000), z.null()]).optional(),
+  customStatusLabel: z.union([z.string().max(191), z.null()]).optional(),
+>>>>>>> test
   notes: z.string().max(2000).optional(),
   clientCreatedAt: optionalWallClock,
   clientTimezone: optionalClientTimezone,
@@ -373,6 +378,23 @@ const listLeadActivities = z.object({
   }),
 });
 
+<<<<<<< HEAD
+=======
+const listCustomStatusPresets = z.object({
+  body: z.object({}).optional(),
+  params: z.object({}).optional(),
+  query: z.object({}).optional(),
+});
+
+const addCustomStatusPreset = z.object({
+  body: z.object({
+    label: z.string().trim().min(1).max(191),
+  }),
+  params: z.object({}).optional(),
+  query: z.object({}).optional(),
+});
+
+>>>>>>> test
 const LeadsValidation = {
   create,
   update,
@@ -393,6 +415,11 @@ const LeadsValidation = {
   disableCalls,
   createLeadActivity,
   listLeadActivities,
+<<<<<<< HEAD
+=======
+  listCustomStatusPresets,
+  addCustomStatusPreset,
+>>>>>>> test
 };
 
 export { LeadsValidation };
