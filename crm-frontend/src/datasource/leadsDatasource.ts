@@ -66,6 +66,8 @@ export type LeadApiRecord = {
   package?: string | null;
   status?: string | null;
   statusLabel?: string | null;
+  customStatusLabel?: string | null;
+  custom_status_label?: string | null;
   subStatus?: string | null;
   priority?: string | null;
   priorityLevel?: number | string | null;

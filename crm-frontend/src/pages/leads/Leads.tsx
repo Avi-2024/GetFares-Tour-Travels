@@ -23,7 +23,7 @@ import { useLeadsService } from "../../hooks/useLeadsService";
 import { useUsersService } from "../../hooks/useUsersService";
 
 import type { LeadListItem, LeadsPagination } from "../../services/leadsService";
-import { toStatusLabelText, sopLabelToCanonical } from "../../utils/leadStatus";
+import { sopLabelToCanonical } from "../../utils/leadStatus";
 
 interface LeadStats {
   totalLeads: number;
@@ -468,7 +468,7 @@ const Leads: React.FC = () => {
         getVisaHolidayLabel(lead),
         lead.consultant && lead.consultant !== "Unassigned" ? lead.consultant : "-",
         lead.assignedBy ?? "-",
-        toStatusLabelText(lead.statusLabel),
+        lead.statusDisplay,
         lead.slaBreached ? "Breached" : (lead.sla ?? ""),
       ]);
 
@@ -500,7 +500,7 @@ const Leads: React.FC = () => {
     if (leadType === 'HOLIDAY') return 'Holidays';
     
     // Fallback: check packageName and statusLabel
-    const source = `${lead.packageName ?? ""} ${lead.statusLabel ?? ""}`
+    const source = `${lead.packageName ?? ""} ${lead.statusDisplay ?? ""}`
       .trim()
       .toLowerCase();
     return source.includes("visa") ? "Visa" : "Holidays";
@@ -637,7 +637,7 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
           {lead.leadCountry || "-"}
         </div>
         <div className="flex items-center justify-center px-3 py-4">
-          <StatusBadge status={lead.statusLabel} />
+          <StatusBadge status={lead.statusDisplay} />
         </div>
         <div className={`px-3 py-4 text-center text-sm font-medium ${lead.slaBreached ? "text-red-600" : "text-gray-700 dark:text-gray-200"}`}>
           {lead.slaBreached ? "Breached" : lead.sla}
@@ -1160,7 +1160,7 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
                         </td>
                         <td className="min-w-[140px] px-3 py-4 text-center align-middle">
                           <div className="flex justify-center">
-                            <StatusBadge status={lead.statusLabel} />
+                            <StatusBadge status={lead.statusDisplay} />
                           </div>
                         </td>
                         <td className="px-3 py-4 text-center align-middle whitespace-nowrap">

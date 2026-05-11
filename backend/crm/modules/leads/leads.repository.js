@@ -415,6 +415,10 @@ function createLeadsRepository({ db, logger, schema }) {
       qualificationCompleted:
         row.qualification_completed ?? row.qualificationCompleted ?? false,
       closedReason: row.closed_reason ?? row.closedReason ?? null,
+      statusTransitionCustom:
+        row.status_transition_custom ?? row.statusTransitionCustom ?? null,
+      customStatusLabel:
+        row.custom_status_label ?? row.customStatusLabel ?? null,
       nextFollowupDate: row.next_followup_date ?? row.nextFollowupDate ?? null,
       subStatus: row.sub_status ?? row.subStatus ?? null,
       temperature: row.temperature ?? null,

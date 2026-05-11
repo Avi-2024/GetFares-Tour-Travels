@@ -669,15 +669,6 @@ function createLeadsService({ repository, logger, events }) {
     if (!input.leadCountry && !input.country) {
       missing.push("leadCountry");
     }
-    if (!input.nationality) {
-      missing.push("nationality");
-    }
-    const hasDestination = Boolean(
-      input.destinationId || input.destinationName || input.destination,
-    );
-    if (!hasDestination) {
-      missing.push("destination");
-    }
     if (!input.travelDate) {
       missing.push("travelDate");
     }
@@ -1263,6 +1254,25 @@ function createLeadsService({ repository, logger, events }) {
     }
     if (payload.closedReason !== undefined) {
       mapped.closed_reason = payload.closedReason;
+    }
+    if (payload.customStatusLabel !== undefined) {
+      const rawCs = payload.customStatusLabel;
+      mapped.custom_status_label =
+        rawCs === null || String(rawCs ?? "").trim() === "" ?
+          null
+        : String(rawCs).trim().slice(0, 191) || null;
+    }
+    if (
+      options.persistStatusTransitionCustom &&
+      payload.statusTransitionCustom !== undefined
+    ) {
+      const raw = payload.statusTransitionCustom;
+      if (raw === null || raw === "") {
+        mapped.status_transition_custom = null;
+      } else {
+        const v = String(raw).trim();
+        mapped.status_transition_custom = v || null;
+      }
     }
     if (payload.nextFollowupDate !== undefined) {
       mapped.next_followup_date = payload.nextFollowupDate;
@@ -2857,11 +2867,6 @@ function createLeadsService({ repository, logger, events }) {
         payload.qualificationCompleted = true;
       }
 
-      if (nextStatus === "LOST" || nextStatus === NON_RESPONSIVE_STATUS) {
-        const compliance = await repository.getFollowupComplianceStats(id);
-        const policy = getFollowupPolicy(existing);
-        assertFollowupCompliance(compliance, policy);
-      }
       const useCustomerLinking = await repository.hasLeadCustomerColumn();
       const customerPatch = {};
 
@@ -2901,6 +2906,7 @@ function createLeadsService({ repository, logger, events }) {
 
       const mapped = buildUpdateRecord(existing, payload, {
         useCustomerLinking,
+        persistStatusTransitionCustom: hasExplicitStatus,
       });
 
       const shouldCreateWorkflowHistory = hasExplicitStatus;
@@ -3010,14 +3016,74 @@ function createLeadsService({ repository, logger, events }) {
         }
       }
 
+      /** Custom-status-only saves skip workflow rows; mirror them into follow-up history. */
+      if (!hasExplicitStatus && payload.customStatusLabel !== undefined) {
+        const nextCustomRaw = payload.customStatusLabel;
+        const nextCustomTrimmed =
+          nextCustomRaw === null || nextCustomRaw === undefined ?
+            ""
+          : String(nextCustomRaw).trim();
+        const prevCustomTrimmed =
+          existing.customStatusLabel != null ?
+            String(existing.customStatusLabel).trim()
+          : "";
+        const userNotesTrimmed = String(payload.notes ?? "").trim();
+        const customChanged =
+          nextCustomTrimmed !== prevCustomTrimmed;
+        const shouldLogHistory =
+          !!nextCustomTrimmed && resolveActivityStamp(payload) ?
+            Boolean(customChanged || userNotesTrimmed)
+          : false;
+        if (shouldLogHistory) {
+          const customStamp = resolveActivityStamp(payload);
+          const snapshotMax = 60;
+          const wall = customStamp.createdAt;
+          const tz = customStamp.timezone;
+          const historyLines = [];
+          if (userNotesTrimmed) {
+            historyLines.push(userNotesTrimmed);
+          }
+          historyLines.push(`Custom status: ${nextCustomTrimmed}`);
+          const snap =
+            nextCustomTrimmed.length <= snapshotMax ?
+              nextCustomTrimmed
+            : `${nextCustomTrimmed.slice(0, Math.max(0, snapshotMax - 3))}...`;
+          await repository.createFollowup({
+            leadId: id,
+            userId:
+              context.user?.id || updated?.assignedTo || existing.assignedTo || null,
+            followupType: "EMAIL",
+            followupDate: wall,
+            clientTimezone: tz,
+            followupLocalAt: wall,
+            statusSnapshot: snap,
+            notes: historyLines.join("\n\n"),
+            isCompleted: true,
+            isScheduleOnly: false,
+            countsTowardCompliance: false,
+          });
+        }
+      }
+
+      let activityNotes = "";
       if (payload.notes) {
+        activityNotes = String(payload.notes).trim();
+      } else if (
+        !hasExplicitStatus &&
+        payload.customStatusLabel !== undefined &&
+        String(payload.customStatusLabel ?? "").trim()
+      ) {
+        activityNotes = `Custom status: ${String(payload.customStatusLabel).trim()}`;
+      }
+
+      if (activityNotes) {
         const updateActivityStamp = resolveActivityStamp(payload);
         if (updateActivityStamp) {
           await repository.createActivity({
             leadId: id,
             userId: context.user?.id,
             activityType: "LEAD_UPDATED",
-            notes: payload.notes,
+            notes: activityNotes,
             createdAt: updateActivityStamp.createdAt,
             timezone: updateActivityStamp.timezone,
           });

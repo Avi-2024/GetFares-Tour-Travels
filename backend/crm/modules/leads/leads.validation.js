@@ -110,6 +110,8 @@ const basePayload = z.object({
   qualificationCompleted: z.boolean().optional(),
   closedReason: z.string().max(1000).optional(),
   nextFollowupDate: z.string().date().optional(),
+  statusTransitionCustom: z.union([z.string().max(4000), z.null()]).optional(),
+  customStatusLabel: z.union([z.string().max(191), z.null()]).optional(),
   notes: z.string().max(2000).optional(),
   clientCreatedAt: optionalWallClock,
   clientTimezone: optionalClientTimezone,

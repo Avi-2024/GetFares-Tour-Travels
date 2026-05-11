@@ -11,6 +11,7 @@ import type {
 import {
   deriveSopStatusLabel,
   normalizeStatusToken,
+  resolveLeadDisplayedStatus,
   type CanonicalLeadStatus,
   type SopStatusLabel,
 } from "../utils/leadStatus";
@@ -38,6 +39,8 @@ export type LeadListItem = {
   salary?: number | null;
   status: CanonicalLeadStatus;
   statusLabel: SopStatusLabel;
+  /** Pipeline SOP plus custom_status_label when set (badges, export). */
+  statusDisplay: string;
   subStatus: string | null;
   priority: LeadPriority;
   sla: string;
@@ -334,6 +337,18 @@ const normalizeCanonicalStatus = (value: unknown): CanonicalLeadStatus => {
 const toListItem = (lead: LeadApiRecord, index: number): LeadListItem => {
   const status = normalizeCanonicalStatus(lead.status);
   const statusLabel = deriveSopStatusLabel(lead.status, lead.subStatus, lead.statusLabel);
+  const customRaw =
+    (lead as LeadApiRecord & { customStatusLabel?: string | null })
+      .customStatusLabel ??
+    (lead as LeadApiRecord & { custom_status_label?: string | null })
+      .custom_status_label ??
+    null;
+  const statusDisplay = resolveLeadDisplayedStatus({
+    customStatusLabel: customRaw,
+    canonicalStatus: lead.status,
+    subStatus: lead.subStatus,
+    providedStatusLabel: lead.statusLabel,
+  });
   const leadIdFromBackend = toPlainText(
     (lead as LeadApiRecord & { leadCode?: string | null; lead_code?: string | null })
       .leadCode ??
@@ -390,6 +405,7 @@ const toListItem = (lead: LeadApiRecord, index: number): LeadListItem => {
           : null,
     status,
     statusLabel,
+    statusDisplay,
     subStatus: lead.subStatus ?? null,
     priority: normalizePriority(lead),
     sla: lead.sla ?? lead.slaStatus ?? "N/A",
