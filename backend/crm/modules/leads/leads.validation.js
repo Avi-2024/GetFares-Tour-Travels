@@ -375,6 +375,20 @@ const listLeadActivities = z.object({
   }),
 });
 
+const listCustomStatusPresets = z.object({
+  body: z.object({}).optional(),
+  params: z.object({}).optional(),
+  query: z.object({}).optional(),
+});
+
+const addCustomStatusPreset = z.object({
+  body: z.object({
+    label: z.string().trim().min(1).max(191),
+  }),
+  params: z.object({}).optional(),
+  query: z.object({}).optional(),
+});
+
 const LeadsValidation = {
   create,
   update,
@@ -395,6 +409,8 @@ const LeadsValidation = {
   disableCalls,
   createLeadActivity,
   listLeadActivities,
+  listCustomStatusPresets,
+  addCustomStatusPreset,
 };
 
 export { LeadsValidation };

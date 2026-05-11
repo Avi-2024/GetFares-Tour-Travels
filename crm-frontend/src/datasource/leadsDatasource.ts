@@ -215,6 +215,10 @@ export const createLeadsDatasource = (client: HttpClient) => ({
     }),
   publicCapture: (payload: unknown) =>
     client.post("/api/webhooks/website-enquiry", payload, { skipAuth: true }),
+  listCustomStatusPresets: () =>
+    client.get<unknown>("/api/leads/custom-status-presets"),
+  addCustomStatusPreset: (label: string) =>
+    client.post<unknown>("/api/leads/custom-status-presets", { label }),
 });
 
 export type LeadsDatasource = ReturnType<typeof createLeadsDatasource>;

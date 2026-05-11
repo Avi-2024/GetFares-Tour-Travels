@@ -210,6 +210,16 @@ const extractListPayload = (response: LeadsListResponse) => {
   return { items, pagination };
 };
 
+function extractCustomStatusPresetItems(response: unknown): string[] {
+  const root = (response as { data?: unknown })?.data ?? response;
+  const wrapper = root as { items?: unknown };
+  const items = wrapper?.items ?? (root as string[]);
+  if (!Array.isArray(items)) return [];
+  return items
+    .map((item) => (typeof item === "string" ? item.trim() : String(item ?? "").trim()))
+    .filter(Boolean);
+}
+
 const extractArray = (response: unknown) => {
   const payload = (response as { data?: unknown })?.data ?? response;
   if (Array.isArray(payload)) return payload;
@@ -501,6 +511,14 @@ export const createLeadsService = (datasource: LeadsDatasource) => ({
     extra?: { activityCreatedAt?: string; activityTimezone?: string },
   ) => datasource.disableCalls(id, disabled, extra),
   submitPublicLead: (payload: unknown) => datasource.publicCapture(payload),
+  listCustomStatusPresets: async (): Promise<string[]> => {
+    const response = await datasource.listCustomStatusPresets();
+    return extractCustomStatusPresetItems(response);
+  },
+  addCustomStatusPreset: async (label: string): Promise<string[]> => {
+    const response = await datasource.addCustomStatusPreset(label.trim());
+    return extractCustomStatusPresetItems(response);
+  },
 });
 
 export type LeadsService = ReturnType<typeof createLeadsService>;

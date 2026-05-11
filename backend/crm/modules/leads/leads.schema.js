@@ -1,5 +1,6 @@
 const LeadsSchema = Object.freeze({
   tableName: "leads",
+  customStatusPresetsTable: "lead_custom_status_presets",
   customersTable: "customers",
   activitiesTable: "lead_activities",
   followupsTable: "followups",

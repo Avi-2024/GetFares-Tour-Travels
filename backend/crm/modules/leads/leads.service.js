@@ -2061,6 +2061,17 @@ function createLeadsService({ repository, logger, events }) {
     },
 
     getById,
+    async listCustomStatusPresets() {
+      return repository.listCustomStatusPresets();
+    },
+    async addCustomStatusPreset(label, context = {}) {
+      const trimmed = String(label ?? "").trim().slice(0, 191);
+      if (!trimmed) {
+        throw new AppError(400, "label is required", "INVALID_PRESET_LABEL");
+      }
+      await repository.ensureCustomStatusPreset(trimmed, context.user?.id || null);
+      return repository.listCustomStatusPresets();
+    },
     create,
     assignLead,
 
@@ -3087,6 +3098,23 @@ function createLeadsService({ repository, logger, events }) {
             createdAt: updateActivityStamp.createdAt,
             timezone: updateActivityStamp.timezone,
           });
+        }
+      }
+
+      if (
+        payload.customStatusLabel !== undefined &&
+        String(payload.customStatusLabel ?? "").trim()
+      ) {
+        try {
+          await repository.ensureCustomStatusPreset(
+            String(payload.customStatusLabel).trim(),
+            context.user?.id || null,
+          );
+        } catch (presetErr) {
+          logger?.warn?.(
+            { err: presetErr, leadId: id },
+            "Could not persist global custom status preset",
+          );
         }
       }
 

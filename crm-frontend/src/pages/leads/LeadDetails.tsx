@@ -25,6 +25,7 @@ import {
   deriveSopStatusLabel,
   encodeCustomStatusComboValue,
   isEncodedCustomStatusValue,
+  normalizeStatusToken,
   resolveLeadDisplayedStatus,
   sopLabelToCanonical,
   toStatusLabelText,
@@ -171,6 +172,7 @@ const LeadDetails: React.FC = () => {
   const [statusError, setStatusError] = useState('')
   const [statusSaving, setStatusSaving] = useState(false)
   const [statusComboValue, setStatusComboValue] = useState<string>('NEW')
+  const [globalStatusPresets, setGlobalStatusPresets] = useState<string[]>([])
   const [workflowFollowupType, setWorkflowFollowupType] = useState<
     'CALL' | 'WHATSAPP' | 'FINAL_REMINDER'
   >('CALL')
@@ -443,6 +445,15 @@ const LeadDetails: React.FC = () => {
     )
   }, [])
 
+  const loadGlobalStatusPresets = useCallback(async () => {
+    try {
+      const items = await leadsService.listCustomStatusPresets()
+      setGlobalStatusPresets(items)
+    } catch {
+      setGlobalStatusPresets([])
+    }
+  }, [leadsService])
+
   const loadLead = useCallback(async () => {
     if (!id) return
     setLoading(true)
@@ -478,8 +489,9 @@ const LeadDetails: React.FC = () => {
       setLead(null)
     } finally {
       setLoading(false)
+      void loadGlobalStatusPresets()
     }
-  }, [hydrateQualification, id, leadsService])
+  }, [hydrateQualification, id, leadsService, loadGlobalStatusPresets])
 
   const loadFollowups = useCallback(async () => {
     if (!id) return
@@ -613,7 +625,8 @@ const LeadDetails: React.FC = () => {
     void loadLead()
     void loadFollowups()
     void loadLeadQuotationsForLead()
-  }, [loadFollowups, loadLead, loadLeadQuotationsForLead])
+    void loadGlobalStatusPresets()
+  }, [loadFollowups, loadLead, loadLeadQuotationsForLead, loadGlobalStatusPresets])
 
   const pipelineSop = useMemo((): SopStatusLabel | null => {
     if (decodeCustomStatusComboValue(statusComboValue)) return null
@@ -685,11 +698,43 @@ const LeadDetails: React.FC = () => {
       value: label,
       label: toStatusLabelText(label)
     }))
-    if (!isEncodedCustomStatusValue(statusComboValue)) return base
-    const text = decodeCustomStatusComboValue(statusComboValue)
-    if (!text) return base
-    return [{ value: statusComboValue, label: text }, ...base]
-  }, [statusComboValue])
+    const sopTokenSet = new Set(
+      SOP_STATUS_LABELS.map(l =>
+        normalizeStatusToken(l)
+      ).filter(Boolean)
+    )
+    const uniquePresets = [
+      ...new Set(
+        globalStatusPresets.map(s => String(s).trim()).filter(Boolean)
+      )
+    ].filter(
+      txt =>
+        !sopTokenSet.has(normalizeStatusToken(txt))
+    )
+    const presetRows = [...uniquePresets]
+      .sort((a, b) => a.localeCompare(b))
+      .map(txt => ({
+        value: encodeCustomStatusComboValue(txt),
+        label: txt
+      }))
+    const usedLower = new Set(presetRows.map(r => r.label.toLowerCase()))
+    const extraLeadOnly: Array<{ value: string; label: string }> = []
+    if (isEncodedCustomStatusValue(statusComboValue)) {
+      const lone = decodeCustomStatusComboValue(statusComboValue)?.trim()
+      if (
+        lone &&
+        !usedLower.has(lone.toLowerCase()) &&
+        !sopTokenSet.has(normalizeStatusToken(lone))
+      ) {
+        usedLower.add(lone.toLowerCase())
+        extraLeadOnly.push({
+          value: statusComboValue,
+          label: lone
+        })
+      }
+    }
+    return [...extraLeadOnly, ...presetRows, ...base]
+  }, [statusComboValue, globalStatusPresets])
 
   const eligibleConversionQuotations = useMemo(
     () =>
@@ -1720,20 +1765,7 @@ const LeadDetails: React.FC = () => {
               <FaWhatsapp className='text-sm' />
               WhatsApp
             </button>
-            <button
-              type='button'
-              onClick={() => setShowCustomFields(true)}
-              className='inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-800 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800'
-              title='View custom form fields'
-            >
-              <FaListUl className='text-sm text-gray-500' />
-              Custom Fields
-              {customFieldEntries.length ? (
-                <span className='ml-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'>
-                  {customFieldEntries.length}
-                </span>
-              ) : null}
-            </button>
+           
             {lead.email && String(lead.email).includes('@') ? (
               <a
                 href={`mailto:${String(lead.email).trim()}?subject=${encodeURIComponent(`Lead ${String(lead.leadCode ?? lead.lead_code ?? id)}`)}`}
@@ -1751,6 +1783,20 @@ const LeadDetails: React.FC = () => {
                 Email
               </span>
             )}
+             <button
+              type='button'
+              onClick={() => setShowCustomFields(true)}
+              className='inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-800 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800'
+              title='View custom form fields'
+            >
+              <FaListUl className='text-sm text-gray-500' />
+              Custom Fields
+              {customFieldEntries.length ? (
+                <span className='ml-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'>
+                  {customFieldEntries.length}
+                </span>
+              ) : null}
+            </button>
           </div>
         ) : null}
       </div>
@@ -2241,16 +2287,21 @@ const LeadDetails: React.FC = () => {
               options={statusOptions}
               searchPlaceholder='Search status...'
               creatable
-              onCreatePick={text =>
-                setStatusComboValue(encodeCustomStatusComboValue(text))
-              }
+              onCreatePick={text => {
+                const t = String(text ?? '').trim()
+                if (!t) return
+                setStatusComboValue(encodeCustomStatusComboValue(t))
+                setGlobalStatusPresets(prev =>
+                  prev.some(x => x.toLowerCase() === t.toLowerCase())
+                    ? prev
+                    : [...prev, t].sort((a, b) => a.localeCompare(b))
+                )
+                void leadsService.addCustomStatusPreset(t).catch(() => {})
+              }}
               onChange={value => setStatusComboValue(value)}
             />
             <p className='mt-1 text-[11px] text-gray-500 dark:text-gray-400'>
-              Type and pick &quot;Use as custom:&quot; to set a label without
-              moving the pipeline stage. It is saved on this lead in the database,
-              so any teammate sees the same text. Updates appear in Follow-up History.
-            </p>
+               </p>
             <label className='mt-2 block text-xs font-medium text-gray-700 dark:text-gray-300'>
               Follow-up Type
             </label>
@@ -2282,7 +2333,7 @@ const LeadDetails: React.FC = () => {
             {latestScheduleForWorkflow?.followupDate ||
             latestScheduleForWorkflow?.followupLocalAt ||
             latestScheduleForWorkflow?.followup_local_at ? (
-              <p className='mt-2 text-xs font-medium text-gray-700 dark:text-gray-200'>
+              <p className='bg-yellow-300 p-2 mt-2 text-xs font-medium text-gray-700  dark:text-gray-200  border border-yellow-500 rounded-lg'>
                 Latest scheduled action time:{' '}
                 {formatFollowupDisplay(latestScheduleForWorkflow)}
               </p>

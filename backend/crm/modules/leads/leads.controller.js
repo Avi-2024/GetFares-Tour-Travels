@@ -28,6 +28,19 @@ function createLeadsController({ service }) {
       res.status(200).json({ data: result });
     },
 
+    async listCustomStatusPresets(req, res) {
+      const items = await service.listCustomStatusPresets();
+      res.status(200).json({ data: { items } });
+    },
+
+    async addCustomStatusPreset(req, res) {
+      const items = await service.addCustomStatusPreset(
+        req.validated.body.label,
+        req.context,
+      );
+      res.status(201).json({ data: { items } });
+    },
+
     async getById(req, res) {
       const result = await service.getById(
         req.validated.params.id,

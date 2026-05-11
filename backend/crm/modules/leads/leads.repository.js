@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import { AppError } from "../../core/errors/index.js";
 
 function createLeadsRepository({ db, logger, schema }) {
@@ -1676,6 +1678,94 @@ function createLeadsRepository({ db, logger, schema }) {
     async findById(id) {
       const row = await db.findById(schema.tableName, id);
       return mapRowToDomain(row);
+    },
+
+    async listCustomStatusPresets() {
+      const table = schema.customStatusPresetsTable;
+      if (typeof db.query === "function" && (db.adapter === "mysql" || db.adapter === "mssql")) {
+        try {
+          const result = await db.query(
+            `SELECT label FROM \`${table}\` ORDER BY label ASC`,
+          );
+          return (Array.isArray(result.rows) ? result.rows : [])
+            .map((r) => String(r.label ?? "").trim())
+            .filter(Boolean);
+        } catch (err) {
+          if (
+            logger &&
+            typeof logger.warn === "function" &&
+            /doesn't exist|Unknown table/i.test(String(err.message || ""))
+          ) {
+            logger.warn({ err }, "lead_custom_status_presets table missing; migrate DB");
+          }
+          return [];
+        }
+      }
+      try {
+        const rows = await db.findMany(table, {});
+        return [...rows]
+          .map((r) => String(r.label ?? "").trim())
+          .filter(Boolean)
+          .sort((a, b) => a.localeCompare(b));
+      } catch (_e) {
+        return [];
+      }
+    },
+
+    async ensureCustomStatusPreset(label, createdBy = null) {
+      const trimmed = String(label ?? "")
+        .trim()
+        .slice(0, 191);
+      if (!trimmed) {
+        return null;
+      }
+      const table = schema.customStatusPresetsTable;
+      if (typeof db.query === "function" && (db.adapter === "mysql" || db.adapter === "mssql")) {
+        try {
+          const dup = await db.query(
+            `SELECT id FROM \`${table}\` WHERE LOWER(TRIM(label)) = LOWER(?) LIMIT 1`,
+            [trimmed],
+          );
+          if ((dup.rows?.length || 0) > 0) {
+            return dup.rows[0];
+          }
+          const id = randomUUID();
+          await db.query(
+            `INSERT INTO \`${table}\` (id, label, created_by) VALUES (?, ?, ?)`,
+            [id, trimmed, createdBy || null],
+          );
+          return { id, label: trimmed };
+        } catch (err) {
+          if (
+            /Duplicate entry/i.test(String(err.message || "")) ||
+            String(err.code || "") === "ER_DUP_ENTRY"
+          ) {
+            return null;
+          }
+          if (
+            logger &&
+            typeof logger.warn === "function" &&
+            /doesn't exist|Unknown table/i.test(String(err.message || ""))
+          ) {
+            logger.warn({ err }, "lead_custom_status_presets insert skipped; migrate DB");
+            return null;
+          }
+          throw err;
+        }
+      }
+      const rows = await db.findMany(table, {});
+      const exists = [...rows].find(
+        (r) =>
+          String(r.label ?? "").trim().toLowerCase() === trimmed.toLowerCase(),
+      );
+      if (exists) {
+        return exists;
+      }
+      return db.insert(table, {
+        id: randomUUID(),
+        label: trimmed,
+        created_by: createdBy || null,
+      });
     },
 
     async findDestinationById(id) {

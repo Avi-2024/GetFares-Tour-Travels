@@ -32,6 +32,20 @@ function createLeadsRoutes({
     validateRequest(validation.listDestinations),
     asyncHandler(controller.listDestinations),
   );
+  router.get(
+    "/custom-status-presets",
+    requireAuth,
+    authorize("leads:read"),
+    validateRequest(validation.listCustomStatusPresets),
+    asyncHandler(controller.listCustomStatusPresets),
+  );
+  router.post(
+    "/custom-status-presets",
+    requireAuth,
+    authorize("leads:update"),
+    validateRequest(validation.addCustomStatusPreset),
+    asyncHandler(controller.addCustomStatusPreset),
+  );
   router.post(
     "/",
     requireAuth,
