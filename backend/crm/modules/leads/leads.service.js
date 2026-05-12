@@ -669,18 +669,6 @@ function createLeadsService({ repository, logger, events }) {
     if (!input.leadCountry && !input.country) {
       missing.push("leadCountry");
     }
-<<<<<<< HEAD
-    if (!input.nationality) {
-      missing.push("nationality");
-    }
-    const hasDestination = Boolean(
-      input.destinationId || input.destinationName || input.destination,
-    );
-    if (!hasDestination) {
-      missing.push("destination");
-    }
-=======
->>>>>>> test
     if (!input.travelDate) {
       missing.push("travelDate");
     }
@@ -1267,8 +1255,6 @@ function createLeadsService({ repository, logger, events }) {
     if (payload.closedReason !== undefined) {
       mapped.closed_reason = payload.closedReason;
     }
-<<<<<<< HEAD
-=======
     if (payload.customStatusLabel !== undefined) {
       const rawCs = payload.customStatusLabel;
       mapped.custom_status_label =
@@ -1288,7 +1274,6 @@ function createLeadsService({ repository, logger, events }) {
         mapped.status_transition_custom = v || null;
       }
     }
->>>>>>> test
     if (payload.nextFollowupDate !== undefined) {
       mapped.next_followup_date = payload.nextFollowupDate;
     }
@@ -2075,9 +2060,6 @@ function createLeadsService({ repository, logger, events }) {
       return { items };
     },
 
-    getById,
-<<<<<<< HEAD
-=======
     async listCustomStatusPresets() {
       return repository.listCustomStatusPresets();
     },
@@ -2089,7 +2071,8 @@ function createLeadsService({ repository, logger, events }) {
       await repository.ensureCustomStatusPreset(trimmed, context.user?.id || null);
       return repository.listCustomStatusPresets();
     },
->>>>>>> test
+
+    getById,
     create,
     assignLead,
 
@@ -2896,14 +2879,6 @@ function createLeadsService({ repository, logger, events }) {
         payload.qualificationCompleted = true;
       }
 
-<<<<<<< HEAD
-      if (nextStatus === "LOST" || nextStatus === NON_RESPONSIVE_STATUS) {
-        const compliance = await repository.getFollowupComplianceStats(id);
-        const policy = getFollowupPolicy(existing);
-        assertFollowupCompliance(compliance, policy);
-      }
-=======
->>>>>>> test
       const useCustomerLinking = await repository.hasLeadCustomerColumn();
       const customerPatch = {};
 
@@ -2943,10 +2918,7 @@ function createLeadsService({ repository, logger, events }) {
 
       const mapped = buildUpdateRecord(existing, payload, {
         useCustomerLinking,
-<<<<<<< HEAD
-=======
         persistStatusTransitionCustom: hasExplicitStatus,
->>>>>>> test
       });
 
       const shouldCreateWorkflowHistory = hasExplicitStatus;
@@ -3056,9 +3028,6 @@ function createLeadsService({ repository, logger, events }) {
         }
       }
 
-<<<<<<< HEAD
-      if (payload.notes) {
-=======
       /** Custom-status-only saves skip workflow rows; mirror them into follow-up history. */
       if (!hasExplicitStatus && payload.customStatusLabel !== undefined) {
         const nextCustomRaw = payload.customStatusLabel;
@@ -3120,26 +3089,19 @@ function createLeadsService({ repository, logger, events }) {
       }
 
       if (activityNotes) {
->>>>>>> test
         const updateActivityStamp = resolveActivityStamp(payload);
         if (updateActivityStamp) {
           await repository.createActivity({
             leadId: id,
             userId: context.user?.id,
             activityType: "LEAD_UPDATED",
-<<<<<<< HEAD
-            notes: payload.notes,
-=======
             notes: activityNotes,
->>>>>>> test
             createdAt: updateActivityStamp.createdAt,
             timezone: updateActivityStamp.timezone,
           });
         }
       }
 
-<<<<<<< HEAD
-=======
       if (
         payload.customStatusLabel !== undefined &&
         String(payload.customStatusLabel ?? "").trim()
@@ -3157,7 +3119,6 @@ function createLeadsService({ repository, logger, events }) {
         }
       }
 
->>>>>>> test
       const lead = withTemperature(updated, {
         respondedPositively: payload.respondedPositively,
       });

@@ -1,8 +1,5 @@
-<<<<<<< HEAD
-=======
 import { randomUUID } from "node:crypto";
 
->>>>>>> test
 import { AppError } from "../../core/errors/index.js";
 
 function createLeadsRepository({ db, logger, schema }) {
@@ -420,13 +417,10 @@ function createLeadsRepository({ db, logger, schema }) {
       qualificationCompleted:
         row.qualification_completed ?? row.qualificationCompleted ?? false,
       closedReason: row.closed_reason ?? row.closedReason ?? null,
-<<<<<<< HEAD
-=======
       statusTransitionCustom:
         row.status_transition_custom ?? row.statusTransitionCustom ?? null,
       customStatusLabel:
         row.custom_status_label ?? row.customStatusLabel ?? null,
->>>>>>> test
       nextFollowupDate: row.next_followup_date ?? row.nextFollowupDate ?? null,
       subStatus: row.sub_status ?? row.subStatus ?? null,
       temperature: row.temperature ?? null,
@@ -1686,8 +1680,6 @@ function createLeadsRepository({ db, logger, schema }) {
       return mapRowToDomain(row);
     },
 
-<<<<<<< HEAD
-=======
     async listCustomStatusPresets() {
       const table = schema.customStatusPresetsTable;
       if (typeof db.query === "function" && (db.adapter === "mysql" || db.adapter === "mssql")) {
@@ -1776,7 +1768,6 @@ function createLeadsRepository({ db, logger, schema }) {
       });
     },
 
->>>>>>> test
     async findDestinationById(id) {
       if (!id) {
         return null;

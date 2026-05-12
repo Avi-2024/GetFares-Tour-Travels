@@ -24,13 +24,10 @@ type SearchableDropdownProps = {
   searchPlaceholder?: string
   dropdownPlacement?: 'down' | 'up'
   onSearch?: (query: string) => void
-<<<<<<< HEAD
-=======
   /** When typing does not match an option exactly, offer using the typed text */
   creatable?: boolean
   onCreatePick?: (trimmedSearch: string) => void
   createPrompt?: string
->>>>>>> test
 }
 
 const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
@@ -43,14 +40,10 @@ const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
   hasError = false,
   searchPlaceholder = 'Search...',
   dropdownPlacement = 'down',
-<<<<<<< HEAD
-  onSearch
-=======
   onSearch,
   creatable = false,
   onCreatePick,
   createPrompt = 'Use as custom:'
->>>>>>> test
 }) => {
   const [isOpen, setIsOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -111,8 +104,6 @@ const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
     })
   }, [options, query])
 
-<<<<<<< HEAD
-=======
   const queryTrimmed = query.trim()
   const hasExactMatch = useMemo(() => {
     if (!queryTrimmed) return false
@@ -124,7 +115,6 @@ const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
     )
   }, [options, queryTrimmed])
 
->>>>>>> test
   const enableScroll = options.length > 5
 
   return (
@@ -184,8 +174,6 @@ const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
                 : 'overflow-y-visible'
             }`}
           >
-<<<<<<< HEAD
-=======
             {creatable &&
             Boolean(onCreatePick) &&
             queryTrimmed.length > 0 &&
@@ -203,7 +191,6 @@ const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
                 <span className='break-words'>&quot;{queryTrimmed}&quot;</span>
               </button>
             : null}
->>>>>>> test
             {filteredOptions.length ? (
               filteredOptions.map(item => {
                 const isActive = item.value === value

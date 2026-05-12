@@ -28,8 +28,6 @@ function createLeadsController({ service }) {
       res.status(200).json({ data: result });
     },
 
-<<<<<<< HEAD
-=======
     async listCustomStatusPresets(req, res) {
       const items = await service.listCustomStatusPresets();
       res.status(200).json({ data: { items } });
@@ -43,7 +41,6 @@ function createLeadsController({ service }) {
       res.status(201).json({ data: { items } });
     },
 
->>>>>>> test
     async getById(req, res) {
       const result = await service.getById(
         req.validated.params.id,

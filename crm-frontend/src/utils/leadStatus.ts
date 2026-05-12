@@ -15,8 +15,6 @@ export const SOP_STATUS_LABELS = [
 
 export type SopStatusLabel = (typeof SOP_STATUS_LABELS)[number];
 
-<<<<<<< HEAD
-=======
 /** Stored in UI state + dropdown `value` when user types a free-text status */
 export const CUSTOM_STATUS_TOKEN_PREFIX = "CUSTOM_LABEL:";
 
@@ -43,7 +41,6 @@ export function isEncodedCustomStatusValue(value: string): boolean {
   return String(value ?? "").startsWith(CUSTOM_STATUS_TOKEN_PREFIX);
 }
 
->>>>>>> test
 export type CanonicalLeadStatus =
   | "OPEN"
   | "CONTACTED"
@@ -125,8 +122,6 @@ export const sopLabelToCanonical = (label: SopStatusLabel) =>
 export const toStatusLabelText = (label: SopStatusLabel) =>
   label.replace(/_/g, " ");
 
-<<<<<<< HEAD
-=======
 /** User-visible status: saved custom label wins; else formatted SOP stage. */
 export function resolveLeadDisplayedStatus(opts: {
   customStatusLabel?: unknown;
@@ -144,4 +139,3 @@ export function resolveLeadDisplayedStatus(opts: {
   );
   return toStatusLabelText(sop);
 }
->>>>>>> test

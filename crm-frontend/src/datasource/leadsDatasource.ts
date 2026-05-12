@@ -66,11 +66,8 @@ export type LeadApiRecord = {
   package?: string | null;
   status?: string | null;
   statusLabel?: string | null;
-<<<<<<< HEAD
-=======
   customStatusLabel?: string | null;
   custom_status_label?: string | null;
->>>>>>> test
   subStatus?: string | null;
   priority?: string | null;
   priorityLevel?: number | string | null;
@@ -218,13 +215,10 @@ export const createLeadsDatasource = (client: HttpClient) => ({
     }),
   publicCapture: (payload: unknown) =>
     client.post("/api/webhooks/website-enquiry", payload, { skipAuth: true }),
-<<<<<<< HEAD
-=======
   listCustomStatusPresets: () =>
     client.get<unknown>("/api/leads/custom-status-presets"),
   addCustomStatusPreset: (label: string) =>
     client.post<unknown>("/api/leads/custom-status-presets", { label }),
->>>>>>> test
 });
 
 export type LeadsDatasource = ReturnType<typeof createLeadsDatasource>;
