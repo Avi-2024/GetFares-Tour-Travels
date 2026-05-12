@@ -224,6 +224,8 @@ function extractCustomStatusPresetItems(response: unknown): string[] {
 const extractArray = (response: unknown) => {
   const payload = (response as { data?: unknown })?.data ?? response;
 
+  if (Array.isArray(payload)) return payload;
+
   const firstLevelData = (payload as { data?: unknown; items?: unknown })?.data;
   if (Array.isArray(firstLevelData)) return firstLevelData;
 
