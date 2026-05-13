@@ -41,6 +41,32 @@ import {
   wallClockFromDatetimeLocal
 } from '../../utils/clientWallClock'
 
+/** Readable title when Meta / CRM only stored a normalized field key. */
+function humanizeSnakeCase(text: string): string {
+  const s = String(text ?? '')
+    .trim()
+    .replace(/_/g, ' ')
+  if (!s) return ''
+  return s
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(' ')
+}
+
+function looksLikeSnakeCaseToken(value: string): boolean {
+  return /^[a-z0-9_]+$/i.test(String(value ?? '').trim())
+}
+
+/** Rotating tinted surfaces for custom-field answers (light + dark). */
+const CUSTOM_FIELD_ANSWER_SURFACE = [
+  'border border-sky-200/90 bg-gradient-to-br from-sky-50 to-cyan-50 text-sky-950 dark:border-sky-500/40 dark:from-sky-950/50 dark:to-cyan-950/30 dark:text-sky-50',
+  'border border-violet-200/90 bg-gradient-to-br from-violet-50 to-fuchsia-50 text-violet-950 dark:border-violet-500/40 dark:from-violet-950/45 dark:to-fuchsia-950/30 dark:text-violet-50',
+  'border border-amber-200/90 bg-gradient-to-br from-amber-50 to-orange-50 text-amber-950 dark:border-amber-500/40 dark:from-amber-950/45 dark:to-orange-950/30 dark:text-amber-50',
+  'border border-emerald-200/90 bg-gradient-to-br from-emerald-50 to-teal-50 text-emerald-950 dark:border-emerald-500/40 dark:from-emerald-950/45 dark:to-teal-950/30 dark:text-emerald-50',
+  'border border-rose-200/90 bg-gradient-to-br from-rose-50 to-pink-50 text-rose-950 dark:border-rose-500/40 dark:from-rose-950/45 dark:to-pink-950/30 dark:text-rose-50'
+] as const
+
 function followupSortKey(item: any): number {
   const local = item?.followupLocalAt ?? item?.followup_local_at
   if (local && String(local).trim()) {
@@ -77,6 +103,13 @@ function normalizeCampaignCountry(rawValue: unknown): string {
   if (!raw) return 'Other'
   if (/^india$/i.test(raw)) return 'India'
   if (/^(uae|united arab emirates)$/i.test(raw)) return 'UAE'
+  return raw
+}
+
+function normalizeLeadTimeZone(rawValue: unknown): string | null {
+  const raw = String(rawValue ?? '').trim()
+  if (!raw) return null
+  if (raw === 'Asia/Calcutta') return 'Asia/Kolkata'
   return raw
 }
 
@@ -234,6 +267,26 @@ const LeadDetails: React.FC = () => {
     if (!raw) return 'N/A'
     return formatDateTime(raw, String(raw))
   }, [lead, formatDateTime])
+  const leadTimeZone = useMemo(
+    () => normalizeLeadTimeZone(lead?.clientTimezone ?? lead?.client_timezone),
+    [lead]
+  )
+  const firstContactDeadlineFromCreationLabel = useMemo(() => {
+    const wall = String(lead?.clientCreatedAt ?? lead?.client_created_at ?? '').trim()
+    if (!wall) return null
+    const created = parseWallClockLocal(wall)
+    if (!created || Number.isNaN(created.getTime())) return null
+    const deadline = new Date(created.getTime() + 15 * 60 * 1000)
+    const y = String(deadline.getFullYear()).padStart(4, '0')
+    const m = String(deadline.getMonth() + 1).padStart(2, '0')
+    const d = String(deadline.getDate()).padStart(2, '0')
+    const hh = String(deadline.getHours()).padStart(2, '0')
+    const mm = String(deadline.getMinutes()).padStart(2, '0')
+    const ss = String(deadline.getSeconds()).padStart(2, '0')
+    const tzRaw = String(lead?.clientTimezone ?? lead?.client_timezone ?? '').trim()
+    const tz = tzRaw ? ` ${tzRaw}` : ''
+    return `${y}-${m}-${d} ${hh}:${mm}:${ss}${tz}`
+  }, [lead])
 
   const firstFollowupLabel = useMemo(() => {
     if (!followups.length) return 'N/A'
@@ -923,16 +976,30 @@ const LeadDetails: React.FC = () => {
       .sort((a, b) => a.localeCompare(b))
       .map(key => {
         const labelValue = labels[key]
-        const label =
+        const rawLabel =
           typeof labelValue === 'string' && labelValue.trim()
             ? labelValue.trim()
-            : key
+            : ''
+        const normalizedKey = key.replace(/\s+/g, '_').toLowerCase()
+        const labelMatchesKey =
+          !rawLabel ||
+          rawLabel.replace(/\s+/g, '_').toLowerCase() === normalizedKey
+        const displayLabel = labelMatchesKey ? humanizeSnakeCase(key) : rawLabel
+
         const value = obj[key]
+        const rawValue =
+          value === null || value === undefined ? '' : String(value).trim()
+        const displayValue =
+          rawValue && looksLikeSnakeCaseToken(rawValue)
+            ? humanizeSnakeCase(rawValue)
+            : rawValue
+
         return {
           key,
-          label,
-          value:
-            value === null || value === undefined ? '' : String(value).trim()
+          label: displayLabel,
+          value: rawValue,
+          displayLabel,
+          displayValue,
         }
       })
       .filter(item => item.value)
@@ -1665,7 +1732,7 @@ const LeadDetails: React.FC = () => {
           onClick={() => setShowCustomFields(false)}
         >
           <div
-            className='w-full max-w-3xl rounded-2xl bg-white p-4 shadow-xl dark:bg-gray-900'
+            className='w-full max-w-3xl min-w-0 rounded-2xl bg-white p-4 shadow-xl dark:bg-gray-900 sm:p-5'
             onClick={e => e.stopPropagation()}
           >
             <div className='flex items-start justify-between gap-3'>
@@ -1686,24 +1753,25 @@ const LeadDetails: React.FC = () => {
               </button>
             </div>
 
-            <div className='mt-3 max-h-[65vh] overflow-auto rounded-xl border border-gray-200 dark:border-gray-700'>
+            <div className='mt-3 max-h-[65vh] min-w-0 overflow-auto rounded-xl border border-gray-200 dark:border-gray-700'>
               {customFieldEntries.length === 0 ? (
                 <div className='p-4 text-sm text-gray-500'>
                   No custom fields on this lead.
                 </div>
               ) : (
                 <div className='divide-y divide-gray-100 dark:divide-gray-800'>
-                  {customFieldEntries.map(item => (
+                  {customFieldEntries.map((item, index) => (
                     <div
                       key={item.key}
-                      className='grid grid-cols-1 gap-1 p-3 sm:grid-cols-[260px_1fr]'
+                      className='min-w-0 space-y-2 p-3 sm:p-4'
                     >
-                      <div className='text-xs font-semibold text-gray-700 dark:text-gray-200'>
-                        {item.label}
-                      
+                      <div className='min-w-0 text-xs font-semibold leading-snug text-gray-700 [overflow-wrap:anywhere] break-words dark:text-gray-200'>
+                        {item.displayLabel}
                       </div>
-                      <div className='text-sm text-gray-900 dark:text-gray-100 break-words whitespace-pre-wrap'>
-                        {item.value}
+                      <div
+                        className={`min-w-0 rounded-xl px-3 py-2.5 text-sm font-medium leading-relaxed shadow-sm [overflow-wrap:anywhere] break-words whitespace-pre-wrap ${CUSTOM_FIELD_ANSWER_SURFACE[index % CUSTOM_FIELD_ANSWER_SURFACE.length]}`}
+                      >
+                        {item.displayValue}
                       </div>
                     </div>
                   ))}
@@ -1895,10 +1963,10 @@ const LeadDetails: React.FC = () => {
                  <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
                   Date of creation: {createdAtLabel}
                 </p>
-                 {lead.responseAt ? (
+                {lead.responseAt ? (
                   <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
                     {`First contact logged at ${
-                      formatDateTime(lead.responseAt, String(lead.responseAt))
+                      formatDateTime(lead.responseAt, String(lead.responseAt), leadTimeZone)
                     }.`}
                   </p>
                 ) : null}
@@ -1908,7 +1976,8 @@ const LeadDetails: React.FC = () => {
                 {lead.responseDeadline ? (
                   <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
                     First-contact deadline:{' '}
-                    {formatDateTime(lead.responseDeadline) ||
+                    {firstContactDeadlineFromCreationLabel ||
+                      formatDateTime(lead.responseDeadline, String(lead.responseDeadline), leadTimeZone) ||
                       String(lead.responseDeadline)}
                   </p>
                 ) : null}

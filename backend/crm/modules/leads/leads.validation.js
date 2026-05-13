@@ -169,10 +169,18 @@ const list = z.object({
       limit: z.coerce.number().int().positive().max(50).optional(),
       search: z.string().trim().max(150).optional(),
       quickFilter: z
-        .enum(["ALL", "ACTIVE", "FOLLOW_UP", "CLOSED", "LATE_RESPONSE"])
+        .enum([
+          "ALL",
+          "ACTIVE",
+          "FOLLOW_UP",
+          "CLOSED",
+          "LATE_RESPONSE",
+          "LOST",
+        ])
         .optional(),
       status: leadStatus.optional(),
-      source: z.string().optional(),
+      source: z.string().trim().max(120).optional(),
+      platform: z.string().trim().max(40).optional(),
       temperature: z.enum(["HOT", "WARM", "COLD"]).optional(),
       subStatus: z.string().max(60).optional(),
       leadType: leadType.optional(),
@@ -213,6 +221,30 @@ const listDestinations = z.object({
       search: z.string().trim().max(150).optional(),
       country: z.string().trim().max(100).optional(),
       limit: z.coerce.number().int().positive().max(500).optional(),
+    })
+    .optional(),
+});
+
+const listLeadSources = z.object({
+  body: z.object({}).optional(),
+  params: z.object({}).optional(),
+  query: z
+    .object({
+      search: z.string().trim().max(150).optional(),
+      country: z.string().trim().max(100).optional(),
+      limit: z.coerce.number().int().positive().max(200).optional(),
+    })
+    .optional(),
+});
+
+const listPlatforms = z.object({
+  body: z.object({}).optional(),
+  params: z.object({}).optional(),
+  query: z
+    .object({
+      search: z.string().trim().max(150).optional(),
+      country: z.string().trim().max(100).optional(),
+      limit: z.coerce.number().int().positive().max(200).optional(),
     })
     .optional(),
 });
@@ -396,6 +428,8 @@ const LeadsValidation = {
   list,
   stats,
   listDestinations,
+  listLeadSources,
+  listPlatforms,
   assign,
   distribute,
   reassignInactive,

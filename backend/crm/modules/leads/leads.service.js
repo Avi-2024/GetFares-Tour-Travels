@@ -540,6 +540,7 @@ function createLeadsService({ repository, logger, events }) {
     if (normalized === "FOLLOW_UP") return "FOLLOW_UP";
     if (normalized === "CLOSED") return "CLOSED";
     if (normalized === "LATE_RESPONSE") return "LATE_RESPONSE";
+    if (normalized === "LOST") return "LOST";
     return undefined;
   }
 
@@ -2060,6 +2061,85 @@ function createLeadsService({ repository, logger, events }) {
       return { items };
     },
 
+    async listLeadSources(filters = {}, context = {}) {
+      const mappedFilters = {
+        search: filters.search ? String(filters.search).trim() : undefined,
+        country: filters.country ? String(filters.country).trim() : undefined,
+        limit: toPositiveInt(filters.limit, 200, 200),
+      };
+
+      const userId = context.user?.id || null;
+      const userRole = normalizeRoleToken(context.user?.role);
+      const isAgent = isAgentRole(userRole);
+      const isManager = isManagerRole(userRole);
+
+      if (isAgent && userId) {
+        mappedFilters.assignedTo = userId;
+        const agentCountrySet = await getUserCountrySet(userId);
+        if (agentCountrySet.size > 0) {
+          mappedFilters.allowedCountries = [...agentCountrySet];
+        }
+      }
+
+      if (isManager && userId) {
+        const [managerCountrySet, managedAgentIds] = await Promise.all([
+          getUserCountrySet(userId),
+          repository.findManagedAgentIds(userId),
+        ]);
+        const visibleAssigneeIds = [userId, ...managedAgentIds].filter(Boolean);
+        if (visibleAssigneeIds.length > 0) {
+          mappedFilters.visibleAssigneeIds = [...new Set(visibleAssigneeIds)];
+          mappedFilters.includeUnassigned = true;
+        }
+        if (managerCountrySet.size > 0) {
+          mappedFilters.allowedCountries = [...managerCountrySet];
+        }
+      }
+
+      const items = await repository.findDistinctLeadSources(mappedFilters);
+      return { items };
+    },
+
+    async listPlatforms(filters = {}, context = {}) {
+      const mappedFilters = {
+        search: filters.search ? String(filters.search).trim() : undefined,
+        country: filters.country ? String(filters.country).trim() : undefined,
+        limit: toPositiveInt(filters.limit, 100, 200),
+      };
+
+      const userId = context.user?.id || null;
+      const userRole = normalizeRoleToken(context.user?.role);
+      const isAgent = isAgentRole(userRole);
+      const isManager = isManagerRole(userRole);
+
+      if (isAgent && userId) {
+        mappedFilters.assignedTo = userId;
+        const agentCountrySet = await getUserCountrySet(userId);
+        if (agentCountrySet.size > 0) {
+          mappedFilters.allowedCountries = [...agentCountrySet];
+        }
+      }
+
+      if (isManager && userId) {
+        const [managerCountrySet, managedAgentIds] = await Promise.all([
+          getUserCountrySet(userId),
+          repository.findManagedAgentIds(userId),
+        ]);
+        const visibleAssigneeIds = [userId, ...managedAgentIds].filter(Boolean);
+        if (visibleAssigneeIds.length > 0) {
+          mappedFilters.visibleAssigneeIds = [...new Set(visibleAssigneeIds)];
+          mappedFilters.includeUnassigned = true;
+        }
+        if (managerCountrySet.size > 0) {
+          mappedFilters.allowedCountries = [...managerCountrySet];
+        }
+      }
+
+      const items = await repository.findDistinctPlatforms(mappedFilters);
+      return { items };
+    },
+
+    getById,
     async listCustomStatusPresets() {
       return repository.listCustomStatusPresets();
     },

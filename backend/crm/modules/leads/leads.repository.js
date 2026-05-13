@@ -436,14 +436,38 @@ function createLeadsRepository({ db, logger, schema }) {
         row.client_created_at ?? row.clientCreatedAt ?? null,
       clientTimezone:
         row.client_timezone ?? row.clientTimezone ?? null,
-      dynamicFields:
-        typeof (row.dynamic_fields ?? row.dynamicFields) === "string" ?
-          JSON.parse(row.dynamic_fields ?? row.dynamicFields)
-        : (row.dynamic_fields ?? row.dynamicFields) || {},
-      dynamicFieldLabels:
-        typeof (row.dynamic_field_labels ?? row.dynamicFieldLabels) === "string" ?
-          JSON.parse(row.dynamic_field_labels ?? row.dynamicFieldLabels)
-        : (row.dynamic_field_labels ?? row.dynamicFieldLabels) || {},
+      dynamicFields: (() => {
+        const raw = row.dynamic_fields ?? row.dynamicFields;
+        try {
+          if (typeof raw === "string") {
+            const parsed = JSON.parse(raw || "{}");
+            return parsed &&
+              typeof parsed === "object" &&
+              !Array.isArray(parsed) ?
+              parsed
+            : {};
+          }
+          return raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+        } catch {
+          return {};
+        }
+      })(),
+      dynamicFieldLabels: (() => {
+        const raw = row.dynamic_field_labels ?? row.dynamicFieldLabels;
+        try {
+          if (typeof raw === "string") {
+            const parsed = JSON.parse(raw || "{}");
+            return parsed &&
+              typeof parsed === "object" &&
+              !Array.isArray(parsed) ?
+              parsed
+            : {};
+          }
+          return raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+        } catch {
+          return {};
+        }
+      })(),
     };
   }
 
@@ -636,10 +660,6 @@ function createLeadsRepository({ db, logger, schema }) {
       mapped.status = filters.status;
     }
 
-    if (filters.source) {
-      mapped.source = filters.source;
-    }
-
     if (filters.temperature) {
       mapped.temperature = filters.temperature;
     }
@@ -670,6 +690,10 @@ function createLeadsRepository({ db, logger, schema }) {
 
     if (filters.campaignId) {
       mapped.campaign_id = filters.campaignId;
+    }
+
+    if (filters.platform) {
+      mapped.platform = String(filters.platform).trim();
     }
 
     if (filters.page) {
@@ -717,6 +741,18 @@ function createLeadsRepository({ db, logger, schema }) {
     return "ORDER BY l.created_at DESC";
   }
 
+  function resolveSourceAliases(value) {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (!normalized) return [];
+    if (normalized === "meta_india") {
+      return ["Meta India", "Meta India Page", "Meta INDIA Page"];
+    }
+    if (normalized === "meta_uae") {
+      return ["Meta UAE", "Meta UAE Page"];
+    }
+    return [String(value).trim()];
+  }
+
   function isUuidLike(value) {
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
       String(value || "").trim(),
@@ -741,6 +777,14 @@ function createLeadsRepository({ db, logger, schema }) {
     const hasCustomerPhoneNormalized = hasLeadCustomerId ?
         await mysqlColumnExists(schema.customersTable, "phone_normalized")
       : false;
+    const hasLeadSourceColumn = await mysqlColumnExists(
+      schema.tableName,
+      "source",
+    );
+    const hasPlatformColumn = await mysqlColumnExists(
+      schema.tableName,
+      "platform",
+    );
     const quickFilter = String(filters.quickFilter || "")
       .trim()
       .toUpperCase();
@@ -752,9 +796,24 @@ function createLeadsRepository({ db, logger, schema }) {
       where.push(`l.status = ?`);
     }
 
-    if (filters.source) {
-      params.push(filters.source);
-      where.push(`l.source = ?`);
+    if (filters.source && hasLeadSourceColumn) {
+      const sourceAliases = resolveSourceAliases(filters.source);
+      if (sourceAliases.length > 1) {
+        const sourcePh = sourceAliases.map(() => "?").join(", ");
+        params.push(...sourceAliases);
+        where.push(`l.source IN (${sourcePh})`);
+      } else if (sourceAliases.length === 1) {
+        params.push(sourceAliases[0]);
+        where.push(`l.source = ?`);
+      }
+    }
+
+    if (filters.platform && hasPlatformColumn) {
+      const plat = String(filters.platform).trim();
+      if (plat) {
+        params.push(plat);
+        where.push(`LOWER(TRIM(COALESCE(l.platform, ''))) = LOWER(?)`);
+      }
     }
 
     if (filters.temperature) {
@@ -917,20 +976,20 @@ function createLeadsRepository({ db, logger, schema }) {
               `LOWER(COALESCE(c.email, '')) LIKE ?`,
               `LOWER(COALESCE(NULLIF(l.email, ''), '')) LIKE ?`,
               `LOWER(COALESCE(d.name, '')) LIKE ?`,
-              `LOWER(COALESCE(l.source, '')) LIKE ?`,
+              hasLeadSourceColumn ? `LOWER(COALESCE(l.source, '')) LIKE ?` : null,
               `LOWER(CAST(l.id AS CHAR)) LIKE ?`,
               `LOWER(COALESCE(l.lead_code, '')) LIKE ?`,
               `LOWER(COALESCE(l.meta_lead_id, '')) LIKE ?`,
-            ]
+            ].filter(Boolean)
           : [
               `LOWER(COALESCE(NULLIF(l.full_name, ''), '')) LIKE ?`,
               `LOWER(COALESCE(NULLIF(l.email, ''), '')) LIKE ?`,
               `LOWER(COALESCE(d.name, '')) LIKE ?`,
-              `LOWER(COALESCE(l.source, '')) LIKE ?`,
+              hasLeadSourceColumn ? `LOWER(COALESCE(l.source, '')) LIKE ?` : null,
               `LOWER(CAST(l.id AS CHAR)) LIKE ?`,
               `LOWER(COALESCE(l.lead_code, '')) LIKE ?`,
               `LOWER(COALESCE(l.meta_lead_id, '')) LIKE ?`,
-            ];
+            ].filter(Boolean);
         for (let i = 0; i < searchWhere.length; i += 1) {
           params.push(searchVal);
         }
@@ -995,6 +1054,11 @@ function createLeadsRepository({ db, logger, schema }) {
       where.push(`l.status = 'FOLLOW_UP'`);
     } else if (quickFilter === "CLOSED") {
       where.push(`l.status IN ('CONVERTED', 'LOST', 'NON_RESPONSIVE')`);
+    } else if (quickFilter === "LOST") {
+      where.push(`l.status = 'LOST'`);
+    } else if (quickFilter !== "LATE_RESPONSE") {
+      // Default "All" list: hide lost (use Lost or Closed tab)
+      where.push(`l.status <> 'LOST'`);
     }
 
     const baseSql = [
@@ -1092,6 +1156,27 @@ function createLeadsRepository({ db, logger, schema }) {
       });
     }
 
+    if (filters.source) {
+      const sourceAliases = resolveSourceAliases(filters.source).map((v) =>
+        String(v).trim().toLowerCase(),
+      );
+      if (sourceAliases.length > 0) {
+        const sourceSet = new Set(sourceAliases);
+        items = items.filter((item) =>
+          sourceSet.has(String(item.source || "").trim().toLowerCase()),
+        );
+      }
+    }
+
+    if (filters.platform) {
+      const plat = String(filters.platform).trim().toLowerCase();
+      if (plat) {
+        items = items.filter(
+          (item) => String(item.platform || "").trim().toLowerCase() === plat,
+        );
+      }
+    }
+
     if (filters.search) {
       const search = String(filters.search).trim().toLowerCase();
       if (search) {
@@ -1166,8 +1251,16 @@ function createLeadsRepository({ db, logger, schema }) {
           String(item.status || "").toUpperCase(),
         ),
       );
+    } else if (quickFilter === "LOST") {
+      items = items.filter(
+        (item) => String(item.status || "").toUpperCase() === "LOST",
+      );
     } else if (quickFilter === "LATE_RESPONSE") {
       items = items.filter((item) => Boolean(item.slaBreached));
+    } else {
+      items = items.filter(
+        (item) => String(item.status || "").toUpperCase() !== "LOST",
+      );
     }
 
     if (filters.sla === "OVERDUE") {
@@ -1476,6 +1569,64 @@ function createLeadsRepository({ db, logger, schema }) {
     return { upserted, skipped: false };
   }
 
+  async function mergeLeadDynamicFieldsFromChildTable(lead, leadId) {
+    if (!lead || !leadId) {
+      return lead;
+    }
+    const tableName = "lead_dynamic_fields";
+    if (!(await hasTable(tableName))) {
+      return lead;
+    }
+    try {
+      const rows = await db.findMany(tableName, { lead_id: leadId });
+      if (!Array.isArray(rows) || rows.length === 0) {
+        return lead;
+      }
+      const baseFields =
+        lead.dynamicFields &&
+        typeof lead.dynamicFields === "object" &&
+        !Array.isArray(lead.dynamicFields) ?
+          { ...lead.dynamicFields }
+        : {};
+      const baseLabels =
+        lead.dynamicFieldLabels &&
+        typeof lead.dynamicFieldLabels === "object" &&
+        !Array.isArray(lead.dynamicFieldLabels) ?
+          { ...lead.dynamicFieldLabels }
+        : {};
+
+      for (const r of rows) {
+        const key = String(r.field_key ?? r.fieldKey ?? "")
+          .trim()
+          .toLowerCase();
+        if (!key) continue;
+        const label = String(r.field_label ?? r.fieldLabel ?? "").trim();
+        if (label) {
+          baseLabels[key] = label;
+        }
+        const val = r.field_value ?? r.fieldValue;
+        if (val !== undefined && val !== null) {
+          const str = String(val).trim();
+          if (str !== "" && (baseFields[key] === undefined || baseFields[key] === null)) {
+            baseFields[key] = str;
+          }
+        }
+      }
+
+      return {
+        ...lead,
+        dynamicFields: baseFields,
+        dynamicFieldLabels: baseLabels,
+      };
+    } catch (error) {
+      logger?.warn?.(
+        { err: error, leadId },
+        "mergeLeadDynamicFieldsFromChildTable failed",
+      );
+      return lead;
+    }
+  }
+
   return Object.freeze({
     normalizeEmail,
     normalizePhone,
@@ -1675,9 +1826,207 @@ function createLeadsRepository({ db, logger, schema }) {
       return [...unique].sort((left, right) => left.localeCompare(right)).slice(0, limit);
     },
 
+    async findDistinctLeadSources(filters = {}) {
+      const limit = toPositiveInt(filters.limit, 200, 200);
+      const hasSource = await mysqlColumnExists(schema.tableName, "source");
+      if (!hasSource) {
+        return [];
+      }
+
+      if ((db.adapter === "mysql" || db.adapter === "mssql") && typeof db.query === "function") {
+        const where = [
+          "COALESCE(l.is_deleted, 0) = 0",
+          "NULLIF(TRIM(COALESCE(l.source, '')), '') IS NOT NULL",
+        ];
+        const params = [];
+
+        if (filters.country) {
+          params.push(String(filters.country).trim());
+          where.push(`LOWER(COALESCE(l.lead_country, '')) = LOWER(?)`);
+        }
+
+        if (filters.assignedTo) {
+          params.push(filters.assignedTo);
+          where.push(`l.assigned_to = ?`);
+        }
+
+        if (Array.isArray(filters.visibleAssigneeIds)) {
+          const visibleAssigneeIds = [
+            ...new Set(
+              filters.visibleAssigneeIds
+                .map((value) => String(value || "").trim())
+                .filter(Boolean),
+            ),
+          ];
+          if (visibleAssigneeIds.length > 0) {
+            const assignPh = visibleAssigneeIds.map(() => "?").join(", ");
+            params.push(...visibleAssigneeIds);
+            if (filters.includeUnassigned === false) {
+              where.push(`l.assigned_to IN (${assignPh})`);
+            } else {
+              where.push(`(l.assigned_to IS NULL OR l.assigned_to IN (${assignPh}))`);
+            }
+          }
+        }
+
+        if (Array.isArray(filters.allowedCountries)) {
+          const allowedCountries = [
+            ...new Set(
+              filters.allowedCountries
+                .map((value) => String(value || "").trim().toLowerCase())
+                .filter(Boolean),
+            ),
+          ];
+          if (allowedCountries.length > 0) {
+            const countryPh = allowedCountries.map(() => "?").join(", ");
+            params.push(...allowedCountries);
+            where.push(
+              `(NULLIF(TRIM(COALESCE(l.lead_country, '')), '') IS NULL OR LOWER(COALESCE(l.lead_country, '')) IN (${countryPh}))`,
+            );
+          }
+        }
+
+        if (filters.search) {
+          const search = `%${String(filters.search).trim().toLowerCase()}%`;
+          params.push(search);
+          where.push(`LOWER(TRIM(COALESCE(l.source, ''))) LIKE ?`);
+        }
+
+        const sql = [
+          `SELECT DISTINCT TRIM(COALESCE(l.source, '')) AS source_name`,
+          `FROM ${schema.tableName} l`,
+          `WHERE ${where.join(" AND ")}`,
+          `ORDER BY source_name ASC`,
+          `LIMIT ?`,
+        ].join("\n");
+
+        const result = await db.query(sql, [...params, limit]);
+        return (result.rows || [])
+          .map((row) => String(row.source_name ?? "").trim())
+          .filter(Boolean);
+      }
+
+      const rows = await db.findMany(schema.tableName, {});
+      const unique = new Set();
+      rows.forEach((row) => {
+        if (row.is_deleted === true || row.isDeleted === true) return;
+        const src = String(row.source ?? "").trim();
+        if (!src) return;
+        if (
+          filters.search &&
+          !src.toLowerCase().includes(String(filters.search).trim().toLowerCase())
+        ) {
+          return;
+        }
+        unique.add(src);
+      });
+      return [...unique].sort((a, b) => a.localeCompare(b)).slice(0, limit);
+    },
+
+    async findDistinctPlatforms(filters = {}) {
+      const limit = toPositiveInt(filters.limit, 100, 200);
+      const hasPlatform = await mysqlColumnExists(schema.tableName, "platform");
+      if (!hasPlatform) {
+        return [];
+      }
+
+      if ((db.adapter === "mysql" || db.adapter === "mssql") && typeof db.query === "function") {
+        const where = [
+          "COALESCE(l.is_deleted, 0) = 0",
+          "NULLIF(TRIM(COALESCE(l.platform, '')), '') IS NOT NULL",
+        ];
+        const params = [];
+
+        if (filters.country) {
+          params.push(String(filters.country).trim());
+          where.push(`LOWER(COALESCE(l.lead_country, '')) = LOWER(?)`);
+        }
+
+        if (filters.assignedTo) {
+          params.push(filters.assignedTo);
+          where.push(`l.assigned_to = ?`);
+        }
+
+        if (Array.isArray(filters.visibleAssigneeIds)) {
+          const visibleAssigneeIds = [
+            ...new Set(
+              filters.visibleAssigneeIds
+                .map((value) => String(value || "").trim())
+                .filter(Boolean),
+            ),
+          ];
+          if (visibleAssigneeIds.length > 0) {
+            const assignPh = visibleAssigneeIds.map(() => "?").join(", ");
+            params.push(...visibleAssigneeIds);
+            if (filters.includeUnassigned === false) {
+              where.push(`l.assigned_to IN (${assignPh})`);
+            } else {
+              where.push(`(l.assigned_to IS NULL OR l.assigned_to IN (${assignPh}))`);
+            }
+          }
+        }
+
+        if (Array.isArray(filters.allowedCountries)) {
+          const allowedCountries = [
+            ...new Set(
+              filters.allowedCountries
+                .map((value) => String(value || "").trim().toLowerCase())
+                .filter(Boolean),
+            ),
+          ];
+          if (allowedCountries.length > 0) {
+            const countryPh = allowedCountries.map(() => "?").join(", ");
+            params.push(...allowedCountries);
+            where.push(
+              `(NULLIF(TRIM(COALESCE(l.lead_country, '')), '') IS NULL OR LOWER(COALESCE(l.lead_country, '')) IN (${countryPh}))`,
+            );
+          }
+        }
+
+        if (filters.search) {
+          const search = `%${String(filters.search).trim().toLowerCase()}%`;
+          params.push(search);
+          where.push(`LOWER(TRIM(COALESCE(l.platform, ''))) LIKE ?`);
+        }
+
+        const sql = [
+          `SELECT DISTINCT TRIM(COALESCE(l.platform, '')) AS platform_name`,
+          `FROM ${schema.tableName} l`,
+          `WHERE ${where.join(" AND ")}`,
+          `ORDER BY platform_name ASC`,
+          `LIMIT ?`,
+        ].join("\n");
+
+        const result = await db.query(sql, [...params, limit]);
+        return (result.rows || [])
+          .map((row) => String(row.platform_name ?? "").trim())
+          .filter(Boolean);
+      }
+
+      const rows = await db.findMany(schema.tableName, {});
+      const unique = new Set();
+      rows.forEach((row) => {
+        if (row.is_deleted === true || row.isDeleted === true) return;
+        const p = String(row.platform ?? "").trim();
+        if (!p) return;
+        if (
+          filters.search &&
+          !p.toLowerCase().includes(String(filters.search).trim().toLowerCase())
+        ) {
+          return;
+        }
+        unique.add(p);
+      });
+      return [...unique].sort((a, b) => a.localeCompare(b)).slice(0, limit);
+    },
+
     async findById(id) {
       const row = await db.findById(schema.tableName, id);
-      return mapRowToDomain(row);
+      const lead = await mapRowToDomain(row);
+      if (!lead) {
+        return null;
+      }
+      return mergeLeadDynamicFieldsFromChildTable(lead, id);
     },
 
     async listCustomStatusPresets() {
@@ -2893,11 +3242,8 @@ function createLeadsRepository({ db, logger, schema }) {
 
       return mapRowsToDomain(candidates);
     },
-  });
+  });fi
 }
 
 export { createLeadsRepository };
-
-
-
 

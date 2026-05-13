@@ -45,14 +45,17 @@ const quickFilters = [
   { key: "FOLLOW_UP", label: "Follow-up" },
   { key: "CLOSED", label: "Closed" },
   { key: "LATE_RESPONSE", label: "Late Response" },
+  { key: "LOST", label: "Lost" },
 ] as const;
 type QuickFilter = (typeof quickFilters)[number]["key"];
+type LeadSourceFilter = "ALL" | "META_INDIA" | "META_UAE";
 
 type LeadFilterState = {
   fromDate: string;
   toDate: string;
   country: string;
   destination: string;
+  leadSource: string;
   email: string;
   phone: string;
   leadId: string;
@@ -79,6 +82,7 @@ const defaultFilters: LeadFilterState = {
   toDate: "",
   country: "",
   destination: "",
+  leadSource: "",
   email: "",
   phone: "",
   leadId: "",
@@ -112,7 +116,6 @@ const formatMoney = (amount: number, currency = 'INR') => {
   }
 }
 
-
 const truncateEmail = (value: string, maxLength = 26) => {
   const safe = (value || "").trim();
   if (!safe) return "N/A";
@@ -131,6 +134,7 @@ const extractRows = <T,>(response: unknown): T[] => {
 
 const Leads: React.FC = () => {
   const [quickFilter, setQuickFilter] = useState<QuickFilter>("ALL");
+  const [leadSourceFilter, setLeadSourceFilter] = useState<LeadSourceFilter>("ALL");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -141,6 +145,8 @@ const Leads: React.FC = () => {
   const [pagination, setPagination] = useState<LeadsPagination | null>(null);
   const [destinationNames, setDestinationNames] = useState<string[]>([]);
   const destinationsFetchedRef = React.useRef(false);
+  const [leadSourceNames, setLeadSourceNames] = useState<string[]>([]);
+  const leadSourcesFetchedRef = React.useRef(false);
   const [consultantUsers, setConsultantUsers] = useState<Array<{ id: string; name: string }>>([]);
   const consultantsFetchedRef = React.useRef(false);
   const [pageSize, setPageSize] = useState(25);
@@ -199,6 +205,14 @@ const Leads: React.FC = () => {
     [destinationNames],
   );
 
+  const leadSourceOptions = useMemo(
+    () => [
+      { value: "", label: "All lead sources" },
+      ...leadSourceNames.map((name) => ({ value: name, label: name })),
+    ],
+    [leadSourceNames],
+  );
+
   const consultantOptions = useMemo(
     () => [
       { value: "", label: "All Consultants" },
@@ -219,6 +233,18 @@ const Leads: React.FC = () => {
   );
 
   const buildLeadQuery = (queryPage: number, queryLimit: number) => {
+    const chipSourceValue =
+      leadSourceFilter === "META_INDIA"
+        ? "meta_india"
+        : leadSourceFilter === "META_UAE"
+          ? "meta_uae"
+          : "";
+    const dropdownSource = appliedFilters.leadSource.trim();
+    const effectiveSource =
+      leadSourceFilter !== "ALL" ?
+        chipSourceValue
+      : dropdownSource || undefined;
+
     // Resolve canonical status + subStatus from SOP label
     let canonicalStatus: string | undefined
     let subStatus: string | undefined
@@ -231,6 +257,7 @@ const Leads: React.FC = () => {
     // Common filters applied in both modes
     const commonFilters = {
       ...(quickFilter !== "ALL" ? { quickFilter } : {}),
+      ...(effectiveSource ? { source: effectiveSource } : {}),
       ...(appliedFilters.country ? { country: appliedFilters.country } : {}),
       ...(canonicalStatus ? { status: canonicalStatus } : {}),
       ...(subStatus ? { subStatus } : {}),
@@ -266,6 +293,20 @@ const Leads: React.FC = () => {
       }
     }
     void fetchDestinations()
+  }, [leadsService])
+
+  useEffect(() => {
+    if (leadSourcesFetchedRef.current) return
+    leadSourcesFetchedRef.current = true
+    const run = async () => {
+      try {
+        const names = await leadsService.getLeadSources({ limit: 200 })
+        setLeadSourceNames(names)
+      } catch {
+        setLeadSourceNames([])
+      }
+    }
+    void run()
   }, [leadsService])
 
   // Load all unique consultants once on mount — fetch from all leads
@@ -340,6 +381,7 @@ const Leads: React.FC = () => {
   }, [
     appliedFilters,
     deferredSearch,
+    leadSourceFilter,
     leadsService,
     page,
     pageSize,
@@ -362,6 +404,7 @@ const Leads: React.FC = () => {
     if (appliedFilters.toDate) count += 1;
     if (appliedFilters.country) count += 1;
     if (appliedFilters.destination) count += 1;
+    if (appliedFilters.leadSource.trim()) count += 1;
     if (appliedFilters.email) count += 1;
     if (appliedFilters.phone) count += 1;
     if (appliedFilters.leadId) count += 1;
@@ -369,8 +412,9 @@ const Leads: React.FC = () => {
     if (appliedFilters.status !== "ALL") count += 1;
     if (appliedFilters.sla !== "ALL") count += 1;
     if (appliedFilters.sortBy !== "CREATED_AT_DESC") count += 1;
+    if (leadSourceFilter !== "ALL") count += 1;
     return count;
-  }, [appliedFilters]);
+  }, [appliedFilters, leadSourceFilter]);
 
   const updateDraftFilter = <K extends keyof LeadFilterState>(
     key: K,
@@ -402,6 +446,7 @@ const Leads: React.FC = () => {
         phone: draftFilters.phone.trim(),
         leadId: draftFilters.leadId.trim(),
         consultant: draftFilters.consultant.trim(),
+        leadSource: draftFilters.leadSource.trim(),
       });
       setPage(1);
     }, delay);
@@ -414,6 +459,7 @@ const Leads: React.FC = () => {
     setDraftFilters(defaultFilters);
     setAppliedFilters(defaultFilters);
     setQuickFilter("ALL");
+    setLeadSourceFilter("ALL");
     setSearch("");
     setPage(1);
   };
@@ -709,23 +755,74 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
               </div>
             ) : null}
             <div className="w-full overflow-x-auto pb-1 scrollbar-hide">
-              <div className="inline-flex rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-1">
-                {quickFilters.map((item) => (
+              <div className="flex w-full min-w-max items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 p-1 dark:border-gray-700 dark:bg-gray-800">
+                <div className="flex items-center gap-1">
+                  {quickFilters.map((item) => (
+                    <button
+                      key={item.key}
+                      onClick={() => {
+                        setQuickFilter(item.key);
+                        setPage(1);
+                      }}
+                      className={`px-3 py-2 text-xs sm:text-sm font-medium rounded-lg whitespace-nowrap transition-all ${
+                        quickFilter === item.key
+                          ? "bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm"
+                          : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="ml-auto inline-flex items-center gap-2 rounded-lg bg-gray-100 p-1 text-xs font-medium sm:text-sm">
                   <button
-                    key={item.key}
                     onClick={() => {
-                      setQuickFilter(item.key);
+                      setLeadSourceFilter("ALL");
+                      setDraftFilters((p) => ({ ...p, leadSource: "" }));
+                      setAppliedFilters((p) => ({ ...p, leadSource: "" }));
                       setPage(1);
                     }}
-                    className={`px-3 py-2 text-xs sm:text-sm font-medium rounded-lg whitespace-nowrap transition-all ${
-                      quickFilter === item.key
-                        ? "bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm"
-                        : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+                    className={`whitespace-nowrap rounded-md px-3 py-1.5 transition-all duration-300 hover:bg-white hover:shadow-md ${
+                      leadSourceFilter === "ALL"
+                        ? "bg-[#2F3640] text-white"
+                        : "bg-white text-[#2F3640]"
                     }`}
                   >
-                    {item.label}
+                    All
                   </button>
-                ))}
+
+                  <button
+                    onClick={() => {
+                      setLeadSourceFilter("META_INDIA");
+                      setDraftFilters((p) => ({ ...p, leadSource: "" }));
+                      setAppliedFilters((p) => ({ ...p, leadSource: "" }));
+                      setPage(1);
+                    }}
+                    className={`whitespace-nowrap rounded-md px-3 py-1.5 transition-all duration-300 hover:bg-white hover:shadow-md ${
+                      leadSourceFilter === "META_INDIA"
+                        ? "bg-[#F97316] text-white"
+                        : "bg-white text-[#F97316]"
+                    }`}
+                  >
+                    Meta India
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setLeadSourceFilter("META_UAE");
+                      setDraftFilters((p) => ({ ...p, leadSource: "" }));
+                      setAppliedFilters((p) => ({ ...p, leadSource: "" }));
+                      setPage(1);
+                    }}
+                    className={`whitespace-nowrap rounded-md px-3 py-1.5 transition-all duration-300 hover:bg-white hover:shadow-md ${
+                      leadSourceFilter === "META_UAE"
+                        ? "bg-[#10B981] text-white"
+                        : "bg-white text-[#10B981]"
+                    }`}
+                  >
+                    Meta UAE
+                  </button>
+                </div>
               </div>
             </div>
             <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_auto] lg:items-end">
@@ -821,7 +918,7 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
                 <div>
                   <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
                     Country
@@ -848,6 +945,20 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
                     onChange={(value) =>
                       updateDraftFilter("destination", value)
                     }
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
+                    Lead source
+                  </label>
+                  <SearchableDropdown
+                    className="w-full"
+                    value={draftFilters.leadSource}
+                    options={leadSourceOptions}
+                    placeholder="All lead sources"
+                    searchPlaceholder="Search source..."
+                    onChange={(value) => updateDraftFilter("leadSource", value)}
+                    disabled={leadSourceFilter !== "ALL"}
                   />
                 </div>
                 <div>

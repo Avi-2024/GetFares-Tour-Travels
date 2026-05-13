@@ -181,6 +181,8 @@ export const createLeadsDatasource = (client: HttpClient) => ({
   getDestinations: () => client.get("/api/destinations"),
   getLeadDestinations: (params?: LeadsQuery) =>
     client.get<LeadDestinationListResponse>("/api/leads/destinations", { params }),
+  getLeadSources: (params?: LeadsQuery) =>
+    client.get<LeadDestinationListResponse>("/api/leads/sources", { params }),
   distribute: (payload?: { limit?: number; reason?: string }) =>
     client.post("/api/leads/distribute", payload),
   reassignInactive: (payload?: { inactiveMinutes?: number; limit?: number; reason?: string }) =>
