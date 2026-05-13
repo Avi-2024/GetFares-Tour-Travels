@@ -1522,9 +1522,8 @@ function createReportsRepository({ db, schema, logger }) {
           SELECT
             UPPER(
               COALESCE(
-                NULLIF(TRIM(b.client_currency), ''),
-                NULLIF(TRIM(b.currency), ''),
                 NULLIF(TRIM(q.client_currency), ''),
+                NULLIF(TRIM(l.client_currency), ''),
                 NULLIF(TRIM(q.cost_currency), ''),
                 NULLIF(TRIM(q.supplier_currency), ''),
                 'AED'
@@ -1538,9 +1537,8 @@ function createReportsRepository({ db, schema, logger }) {
           GROUP BY
             UPPER(
               COALESCE(
-                NULLIF(TRIM(b.client_currency), ''),
-                NULLIF(TRIM(b.currency), ''),
                 NULLIF(TRIM(q.client_currency), ''),
+                NULLIF(TRIM(l.client_currency), ''),
                 NULLIF(TRIM(q.cost_currency), ''),
                 NULLIF(TRIM(q.supplier_currency), ''),
                 'AED'
@@ -1568,9 +1566,8 @@ function createReportsRepository({ db, schema, logger }) {
               END AS service_type,
               UPPER(
                 COALESCE(
-                  NULLIF(TRIM(b.client_currency), ''),
-                  NULLIF(TRIM(b.currency), ''),
                   NULLIF(TRIM(q.client_currency), ''),
+                  NULLIF(TRIM(l.client_currency), ''),
                   NULLIF(TRIM(q.cost_currency), ''),
                   NULLIF(TRIM(q.supplier_currency), ''),
                   'AED'

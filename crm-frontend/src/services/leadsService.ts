@@ -485,6 +485,10 @@ export const createLeadsService = (datasource: LeadsDatasource) => ({
     const response = await datasource.getLeadDestinations(params);
     return extractStringList(response);
   },
+  getLeadSources: async (params?: LeadsQuery) => {
+    const response = await datasource.getLeadSources(params);
+    return extractStringList(response);
+  },
   distributeLeads: (payload?: { limit?: number; reason?: string }) =>
     datasource.distribute(payload),
   reassignInactiveLeads: (payload?: {

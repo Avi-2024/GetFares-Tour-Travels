@@ -85,7 +85,7 @@ const list = z.object({
   query: z
     .object({
       page: z.coerce.number().int().positive().optional(),
-      limit: z.coerce.number().int().positive().max(50).optional(),
+      limit: z.coerce.number().int().positive().max(500).optional(),
       search: z.string().trim().max(150).optional(),
       sortBy: listSortBy.optional(),
       sortOrder: listSortOrder.optional(),

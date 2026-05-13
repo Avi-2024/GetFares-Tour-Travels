@@ -33,6 +33,20 @@ function createLeadsRoutes({
     asyncHandler(controller.listDestinations),
   );
   router.get(
+    "/sources",
+    requireAuth,
+    authorize("leads:read"),
+    validateRequest(validation.listLeadSources),
+    asyncHandler(controller.listLeadSources),
+  );
+  router.get(
+    "/platforms",
+    requireAuth,
+    authorize("leads:read"),
+    validateRequest(validation.listPlatforms),
+    asyncHandler(controller.listPlatforms),
+  );
+  router.get(
     "/custom-status-presets",
     requireAuth,
     authorize("leads:read"),

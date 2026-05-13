@@ -228,6 +228,7 @@ const CreateLead: React.FC = () => {
   )
   const minTravelDate = useMemo(() => getLocalTodayIsoDate(), [])
   const phoneInputRef = useRef<PhoneInputRefType>(null)
+  const isSubmittingRef = useRef(false)
 
   const isFieldVisible = (fieldName: string) => {
     if (!leadType) return true
@@ -659,12 +660,14 @@ const CreateLead: React.FC = () => {
   }
 
   const handleSubmit = async () => {
+    if (isSubmittingRef.current || loading) return
     setShowErrors(true)
     if (hasError) {
       setApiError('Fix highlighted fields, then try again.')
       return
     }
 
+    isSubmittingRef.current = true
     setLoading(true)
     setApiError('')
     const fullName = [form.firstName, form.lastName]
@@ -728,6 +731,8 @@ const CreateLead: React.FC = () => {
       navigate('/leads')
     } catch (error) {
       reportApiError(error, 'Could not create lead.', setApiError)
+    } finally {
+      isSubmittingRef.current = false
       setLoading(false)
     }
   }
@@ -810,7 +815,15 @@ const CreateLead: React.FC = () => {
   }
 
   return (
-    <div className='mx-auto max-w-9xl space-y-6'>
+    <div className='relative mx-auto max-w-9xl space-y-6'>
+      {loading ? (
+        <div className='absolute inset-0 z-40 flex items-center justify-center rounded-xl bg-white/75 backdrop-blur-sm dark:bg-gray-900/70'>
+          <div className='flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700 shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100'>
+            <span className='h-5 w-5 animate-spin rounded-full border-2 border-gray-300 border-t-green-600 dark:border-gray-600 dark:border-t-green-400' />
+            Creating lead...
+          </div>
+        </div>
+      ) : null}
       <div className='flex items-center gap-3'>
         <button
           onClick={handleBackToSelection}
