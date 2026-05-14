@@ -14,6 +14,7 @@ import { createReportsModule } from "./reports/index.js";
 import { createSettingsModule } from "./settings/index.js";
 import { createWebhooksModule } from "./webhooks/index.js";
 import { createNotificationsModule } from "./notifications/index.js";
+import { createPushModule } from "./push/index.js";
 import { createDashboardModule } from "./dashboard/index.js";
 import { createMetaWebhookModule } from "./metaWebhook/index.js";
 import { createWhatsappModule } from "./whatsapp/index.js";
@@ -88,7 +89,14 @@ function registerModules(app, dependencies) {
   ];
 
   featureFactories.forEach(([name, factory]) => {
-    let moduleOptions = { dependencies: featureDependencies };
+    let moduleOptions = {
+      dependencies: featureDependencies,
+      repositories: {
+        leads: mountedModules.leads?.repository,
+        quotations: mountedModules.quotations?.repository,
+        bookings: mountedModules.bookings?.repository,
+      },
+    };
     
     // Pass leadsRepository to bookings module
     if (name === "bookings" && mountedModules.leads?.repository) {
@@ -146,6 +154,12 @@ function registerModules(app, dependencies) {
   mountedModules.notifications = notificationsModule;
   app.use("/api/notifications", notificationsModule.router);
 
+  const pushModule = createPushModule({
+    dependencies: featureDependencies,
+  });
+  mountedModules.push = pushModule;
+  app.use("/api/push", pushModule.router);
+
   const mailModule = createMailModule(featureDependencies);
   mountedModules.mail = mailModule;
   app.use("/api/mail", mailModule.routes);
@@ -179,5 +193,6 @@ export {
   createMetaWebhookModule,
   createWhatsappModule,
   createNotificationsModule,
+  createPushModule,
   createDashboardModule,
 };

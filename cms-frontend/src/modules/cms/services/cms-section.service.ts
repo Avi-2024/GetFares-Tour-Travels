@@ -10,48 +10,80 @@ import { CmsSectionRepository } from "../repositories/cms-section.repository";
 
 class CmsSectionService implements ICmsSectionService {
   private readonly repository: ICmsSectionRepository;
+  private readonly cache = new Map<string, CmsTableEntry[]>();
 
   constructor(repository: ICmsSectionRepository = new CmsSectionRepository()) {
     this.repository = repository;
   }
 
-  public list(sectionKey: CmsSectionKey): Promise<CmsTableEntry[]> {
-    return this.repository.list(sectionKey);
+  private invalidate(sectionKey: CmsSectionKey): void {
+    this.cache.delete(sectionKey);
+    // also invalidate admin main packages cache used by sub-packages
+    if (sectionKey === "main-packages" || sectionKey === "sub-packages") {
+      this.cache.delete("__adminMainPackages");
+    }
   }
 
-  public listDeleted(sectionKey: CmsSectionKey): Promise<CmsTableEntry[]> {
+  public async list(sectionKey: CmsSectionKey): Promise<CmsTableEntry[]> {
+    if (this.cache.has(sectionKey)) {
+      return this.cache.get(sectionKey)!;
+    }
+    const data = await this.repository.list(sectionKey);
+    this.cache.set(sectionKey, data);
+    return data;
+  }
+
+  public async listWithCacheBust(sectionKey: CmsSectionKey): Promise<CmsTableEntry[]> {
+    this.invalidate(sectionKey);
+    return this.list(sectionKey);
+  }
+
+  public async listDeleted(sectionKey: CmsSectionKey): Promise<CmsTableEntry[]> {
     return this.repository.listDeleted(sectionKey);
   }
 
-  public listAdminMainPackages(): Promise<CmsTableEntry[]> {
-    return this.repository.listAdminMainPackages();
+  public async listAdminMainPackages(): Promise<CmsTableEntry[]> {
+    const key = "__adminMainPackages";
+    if (this.cache.has(key)) {
+      return this.cache.get(key)!;
+    }
+    const data = await this.repository.listAdminMainPackages();
+    this.cache.set(key, data);
+    return data;
   }
 
-  public create(
+  public async create(
     sectionKey: CmsSectionKey,
     payload: Record<string, unknown>,
   ): Promise<Record<string, unknown> | null> {
-    return this.repository.create(sectionKey, payload);
+    const result = await this.repository.create(sectionKey, payload);
+    this.invalidate(sectionKey);
+    return result;
   }
 
-  public update(
+  public async update(
     sectionKey: CmsSectionKey,
     entry: CmsTableEntry,
     payload: Record<string, unknown> | string,
   ): Promise<Record<string, unknown> | null> {
-    return this.repository.update(sectionKey, entry, payload);
+    const result = await this.repository.update(sectionKey, entry, payload);
+    this.invalidate(sectionKey);
+    return result;
   }
 
-  public remove(sectionKey: CmsSectionKey, entry: CmsTableEntry): Promise<void> {
-    return this.repository.remove(sectionKey, entry);
+  public async remove(sectionKey: CmsSectionKey, entry: CmsTableEntry): Promise<void> {
+    await this.repository.remove(sectionKey, entry);
+    this.invalidate(sectionKey);
   }
 
-  public hardDelete(sectionKey: CmsSectionKey, entry: CmsTableEntry): Promise<void> {
-    return this.repository.hardDelete(sectionKey, entry);
+  public async hardDelete(sectionKey: CmsSectionKey, entry: CmsTableEntry): Promise<void> {
+    await this.repository.hardDelete(sectionKey, entry);
+    this.invalidate(sectionKey);
   }
 
-  public restore(sectionKey: CmsSectionKey, entry: CmsTableEntry): Promise<void> {
-    return this.repository.restore(sectionKey, entry);
+  public async restore(sectionKey: CmsSectionKey, entry: CmsTableEntry): Promise<void> {
+    await this.repository.restore(sectionKey, entry);
+    this.invalidate(sectionKey);
   }
 
   public getMediaEntityType(sectionKey: CmsSectionKey): string {

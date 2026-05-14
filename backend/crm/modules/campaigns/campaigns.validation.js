@@ -4,6 +4,7 @@ const dateString = z.string().date();
 
 const basePayload = z.object({
   name: z.string().trim().min(2).max(150),
+  country: z.string().trim().min(2).max(100).optional(),
   source: z.string().trim().min(2).max(100).optional(),
   budget: z.coerce.number().nonnegative().optional(),
   actualSpend: z.coerce.number().nonnegative().optional(),
@@ -61,8 +62,14 @@ const list = z.object({
     .object({
       page: z.coerce.number().int().positive().optional(),
       limit: z.coerce.number().int().positive().optional(),
+      country: z.string().trim().min(2).max(100).optional(),
       source: z.string().trim().min(2).max(100).optional(),
       name: z.string().trim().min(2).max(150).optional(),
+      search: z.string().trim().max(150).optional(),
+      status: z.enum(["ACTIVE", "COMPLETED", "DRAFT"]).optional(),
+      targetCurrency: z.string().trim().min(3).max(10).optional(),
+      startDate: dateString.optional(),
+      endDate: dateString.optional(),
       metaCampaignId: z.string().trim().max(100).optional(),
     })
     .optional(),
@@ -73,6 +80,7 @@ const CampaignsValidation = {
   update,
   byId,
   list,
+  summary: list,
 };
 
 export { CampaignsValidation };

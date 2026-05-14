@@ -3,13 +3,16 @@ import { FaPlus, FaSave, FaTrash, FaGlobe } from "react-icons/fa";
 import SurfaceCard from "../../components/ui/SurfaceCard";
 import StatusBadge from "../../components/ui/StatusBadge";
 import SearchableDropdown from "../../components/ui/SearchableDropdown";
+import EmptyState from "../../components/ui/EmptyState";
 import { reportApiError } from "../../lib/notify";
 import { usePackagesService } from "../../hooks/usePackagesService";
 import PackageCategoriesPanel from "./PackageCategoriesPanel";
 import type {
   PackageCategory,
   PackageKind,
+  PackageListPagination,
   PackageRecord,
+  PackageListSummary,
   PackageStatus,
 } from "../../services/packagesService";
 
@@ -25,6 +28,11 @@ const PACKAGE_CATEGORIES: PackageCategory[] = [
   "LUXURY",
   "HONEYMOON",
   "FAMILY",
+];
+const PAGE_SIZE_OPTIONS = [
+  { value: "10", label: "10 rows" },
+  { value: "25", label: "25 rows" },
+  { value: "50", label: "50 rows" },
 ];
 
 type CustomServiceRow = {
@@ -64,6 +72,20 @@ type PackageFormState = {
   paymentTerms: string;
   customServices: CustomServiceRow[];
   isSoldOut: boolean;
+  // CMS-like fields
+  country: string;
+  highlights: string[]; // list-text
+  features: { iconName: string; description: string }[]; // list-object
+  metaTitle: string;
+  metaDescription: string;
+  keywords: string;
+  displayOrder: string;
+  isFeatured: boolean;
+  image: string;
+  rating: string;
+  location: string;
+  transport: string;
+  snapshot: string;
 };
 
 const emptyCustomRow = (): CustomServiceRow => ({
@@ -97,6 +119,20 @@ const emptyForm: PackageFormState = {
   paymentTerms: "",
   customServices: [],
   isSoldOut: false,
+  // CMS-like fields
+  country: "",
+  highlights: [],
+  features: [],
+  metaTitle: "",
+  metaDescription: "",
+  keywords: "",
+  displayOrder: "",
+  isFeatured: false,
+  image: "",
+  rating: "",
+  location: "",
+  transport: "",
+  snapshot: "",
 };
 
 const toNumberOrUndefined = (value: string) => {
@@ -158,6 +194,35 @@ const buildDurationValue = (nights: string, days: string) => {
   if (safeDays) return `${safeDays}D`;
   return "";
 };
+
+const formatMoney = (value: number) =>
+  new Intl.NumberFormat("en-IN", {
+    maximumFractionDigits: value % 1 === 0 ? 0 : 2,
+  }).format(Number.isFinite(value) ? value : 0);
+
+const formatDateLabel = (value: string | null | undefined) => {
+  if (!value) return "N/A";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "N/A";
+  return parsed.toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+};
+
+const getActiveDays = (
+  validFrom: string | null | undefined,
+  validTo: string | null | undefined,
+) => {
+  if (!validFrom) return 0;
+  const start = new Date(validFrom);
+  const end = validTo ? new Date(validTo) : new Date();
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0;
+  return Math.max(Math.ceil((end.getTime() - start.getTime()) / 86400000), 1);
+};
+
+
 
 const stripDayPrefix = (value: string) =>
   value
@@ -263,6 +328,11 @@ const PackageDetailView: React.FC<{
           <p className="text-gray-500">
             {pkg.destination} • {pkg.duration}
           </p>
+          {pkg.location && (
+            <p className="text-sm text-gray-400">
+              📍 {pkg.location}
+            </p>
+          )}
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
           <button
@@ -285,6 +355,20 @@ const PackageDetailView: React.FC<{
           </button>
         </div>
       </div>
+      
+      {/* Image Preview */}
+      {pkg.image && (
+        <div className="rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700">
+          <img 
+            src={pkg.image} 
+            alt={pkg.name}
+            className="w-full h-64 object-cover"
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = 'none';
+            }}
+          />
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <SurfaceCard className="p-4">
@@ -342,9 +426,68 @@ const PackageDetailView: React.FC<{
                 {pkg.packageKind === "CUSTOMIZED" ? "Custom" : "Ready"}
               </span>
             </div>
+            {pkg.rating && (
+              <div className="flex justify-between">
+                <span className="text-gray-500">Rating:</span>{" "}
+                <span className="font-medium">⭐ {pkg.rating}</span>
+              </div>
+            )}
+            {pkg.transport && (
+              <div className="flex justify-between">
+                <span className="text-gray-500">Transport:</span>{" "}
+                <span className="text-xs">{pkg.transport}</span>
+              </div>
+            )}
           </div>
         </SurfaceCard>
       </div>
+      
+      {/* Highlights & Features */}
+      {(pkg.highlights.length > 0 || pkg.features.length > 0) && (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {pkg.highlights.length > 0 && (
+            <SurfaceCard className="p-4">
+              <h3 className="mb-3 font-semibold text-green-600">Highlights</h3>
+              <ul className="space-y-2">
+                {pkg.highlights.map((highlight, idx) => (
+                  <li key={idx} className="flex items-start gap-2 text-sm">
+                    <span className="text-green-600 mt-0.5">✓</span>
+                    <span className="text-gray-700 dark:text-gray-300">{highlight}</span>
+                  </li>
+                ))}
+              </ul>
+            </SurfaceCard>
+          )}
+          {pkg.features.length > 0 && (
+            <SurfaceCard className="p-4">
+              <h3 className="mb-3 font-semibold text-purple-600">Features</h3>
+              <div className="space-y-3">
+                {pkg.features.map((feature, idx) => (
+                  <div key={idx} className="flex items-start gap-3">
+                    <div className="rounded-lg bg-purple-100 p-2 dark:bg-purple-900/30">
+                      <span className="text-xs font-semibold text-purple-700 dark:text-purple-300">
+                        {feature.iconName || "🌟"}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-700 dark:text-gray-300 flex-1">
+                      {feature.description}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </SurfaceCard>
+          )}
+        </div>
+      )}
+      
+      {pkg.snapshot && (
+        <SurfaceCard className="p-4">
+          <h3 className="mb-2 font-semibold text-cyan-600">Package Snapshot</h3>
+          <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+            {pkg.snapshot}
+          </p>
+        </SurfaceCard>
+      )}
 
       {itineraryItems.length > 0 ?
         <SurfaceCard className="p-4">
@@ -478,6 +621,166 @@ const PackageDetailView: React.FC<{
   );
 };
 
+const PackageOverviewView: React.FC<{
+  pkg: PackageRecord;
+  onEdit: () => void;
+  onTogglePublish: () => void;
+  publishing: boolean;
+}> = ({ pkg, onEdit, onTogglePublish, publishing }) => {
+  const itineraryItems = parseItineraryItems(pkg.itinerary);
+  const durationParts = parseDurationParts(pkg.duration || "");
+  const activeDays = getActiveDays(pkg.validFrom, pkg.validTo);
+  const cards = [
+    {
+      label: "Starting Price",
+      value: `Rs ${formatMoney(pkg.startingPrice)}`,
+      hint: `Base Rs ${formatMoney(pkg.baseCost)}`,
+    },
+    {
+      label: "Markup",
+      value: `${pkg.markupPercent}%`,
+      hint: pkg.packageCategory || "No category",
+    },
+    {
+      label: "Trip Days",
+      value: durationParts.days || String(itineraryItems.length || 0),
+      hint: `${pkg.customServices.length || 0} service lines`,
+    },
+    {
+      label: "Validity Days",
+      value: String(activeDays),
+      hint: `${formatDateLabel(pkg.validFrom)} to ${formatDateLabel(pkg.validTo)}`,
+    },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div className="space-y-2">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+            {pkg.name}
+          </h2>
+          <p className="text-sm text-gray-500">
+            {[pkg.destination, pkg.duration || "Duration N/A"].filter(Boolean).join(" | ")}
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusBadge status={pkg.status} />
+            <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold uppercase text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+              {pkg.packageKind === "CUSTOMIZED" ? "Customized" : "Ready"}
+            </span>
+            <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-200">
+              {pkg.publishToWebsite ? "Website Live" : "Website Private"}
+            </span>
+          </div>
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <button
+            onClick={onEdit}
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+          >
+            Edit Package
+          </button>
+          <button
+            onClick={onTogglePublish}
+            disabled={publishing}
+            className={`inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold ${
+              pkg.publishToWebsite
+                ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                : "border border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+            } disabled:opacity-60`}
+          >
+            <FaGlobe className="text-xs" />
+            {publishing ? "Updating..." : pkg.publishToWebsite ? "Published" : "Publish"}
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {cards.map((card) => (
+          <SurfaceCard key={card.label} className="p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">
+              {card.label}
+            </p>
+            <p className="mt-3 text-2xl font-bold text-gray-900 dark:text-gray-100">
+              {card.value}
+            </p>
+            <p className="mt-2 text-sm text-gray-500">{card.hint}</p>
+          </SurfaceCard>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <SurfaceCard className="p-4">
+          <h3 className="mb-3 font-semibold">Commercial Snapshot</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-xl bg-gray-50 p-3 dark:bg-gray-900/40">
+              <p className="text-xs uppercase tracking-[0.16em] text-gray-400">Base Cost</p>
+              <p className="mt-2 text-lg font-semibold text-gray-900 dark:text-gray-100">
+                Rs {formatMoney(pkg.baseCost)}
+              </p>
+            </div>
+            <div className="rounded-xl bg-gray-50 p-3 dark:bg-gray-900/40">
+              <p className="text-xs uppercase tracking-[0.16em] text-gray-400">Category</p>
+              <p className="mt-2 text-lg font-semibold text-gray-900 dark:text-gray-100">
+                {pkg.packageCategory || "N/A"}
+              </p>
+            </div>
+            <div className="rounded-xl bg-gray-50 p-3 dark:bg-gray-900/40">
+              <p className="text-xs uppercase tracking-[0.16em] text-gray-400">Sold Out</p>
+              <p className="mt-2 text-lg font-semibold text-gray-900 dark:text-gray-100">
+                {pkg.isSoldOut ? "Yes" : "No"}
+              </p>
+            </div>
+            <div className="rounded-xl bg-gray-50 p-3 dark:bg-gray-900/40">
+              <p className="text-xs uppercase tracking-[0.16em] text-gray-400">Itinerary Days</p>
+              <p className="mt-2 text-lg font-semibold text-gray-900 dark:text-gray-100">
+                {itineraryItems.length || 0}
+              </p>
+            </div>
+          </div>
+        </SurfaceCard>
+
+        <SurfaceCard className="p-4">
+          <h3 className="mb-3 font-semibold">Lifecycle</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-xl bg-gray-50 p-3 dark:bg-gray-900/40">
+              <p className="text-xs uppercase tracking-[0.16em] text-gray-400">Valid From</p>
+              <p className="mt-2 text-lg font-semibold text-gray-900 dark:text-gray-100">
+                {formatDateLabel(pkg.validFrom)}
+              </p>
+            </div>
+            <div className="rounded-xl bg-gray-50 p-3 dark:bg-gray-900/40">
+              <p className="text-xs uppercase tracking-[0.16em] text-gray-400">Valid To</p>
+              <p className="mt-2 text-lg font-semibold text-gray-900 dark:text-gray-100">
+                {formatDateLabel(pkg.validTo)}
+              </p>
+            </div>
+            <div className="rounded-xl bg-gray-50 p-3 dark:bg-gray-900/40">
+              <p className="text-xs uppercase tracking-[0.16em] text-gray-400">Created</p>
+              <p className="mt-2 text-lg font-semibold text-gray-900 dark:text-gray-100">
+                {formatDateLabel(pkg.createdAt)}
+              </p>
+            </div>
+            <div className="rounded-xl bg-gray-50 p-3 dark:bg-gray-900/40">
+              <p className="text-xs uppercase tracking-[0.16em] text-gray-400">Updated</p>
+              <p className="mt-2 text-lg font-semibold text-gray-900 dark:text-gray-100">
+                {formatDateLabel(pkg.updatedAt)}
+              </p>
+            </div>
+          </div>
+        </SurfaceCard>
+      </div>
+
+      <PackageDetailView
+        pkg={pkg}
+        onEdit={onEdit}
+        onTogglePublish={onTogglePublish}
+        publishing={publishing}
+      />
+    </div>
+  );
+};
+
 const PackagesPage: React.FC = () => {
   const packagesService = usePackagesService();
   const [rootTab, setRootTab] = useState<"CATEGORIES" | "CRM">("CATEGORIES");
@@ -493,6 +796,7 @@ const PackagesPage: React.FC = () => {
   const [startingPriceManual, setStartingPriceManual] = useState(false);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<PackageStatus | "ALL">(
     "ALL",
   );
@@ -500,18 +804,62 @@ const PackagesPage: React.FC = () => {
     "ALL",
   );
   const [destinationFilter, setDestinationFilter] = useState("");
+  const [createdFrom, setCreatedFrom] = useState("");
+  const [createdTo, setCreatedTo] = useState("");
+  const [sortBy, setSortBy] = useState<
+    "createdAt" | "updatedAt" | "name" | "destination" | "status" | "startingPrice"
+  >("createdAt");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [pagination, setPagination] = useState<PackageListPagination>({
+    page: 1,
+    limit: 25,
+    totalItems: 0,
+    totalPages: 1,
+  });
+  const [summary, setSummary] = useState<PackageListSummary>({
+    totalPackages: 0,
+    publishedCount: 0,
+    activeCount: 0,
+    soldOutCount: 0,
+    destinationCount: 0,
+    totalValue: 0,
+  });
 
-  const visibleItems = useMemo(() => {
-    if (activeTab === "PUBLISHED") {
-      return items.filter((item) => item.publishToWebsite);
-    }
-    return items;
-  }, [activeTab, items]);
+  const summaryCards = useMemo(() => {
+    return [
+      {
+        label: "Total Packages",
+        value: String(summary.totalPackages),
+        hint: `${summary.publishedCount} published`,
+      },
+      {
+        label: "Active Packages",
+        value: String(summary.activeCount),
+        hint: `${summary.soldOutCount} sold out`,
+      },
+      {
+        label: "Starting Value",
+        value: summary.totalPackages ? `Rs ${formatMoney(summary.totalValue)}` : "Rs 0",
+        hint:
+          summary.totalPackages ?
+            `Avg Rs ${formatMoney(summary.totalValue / summary.totalPackages)}`
+          : "No pricing",
+      },
+      {
+        label: "Destinations",
+        value: String(summary.destinationCount),
+        hint: summary.activeCount ? `${summary.activeCount} live now` : "Need activation",
+      },
+    ];
+  }, [summary]);
 
   const selectedPackage = useMemo(
     () => items.find((item) => item.id === selectedId) || null,
     [items, selectedId],
   );
+  const visibleItems = items;
 
   const pricingValidationMessage = useMemo(() => {
     const baseCost = toNumberOrUndefined(form.baseCost);
@@ -526,6 +874,19 @@ const PackagesPage: React.FC = () => {
     }
     return "";
   }, [form.baseCost, form.startingPrice]);
+
+  const resetFilters = useCallback(() => {
+    setSearch("");
+    setStatusFilter("ALL");
+    setCategoryFilter("ALL");
+    setDestinationFilter("");
+    setCreatedFrom("");
+    setCreatedTo("");
+    setSortBy("createdAt");
+    setSortOrder("desc");
+    setPage(1);
+    setPageSize(25);
+  }, []);
 
   const statusFilterOptions = useMemo(
     () => [
@@ -542,6 +903,26 @@ const PackagesPage: React.FC = () => {
         value: category,
         label: category,
       })),
+    ],
+    [],
+  );
+
+  const sortByOptions = useMemo(
+    () => [
+      { value: "createdAt", label: "Newest created" },
+      { value: "updatedAt", label: "Latest updated" },
+      { value: "name", label: "Name" },
+      { value: "destination", label: "Destination" },
+      { value: "status", label: "Status" },
+      { value: "startingPrice", label: "Starting price" },
+    ],
+    [],
+  );
+
+  const sortOrderOptions = useMemo(
+    () => [
+      { value: "desc", label: "Descending" },
+      { value: "asc", label: "Ascending" },
     ],
     [],
   );
@@ -576,21 +957,46 @@ const PackagesPage: React.FC = () => {
     [],
   );
 
+  const countryOptions = useMemo(
+    () => [
+      { value: "", label: "Select Country" },
+      { value: "Global", label: "Global" },
+      { value: "United Arab Emirates", label: "United Arab Emirates" },
+      { value: "India", label: "India" },
+    ],
+    [],
+  );
+
   const loadPackages = useCallback(async () => {
+    if (rootTab !== "CRM") {
+      return;
+    }
     setLoading(true);
     setError("");
     try {
-      const rows = await packagesService.list({
-        search: search || undefined,
+      const result = await packagesService.list({
+        page,
+        limit: pageSize,
+        search: debouncedSearch || undefined,
         status: statusFilter === "ALL" ? undefined : statusFilter,
         packageCategory: categoryFilter === "ALL" ? undefined : categoryFilter,
         destination: destinationFilter || undefined,
-        limit: 500,
-        page: 1,
+        publishToWebsite: activeTab === "PUBLISHED" ? true : undefined,
+        createdFrom: createdFrom || undefined,
+        createdTo: createdTo || undefined,
+        sortBy,
+        sortOrder,
       });
+      const rows = result.items;
       setItems(rows);
-      if (selectedId && !rows.some((item) => item.id === selectedId)) {
+      setPagination(result.pagination);
+      setSummary(result.summary);
+      if (!rows.length) {
         setSelectedId("");
+      } else if (selectedId && !rows.some((item) => item.id === selectedId)) {
+        setSelectedId(rows[0]?.id || "");
+      } else if (!selectedId) {
+        setSelectedId(rows[0]?.id || "");
       }
     } catch (err) {
       reportApiError(err, "Failed to load packages.", setError);
@@ -599,17 +1005,57 @@ const PackagesPage: React.FC = () => {
       setLoading(false);
     }
   }, [
+    activeTab,
     categoryFilter,
+    createdFrom,
+    createdTo,
+    debouncedSearch,
     destinationFilter,
     packagesService,
-    search,
+    page,
+    pageSize,
+    rootTab,
     selectedId,
+    statusFilter,
+    sortBy,
+    sortOrder,
+  ]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(search.trim());
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
+    if (rootTab !== "CRM") {
+      return;
+    }
+    setPage(1);
+  }, [
+    activeTab,
+    categoryFilter,
+    createdFrom,
+    createdTo,
+    debouncedSearch,
+    destinationFilter,
+    pageSize,
+    rootTab,
+    sortBy,
+    sortOrder,
     statusFilter,
   ]);
 
   useEffect(() => {
     void loadPackages();
   }, [loadPackages]);
+
+  useEffect(() => {
+    if (pagination.totalPages > 0 && page > pagination.totalPages) {
+      setPage(pagination.totalPages);
+    }
+  }, [page, pagination.totalPages]);
 
   useEffect(() => {
     if (!selectedPackage) {
@@ -660,6 +1106,20 @@ const PackagesPage: React.FC = () => {
         sellValue: s.sellValue != null ? String(s.sellValue) : "",
       })),
       isSoldOut: selectedPackage.isSoldOut,
+      // CMS-like fields
+      country: selectedPackage.country || "",
+      image: selectedPackage.image || "",
+      rating: selectedPackage.rating != null ? String(selectedPackage.rating) : "",
+      location: selectedPackage.location || "",
+      transport: selectedPackage.transport || "",
+      snapshot: selectedPackage.snapshot || "",
+      highlights: selectedPackage.highlights || [],
+      features: selectedPackage.features || [],
+      metaTitle: selectedPackage.metaTitle || "",
+      metaDescription: selectedPackage.metaDescription || "",
+      keywords: selectedPackage.keywords || "",
+      displayOrder: selectedPackage.displayOrder != null ? String(selectedPackage.displayOrder) : "",
+      isFeatured: selectedPackage.isFeatured || false,
     });
   }, [selectedPackage]);
 
@@ -759,6 +1219,22 @@ const PackagesPage: React.FC = () => {
       customServices: form.packageKind === "CUSTOMIZED" ? customLines : [],
       publishToWebsite: false,
       isSoldOut: form.isSoldOut,
+      // CMS-like fields
+      country: form.country.trim() || undefined,
+      image: form.image.trim() || undefined,
+      rating: toNumberOrUndefined(form.rating),
+      location: form.location.trim() || undefined,
+      transport: form.transport.trim() || undefined,
+      snapshot: form.snapshot.trim() || undefined,
+      highlights: form.highlights.filter(h => h.trim()).length > 0 ? form.highlights.filter(h => h.trim()) : undefined,
+      features: form.features.filter(f => f.iconName.trim() || f.description.trim()).length > 0 
+        ? form.features.filter(f => f.iconName.trim() || f.description.trim())
+        : undefined,
+      metaTitle: form.metaTitle.trim() || undefined,
+      metaDescription: form.metaDescription.trim() || undefined,
+      keywords: form.keywords.trim() || undefined,
+      displayOrder: toNumberOrUndefined(form.displayOrder),
+      isFeatured: form.isFeatured,
     };
 
     try {
@@ -803,7 +1279,7 @@ const PackagesPage: React.FC = () => {
               >
                 Main/Sub categories
               </button>
-              <button
+              {/* <button
                 onClick={() => setRootTab("CRM")}
                 className={`rounded-lg px-3 py-2 text-sm font-semibold ${
                   rootTab === "CRM"
@@ -812,7 +1288,7 @@ const PackagesPage: React.FC = () => {
                 }`}
               >
                 CRM packages
-              </button>
+              </button> */}
             </div>
             {rootTab === "CRM" ? (
               <div className="inline-flex rounded-xl border border-gray-200 p-1 dark:border-gray-700">
@@ -846,6 +1322,20 @@ const PackagesPage: React.FC = () => {
         <PackageCategoriesPanel />
       ) : (
         <>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {summaryCards.map((card) => (
+              <SurfaceCard key={card.label} className="p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">
+                  {card.label}
+                </p>
+                <p className="mt-3 text-2xl font-bold text-gray-900 dark:text-gray-100">
+                  {card.value}
+                </p>
+                <p className="mt-2 text-sm text-gray-500">{card.hint}</p>
+              </SurfaceCard>
+            ))}
+          </div>
+
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
@@ -867,7 +1357,7 @@ const PackagesPage: React.FC = () => {
           </div>
 
           <SurfaceCard>
-            <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-4 xl:grid-cols-5">
               <input
                 className="field-input"
                 placeholder="Search by name/destination"
@@ -896,14 +1386,59 @@ const PackagesPage: React.FC = () => {
                 }
                 searchPlaceholder="Search category..."
               />
+              <SearchableDropdown
+                value={sortBy}
+                options={sortByOptions}
+                onChange={(value) =>
+                  setSortBy(
+                    value as
+                      | "createdAt"
+                      | "updatedAt"
+                      | "name"
+                      | "destination"
+                      | "status"
+                      | "startingPrice",
+                  )
+                }
+                searchPlaceholder="Sort field..."
+              />
             </div>
-            <div className="mt-3 flex gap-2">
+            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <input
+                type="date"
+                className="field-input"
+                value={createdFrom}
+                onChange={(event) => setCreatedFrom(event.target.value)}
+              />
+              <input
+                type="date"
+                className="field-input"
+                value={createdTo}
+                onChange={(event) => setCreatedTo(event.target.value)}
+              />
+              <SearchableDropdown
+                value={sortOrder}
+                options={sortOrderOptions}
+                onChange={(value) => setSortOrder(value as "asc" | "desc")}
+                searchPlaceholder="Sort order..."
+              />
+              <SearchableDropdown
+                value={String(pageSize)}
+                options={PAGE_SIZE_OPTIONS}
+                onChange={(value) => setPageSize(Number(value))}
+                searchPlaceholder="Rows per page..."
+              />
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
               <button
-                onClick={() => void loadPackages()}
+                onClick={resetFilters}
                 className="rounded-xl border border-gray-200 px-3 py-2 text-sm hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
               >
-                Apply Filters
+                Reset Filters
               </button>
+              <span className="text-xs text-gray-500">
+                Server-side pagination and filters
+              </span>
             </div>
           </SurfaceCard>
 
@@ -919,16 +1454,34 @@ const PackagesPage: React.FC = () => {
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
               Packages
             </h2>
-            <span className="text-xs text-gray-500">
-              {visibleItems.length} items
-            </span>
+	            <span className="text-xs text-gray-500">
+	              {pagination.totalItems} items
+	            </span>
           </div>
-          {loading ?
-            <p className="text-sm text-gray-500">Loading packages...</p>
-          : visibleItems.length === 0 ?
-            <p className="text-sm text-gray-500">No packages found.</p>
-          : <div className="space-y-3">
-              {visibleItems.map((item) => (
+	          {loading ?
+	            <div className="space-y-3">
+	              {Array.from({ length: 6 }).map((_, index) => (
+	                <div
+	                  key={index}
+	                  className="h-20 animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800"
+	                />
+	              ))}
+	            </div>
+	          : visibleItems.length === 0 ?
+	            <EmptyState
+	              title="No packages found"
+	              description="Change filters or create package."
+	              action={
+	                <button
+	                  onClick={resetFilters}
+	                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+	                >
+	                  Reset Filters
+	                </button>
+	              }
+	            />
+	          : <div className="space-y-3">
+	              {visibleItems.map((item) => (
                 <div
                   key={item.id}
                   className={`rounded-xl border p-3 ${
@@ -1013,15 +1566,61 @@ const PackagesPage: React.FC = () => {
                     Price {item.startingPrice.toLocaleString()} • Markup{" "}
                     {item.markupPercent}%
                   </div>
-                </div>
-              ))}
-            </div>
-          }
-        </SurfaceCard>
+	                </div>
+	              ))}
+	            </div>
+	          }
+	          <div className="mt-4 flex flex-col gap-3 border-t border-gray-200 pt-4 text-sm text-gray-500 dark:border-gray-700 md:flex-row md:items-center md:justify-between">
+	            <p>
+	              {pagination.totalItems === 0 ?
+	                "No rows"
+	              : `${Math.min(pagination.totalItems, (pagination.page - 1) * pagination.limit + 1)}-${Math.min(pagination.totalItems, pagination.page * pagination.limit)} of ${pagination.totalItems}`}
+	            </p>
+	            <div className="flex items-center gap-2">
+	              <button
+	                type="button"
+	                onClick={() => setPage((current) => Math.max(1, current - 1))}
+	                disabled={pagination.page <= 1 || loading}
+	                className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+	              >
+	                Previous
+	              </button>
+	              <span className="min-w-[72px] text-center text-sm font-medium text-gray-700 dark:text-gray-200">
+	                Page {pagination.page} / {pagination.totalPages}
+	              </span>
+	              <button
+	                type="button"
+	                onClick={() =>
+	                  setPage((current) => Math.min(pagination.totalPages, current + 1))
+	                }
+	                disabled={pagination.page >= pagination.totalPages || loading}
+	                className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+	              >
+	                Next
+	              </button>
+	            </div>
+	          </div>
+	        </SurfaceCard>
 
         <SurfaceCard>
-          {selectedPackage && viewMode === "VIEW" ?
-            <PackageDetailView
+          {!selectedId && viewMode === "VIEW" ?
+            <div className="flex flex-col items-center justify-center py-12">
+              <EmptyState
+                title="No package selected"
+                description="Select a package from the list or create a new one."
+                action={
+                  <button
+                    onClick={handleNew}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                  >
+                    <FaPlus />
+                    New Package
+                  </button>
+                }
+              />
+            </div>
+          : selectedPackage && viewMode === "VIEW" ?
+            <PackageOverviewView
               pkg={selectedPackage}
               onEdit={() => setViewMode("EDIT")}
               publishing={publishingId === selectedPackage.id}
@@ -1055,6 +1654,72 @@ const PackagesPage: React.FC = () => {
                       setForm((prev) => ({ ...prev, name: event.target.value }))
                     }
                   />
+                </div>
+                
+                {/* CMS Fields Section */}
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div>
+                    <label className="field-label">Country</label>
+                    <SearchableDropdown
+                      value={form.country}
+                      options={countryOptions}
+                      onChange={(value) =>
+                        setForm((prev) => ({ ...prev, country: value }))
+                      }
+                      searchPlaceholder="Search country..."
+                    />
+                  </div>
+                  <div>
+                    <label className="field-label">Image URL</label>
+                    <input
+                      className="field-input"
+                      placeholder="https://example.com/image.jpg"
+                      value={form.image}
+                      onChange={(event) =>
+                        setForm((prev) => ({ ...prev, image: event.target.value }))
+                      }
+                    />
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                  <div>
+                    <label className="field-label">Rating</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="5"
+                      step="0.1"
+                      className="field-input"
+                      placeholder="4.5"
+                      value={form.rating}
+                      onChange={(event) =>
+                        setForm((prev) => ({ ...prev, rating: event.target.value }))
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label className="field-label">Location</label>
+                    <input
+                      className="field-input"
+                      placeholder="Dubai, UAE"
+                      value={form.location}
+                      onChange={(event) =>
+                        setForm((prev) => ({ ...prev, location: event.target.value }))
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label className="field-label">Transport</label>
+                    <input
+                      className="field-input"
+                      placeholder="Private AC Vehicle"
+                      value={form.transport}
+                      onChange={(event) =>
+                        setForm((prev) => ({ ...prev, transport: event.target.value }))
+                      }
+                    />
+                  </div>
                 </div>
                 <div>
                   <label className="field-label">Destination</label>
@@ -1293,6 +1958,136 @@ const PackagesPage: React.FC = () => {
                     }
                     placeholder="Property names, star category, room type, meal plan…"
                   />
+                </div>
+                
+                {/* Snapshot Field */}
+                <div>
+                  <label className="field-label">Snapshot</label>
+                  <textarea
+                    className="field-input"
+                    rows={2}
+                    value={form.snapshot}
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, snapshot: e.target.value }))
+                    }
+                    placeholder="Quick package summary..."
+                  />
+                </div>
+                
+                {/* Highlights (list-text) */}
+                <div className="rounded-xl border border-green-100 bg-green-50/40 p-3 dark:border-green-900/40 dark:bg-green-900/10">
+                  <div className="mb-2 flex items-center justify-between">
+                    <label className="field-label mb-0">Highlights</label>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setForm((prev) => ({
+                          ...prev,
+                          highlights: [...prev.highlights, ""],
+                        }))
+                      }
+                      className="text-xs font-semibold text-green-800 hover:underline dark:text-green-200"
+                    >
+                      + Add Highlight
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {form.highlights.length === 0 ? (
+                      <p className="text-xs text-gray-600 dark:text-gray-400">
+                        Add package highlights (e.g., "Free WiFi", "Airport Transfer")
+                      </p>
+                    ) : (
+                      form.highlights.map((highlight, idx) => (
+                        <div key={idx} className="flex gap-2">
+                          <input
+                            className="field-input flex-1"
+                            placeholder="Highlight text"
+                            value={highlight}
+                            onChange={(e) => {
+                              const newHighlights = [...form.highlights];
+                              newHighlights[idx] = e.target.value;
+                              setForm((prev) => ({ ...prev, highlights: newHighlights }));
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setForm((prev) => ({
+                                ...prev,
+                                highlights: prev.highlights.filter((_, i) => i !== idx),
+                              }))
+                            }
+                            className="flex h-10 items-center justify-center rounded-lg border border-red-200 px-3 text-red-600 hover:bg-red-50 dark:border-red-900 dark:hover:bg-red-900/20"
+                          >
+                            <FaTrash className="text-xs" />
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+                
+                {/* Features (list-object) */}
+                <div className="rounded-xl border border-purple-100 bg-purple-50/40 p-3 dark:border-purple-900/40 dark:bg-purple-900/10">
+                  <div className="mb-2 flex items-center justify-between">
+                    <label className="field-label mb-0">Features</label>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setForm((prev) => ({
+                          ...prev,
+                          features: [...prev.features, { iconName: "", description: "" }],
+                        }))
+                      }
+                      className="text-xs font-semibold text-purple-800 hover:underline dark:text-purple-200"
+                    >
+                      + Add Feature
+                    </button>
+                  </div>
+                  <div className="space-y-3">
+                    {form.features.length === 0 ? (
+                      <p className="text-xs text-gray-600 dark:text-gray-400">
+                        Add features with icon names (e.g., "wifi", "pool", "spa")
+                      </p>
+                    ) : (
+                      form.features.map((feature, idx) => (
+                        <div key={idx} className="grid grid-cols-1 gap-2 rounded-lg border border-purple-100 bg-white p-2 dark:border-purple-900/40 dark:bg-gray-900/40 md:grid-cols-12">
+                          <input
+                            className="field-input md:col-span-3"
+                            placeholder="Icon name (wifi, pool)"
+                            value={feature.iconName}
+                            onChange={(e) => {
+                              const newFeatures = [...form.features];
+                              newFeatures[idx].iconName = e.target.value;
+                              setForm((prev) => ({ ...prev, features: newFeatures }));
+                            }}
+                          />
+                          <input
+                            className="field-input md:col-span-8"
+                            placeholder="Feature description"
+                            value={feature.description}
+                            onChange={(e) => {
+                              const newFeatures = [...form.features];
+                              newFeatures[idx].description = e.target.value;
+                              setForm((prev) => ({ ...prev, features: newFeatures }));
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setForm((prev) => ({
+                                ...prev,
+                                features: prev.features.filter((_, i) => i !== idx),
+                              }))
+                            }
+                            className="flex h-10 items-center justify-center rounded-lg border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900 dark:hover:bg-red-900/20 md:col-span-1"
+                          >
+                            <FaTrash className="text-xs" />
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
                 <div>
                   <div className="flex flex-col gap-3 rounded-xl border border-blue-100 bg-blue-50/40 p-3 dark:border-blue-900/40 dark:bg-blue-900/10">
@@ -1546,6 +2341,83 @@ const PackagesPage: React.FC = () => {
                     </div>
                   </div>
                 : null}
+                
+                {/* SEO Fields */}
+                <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 p-3 dark:border-indigo-900/40 dark:bg-indigo-900/10">
+                  <h3 className="mb-3 text-sm font-semibold text-indigo-900 dark:text-indigo-200">SEO & Metadata</h3>
+                  <div className="grid grid-cols-1 gap-3">
+                    <div>
+                      <label className="field-label">Meta Title</label>
+                      <input
+                        className="field-input"
+                        placeholder="SEO title for search engines"
+                        value={form.metaTitle}
+                        onChange={(e) =>
+                          setForm((prev) => ({ ...prev, metaTitle: e.target.value }))
+                        }
+                      />
+                    </div>
+                    <div>
+                      <label className="field-label">Meta Description</label>
+                      <textarea
+                        className="field-input"
+                        rows={2}
+                        placeholder="SEO description for search engines"
+                        value={form.metaDescription}
+                        onChange={(e) =>
+                          setForm((prev) => ({ ...prev, metaDescription: e.target.value }))
+                        }
+                      />
+                    </div>
+                    <div>
+                      <label className="field-label">Keywords</label>
+                      <input
+                        className="field-input"
+                        placeholder="dubai, tour, package, holiday"
+                        value={form.keywords}
+                        onChange={(e) =>
+                          setForm((prev) => ({ ...prev, keywords: e.target.value }))
+                        }
+                      />
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        Comma separated keywords for SEO
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Display Order & Featured */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="field-label">Display Order</label>
+                    <input
+                      type="number"
+                      min="0"
+                      className="field-input"
+                      placeholder="1"
+                      value={form.displayOrder}
+                      onChange={(e) =>
+                        setForm((prev) => ({ ...prev, displayOrder: e.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                      <input
+                        type="checkbox"
+                        checked={form.isFeatured}
+                        onChange={(event) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            isFeatured: event.target.checked,
+                          }))
+                        }
+                      />
+                      Mark as Featured
+                    </label>
+                  </div>
+                </div>
+                
                 <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                   <input
                     type="checkbox"

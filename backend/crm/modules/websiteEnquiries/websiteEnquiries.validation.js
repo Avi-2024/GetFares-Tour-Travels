@@ -21,6 +21,7 @@ const createCaptureSchema = z
     name: z.string().min(2).optional(),
     email: z.string().email().optional(),
     phone: z.string().min(6).max(20).optional(),
+    clientCurrency: z.string().trim().min(3).max(10).optional(),
     destination: z.string().min(2).max(150).optional(),
     destinationName: z.string().min(2).max(150).optional(),
     nationality: z.string().min(2).max(80).optional(),

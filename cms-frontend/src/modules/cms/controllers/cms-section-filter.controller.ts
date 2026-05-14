@@ -7,21 +7,66 @@ import type {
 } from "../models/cms-column-filter.model";
 
 class CmsSectionFilterController {
+  private static readonly EXCLUDED_KEYS = new Set([
+    "id",
+    "createdat",
+    "updatedat",
+    "created_at",
+    "updated_at",
+    "__v",
+  ]);
+
   public buildFilterColumns(
     rows: CmsTableEntry[],
     sectionColumns: { key: string; label: string }[],
   ): UniversalFilterColumn[] {
-    return sectionColumns.map((column) => {
+    const baseColumns = sectionColumns.map((column) => ({
+      key: column.key,
+      label: column.label,
+    }));
+    const discovered = new Map<string, UniversalFilterColumn>();
+    for (const column of baseColumns) {
+      discovered.set(column.key, {
+        key: column.key,
+        label: column.label,
+        type: "string",
+      });
+    }
+
+    for (const row of rows) {
+      for (const [rawKey, rawValue] of Object.entries(row.raw || {})) {
+        const key = String(rawKey || "").trim();
+        if (!key) {
+          continue;
+        }
+        const normalizedKey = this.normalizeText(key);
+        if (CmsSectionFilterController.EXCLUDED_KEYS.has(normalizedKey)) {
+          continue;
+        }
+        if (rawValue === null || rawValue === undefined) {
+          continue;
+        }
+        if (!discovered.has(key)) {
+          discovered.set(key, {
+            key,
+            label: this.toColumnLabel(key),
+            type: "string",
+          });
+        }
+      }
+    }
+
+    const columns = Array.from(discovered.values());
+    return columns.map((column) => {
       const values = rows
-        .map((entry) => entry.row.cells[column.key]?.value ?? "")
+        .flatMap((entry) => this.getValuesForKey(entry, column.key))
         .map((value) => this.normalizeText(value))
         .filter((value) => value.length > 0 && value !== "--");
       const uniqueValues = new Set(values);
       const type =
-        uniqueValues.size > 1 && uniqueValues.size <= 12 ? "enum" : "string";
+        uniqueValues.size > 1 && uniqueValues.size <= 50 ? "enum" : "string";
       return {
-        key: column.key,
-        label: column.label,
+        ...column,
         type,
       };
     });
@@ -36,13 +81,15 @@ class CmsSectionFilterController {
       const seen = new Set<string>();
       const values: string[] = [];
       for (const row of rows) {
-        const rawValue = row.row.cells[column.key]?.value ?? "";
-        const normalized = this.normalizeText(rawValue);
-        if (!normalized || normalized === "--" || seen.has(normalized)) {
-          continue;
+        const candidateValues = this.getValuesForKey(row, column.key);
+        for (const rawValue of candidateValues) {
+          const normalized = this.normalizeText(rawValue);
+          if (!normalized || normalized === "--" || seen.has(normalized)) {
+            continue;
+          }
+          seen.add(normalized);
+          values.push(rawValue.trim());
         }
-        seen.add(normalized);
-        values.push(rawValue.trim());
       }
       values.sort((first, second) => first.localeCompare(second));
       index[column.key] = values;
@@ -104,7 +151,13 @@ class CmsSectionFilterController {
   ): UniversalFilterSuggestion[] {
     const trimmedInput = rawInput.trim();
     if (!trimmedInput) {
-      return [];
+      return columns
+        .slice(0, limit)
+        .map((column) => ({
+          key: column.key,
+          value: "",
+          label: `${column.key}:`,
+        }));
     }
 
     const suggestions: UniversalFilterSuggestion[] = [];
@@ -216,9 +269,11 @@ class CmsSectionFilterController {
     }
 
     for (const filter of activeFilters) {
-      const cellValue = entry.row.cells[filter.key]?.value ?? "";
-      const normalizedCell = this.normalizeText(cellValue);
       const normalizedFilter = this.normalizeText(filter.value);
+      const valuePool = this.getValuesForKey(entry, filter.key)
+        .map((value) => this.normalizeText(value))
+        .filter((value) => value.length > 0);
+      const normalizedCell = valuePool.join(" | ");
       if (!normalizedFilter) {
         continue;
       }
@@ -284,6 +339,47 @@ class CmsSectionFilterController {
 
   private normalizeText(value: string): string {
     return value.trim().toLowerCase();
+  }
+
+  private toColumnLabel(key: string): string {
+    return key
+      .replace(/_/g, " ")
+      .replace(/([a-z])([A-Z])/g, "$1 $2")
+      .replace(/\s+/g, " ")
+      .trim()
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+  }
+
+  private getValuesForKey(entry: CmsTableEntry, key: string): string[] {
+    const values: string[] = [];
+    const cellValue = entry.row.cells[key]?.value;
+    if (typeof cellValue === "string" && cellValue.trim()) {
+      values.push(cellValue.trim());
+    }
+    const rawValue = entry.raw[key];
+    values.push(...this.flattenValue(rawValue));
+    return Array.from(new Set(values.filter((value) => value.trim().length > 0)));
+  }
+
+  private flattenValue(value: unknown): string[] {
+    if (value === null || value === undefined) {
+      return [];
+    }
+    if (typeof value === "string") {
+      return [value];
+    }
+    if (typeof value === "number" || typeof value === "boolean") {
+      return [String(value)];
+    }
+    if (Array.isArray(value)) {
+      return value.flatMap((item) => this.flattenValue(item));
+    }
+    if (typeof value === "object") {
+      return Object.values(value as Record<string, unknown>).flatMap((item) =>
+        this.flattenValue(item),
+      );
+    }
+    return [];
   }
 
   private parseDateValue(value: string): Date | null {

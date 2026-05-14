@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import { AppError } from "../../core/errors/index.js";
 
 function createLeadsRepository({ db, logger, schema }) {
@@ -335,6 +337,7 @@ function createLeadsRepository({ db, logger, schema }) {
       fullName: customer?.fullName ?? row.full_name ?? row.fullName ?? null,
       phone: customer?.phone ?? row.phone ?? null,
       email: customer?.email ?? row.email ?? null,
+      city: row.city ?? null,
       panNumber: customer?.panNumber ?? row.pan_number ?? row.panNumber ?? null,
       addressLine:
         customer?.addressLine ?? row.address_line ?? row.addressLine ?? null,
@@ -373,11 +376,19 @@ function createLeadsRepository({ db, logger, schema }) {
         row.preferred_hotel_category ?? row.preferredHotelCategory ?? null,
       travelPurpose: row.travel_purpose ?? row.travelPurpose ?? null,
       source: row.source ?? null,
+      platform: row.platform ?? null,
+      campaignName: row.campaign_name ?? row.campaignName ?? null,
+      adName: row.ad_name ?? row.adName ?? null,
       campaignId: row.campaign_id ?? row.campaignId ?? null,
       utmSource: row.utm_source ?? row.utmSource ?? null,
       utmMedium: row.utm_medium ?? row.utmMedium ?? null,
       utmCampaign: row.utm_campaign ?? row.utmCampaign ?? null,
       metaLeadId: row.meta_lead_id ?? row.metaLeadId ?? null,
+      metaPageId: row.meta_page_id ?? row.metaPageId ?? null,
+      metaFormId: row.meta_form_id ?? row.metaFormId ?? null,
+      metaAdId: row.meta_ad_id ?? row.metaAdId ?? null,
+      metaAdsetId: row.meta_adset_id ?? row.metaAdsetId ?? null,
+      metaCampaignId: row.meta_campaign_id ?? row.metaCampaignId ?? null,
       leadScore: row.lead_score ?? row.leadScore ?? 0,
       priorityLevel: row.priority_level ?? row.priorityLevel ?? 0,
       isVip: row.is_vip ?? row.isVip ?? false,
@@ -406,6 +417,10 @@ function createLeadsRepository({ db, logger, schema }) {
       qualificationCompleted:
         row.qualification_completed ?? row.qualificationCompleted ?? false,
       closedReason: row.closed_reason ?? row.closedReason ?? null,
+      statusTransitionCustom:
+        row.status_transition_custom ?? row.statusTransitionCustom ?? null,
+      customStatusLabel:
+        row.custom_status_label ?? row.customStatusLabel ?? null,
       nextFollowupDate: row.next_followup_date ?? row.nextFollowupDate ?? null,
       subStatus: row.sub_status ?? row.subStatus ?? null,
       temperature: row.temperature ?? null,
@@ -421,6 +436,38 @@ function createLeadsRepository({ db, logger, schema }) {
         row.client_created_at ?? row.clientCreatedAt ?? null,
       clientTimezone:
         row.client_timezone ?? row.clientTimezone ?? null,
+      dynamicFields: (() => {
+        const raw = row.dynamic_fields ?? row.dynamicFields;
+        try {
+          if (typeof raw === "string") {
+            const parsed = JSON.parse(raw || "{}");
+            return parsed &&
+              typeof parsed === "object" &&
+              !Array.isArray(parsed) ?
+              parsed
+            : {};
+          }
+          return raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+        } catch {
+          return {};
+        }
+      })(),
+      dynamicFieldLabels: (() => {
+        const raw = row.dynamic_field_labels ?? row.dynamicFieldLabels;
+        try {
+          if (typeof raw === "string") {
+            const parsed = JSON.parse(raw || "{}");
+            return parsed &&
+              typeof parsed === "object" &&
+              !Array.isArray(parsed) ?
+              parsed
+            : {};
+          }
+          return raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+        } catch {
+          return {};
+        }
+      })(),
     };
   }
 
@@ -484,6 +531,10 @@ function createLeadsRepository({ db, logger, schema }) {
         true,
       ),
       createdAt: row.created_at ?? row.createdAt ?? null,
+      activityCreatedAt: row.created_at ?? row.createdAt ?? null,
+      activity_created_at: row.created_at ?? row.createdAt ?? null,
+      activityTimezone: row.client_timezone ?? row.clientTimezone ?? null,
+      activity_timezone: row.client_timezone ?? row.clientTimezone ?? null,
     };
   }
 
@@ -609,10 +660,6 @@ function createLeadsRepository({ db, logger, schema }) {
       mapped.status = filters.status;
     }
 
-    if (filters.source) {
-      mapped.source = filters.source;
-    }
-
     if (filters.temperature) {
       mapped.temperature = filters.temperature;
     }
@@ -645,6 +692,10 @@ function createLeadsRepository({ db, logger, schema }) {
       mapped.campaign_id = filters.campaignId;
     }
 
+    if (filters.platform) {
+      mapped.platform = String(filters.platform).trim();
+    }
+
     if (filters.page) {
       mapped.page = filters.page;
     }
@@ -660,13 +711,19 @@ function createLeadsRepository({ db, logger, schema }) {
     const normalized = String(sortBy || "NEWEST_FIRST")
       .trim()
       .toUpperCase();
-    if (normalized === "OLDEST_FIRST") {
+    if (normalized === "CREATED_AT_ASC" || normalized === "OLDEST_FIRST") {
       return "ORDER BY l.created_at ASC";
     }
-    if (normalized === "NAME_A_Z") {
+    if (normalized === "CREATED_AT_DESC" || normalized === "NEWEST_FIRST") {
+      return "ORDER BY l.created_at DESC";
+    }
+    if (normalized === "NAME_A_Z" || normalized === "NAME_ASC") {
       return "ORDER BY LOWER(COALESCE(NULLIF(c.full_name, ''), NULLIF(l.full_name, ''), '')) ASC, l.created_at DESC";
     }
-    if (normalized === "STATUS") {
+    if (normalized === "COUNTRY_ASC") {
+      return "ORDER BY LOWER(COALESCE(l.lead_country, '')), l.created_at DESC";
+    }
+    if (normalized === "STATUS" || normalized === "STATUS_ASC") {
       return `
         ORDER BY CASE l.status
           WHEN 'OPEN' THEN 1
@@ -684,10 +741,544 @@ function createLeadsRepository({ db, logger, schema }) {
     return "ORDER BY l.created_at DESC";
   }
 
+  function resolveSourceAliases(value) {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (!normalized) return [];
+    if (normalized === "meta_india") {
+      return ["Meta India", "Meta India Page", "Meta INDIA Page"];
+    }
+    if (normalized === "meta_uae") {
+      return ["Meta UAE", "Meta UAE Page"];
+    }
+    return [String(value).trim()];
+  }
+
   function isUuidLike(value) {
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
       String(value || "").trim(),
     );
+  }
+
+  function startOfToday() {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    return now;
+  }
+
+  async function buildMysqlLeadScope(filters = {}) {
+    const hasLeadCustomerId = await mysqlColumnExists(
+      schema.tableName,
+      "customer_id",
+    );
+    const hasLeadPhoneNormalized = await mysqlColumnExists(
+      schema.tableName,
+      "phone_normalized",
+    );
+    const hasCustomerPhoneNormalized = hasLeadCustomerId ?
+        await mysqlColumnExists(schema.customersTable, "phone_normalized")
+      : false;
+    const hasLeadSourceColumn = await mysqlColumnExists(
+      schema.tableName,
+      "source",
+    );
+    const hasPlatformColumn = await mysqlColumnExists(
+      schema.tableName,
+      "platform",
+    );
+    const quickFilter = String(filters.quickFilter || "")
+      .trim()
+      .toUpperCase();
+    const where = ["COALESCE(l.is_deleted, 0) = 0"];
+    const params = [];
+
+    if (filters.status) {
+      params.push(filters.status);
+      where.push(`l.status = ?`);
+    }
+
+    if (filters.source && hasLeadSourceColumn) {
+      const sourceAliases = resolveSourceAliases(filters.source);
+      if (sourceAliases.length > 1) {
+        const sourcePh = sourceAliases.map(() => "?").join(", ");
+        params.push(...sourceAliases);
+        where.push(`l.source IN (${sourcePh})`);
+      } else if (sourceAliases.length === 1) {
+        params.push(sourceAliases[0]);
+        where.push(`l.source = ?`);
+      }
+    }
+
+    if (filters.platform && hasPlatformColumn) {
+      const plat = String(filters.platform).trim();
+      if (plat) {
+        params.push(plat);
+        where.push(`LOWER(TRIM(COALESCE(l.platform, ''))) = LOWER(?)`);
+      }
+    }
+
+    if (filters.temperature) {
+      params.push(filters.temperature);
+      where.push(`l.temperature = ?`);
+    }
+
+    if (filters.subStatus) {
+      params.push(filters.subStatus);
+      where.push(`l.sub_status = ?`);
+    }
+
+    if (filters.leadType) {
+      params.push(filters.leadType);
+      where.push(`l.lead_type = ?`);
+    } else if (filters.type) {
+      params.push(filters.type);
+      where.push(`l.lead_type = ?`);
+    }
+
+    if (filters.assignedTo) {
+      params.push(filters.assignedTo);
+      where.push(`l.assigned_to = ?`);
+    }
+
+    if (Array.isArray(filters.visibleAssigneeIds)) {
+      const visibleAssigneeIds = [
+        ...new Set(
+          filters.visibleAssigneeIds
+            .map((value) => String(value || "").trim())
+            .filter(Boolean),
+        ),
+      ];
+      if (visibleAssigneeIds.length > 0) {
+        const assignPh = visibleAssigneeIds.map(() => "?").join(", ");
+        params.push(...visibleAssigneeIds);
+        if (filters.includeUnassigned === false) {
+          where.push(`l.assigned_to IN (${assignPh})`);
+        } else {
+          where.push(`(l.assigned_to IS NULL OR l.assigned_to IN (${assignPh}))`);
+        }
+      }
+    }
+
+    if (filters.destinationId) {
+      params.push(filters.destinationId);
+      where.push(`l.destination_id = ?`);
+    }
+
+    if (filters.destination) {
+      const destination = String(filters.destination).trim();
+      if (destination) {
+        if (isUuidLike(destination)) {
+          params.push(destination);
+          where.push(`l.destination_id = ?`);
+        } else {
+          params.push(destination);
+          where.push(`LOWER(COALESCE(d.name, '')) = LOWER(?)`);
+        }
+      }
+    }
+
+    if (filters.leadCountry || filters.country) {
+      params.push(filters.leadCountry ?? filters.country);
+      where.push(`LOWER(COALESCE(l.lead_country, '')) = LOWER(?)`);
+    }
+
+    if (Array.isArray(filters.allowedCountries)) {
+      const allowedCountries = [
+        ...new Set(
+          filters.allowedCountries
+            .map((value) => String(value || "").trim().toLowerCase())
+            .filter(Boolean),
+        ),
+      ];
+      if (allowedCountries.length > 0) {
+        const countryPh = allowedCountries.map(() => "?").join(", ");
+        params.push(...allowedCountries);
+        where.push(
+          `(NULLIF(TRIM(COALESCE(l.lead_country, '')), '') IS NULL OR LOWER(COALESCE(l.lead_country, '')) IN (${countryPh}))`,
+        );
+      }
+    }
+
+    if (filters.countryId) {
+      params.push(filters.countryId);
+      where.push(`l.country_id = ?`);
+    }
+
+    if (filters.campaignId) {
+      params.push(filters.campaignId);
+      where.push(`l.campaign_id = ?`);
+    }
+
+    if (filters.email) {
+      const normalizedEmail = String(filters.email).trim().toLowerCase();
+      if (normalizedEmail) {
+        const emailValue = `%${normalizedEmail}%`;
+        if (hasLeadCustomerId) {
+          params.push(emailValue, emailValue);
+          where.push(
+            `(LOWER(COALESCE(NULLIF(l.email, ''), '')) LIKE ? OR LOWER(COALESCE(c.email, '')) LIKE ?)`,
+          );
+        } else {
+          params.push(emailValue);
+          where.push(`(LOWER(COALESCE(NULLIF(l.email, ''), '')) LIKE ?)`);
+        }
+      }
+    }
+
+    if (filters.phone) {
+      const normalizedPhone = String(filters.phone).replace(/\D/g, "");
+      if (normalizedPhone) {
+        const phoneLike = `%${normalizedPhone}%`;
+        if (hasLeadCustomerId) {
+          params.push(phoneLike, phoneLike);
+          where.push(
+            `(${
+              hasLeadPhoneNormalized ?
+                `COALESCE(NULLIF(l.phone_normalized, ''), COALESCE(NULLIF(l.phone, ''), '')) LIKE ?`
+              : `COALESCE(NULLIF(l.phone, ''), '') LIKE ?`
+            } OR ${
+              hasCustomerPhoneNormalized ?
+                `COALESCE(NULLIF(c.phone_normalized, ''), '') LIKE ?`
+              : `REGEXP_REPLACE(COALESCE(c.phone, ''), '[^0-9]', '') LIKE ?`
+            })`,
+          );
+        } else {
+          params.push(phoneLike);
+          where.push(
+            `(${
+              hasLeadPhoneNormalized ?
+                `COALESCE(NULLIF(l.phone_normalized, ''), COALESCE(NULLIF(l.phone, ''), '')) LIKE ?`
+              : `COALESCE(NULLIF(l.phone, ''), '') LIKE ?`
+            })`,
+          );
+        }
+      }
+    }
+
+    if (filters.leadId) {
+      const leadId = String(filters.leadId).trim();
+      if (leadId) {
+        const leadIdLike = `%${leadId}%`;
+        params.push(leadIdLike, leadIdLike, leadIdLike);
+        where.push(
+          `(LOWER(CAST(l.id AS CHAR)) LIKE LOWER(?) OR LOWER(COALESCE(l.lead_code, '')) LIKE LOWER(?) OR LOWER(COALESCE(l.meta_lead_id, '')) LIKE LOWER(?))`,
+        );
+      }
+    }
+
+    if (filters.search) {
+      const rawSearch = String(filters.search).trim().toLowerCase();
+      if (rawSearch) {
+        const searchVal = `%${rawSearch}%`;
+        const searchWhere = hasLeadCustomerId ?
+            [
+              `LOWER(COALESCE(c.full_name, '')) LIKE ?`,
+              `LOWER(COALESCE(NULLIF(l.full_name, ''), '')) LIKE ?`,
+              `LOWER(COALESCE(c.email, '')) LIKE ?`,
+              `LOWER(COALESCE(NULLIF(l.email, ''), '')) LIKE ?`,
+              `LOWER(COALESCE(d.name, '')) LIKE ?`,
+              hasLeadSourceColumn ? `LOWER(COALESCE(l.source, '')) LIKE ?` : null,
+              `LOWER(CAST(l.id AS CHAR)) LIKE ?`,
+              `LOWER(COALESCE(l.lead_code, '')) LIKE ?`,
+              `LOWER(COALESCE(l.meta_lead_id, '')) LIKE ?`,
+            ].filter(Boolean)
+          : [
+              `LOWER(COALESCE(NULLIF(l.full_name, ''), '')) LIKE ?`,
+              `LOWER(COALESCE(NULLIF(l.email, ''), '')) LIKE ?`,
+              `LOWER(COALESCE(d.name, '')) LIKE ?`,
+              hasLeadSourceColumn ? `LOWER(COALESCE(l.source, '')) LIKE ?` : null,
+              `LOWER(CAST(l.id AS CHAR)) LIKE ?`,
+              `LOWER(COALESCE(l.lead_code, '')) LIKE ?`,
+              `LOWER(COALESCE(l.meta_lead_id, '')) LIKE ?`,
+            ].filter(Boolean);
+        for (let i = 0; i < searchWhere.length; i += 1) {
+          params.push(searchVal);
+        }
+        const phoneSearch = rawSearch.replace(/\D/g, "");
+        if (phoneSearch) {
+          const phoneLike = `%${phoneSearch}%`;
+          if (hasLeadCustomerId) {
+            params.push(phoneLike, phoneLike);
+            searchWhere.push(
+              `(${
+                hasLeadPhoneNormalized ?
+                  `COALESCE(NULLIF(l.phone_normalized, ''), COALESCE(NULLIF(l.phone, ''), '')) LIKE ?`
+                : `COALESCE(NULLIF(l.phone, ''), '') LIKE ?`
+              } OR ${
+                hasCustomerPhoneNormalized ?
+                  `COALESCE(NULLIF(c.phone_normalized, ''), '') LIKE ?`
+                : `REGEXP_REPLACE(COALESCE(c.phone, ''), '[^0-9]', '') LIKE ?`
+              })`,
+            );
+          } else {
+            params.push(phoneLike);
+            searchWhere.push(
+              `(${
+                hasLeadPhoneNormalized ?
+                  `COALESCE(NULLIF(l.phone_normalized, ''), COALESCE(NULLIF(l.phone, ''), '')) LIKE ?`
+                : `COALESCE(NULLIF(l.phone, ''), '') LIKE ?`
+              })`,
+            );
+          }
+        }
+        where.push(`(${searchWhere.join(" OR ")})`);
+      }
+    }
+
+    if (filters.fromDate) {
+      params.push(filters.fromDate);
+      where.push(`l.created_at >= CAST(? AS DATE)`);
+    }
+
+    if (filters.toDate) {
+      params.push(filters.toDate);
+      where.push(`l.created_at < DATE_ADD(CAST(? AS DATE), INTERVAL 1 DAY)`);
+    }
+
+    if (filters.sla === "OVERDUE" || quickFilter === "LATE_RESPONSE") {
+      where.push(
+        `(COALESCE(l.sla_breached, 0) = 1 OR (l.response_at IS NULL AND l.response_deadline IS NOT NULL AND l.response_deadline < NOW()))`,
+      );
+    } else if (filters.sla === "PENDING") {
+      where.push(
+        `(l.response_at IS NULL AND l.response_deadline IS NOT NULL AND l.response_deadline >= NOW() AND COALESCE(l.sla_breached, 0) = 0)`,
+      );
+    } else if (filters.sla === "WITHIN_SLA") {
+      where.push(
+        `(l.response_at IS NOT NULL AND l.response_deadline IS NOT NULL AND l.response_at <= l.response_deadline AND COALESCE(l.sla_breached, 0) = 0)`,
+      );
+    }
+
+    if (quickFilter === "ACTIVE") {
+      where.push(`l.status IN ('OPEN', 'CONTACTED', 'WIP', 'QUOTED')`);
+    } else if (quickFilter === "FOLLOW_UP") {
+      where.push(`l.status = 'FOLLOW_UP'`);
+    } else if (quickFilter === "CLOSED") {
+      where.push(`l.status IN ('CONVERTED', 'LOST', 'NON_RESPONSIVE')`);
+    } else if (quickFilter === "LOST") {
+      where.push(`l.status = 'LOST'`);
+    } else if (quickFilter !== "LATE_RESPONSE") {
+      // Default "All" list: hide lost (use Lost or Closed tab)
+      where.push(`l.status <> 'LOST'`);
+    }
+
+    const baseSql = [
+      `FROM ${schema.tableName} l`,
+      hasLeadCustomerId ?
+        `LEFT JOIN ${schema.customersTable} c ON c.id = l.customer_id`
+      : null,
+      `LEFT JOIN ${schema.destinationsTable} d ON d.id = l.destination_id`,
+      `WHERE ${where.join(" AND ")}`,
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    return {
+      baseSql,
+      hasLeadCustomerId,
+      params,
+    };
+  }
+
+  function computeStatsFromItems(items = []) {
+    const todayStart = startOfToday().getTime();
+    let newToday = 0;
+    let followupActive = 0;
+    let slaBreached = 0;
+
+    items.forEach((item) => {
+      const createdAt = new Date(item.createdAt ?? 0).getTime();
+      if (Number.isFinite(createdAt) && createdAt >= todayStart) {
+        newToday += 1;
+      }
+      if (String(item.status || "").toUpperCase() === "FOLLOW_UP") {
+        followupActive += 1;
+      }
+      if (item.slaBreached) {
+        slaBreached += 1;
+      }
+    });
+
+    return {
+      totalLeads: items.length,
+      newToday,
+      followupActive,
+      slaBreached,
+    };
+  }
+
+  async function filterInMemoryLeadItems(filters = {}) {
+    const quickFilter = String(filters.quickFilter || "")
+      .trim()
+      .toUpperCase();
+    const mappedFilters = mapListFilters({
+      ...filters,
+      page: undefined,
+      limit: undefined,
+    });
+    const rows = await db.findMany(schema.tableName, mappedFilters);
+    const [customerMap, assigneeMap, destinationMap] = await Promise.all([
+      loadCustomersByIds(rows.map((row) => row.customer_id ?? row.customerId)),
+      loadUsersByIds(rows.map((row) => row.assigned_to ?? row.assignedTo)),
+      loadDestinationsByIds(
+        rows.map((row) => row.destination_id ?? row.destinationId),
+      ),
+    ]);
+
+    let items = rows
+      .map((row) => toDomain(row, customerMap, assigneeMap, destinationMap))
+      .filter(Boolean);
+
+    if (filters.email) {
+      const normalizedEmail = String(filters.email).trim().toLowerCase();
+      items = items.filter((item) =>
+        String(item.email || "").toLowerCase().includes(normalizedEmail),
+      );
+    }
+
+    if (filters.phone) {
+      const normalizedPhone = String(filters.phone).replace(/\D/g, "");
+      items = items.filter((item) =>
+        String(item.phone || "").replace(/\D/g, "").includes(normalizedPhone),
+      );
+    }
+
+    if (filters.leadId) {
+      const leadId = String(filters.leadId).trim().toLowerCase();
+      items = items.filter((item) => {
+        const id = String(item.id || "").toLowerCase();
+        const leadCode = String(item.leadCode || "").toLowerCase();
+        const metaLeadId = String(item.metaLeadId || "").toLowerCase();
+        return (
+          id.includes(leadId) ||
+          leadCode.includes(leadId) ||
+          metaLeadId.includes(leadId)
+        );
+      });
+    }
+
+    if (filters.source) {
+      const sourceAliases = resolveSourceAliases(filters.source).map((v) =>
+        String(v).trim().toLowerCase(),
+      );
+      if (sourceAliases.length > 0) {
+        const sourceSet = new Set(sourceAliases);
+        items = items.filter((item) =>
+          sourceSet.has(String(item.source || "").trim().toLowerCase()),
+        );
+      }
+    }
+
+    if (filters.platform) {
+      const plat = String(filters.platform).trim().toLowerCase();
+      if (plat) {
+        items = items.filter(
+          (item) => String(item.platform || "").trim().toLowerCase() === plat,
+        );
+      }
+    }
+
+    if (filters.search) {
+      const search = String(filters.search).trim().toLowerCase();
+      if (search) {
+        const phoneSearch = search.replace(/\D/g, "");
+        items = items.filter((item) => {
+          const haystack = [
+            item.fullName,
+            item.email,
+            item.destinationName,
+            item.source,
+            item.id,
+            item.leadCode,
+            item.metaLeadId,
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase();
+          if (haystack.includes(search)) return true;
+          if (!phoneSearch) return false;
+          return String(item.phone || "")
+            .replace(/\D/g, "")
+            .includes(phoneSearch);
+        });
+      }
+    }
+
+    if (Array.isArray(filters.visibleAssigneeIds)) {
+      const visibleAssigneeSet = new Set(
+        filters.visibleAssigneeIds
+          .map((value) => String(value || "").trim())
+          .filter(Boolean),
+      );
+      if (visibleAssigneeSet.size > 0) {
+        items = items.filter((item) => {
+          if (!item.assignedTo) {
+            return filters.includeUnassigned !== false;
+          }
+          return visibleAssigneeSet.has(String(item.assignedTo));
+        });
+      }
+    }
+
+    if (Array.isArray(filters.allowedCountries)) {
+      const allowedCountrySet = new Set(
+        filters.allowedCountries
+          .map((value) => String(value || "").trim().toLowerCase())
+          .filter(Boolean),
+      );
+      if (allowedCountrySet.size > 0) {
+        items = items.filter((item) => {
+          const country = String(item.leadCountry || item.country || "")
+            .trim()
+            .toLowerCase();
+          return !country || allowedCountrySet.has(country);
+        });
+      }
+    }
+
+    if (quickFilter === "ACTIVE") {
+      items = items.filter((item) =>
+        ["OPEN", "CONTACTED", "WIP", "QUOTED"].includes(
+          String(item.status || "").toUpperCase(),
+        ),
+      );
+    } else if (quickFilter === "FOLLOW_UP") {
+      items = items.filter(
+        (item) => String(item.status || "").toUpperCase() === "FOLLOW_UP",
+      );
+    } else if (quickFilter === "CLOSED") {
+      items = items.filter((item) =>
+        ["CONVERTED", "LOST", "NON_RESPONSIVE"].includes(
+          String(item.status || "").toUpperCase(),
+        ),
+      );
+    } else if (quickFilter === "LOST") {
+      items = items.filter(
+        (item) => String(item.status || "").toUpperCase() === "LOST",
+      );
+    } else if (quickFilter === "LATE_RESPONSE") {
+      items = items.filter((item) => Boolean(item.slaBreached));
+    } else {
+      items = items.filter(
+        (item) => String(item.status || "").toUpperCase() !== "LOST",
+      );
+    }
+
+    if (filters.sla === "OVERDUE") {
+      items = items.filter((item) => Boolean(item.slaBreached));
+    } else if (filters.sla === "WITHIN_SLA") {
+      items = items.filter(
+        (item) => !item.slaBreached && Boolean(item.responseAt),
+      );
+    } else if (filters.sla === "PENDING") {
+      items = items.filter(
+        (item) =>
+          !item.slaBreached &&
+          !item.responseAt &&
+          Boolean(item.responseDeadline),
+      );
+    }
+
+    return items;
   }
 
   async function loadRoleLookup() {
@@ -918,6 +1509,124 @@ function createLeadsRepository({ db, logger, schema }) {
     }
   }
 
+  async function upsertLeadDynamicFields(
+    leadId,
+    { fields = {}, labels = {} } = {},
+  ) {
+    const tableName = "lead_dynamic_fields";
+    const tableExists = await hasTable(tableName);
+    if (!tableExists || !leadId) {
+      return { upserted: 0, skipped: true };
+    }
+
+    if (!fields || typeof fields !== "object") {
+      return { upserted: 0, skipped: true };
+    }
+
+    const entries = Object.entries(fields)
+      .map(([key, value]) => ({
+        field_key: String(key || "").trim().toLowerCase(),
+        field_value: value === undefined || value === null ? null : String(value),
+        field_label:
+          labels && typeof labels === "object" && labels[key] ?
+            String(labels[key]).trim()
+          : null,
+      }))
+      .filter((item) => item.field_key);
+
+    if (!entries.length) {
+      return { upserted: 0, skipped: true };
+    }
+
+    let upserted = 0;
+
+    for (const item of entries) {
+      try {
+        await db.insert(tableName, {
+          lead_id: leadId,
+          field_key: item.field_key,
+          field_label: item.field_label,
+          field_value: item.field_value,
+        });
+        upserted += 1;
+      } catch (error) {
+        if (!isDuplicateKeyError(error)) {
+          throw error;
+        }
+        await db.update(
+          tableName,
+          // db.update requires primary key for some adapters; fallback to query.
+          // If adapter cannot update by filter, we skip silently.
+          (await db.findOne(tableName, { lead_id: leadId, field_key: item.field_key }))?.id,
+          {
+            field_label: item.field_label,
+            field_value: item.field_value,
+          },
+        ).catch(() => null);
+      }
+    }
+
+    return { upserted, skipped: false };
+  }
+
+  async function mergeLeadDynamicFieldsFromChildTable(lead, leadId) {
+    if (!lead || !leadId) {
+      return lead;
+    }
+    const tableName = "lead_dynamic_fields";
+    if (!(await hasTable(tableName))) {
+      return lead;
+    }
+    try {
+      const rows = await db.findMany(tableName, { lead_id: leadId });
+      if (!Array.isArray(rows) || rows.length === 0) {
+        return lead;
+      }
+      const baseFields =
+        lead.dynamicFields &&
+        typeof lead.dynamicFields === "object" &&
+        !Array.isArray(lead.dynamicFields) ?
+          { ...lead.dynamicFields }
+        : {};
+      const baseLabels =
+        lead.dynamicFieldLabels &&
+        typeof lead.dynamicFieldLabels === "object" &&
+        !Array.isArray(lead.dynamicFieldLabels) ?
+          { ...lead.dynamicFieldLabels }
+        : {};
+
+      for (const r of rows) {
+        const key = String(r.field_key ?? r.fieldKey ?? "")
+          .trim()
+          .toLowerCase();
+        if (!key) continue;
+        const label = String(r.field_label ?? r.fieldLabel ?? "").trim();
+        if (label) {
+          baseLabels[key] = label;
+        }
+        const val = r.field_value ?? r.fieldValue;
+        if (val !== undefined && val !== null) {
+          const str = String(val).trim();
+          if (str !== "" && (baseFields[key] === undefined || baseFields[key] === null)) {
+            baseFields[key] = str;
+          }
+        }
+      }
+
+      return {
+        ...lead,
+        dynamicFields: baseFields,
+        dynamicFieldLabels: baseLabels,
+      };
+    } catch (error) {
+      logger?.warn?.(
+        { err: error, leadId },
+        "mergeLeadDynamicFieldsFromChildTable failed",
+      );
+      return lead;
+    }
+  }
+
   return Object.freeze({
     normalizeEmail,
     normalizePhone,
@@ -925,265 +1634,13 @@ function createLeadsRepository({ db, logger, schema }) {
     findSystemDateTimePreferences,
 
     async findAll(filters = {}) {
-      const limit = toPositiveInt(filters.limit, 15, 500);
+      const limit = toPositiveInt(filters.limit, 25, 50);
       const page = toPositiveInt(filters.page, 1, 1000000);
       const offset = (Math.max(page, 1) - 1) * limit;
-      const quickFilter = String(filters.quickFilter || "")
-        .trim()
-        .toUpperCase();
 
       if ((db.adapter === "mysql" || db.adapter === "mssql") && typeof db.query === "function") {
-        const hasLeadCustomerId = await mysqlColumnExists(
-          schema.tableName,
-          "customer_id",
-        );
-        const where = ["COALESCE(l.is_deleted, 0) = 0"];
-        const params = [];
-
-        if (filters.status) {
-          params.push(filters.status);
-          where.push(`l.status = ?`);
-        }
-
-        if (filters.source) {
-          params.push(filters.source);
-          where.push(`l.source = ?`);
-        }
-
-        if (filters.temperature) {
-          params.push(filters.temperature);
-          where.push(`l.temperature = ?`);
-        }
-
-        if (filters.subStatus) {
-          params.push(filters.subStatus);
-          where.push(`l.sub_status = ?`);
-        }
-
-        if (filters.leadType) {
-          params.push(filters.leadType);
-          where.push(`l.lead_type = ?`);
-        } else if (filters.type) {
-          params.push(filters.type);
-          where.push(`l.lead_type = ?`);
-        }
-
-        if (filters.assignedTo) {
-          params.push(filters.assignedTo);
-          where.push(`l.assigned_to = ?`);
-        }
-
-        if (Array.isArray(filters.visibleAssigneeIds)) {
-          const visibleAssigneeIds = [
-            ...new Set(
-              filters.visibleAssigneeIds
-                .map((value) => String(value || "").trim())
-                .filter(Boolean),
-            ),
-          ];
-          if (visibleAssigneeIds.length > 0) {
-            const assignPh = visibleAssigneeIds.map(() => "?").join(", ");
-            params.push(...visibleAssigneeIds);
-            if (filters.includeUnassigned === false) {
-              where.push(`l.assigned_to IN (${assignPh})`);
-            } else {
-              where.push(
-                `(l.assigned_to IS NULL OR l.assigned_to IN (${assignPh}))`,
-              );
-            }
-          }
-        }
-
-        if (filters.destinationId) {
-          params.push(filters.destinationId);
-          where.push(`l.destination_id = ?`);
-        }
-
-        if (filters.destination) {
-          const destination = String(filters.destination).trim();
-          if (destination) {
-            if (isUuidLike(destination)) {
-              params.push(destination);
-              where.push(`l.destination_id = ?`);
-            } else {
-              params.push(destination);
-              where.push(`LOWER(COALESCE(d.name, '')) = LOWER(?)`);
-            }
-          }
-        }
-
-        if (filters.leadCountry || filters.country) {
-          params.push(filters.leadCountry ?? filters.country);
-          where.push(
-            `LOWER(COALESCE(l.lead_country, '')) = LOWER(?)`,
-          );
-        }
-
-        if (Array.isArray(filters.allowedCountries)) {
-          const allowedCountries = [
-            ...new Set(
-              filters.allowedCountries
-                .map((value) => String(value || "").trim().toLowerCase())
-                .filter(Boolean),
-            ),
-          ];
-          if (allowedCountries.length > 0) {
-            const countryPh = allowedCountries.map(() => "?").join(", ");
-            params.push(...allowedCountries);
-            where.push(
-              `(NULLIF(TRIM(COALESCE(l.lead_country, '')), '') IS NULL OR LOWER(COALESCE(l.lead_country, '')) IN (${countryPh}))`,
-            );
-          }
-        }
-
-        if (filters.countryId) {
-          params.push(filters.countryId);
-          where.push(`l.country_id = ?`);
-        }
-
-        if (filters.campaignId) {
-          params.push(filters.campaignId);
-          where.push(`l.campaign_id = ?`);
-        }
-
-        if (filters.email) {
-          const normalizedEmail = String(filters.email).trim().toLowerCase();
-          if (normalizedEmail) {
-            const ev = `%${normalizedEmail}%`;
-            if (hasLeadCustomerId) {
-              params.push(ev, ev);
-              where.push(
-                `(LOWER(COALESCE(NULLIF(l.email, ''), '')) LIKE ? OR LOWER(COALESCE(c.email, '')) LIKE ?)`,
-              );
-            } else {
-              params.push(ev);
-              where.push(
-                `(LOWER(COALESCE(NULLIF(l.email, ''), '')) LIKE ?)`,
-              );
-            }
-          }
-        }
-
-        if (filters.phone) {
-          const normalizedPhone = String(filters.phone).replace(/\D/g, "");
-          if (normalizedPhone) {
-            const phoneLike = `%${normalizedPhone}%`;
-            if (hasLeadCustomerId) {
-              params.push(phoneLike, phoneLike);
-              where.push(
-                `(REGEXP_REPLACE(COALESCE(NULLIF(l.phone, ''), ''), '[^0-9]', '') LIKE ? OR REGEXP_REPLACE(COALESCE(c.phone, ''), '[^0-9]', '') LIKE ?)`,
-              );
-            } else {
-              params.push(phoneLike);
-              where.push(
-                `(REGEXP_REPLACE(COALESCE(NULLIF(l.phone, ''), ''), '[^0-9]', '') LIKE ?)`,
-              );
-            }
-          }
-        }
-
-        if (filters.leadId) {
-          const leadId = String(filters.leadId).trim();
-          if (leadId) {
-            const leadIdLike = `%${leadId}%`;
-            params.push(leadIdLike, leadIdLike, leadIdLike);
-            where.push(
-              `(LOWER(CAST(l.id AS CHAR)) LIKE LOWER(?) OR LOWER(COALESCE(l.lead_code, '')) LIKE LOWER(?) OR LOWER(COALESCE(l.meta_lead_id, '')) LIKE LOWER(?))`,
-            );
-          }
-        }
-
-        if (filters.search) {
-          const rawSearch = String(filters.search).trim().toLowerCase();
-          if (rawSearch) {
-            const searchVal = `%${rawSearch}%`;
-            const searchWhere = hasLeadCustomerId ?
-                [
-                  `LOWER(COALESCE(c.full_name, '')) LIKE ?`,
-                  `LOWER(COALESCE(NULLIF(l.full_name, ''), '')) LIKE ?`,
-                  `LOWER(COALESCE(c.email, '')) LIKE ?`,
-                  `LOWER(COALESCE(NULLIF(l.email, ''), '')) LIKE ?`,
-                  `LOWER(COALESCE(d.name, '')) LIKE ?`,
-                  `LOWER(COALESCE(l.source, '')) LIKE ?`,
-                  `LOWER(CAST(l.id AS CHAR)) LIKE ?`,
-                  `LOWER(COALESCE(l.lead_code, '')) LIKE ?`,
-                  `LOWER(COALESCE(l.meta_lead_id, '')) LIKE ?`,
-                ]
-              : [
-                  `LOWER(COALESCE(NULLIF(l.full_name, ''), '')) LIKE ?`,
-                  `LOWER(COALESCE(NULLIF(l.email, ''), '')) LIKE ?`,
-                  `LOWER(COALESCE(d.name, '')) LIKE ?`,
-                  `LOWER(COALESCE(l.source, '')) LIKE ?`,
-                  `LOWER(CAST(l.id AS CHAR)) LIKE ?`,
-                  `LOWER(COALESCE(l.lead_code, '')) LIKE ?`,
-                  `LOWER(COALESCE(l.meta_lead_id, '')) LIKE ?`,
-                ];
-            for (let i = 0; i < searchWhere.length; i += 1) {
-              params.push(searchVal);
-            }
-            const phoneSearch = rawSearch.replace(/\D/g, "");
-            if (phoneSearch) {
-              const phoneLike = `%${phoneSearch}%`;
-              if (hasLeadCustomerId) {
-                params.push(phoneLike, phoneLike);
-                searchWhere.push(
-                  `(REGEXP_REPLACE(COALESCE(NULLIF(l.phone, ''), ''), '[^0-9]', '') LIKE ? OR REGEXP_REPLACE(COALESCE(c.phone, ''), '[^0-9]', '') LIKE ?)`,
-                );
-              } else {
-                params.push(phoneLike);
-                searchWhere.push(
-                  `(REGEXP_REPLACE(COALESCE(NULLIF(l.phone, ''), ''), '[^0-9]', '') LIKE ?)`,
-                );
-              }
-            }
-            where.push(`(${searchWhere.join(" OR ")})`);
-          }
-        }
-
-        if (filters.fromDate) {
-          params.push(filters.fromDate);
-          where.push(`l.created_at >= CAST(? AS DATE)`);
-        }
-
-        if (filters.toDate) {
-          params.push(filters.toDate);
-          where.push(
-            `l.created_at < DATE_ADD(CAST(? AS DATE), INTERVAL 1 DAY)`,
-          );
-        }
-
-        if (filters.sla === "OVERDUE" || quickFilter === "LATE_RESPONSE") {
-          where.push(
-            `(COALESCE(l.sla_breached, 0) = 1 OR (l.response_at IS NULL AND l.response_deadline IS NOT NULL AND l.response_deadline < NOW()))`,
-          );
-        } else if (filters.sla === "PENDING") {
-          where.push(
-            `(l.response_at IS NULL AND l.response_deadline IS NOT NULL AND l.response_deadline >= NOW() AND COALESCE(l.sla_breached, 0) = 0)`,
-          );
-        } else if (filters.sla === "WITHIN_SLA") {
-          where.push(
-            `(l.response_at IS NOT NULL AND l.response_deadline IS NOT NULL AND l.response_at <= l.response_deadline AND COALESCE(l.sla_breached, 0) = 0)`,
-          );
-        }
-
-        if (quickFilter === "ACTIVE") {
-          where.push(`l.status IN ('OPEN', 'CONTACTED', 'WIP', 'QUOTED')`);
-        } else if (quickFilter === "FOLLOW_UP") {
-          where.push(`l.status = 'FOLLOW_UP'`);
-        } else if (quickFilter === "CLOSED") {
-          where.push(`l.status IN ('CONVERTED', 'LOST', 'NON_RESPONSIVE')`);
-        }
-
-        const baseSql = [
-          `FROM ${schema.tableName} l`,
-          hasLeadCustomerId ?
-            `LEFT JOIN ${schema.customersTable} c ON c.id = l.customer_id`
-          : null,
-          `LEFT JOIN ${schema.destinationsTable} d ON d.id = l.destination_id`,
-          `WHERE ${where.join(" AND ")}`,
-        ]
-          .filter(Boolean)
-          .join("\n");
+        const { baseSql, hasLeadCustomerId, params } =
+          await buildMysqlLeadScope(filters);
 
         const countSql = [`SELECT COUNT(*) AS total`, baseSql].join("\n");
         const countResult = await db.query(countSql, params);
@@ -1213,135 +1670,7 @@ function createLeadsRepository({ db, logger, schema }) {
         };
       }
 
-      const mappedFilters = mapListFilters({
-        ...filters,
-        page: undefined,
-        limit: undefined,
-      });
-      const rows = await db.findMany(schema.tableName, mappedFilters);
-      const [customerMap, assigneeMap, destinationMap] = await Promise.all([
-        loadCustomersByIds(rows.map((row) => row.customer_id ?? row.customerId)),
-        loadUsersByIds(rows.map((row) => row.assigned_to ?? row.assignedTo)),
-        loadDestinationsByIds(
-          rows.map((row) => row.destination_id ?? row.destinationId),
-        ),
-      ]);
-
-      let items = rows
-        .map((row) => toDomain(row, customerMap, assigneeMap, destinationMap))
-        .filter(Boolean);
-
-      if (filters.email) {
-        const normalizedEmail = String(filters.email).trim().toLowerCase();
-        items = items.filter((item) =>
-          String(item.email || "").toLowerCase().includes(normalizedEmail),
-        );
-      }
-
-      if (filters.phone) {
-        const normalizedPhone = String(filters.phone).replace(/\D/g, "");
-        items = items.filter((item) =>
-          String(item.phone || "").replace(/\D/g, "").includes(normalizedPhone),
-        );
-      }
-
-      if (filters.leadId) {
-        const leadId = String(filters.leadId).trim().toLowerCase();
-        items = items.filter((item) => {
-          const id = String(item.id || "").toLowerCase();
-          const leadCode = String(item.leadCode || "").toLowerCase();
-          const metaLeadId = String(item.metaLeadId || "").toLowerCase();
-          return id.includes(leadId) || leadCode.includes(leadId) || metaLeadId.includes(leadId);
-        });
-      }
-
-      if (filters.search) {
-        const search = String(filters.search).trim().toLowerCase();
-        if (search) {
-          const phoneSearch = search.replace(/\D/g, "");
-          items = items.filter((item) => {
-            const haystack = [
-              item.fullName,
-              item.email,
-              item.destinationName,
-              item.source,
-              item.id,
-              item.leadCode,
-              item.metaLeadId,
-            ]
-              .filter(Boolean)
-              .join(" ")
-              .toLowerCase();
-            if (haystack.includes(search)) return true;
-            if (!phoneSearch) return false;
-            return String(item.phone || "")
-              .replace(/\D/g, "")
-              .includes(phoneSearch);
-          });
-        }
-      }
-
-      if (Array.isArray(filters.visibleAssigneeIds)) {
-        const visibleAssigneeSet = new Set(
-          filters.visibleAssigneeIds
-            .map((value) => String(value || "").trim())
-            .filter(Boolean),
-        );
-        if (visibleAssigneeSet.size > 0) {
-          items = items.filter((item) => {
-            if (!item.assignedTo) {
-              return filters.includeUnassigned !== false;
-            }
-            return visibleAssigneeSet.has(String(item.assignedTo));
-          });
-        }
-      }
-
-      if (Array.isArray(filters.allowedCountries)) {
-        const allowedCountrySet = new Set(
-          filters.allowedCountries
-            .map((value) => String(value || "").trim().toLowerCase())
-            .filter(Boolean),
-        );
-        if (allowedCountrySet.size > 0) {
-          items = items.filter((item) => {
-            const country = String(item.leadCountry || item.country || "")
-              .trim()
-              .toLowerCase();
-            return !country || allowedCountrySet.has(country);
-          });
-        }
-      }
-
-      if (quickFilter === "ACTIVE") {
-        items = items.filter((item) =>
-          ["OPEN", "CONTACTED", "WIP", "QUOTED"].includes(
-            String(item.status || "").toUpperCase(),
-          ),
-        );
-      } else if (quickFilter === "FOLLOW_UP") {
-        items = items.filter(
-          (item) => String(item.status || "").toUpperCase() === "FOLLOW_UP",
-        );
-      } else if (quickFilter === "CLOSED") {
-        items = items.filter((item) =>
-          ["CONVERTED", "LOST", "NON_RESPONSIVE"].includes(
-            String(item.status || "").toUpperCase(),
-          ),
-        );
-      } else if (quickFilter === "LATE_RESPONSE") {
-        items = items.filter((item) => Boolean(item.slaBreached));
-      }
-
-      if (filters.sla === "OVERDUE") {
-        items = items.filter((item) => Boolean(item.slaBreached));
-      } else if (filters.sla === "WITHIN_SLA") {
-        items = items.filter((item) => !item.slaBreached && Boolean(item.responseAt));
-      } else if (filters.sla === "PENDING") {
-        items = items.filter(
-          (item) => !item.slaBreached && !item.responseAt && Boolean(item.responseDeadline),
-        );
-      }
+      const items = await filterInMemoryLeadItems(filters);
 
       const sortedItems = [...items].sort((left, right) => {
         const leftTime = new Date(left.createdAt ?? 0).getTime();
@@ -1376,9 +1705,416 @@ function createLeadsRepository({ db, logger, schema }) {
       };
     },
 
+    async findStats(filters = {}) {
+      if ((db.adapter === "mysql" || db.adapter === "mssql") && typeof db.query === "function") {
+        const { baseSql, params } = await buildMysqlLeadScope(filters);
+        const statsSql = [
+          `SELECT`,
+          `  COUNT(*) AS total_leads,`,
+          `  SUM(CASE WHEN l.created_at >= CURRENT_DATE THEN 1 ELSE 0 END) AS new_today,`,
+          `  SUM(CASE WHEN l.status = 'FOLLOW_UP' THEN 1 ELSE 0 END) AS followup_active,`,
+          `  SUM(CASE WHEN COALESCE(l.sla_breached, 0) = 1 THEN 1 ELSE 0 END) AS sla_breached`,
+          baseSql,
+        ].join("\n");
+        const result = await db.query(statsSql, params);
+        const row = result.rows?.[0] || {};
+        return {
+          totalLeads: Number(row.total_leads || 0),
+          newToday: Number(row.new_today || 0),
+          followupActive: Number(row.followup_active || 0),
+          slaBreached: Number(row.sla_breached || 0),
+        };
+      }
+
+      const items = await filterInMemoryLeadItems(filters);
+      return computeStatsFromItems(items);
+    },
+
+    async findDistinctDestinations(filters = {}) {
+      const limit = toPositiveInt(filters.limit, 200, 500);
+
+      if ((db.adapter === "mysql" || db.adapter === "mssql") && typeof db.query === "function") {
+        const where = [
+          "COALESCE(l.is_deleted, 0) = 0",
+          "NULLIF(TRIM(COALESCE(d.name, l.travel_to, '')), '') IS NOT NULL",
+        ];
+        const params = [];
+
+        if (filters.country) {
+          params.push(String(filters.country).trim());
+          where.push(`LOWER(COALESCE(l.lead_country, '')) = LOWER(?)`);
+        }
+
+        if (filters.assignedTo) {
+          params.push(filters.assignedTo);
+          where.push(`l.assigned_to = ?`);
+        }
+
+        if (Array.isArray(filters.visibleAssigneeIds)) {
+          const visibleAssigneeIds = [
+            ...new Set(
+              filters.visibleAssigneeIds
+                .map((value) => String(value || "").trim())
+                .filter(Boolean),
+            ),
+          ];
+          if (visibleAssigneeIds.length > 0) {
+            const assignPh = visibleAssigneeIds.map(() => "?").join(", ");
+            params.push(...visibleAssigneeIds);
+            if (filters.includeUnassigned === false) {
+              where.push(`l.assigned_to IN (${assignPh})`);
+            } else {
+              where.push(`(l.assigned_to IS NULL OR l.assigned_to IN (${assignPh}))`);
+            }
+          }
+        }
+
+        if (Array.isArray(filters.allowedCountries)) {
+          const allowedCountries = [
+            ...new Set(
+              filters.allowedCountries
+                .map((value) => String(value || "").trim().toLowerCase())
+                .filter(Boolean),
+            ),
+          ];
+          if (allowedCountries.length > 0) {
+            const countryPh = allowedCountries.map(() => "?").join(", ");
+            params.push(...allowedCountries);
+            where.push(
+              `(NULLIF(TRIM(COALESCE(l.lead_country, '')), '') IS NULL OR LOWER(COALESCE(l.lead_country, '')) IN (${countryPh}))`,
+            );
+          }
+        }
+
+        if (filters.search) {
+          const search = `%${String(filters.search).trim().toLowerCase()}%`;
+          params.push(search, search);
+          where.push(
+            `(LOWER(COALESCE(d.name, '')) LIKE ? OR LOWER(COALESCE(l.travel_to, '')) LIKE ?)`,
+          );
+        }
+
+        const sql = [
+          `SELECT DISTINCT TRIM(COALESCE(d.name, l.travel_to, '')) AS destination_name`,
+          `FROM ${schema.tableName} l`,
+          `LEFT JOIN ${schema.destinationsTable} d ON d.id = l.destination_id`,
+          `WHERE ${where.join(" AND ")}`,
+          `ORDER BY destination_name ASC`,
+          `LIMIT ?`,
+        ].join("\n");
+
+        const result = await db.query(sql, [...params, limit]);
+        return (result.rows || [])
+          .map((row) => String(row.destination_name ?? "").trim())
+          .filter(Boolean);
+      }
+
+      const rows = await db.findMany(schema.tableName, {});
+      const unique = new Set();
+      rows.forEach((row) => {
+        if (row.is_deleted === true || row.isDeleted === true) return;
+        const destination = String(row.travel_to ?? row.travelTo ?? "").trim();
+        if (!destination) return;
+        if (
+          filters.search &&
+          !destination.toLowerCase().includes(String(filters.search).trim().toLowerCase())
+        ) {
+          return;
+        }
+        unique.add(destination);
+      });
+      return [...unique].sort((left, right) => left.localeCompare(right)).slice(0, limit);
+    },
+
+    async findDistinctLeadSources(filters = {}) {
+      const limit = toPositiveInt(filters.limit, 200, 200);
+      const hasSource = await mysqlColumnExists(schema.tableName, "source");
+      if (!hasSource) {
+        return [];
+      }
+
+      if ((db.adapter === "mysql" || db.adapter === "mssql") && typeof db.query === "function") {
+        const where = [
+          "COALESCE(l.is_deleted, 0) = 0",
+          "NULLIF(TRIM(COALESCE(l.source, '')), '') IS NOT NULL",
+        ];
+        const params = [];
+
+        if (filters.country) {
+          params.push(String(filters.country).trim());
+          where.push(`LOWER(COALESCE(l.lead_country, '')) = LOWER(?)`);
+        }
+
+        if (filters.assignedTo) {
+          params.push(filters.assignedTo);
+          where.push(`l.assigned_to = ?`);
+        }
+
+        if (Array.isArray(filters.visibleAssigneeIds)) {
+          const visibleAssigneeIds = [
+            ...new Set(
+              filters.visibleAssigneeIds
+                .map((value) => String(value || "").trim())
+                .filter(Boolean),
+            ),
+          ];
+          if (visibleAssigneeIds.length > 0) {
+            const assignPh = visibleAssigneeIds.map(() => "?").join(", ");
+            params.push(...visibleAssigneeIds);
+            if (filters.includeUnassigned === false) {
+              where.push(`l.assigned_to IN (${assignPh})`);
+            } else {
+              where.push(`(l.assigned_to IS NULL OR l.assigned_to IN (${assignPh}))`);
+            }
+          }
+        }
+
+        if (Array.isArray(filters.allowedCountries)) {
+          const allowedCountries = [
+            ...new Set(
+              filters.allowedCountries
+                .map((value) => String(value || "").trim().toLowerCase())
+                .filter(Boolean),
+            ),
+          ];
+          if (allowedCountries.length > 0) {
+            const countryPh = allowedCountries.map(() => "?").join(", ");
+            params.push(...allowedCountries);
+            where.push(
+              `(NULLIF(TRIM(COALESCE(l.lead_country, '')), '') IS NULL OR LOWER(COALESCE(l.lead_country, '')) IN (${countryPh}))`,
+            );
+          }
+        }
+
+        if (filters.search) {
+          const search = `%${String(filters.search).trim().toLowerCase()}%`;
+          params.push(search);
+          where.push(`LOWER(TRIM(COALESCE(l.source, ''))) LIKE ?`);
+        }
+
+        const sql = [
+          `SELECT DISTINCT TRIM(COALESCE(l.source, '')) AS source_name`,
+          `FROM ${schema.tableName} l`,
+          `WHERE ${where.join(" AND ")}`,
+          `ORDER BY source_name ASC`,
+          `LIMIT ?`,
+        ].join("\n");
+
+        const result = await db.query(sql, [...params, limit]);
+        return (result.rows || [])
+          .map((row) => String(row.source_name ?? "").trim())
+          .filter(Boolean);
+      }
+
+      const rows = await db.findMany(schema.tableName, {});
+      const unique = new Set();
+      rows.forEach((row) => {
+        if (row.is_deleted === true || row.isDeleted === true) return;
+        const src = String(row.source ?? "").trim();
+        if (!src) return;
+        if (
+          filters.search &&
+          !src.toLowerCase().includes(String(filters.search).trim().toLowerCase())
+        ) {
+          return;
+        }
+        unique.add(src);
+      });
+      return [...unique].sort((a, b) => a.localeCompare(b)).slice(0, limit);
+    },
+
+    async findDistinctPlatforms(filters = {}) {
+      const limit = toPositiveInt(filters.limit, 100, 200);
+      const hasPlatform = await mysqlColumnExists(schema.tableName, "platform");
+      if (!hasPlatform) {
+        return [];
+      }
+
+      if ((db.adapter === "mysql" || db.adapter === "mssql") && typeof db.query === "function") {
+        const where = [
+          "COALESCE(l.is_deleted, 0) = 0",
+          "NULLIF(TRIM(COALESCE(l.platform, '')), '') IS NOT NULL",
+        ];
+        const params = [];
+
+        if (filters.country) {
+          params.push(String(filters.country).trim());
+          where.push(`LOWER(COALESCE(l.lead_country, '')) = LOWER(?)`);
+        }
+
+        if (filters.assignedTo) {
+          params.push(filters.assignedTo);
+          where.push(`l.assigned_to = ?`);
+        }
+
+        if (Array.isArray(filters.visibleAssigneeIds)) {
+          const visibleAssigneeIds = [
+            ...new Set(
+              filters.visibleAssigneeIds
+                .map((value) => String(value || "").trim())
+                .filter(Boolean),
+            ),
+          ];
+          if (visibleAssigneeIds.length > 0) {
+            const assignPh = visibleAssigneeIds.map(() => "?").join(", ");
+            params.push(...visibleAssigneeIds);
+            if (filters.includeUnassigned === false) {
+              where.push(`l.assigned_to IN (${assignPh})`);
+            } else {
+              where.push(`(l.assigned_to IS NULL OR l.assigned_to IN (${assignPh}))`);
+            }
+          }
+        }
+
+        if (Array.isArray(filters.allowedCountries)) {
+          const allowedCountries = [
+            ...new Set(
+              filters.allowedCountries
+                .map((value) => String(value || "").trim().toLowerCase())
+                .filter(Boolean),
+            ),
+          ];
+          if (allowedCountries.length > 0) {
+            const countryPh = allowedCountries.map(() => "?").join(", ");
+            params.push(...allowedCountries);
+            where.push(
+              `(NULLIF(TRIM(COALESCE(l.lead_country, '')), '') IS NULL OR LOWER(COALESCE(l.lead_country, '')) IN (${countryPh}))`,
+            );
+          }
+        }
+
+        if (filters.search) {
+          const search = `%${String(filters.search).trim().toLowerCase()}%`;
+          params.push(search);
+          where.push(`LOWER(TRIM(COALESCE(l.platform, ''))) LIKE ?`);
+        }
+
+        const sql = [
+          `SELECT DISTINCT TRIM(COALESCE(l.platform, '')) AS platform_name`,
+          `FROM ${schema.tableName} l`,
+          `WHERE ${where.join(" AND ")}`,
+          `ORDER BY platform_name ASC`,
+          `LIMIT ?`,
+        ].join("\n");
+
+        const result = await db.query(sql, [...params, limit]);
+        return (result.rows || [])
+          .map((row) => String(row.platform_name ?? "").trim())
+          .filter(Boolean);
+      }
+
+      const rows = await db.findMany(schema.tableName, {});
+      const unique = new Set();
+      rows.forEach((row) => {
+        if (row.is_deleted === true || row.isDeleted === true) return;
+        const p = String(row.platform ?? "").trim();
+        if (!p) return;
+        if (
+          filters.search &&
+          !p.toLowerCase().includes(String(filters.search).trim().toLowerCase())
+        ) {
+          return;
+        }
+        unique.add(p);
+      });
+      return [...unique].sort((a, b) => a.localeCompare(b)).slice(0, limit);
+    },
+
     async findById(id) {
       const row = await db.findById(schema.tableName, id);
-      return mapRowToDomain(row);
+      const lead = await mapRowToDomain(row);
+      if (!lead) {
+        return null;
+      }
+      return mergeLeadDynamicFieldsFromChildTable(lead, id);
+    },
+
+    async listCustomStatusPresets() {
+      const table = schema.customStatusPresetsTable;
+      if (typeof db.query === "function" && (db.adapter === "mysql" || db.adapter === "mssql")) {
+        try {
+          const result = await db.query(
+            `SELECT label FROM \`${table}\` ORDER BY label ASC`,
+          );
+          return (Array.isArray(result.rows) ? result.rows : [])
+            .map((r) => String(r.label ?? "").trim())
+            .filter(Boolean);
+        } catch (err) {
+          if (
+            logger &&
+            typeof logger.warn === "function" &&
+            /doesn't exist|Unknown table/i.test(String(err.message || ""))
+          ) {
+            logger.warn({ err }, "lead_custom_status_presets table missing; migrate DB");
+          }
+          return [];
+        }
+      }
+      try {
+        const rows = await db.findMany(table, {});
+        return [...rows]
+          .map((r) => String(r.label ?? "").trim())
+          .filter(Boolean)
+          .sort((a, b) => a.localeCompare(b));
+      } catch (_e) {
+        return [];
+      }
+    },
+
+    async ensureCustomStatusPreset(label, createdBy = null) {
+      const trimmed = String(label ?? "")
+        .trim()
+        .slice(0, 191);
+      if (!trimmed) {
+        return null;
+      }
+      const table = schema.customStatusPresetsTable;
+      if (typeof db.query === "function" && (db.adapter === "mysql" || db.adapter === "mssql")) {
+        try {
+          const dup = await db.query(
+            `SELECT id FROM \`${table}\` WHERE LOWER(TRIM(label)) = LOWER(?) LIMIT 1`,
+            [trimmed],
+          );
+          if ((dup.rows?.length || 0) > 0) {
+            return dup.rows[0];
+          }
+          const id = randomUUID();
+          await db.query(
+            `INSERT INTO \`${table}\` (id, label, created_by) VALUES (?, ?, ?)`,
+            [id, trimmed, createdBy || null],
+          );
+          return { id, label: trimmed };
+        } catch (err) {
+          if (
+            /Duplicate entry/i.test(String(err.message || "")) ||
+            String(err.code || "") === "ER_DUP_ENTRY"
+          ) {
+            return null;
+          }
+          if (
+            logger &&
+            typeof logger.warn === "function" &&
+            /doesn't exist|Unknown table/i.test(String(err.message || ""))
+          ) {
+            logger.warn({ err }, "lead_custom_status_presets insert skipped; migrate DB");
+            return null;
+          }
+          throw err;
+        }
+      }
+      const rows = await db.findMany(table, {});
+      const exists = [...rows].find(
+        (r) =>
+          String(r.label ?? "").trim().toLowerCase() === trimmed.toLowerCase(),
+      );
+      if (exists) {
+        return exists;
+      }
+      return db.insert(table, {
+        id: randomUUID(),
+        label: trimmed,
+        created_by: createdBy || null,
+      });
     },
 
     async findDestinationById(id) {
@@ -2108,20 +2844,21 @@ function createLeadsRepository({ db, logger, schema }) {
       return mapRowToDomain(row);
     },
 
-    async create(payload) {
-      logger.debug({ module: "leads", payload, payloadKeys: Object.keys(payload) }, "Creating lead - raw payload");
-      
-      // Generate lead_code before insert since it's NOT NULL
-      if (!payload.lead_code) {
-        const serial = await reserveNextLeadCodeSerial();
-        payload.lead_code = formatLeadCode(serial);
-        logger.debug({ module: "leads", leadCode: payload.lead_code, serial }, "Generated lead_code");
-      }
-      
-      logger.debug({ module: "leads", finalPayload: payload, keys: Object.keys(payload) }, "Final payload before insert");
-      const row = await db.insert(schema.tableName, payload);
-      return mapRowToDomain(row);
-    },
+	    async create(payload) {
+	      logger.debug({ module: "leads", payload, payloadKeys: Object.keys(payload) }, "Creating lead - raw payload");
+	      
+	      // Generate lead_code before insert since it's NOT NULL
+	      if (!payload.lead_code) {
+	        const serial = await reserveNextLeadCodeSerial();
+	        payload.lead_code = formatLeadCode(serial);
+	        logger.debug({ module: "leads", leadCode: payload.lead_code, serial }, "Generated lead_code");
+	      }
+	      
+	      const sanitized = await sanitizeForTable(schema.tableName, payload);
+	      logger.debug({ module: "leads", finalPayload: sanitized, keys: Object.keys(sanitized) }, "Final payload before insert");
+	      const row = await db.insert(schema.tableName, sanitized);
+	      return mapRowToDomain(row);
+	    },
 
     async ensureLeadCode(leadId) {
       return assignLeadCode(leadId);
@@ -2133,6 +2870,8 @@ function createLeadsRepository({ db, logger, schema }) {
       const row = await db.update(schema.tableName, id, sanitized);
       return mapRowToDomain(row);
     },
+
+    upsertLeadDynamicFields,
 
     async createAssignmentHistory(payload = {}) {
       const tableName = schema.assignmentHistoryTable;
@@ -2215,8 +2954,33 @@ function createLeadsRepository({ db, logger, schema }) {
       return Array.isArray(rows) ? rows : [];
     },
 
-    async createFollowup(payload) {
-      const sanitized = await sanitizeForTable(schema.followupsTable, {
+    async findIdsByAssignee(userId) {
+      const normalizedUserId = String(userId ?? "").trim();
+      if (!normalizedUserId) {
+        return [];
+      }
+
+      if (typeof db.query === "function") {
+        const result = await db.query(
+          `SELECT id FROM \`${schema.tableName}\` WHERE assigned_to = ? AND COALESCE(is_deleted, 0) = 0`,
+          [normalizedUserId],
+        );
+        return (Array.isArray(result?.rows) ? result.rows : [])
+          .map((row) => row.id)
+          .filter(Boolean);
+      }
+
+      const rows = await db.findMany(schema.tableName, {
+        assigned_to: normalizedUserId,
+      });
+      return (Array.isArray(rows) ? rows : [])
+        .filter((row) => !(row.is_deleted ?? row.isDeleted))
+        .map((row) => row.id)
+        .filter(Boolean);
+    },
+
+    async createFollowup(payload) {      console.log('[Repository] createFollowup payload:', JSON.stringify(payload, null, 2));
+          const sanitized = await sanitizeForTable(schema.followupsTable, {
         lead_id: payload.leadId,
         user_id: payload.userId || null,
         followup_type: normalizeFollowupType(payload.followupType),
@@ -2224,13 +2988,16 @@ function createLeadsRepository({ db, logger, schema }) {
         cadence_code: payload.cadenceCode || null,
         status_snapshot: payload.statusSnapshot || null,
         notes: payload.notes || null,
+        created_at: payload.createdAt || payload.created_at || null,
         client_timezone: payload.clientTimezone || null,
         followup_local_at: payload.followupLocalAt || null,
         is_completed: payload.isCompleted ?? false,
         is_schedule_only: payload.isScheduleOnly ?? false,
         counts_toward_compliance: payload.countsTowardCompliance ?? true,
       });
-      const row = await db.insert(schema.followupsTable, sanitized);
+      console.log('[Repository] Sanitized for DB:', JSON.stringify(sanitized, null, 2));
+         const row = await db.insert(schema.followupsTable, sanitized);
+          console.log('[Repository] Inserted row:', JSON.stringify(row, null, 2));
 
       return toFollowupDomain(row);
     },
@@ -2475,10 +3242,8 @@ function createLeadsRepository({ db, logger, schema }) {
 
       return mapRowsToDomain(candidates);
     },
-  });
+  });fi
 }
 
 export { createLeadsRepository };
-
-
 

@@ -18,6 +18,22 @@ function createWhatsappRoutes({
     asyncHandler(controller.configStatus),
   );
 
+  router.get(
+    "/conversations/:leadId/messages",
+    requireAuth,
+    authorize("leads:read"),
+    validateRequest(validation.listConversationMessages),
+    asyncHandler(controller.listConversationMessages),
+  );
+
+  router.get(
+    "/threads",
+    requireAuth,
+    authorize("leads:read"),
+    validateRequest(validation.listThreads),
+    asyncHandler(controller.listThreads),
+  );
+
   router.post(
     "/send",
     requireAuth,

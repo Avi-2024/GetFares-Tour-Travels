@@ -1,6 +1,8 @@
 import { z } from "zod";
 
 const customerSegment = z.enum(["PLATINUM", "GOLD", "SILVER", "NEW"]);
+const listSortBy = z.enum(["name", "ltv", "bookings", "createdAt"]);
+const listSortOrder = z.enum(["asc", "desc"]);
 
 /** Empty string from forms is not a value — treat as omitted for optional fields. */
 function emptyToUndefined(value) {
@@ -83,7 +85,12 @@ const list = z.object({
   query: z
     .object({
       page: z.coerce.number().int().positive().optional(),
-      limit: z.coerce.number().int().positive().optional(),
+      limit: z.coerce.number().int().positive().max(500).optional(),
+      search: z.string().trim().max(150).optional(),
+      sortBy: listSortBy.optional(),
+      sortOrder: listSortOrder.optional(),
+      createdFrom: z.string().date().optional(),
+      createdTo: z.string().date().optional(),
       segment: customerSegment.optional(),
       email: z.string().email().optional(),
       phone: z.string().trim().min(6).max(20).optional(),

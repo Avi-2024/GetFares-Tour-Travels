@@ -30,6 +30,17 @@ interface Booking {
   status: string
 }
 
+interface CustomerLead {
+  id: string
+  leadId: string
+  destination: string
+  status: string
+  leadType: string
+  consultant: string
+  source: string
+  createdAt: string
+}
+
 const CustomerDetailPage: React.FC = () => {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -38,6 +49,8 @@ const CustomerDetailPage: React.FC = () => {
   const [error, setError] = useState('')
   const [customer, setCustomer] = useState<Customer | null>(null)
   const [recentBookings, setRecentBookings] = useState<Booking[]>([])
+  const [customerLeads, setCustomerLeads] = useState<CustomerLead[]>([])
+  const [totalLeads, setTotalLeads] = useState(0)
 
   const [formData, setFormData] = useState({
     fullName: '',
@@ -120,25 +133,105 @@ const CustomerDetailPage: React.FC = () => {
           })
         }
 
+        try {
+          const leadsResponse = await customersApi.getLeads(id)
+          const leadsPayload = leadsResponse as any
+          const leadsData = Array.isArray(leadsPayload?.data)
+            ? leadsPayload.data
+            : Array.isArray(leadsPayload)
+              ? leadsPayload
+              : []
+          setCustomerLeads(
+            leadsData.map((lead: any) => ({
+              id: String(lead.id || ''),
+              leadId: String(lead.leadId || lead.lead_id || lead.leadCode || lead.lead_code || lead.id || 'N/A'),
+              destination: String(lead.destination || lead.destinationName || lead.travelTo || lead.travel_to || 'N/A'),
+              status: String(lead.status || 'N/A'),
+              leadType: String(lead.leadType || lead.lead_type || 'N/A'),
+              consultant: String(lead.consultant || lead.assignedUserName || 'Unassigned'),
+              source: String(lead.source || 'N/A'),
+              createdAt: String(lead.createdAt || lead.created_at || '')
+            }))
+          )
+          setTotalLeads(
+            Number(
+              leadsPayload?.summary?.totalLeads ??
+                leadsPayload?.summary?.total_leads ??
+                leadsData.length
+            )
+          )
+        } catch (leadError) {
+          console.log('Could not fetch customer leads:', leadError)
+          setCustomerLeads([])
+          setTotalLeads(0)
+        }
+
         // Fetch customer bookings
         try {
           const bookingsResponse = await customersApi.getBookings(id)
           const bookingsPayload = bookingsResponse as any
-          const bookingsData = bookingsPayload?.data || bookingsPayload
+          const bookingsData =
+            bookingsPayload?.data?.data ||
+            bookingsPayload?.data ||
+            bookingsPayload?.items ||
+            bookingsPayload ||
+            []
+          const bookingsSummary = bookingsPayload?.summary || {}
 
           if (Array.isArray(bookingsData)) {
-            setRecentBookings(
-              bookingsData.slice(0, 3).map((booking: any) => ({
+            const mappedBookings = bookingsData.map((booking: any) => ({
                 id: booking.id,
                 bookingNumber:
                   booking.bookingNumber || booking.booking_number || 'N/A',
                 destination: booking.destination || 'Unknown',
                 travelDate:
-                  booking.travelStartDate || booking.travel_start_date || 'N/A',
-                amount: booking.totalAmount || booking.total_amount || 0,
+                  booking.travelDate ||
+                  booking.travelStartDate ||
+                  booking.travel_start_date ||
+                  booking.createdAt ||
+                  booking.created_at ||
+                  'N/A',
+                amount:
+                  booking.amount ||
+                  booking.totalAmount ||
+                  booking.total_amount ||
+                  0,
                 status: booking.status || 'PENDING'
               }))
-            )
+            setRecentBookings(mappedBookings)
+            setCustomer(prev => {
+              if (!prev) return prev
+              const totalBookings = Number(
+                bookingsSummary?.totalBookings ??
+                  bookingsSummary?.total_bookings ??
+                  mappedBookings.length
+              )
+              const lifetimeValue =
+                Number(prev.lifetimeValue || 0) > 0 ?
+                  prev.lifetimeValue
+                : mappedBookings.reduce(
+                    (sum, booking) => sum + Number(booking.amount || 0),
+                    0
+                  )
+              const lastBookingDate = mappedBookings.reduce<string | undefined>(
+                (latest, booking) => {
+                  const value = booking.travelDate
+                  if (!value) return latest
+                  if (!latest) return value
+                  return new Date(value).getTime() > new Date(latest).getTime() ?
+                      value
+                    : latest
+                },
+                prev.lastBookingDate
+              )
+
+              return {
+                ...prev,
+                totalBookings,
+                lifetimeValue,
+                lastBookingDate
+              }
+            })
           }
         } catch (bookingError) {
           console.log('Could not fetch bookings:', bookingError)
@@ -623,6 +716,53 @@ const CustomerDetailPage: React.FC = () => {
               </div>
             </div>
 
+            {/* Customer Leads */}
+            <div className='bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden'>
+              <div className='px-6 py-4 border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 flex justify-between items-center'>
+                <h2 className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                  Lead Records
+                </h2>
+                <span className='text-xs font-semibold text-blue-600 dark:text-blue-400'>
+                  Total: {totalLeads}
+                </span>
+              </div>
+
+              <div className='p-6'>
+                {customerLeads.length ? (
+                  <div className='max-h-[420px] space-y-3 overflow-y-auto pr-2'>
+                    {customerLeads.map(lead => (
+                      <div
+                        key={lead.id}
+                        className='flex items-center justify-between gap-4 p-3 border border-gray-100 dark:border-gray-800 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer'
+                        onClick={() => navigate(`/leads/${lead.id}`)}
+                      >
+                        <div className='min-w-0'>
+                          <p className='text-sm font-medium text-gray-900 dark:text-gray-100 truncate'>
+                            {lead.leadId}
+                          </p>
+                          <p className='text-xs text-gray-500 dark:text-gray-400 truncate'>
+                            {lead.destination} - {lead.leadType}
+                          </p>
+                        </div>
+                        <div className='text-right shrink-0'>
+                          <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>
+                            {lead.status}
+                          </p>
+                          <p className='text-xs text-gray-500 dark:text-gray-400'>
+                            {lead.createdAt ? formatDate(lead.createdAt).split(',')[0] : 'N/A'}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className='text-sm text-gray-500 dark:text-gray-400'>
+                    No leads found for this customer.
+                  </p>
+                )}
+              </div>
+            </div>
+
             {/* Recent Bookings */}
             <div className='bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden'>
               <div className='px-6 py-4 border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 flex justify-between items-center'>
@@ -638,7 +778,8 @@ const CustomerDetailPage: React.FC = () => {
               </div>
 
               <div className='p-6'>
-                <div className='space-y-3'>
+                {recentBookings.length ? (
+                  <div className='max-h-[420px] space-y-3 overflow-y-auto pr-2'>
                   {recentBookings.map(booking => (
                     <div
                       key={booking.id}
@@ -668,7 +809,12 @@ const CustomerDetailPage: React.FC = () => {
                       </div>
                     </div>
                   ))}
-                </div>
+                  </div>
+                ) : (
+                  <p className='text-sm text-gray-500 dark:text-gray-400'>
+                    No bookings found for this customer.
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -703,10 +849,21 @@ const CustomerDetailPage: React.FC = () => {
 
                 <div className='flex justify-between items-center py-2 border-t border-gray-100 dark:border-gray-800'>
                   <span className='text-sm text-gray-600 dark:text-gray-400'>
+                    Total Leads
+                  </span>
+                  <span className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                    {totalLeads}
+                  </span>
+                </div>
+
+                <div className='flex justify-between items-center py-2 border-t border-gray-100 dark:border-gray-800'>
+                  <span className='text-sm text-gray-600 dark:text-gray-400'>
                     Last Booking
                   </span>
                   <span className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
-                    {customer.lastBookingDate || 'N/A'}
+                    {customer.lastBookingDate ?
+                      formatDate(customer.lastBookingDate).split(',')[0]
+                    : 'N/A'}
                   </span>
                 </div>
 

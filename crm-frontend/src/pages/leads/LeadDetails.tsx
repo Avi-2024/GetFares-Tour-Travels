@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { FaArrowLeft, FaCheckCircle, FaClock } from 'react-icons/fa'
+import { FaArrowLeft, FaCheckCircle, FaClock, FaEnvelope, FaListUl, FaWhatsapp } from 'react-icons/fa'
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import StatusBadge from '../../components/ui/StatusBadge'
 import SearchableDropdown from '../../components/ui/SearchableDropdown'
@@ -21,7 +21,12 @@ import { useDateTimePreferences } from '../../context/DateTimePreferencesContext
 import {
   SOP_STATUS_LABELS,
   STATUS_REQUIRING_QUALIFICATION,
+  decodeCustomStatusComboValue,
   deriveSopStatusLabel,
+  encodeCustomStatusComboValue,
+  isEncodedCustomStatusValue,
+  normalizeStatusToken,
+  resolveLeadDisplayedStatus,
   sopLabelToCanonical,
   toStatusLabelText,
   type SopStatusLabel
@@ -35,6 +40,32 @@ import {
   parseWallClockLocal,
   wallClockFromDatetimeLocal
 } from '../../utils/clientWallClock'
+
+/** Readable title when Meta / CRM only stored a normalized field key. */
+function humanizeSnakeCase(text: string): string {
+  const s = String(text ?? '')
+    .trim()
+    .replace(/_/g, ' ')
+  if (!s) return ''
+  return s
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(' ')
+}
+
+function looksLikeSnakeCaseToken(value: string): boolean {
+  return /^[a-z0-9_]+$/i.test(String(value ?? '').trim())
+}
+
+/** Rotating tinted surfaces for custom-field answers (light + dark). */
+const CUSTOM_FIELD_ANSWER_SURFACE = [
+  'border border-sky-200/90 bg-gradient-to-br from-sky-50 to-cyan-50 text-sky-950 dark:border-sky-500/40 dark:from-sky-950/50 dark:to-cyan-950/30 dark:text-sky-50',
+  'border border-violet-200/90 bg-gradient-to-br from-violet-50 to-fuchsia-50 text-violet-950 dark:border-violet-500/40 dark:from-violet-950/45 dark:to-fuchsia-950/30 dark:text-violet-50',
+  'border border-amber-200/90 bg-gradient-to-br from-amber-50 to-orange-50 text-amber-950 dark:border-amber-500/40 dark:from-amber-950/45 dark:to-orange-950/30 dark:text-amber-50',
+  'border border-emerald-200/90 bg-gradient-to-br from-emerald-50 to-teal-50 text-emerald-950 dark:border-emerald-500/40 dark:from-emerald-950/45 dark:to-teal-950/30 dark:text-emerald-50',
+  'border border-rose-200/90 bg-gradient-to-br from-rose-50 to-pink-50 text-rose-950 dark:border-rose-500/40 dark:from-rose-950/45 dark:to-pink-950/30 dark:text-rose-50'
+] as const
 
 function followupSortKey(item: any): number {
   const local = item?.followupLocalAt ?? item?.followup_local_at
@@ -65,6 +96,21 @@ function normalizeWallClockDisplay(rawValue: unknown): string | null {
   const mm = String(m[3] || '00').padStart(2, '0')
   const ss = String(m[4] || '00').padStart(2, '0')
   return `${m[1]} ${hh}:${mm}:${ss}`
+}
+
+function normalizeCampaignCountry(rawValue: unknown): string {
+  const raw = String(rawValue ?? '').trim()
+  if (!raw) return 'Other'
+  if (/^india$/i.test(raw)) return 'India'
+  if (/^(uae|united arab emirates)$/i.test(raw)) return 'UAE'
+  return raw
+}
+
+function normalizeLeadTimeZone(rawValue: unknown): string | null {
+  const raw = String(rawValue ?? '').trim()
+  if (!raw) return null
+  if (raw === 'Asia/Calcutta') return 'Asia/Kolkata'
+  return raw
 }
 
 type QualificationForm = {
@@ -158,8 +204,8 @@ const LeadDetails: React.FC = () => {
   const [error, setError] = useState('')
   const [statusError, setStatusError] = useState('')
   const [statusSaving, setStatusSaving] = useState(false)
-  const [selectedStatusLabel, setSelectedStatusLabel] =
-    useState<SopStatusLabel>('NEW')
+  const [statusComboValue, setStatusComboValue] = useState<string>('NEW')
+  const [globalStatusPresets, setGlobalStatusPresets] = useState<string[]>([])
   const [workflowFollowupType, setWorkflowFollowupType] = useState<
     'CALL' | 'WHATSAPP' | 'FINAL_REMINDER'
   >('CALL')
@@ -190,6 +236,7 @@ const LeadDetails: React.FC = () => {
   const [quotationActionError, setQuotationActionError] = useState('')
   const [quotationActionMessage, setQuotationActionMessage] = useState('')
   const [quotationActionLoadingKey, setQuotationActionLoadingKey] = useState('')
+  const [waQuickLine, setWaQuickLine] = useState<'all' | 'in' | 'uae'>('all')
   const [quotationPdfData, setQuotationPdfData] = useState<any | null>(null)
   const pdfTemplateRef = useRef<HTMLDivElement | null>(null)
   const [conversionFollowUpMessage, setConversionFollowUpMessage] = useState('')
@@ -200,6 +247,7 @@ const LeadDetails: React.FC = () => {
   const [assigning, setAssigning] = useState(false)
   const [campaigns, setCampaigns] = useState<any[]>([])
   const [showSavedQualification, setShowSavedQualification] = useState(false)
+  const [showCustomFields, setShowCustomFields] = useState(false)
 
   const createdAtLabel = useMemo(() => {
     const wall = lead?.clientCreatedAt ?? lead?.client_created_at
@@ -219,6 +267,26 @@ const LeadDetails: React.FC = () => {
     if (!raw) return 'N/A'
     return formatDateTime(raw, String(raw))
   }, [lead, formatDateTime])
+  const leadTimeZone = useMemo(
+    () => normalizeLeadTimeZone(lead?.clientTimezone ?? lead?.client_timezone),
+    [lead]
+  )
+  const firstContactDeadlineFromCreationLabel = useMemo(() => {
+    const wall = String(lead?.clientCreatedAt ?? lead?.client_created_at ?? '').trim()
+    if (!wall) return null
+    const created = parseWallClockLocal(wall)
+    if (!created || Number.isNaN(created.getTime())) return null
+    const deadline = new Date(created.getTime() + 15 * 60 * 1000)
+    const y = String(deadline.getFullYear()).padStart(4, '0')
+    const m = String(deadline.getMonth() + 1).padStart(2, '0')
+    const d = String(deadline.getDate()).padStart(2, '0')
+    const hh = String(deadline.getHours()).padStart(2, '0')
+    const mm = String(deadline.getMinutes()).padStart(2, '0')
+    const ss = String(deadline.getSeconds()).padStart(2, '0')
+    const tzRaw = String(lead?.clientTimezone ?? lead?.client_timezone ?? '').trim()
+    const tz = tzRaw ? ` ${tzRaw}` : ''
+    return `${y}-${m}-${d} ${hh}:${mm}:${ss}${tz}`
+  }, [lead])
 
   const firstFollowupLabel = useMemo(() => {
     if (!followups.length) return 'N/A'
@@ -304,7 +372,15 @@ const LeadDetails: React.FC = () => {
     []
   )
 
+
+
   const formatHistoryActionDisplay = useCallback((item: any) => {
+    const activityCreated = normalizeWallClockDisplay(item?.activityCreatedAt ?? item?.activity_created_at)
+    if (activityCreated) {
+      const tz = item?.activityTimezone ?? item?.activity_timezone ?? item?.clientTimezone ?? item?.client_timezone
+      const t = tz && String(tz).trim() ? ` ${String(tz).trim()}` : ''
+      return `${activityCreated}${t}`
+    }
     const created = normalizeWallClockDisplay(item?.createdAt ?? item?.created_at)
     if (created) {
       const tz = item?.clientTimezone ?? item?.client_timezone
@@ -422,6 +498,15 @@ const LeadDetails: React.FC = () => {
     )
   }, [])
 
+  const loadGlobalStatusPresets = useCallback(async () => {
+    try {
+      const items = await leadsService.listCustomStatusPresets()
+      setGlobalStatusPresets(items)
+    } catch {
+      setGlobalStatusPresets([])
+    }
+  }, [leadsService])
+
   const loadLead = useCallback(async () => {
     if (!id) return
     setLoading(true)
@@ -435,8 +520,20 @@ const LeadDetails: React.FC = () => {
       setLead(data)
       setCallsButtonDisabled(false)
       if (data) {
-        setSelectedStatusLabel(
-          deriveSopStatusLabel(data.status, data.subStatus, data.statusLabel)
+        const rawCustom =
+          data.customStatusLabel ?? data.custom_status_label
+        const custom =
+          typeof rawCustom === 'string' && rawCustom.trim()
+            ? rawCustom.trim()
+            : null
+        setStatusComboValue(
+          custom
+            ? encodeCustomStatusComboValue(custom)
+            : deriveSopStatusLabel(
+                data.status,
+                data.subStatus,
+                data.statusLabel
+              )
         )
         hydrateQualification(data)
       }
@@ -445,8 +542,9 @@ const LeadDetails: React.FC = () => {
       setLead(null)
     } finally {
       setLoading(false)
+      void loadGlobalStatusPresets()
     }
-  }, [hydrateQualification, id, leadsService])
+  }, [hydrateQualification, id, leadsService, loadGlobalStatusPresets])
 
   const loadFollowups = useCallback(async () => {
     if (!id) return
@@ -468,15 +566,19 @@ const LeadDetails: React.FC = () => {
   }, [id, leadsService])
 
   const loadCampaigns = useCallback(async () => {
+    if (!hasPermission('campaigns:read')) {
+      setCampaigns([])
+      return
+    }
     try {
-      const response = await campaignsService.list({ status: 'ACTIVE' })
+      const response = await campaignsService.list()
       const rows =
         (response as any)?.data?.data ?? (response as any)?.data ?? response
       setCampaigns(Array.isArray(rows) ? rows : [])
     } catch {
       setCampaigns([])
     }
-  }, [campaignsService])
+  }, [campaignsService, hasPermission])
 
   const loadLeadQuotationsForLead = useCallback(async () => {
     if (!id) return
@@ -576,16 +678,23 @@ const LeadDetails: React.FC = () => {
     void loadLead()
     void loadFollowups()
     void loadLeadQuotationsForLead()
-  }, [loadFollowups, loadLead, loadLeadQuotationsForLead])
+    void loadGlobalStatusPresets()
+  }, [loadFollowups, loadLead, loadLeadQuotationsForLead, loadGlobalStatusPresets])
+
+  const pipelineSop = useMemo((): SopStatusLabel | null => {
+    if (decodeCustomStatusComboValue(statusComboValue)) return null
+    const v = statusComboValue as SopStatusLabel
+    return SOP_STATUS_LABELS.includes(v) ? v : null
+  }, [statusComboValue])
 
   React.useEffect(() => {
     setConversionFollowUpMessage('')
-    if (selectedStatusLabel !== 'CONVERTED') {
+    if (pipelineSop !== 'CONVERTED') {
       setSelectedConversionQuotationId('')
       return
     }
     void loadLeadQuotationsForLead()
-  }, [selectedStatusLabel, loadLeadQuotationsForLead])
+  }, [pipelineSop, loadLeadQuotationsForLead])
 
   React.useEffect(() => {
     void loadAssigneeOptions()
@@ -637,14 +746,48 @@ const LeadDetails: React.FC = () => {
     return summary
   }, [followupsForCompliance])
 
-  const statusOptions = useMemo(
-    () =>
-      SOP_STATUS_LABELS.map(label => ({
-        value: label,
-        label: toStatusLabelText(label)
-      })),
-    []
-  )
+  const statusOptions = useMemo(() => {
+    const base = SOP_STATUS_LABELS.map(label => ({
+      value: label,
+      label: toStatusLabelText(label)
+    }))
+    const sopTokenSet = new Set(
+      SOP_STATUS_LABELS.map(l =>
+        normalizeStatusToken(l)
+      ).filter(Boolean)
+    )
+    const uniquePresets = [
+      ...new Set(
+        globalStatusPresets.map(s => String(s).trim()).filter(Boolean)
+      )
+    ].filter(
+      txt =>
+        !sopTokenSet.has(normalizeStatusToken(txt))
+    )
+    const presetRows = [...uniquePresets]
+      .sort((a, b) => a.localeCompare(b))
+      .map(txt => ({
+        value: encodeCustomStatusComboValue(txt),
+        label: txt
+      }))
+    const usedLower = new Set(presetRows.map(r => r.label.toLowerCase()))
+    const extraLeadOnly: Array<{ value: string; label: string }> = []
+    if (isEncodedCustomStatusValue(statusComboValue)) {
+      const lone = decodeCustomStatusComboValue(statusComboValue)?.trim()
+      if (
+        lone &&
+        !usedLower.has(lone.toLowerCase()) &&
+        !sopTokenSet.has(normalizeStatusToken(lone))
+      ) {
+        usedLower.add(lone.toLowerCase())
+        extraLeadOnly.push({
+          value: statusComboValue,
+          label: lone
+        })
+      }
+    }
+    return [...extraLeadOnly, ...presetRows, ...base]
+  }, [statusComboValue, globalStatusPresets])
 
   const eligibleConversionQuotations = useMemo(
     () =>
@@ -772,15 +915,95 @@ const LeadDetails: React.FC = () => {
   )
 
   const campaignOptions = useMemo(
-    () => [
-      { value: '', label: 'Select campaign (optional)' },
-      ...campaigns.map(campaign => ({
-        value: String(campaign.id),
-        label: String(campaign.name ?? campaign.title ?? campaign.id)
-      }))
-    ],
-    [campaigns]
+    () => {
+      const selectedCountry = normalizeCampaignCountry(qualification.leadCountry)
+      const selectedCampaignId = String(qualification.campaignId || '').trim()
+      const allCampaigns = campaigns
+        .map(campaign => ({
+          ...campaign,
+          normalizedCountry: normalizeCampaignCountry(campaign.country)
+        }))
+        .sort((left, right) => {
+          const leftMatches = left.normalizedCountry === selectedCountry ? 1 : 0
+          const rightMatches = right.normalizedCountry === selectedCountry ? 1 : 0
+          if (leftMatches !== rightMatches) return rightMatches - leftMatches
+          return String(left.name ?? left.title ?? left.id).localeCompare(
+            String(right.name ?? right.title ?? right.id)
+          )
+        })
+
+      const visibleCampaigns = allCampaigns.filter(
+        campaign =>
+          !qualification.leadCountry ||
+          campaign.normalizedCountry === selectedCountry ||
+          String(campaign.id) === selectedCampaignId
+      )
+
+      const fallbackCampaigns =
+        visibleCampaigns.length > 0 ? visibleCampaigns : allCampaigns
+
+      const placeholder = qualification.leadCountry
+        ? `Select ${selectedCountry} campaign (optional)`
+        : 'Select campaign (optional)'
+
+      return [
+        { value: '', label: placeholder },
+        ...fallbackCampaigns.map(campaign => ({
+          value: String(campaign.id),
+          label: `[${campaign.normalizedCountry}] ${String(
+            campaign.name ?? campaign.title ?? campaign.id
+          )}`
+        }))
+      ]
+    },
+    [campaigns, qualification.campaignId, qualification.leadCountry]
   )
+
+  const customFieldEntries = useMemo(() => {
+    const raw = lead?.dynamicFields ?? lead?.dynamic_fields ?? null
+    if (!raw) return []
+    if (typeof raw !== 'object' || Array.isArray(raw)) return []
+    const obj = raw as Record<string, unknown>
+
+    const labelsRaw =
+      lead?.dynamicFieldLabels ?? lead?.dynamic_field_labels ?? null
+    const labels =
+      labelsRaw && typeof labelsRaw === 'object' && !Array.isArray(labelsRaw)
+        ? (labelsRaw as Record<string, unknown>)
+        : {}
+
+    return Object.keys(obj)
+      .sort((a, b) => a.localeCompare(b))
+      .map(key => {
+        const labelValue = labels[key]
+        const rawLabel =
+          typeof labelValue === 'string' && labelValue.trim()
+            ? labelValue.trim()
+            : ''
+        const normalizedKey = key.replace(/\s+/g, '_').toLowerCase()
+        const labelMatchesKey =
+          !rawLabel ||
+          rawLabel.replace(/\s+/g, '_').toLowerCase() === normalizedKey
+        const displayLabel = labelMatchesKey ? humanizeSnakeCase(key) : rawLabel
+
+        const value = obj[key]
+        const rawValue =
+          value === null || value === undefined ? '' : String(value).trim()
+        const displayValue =
+          rawValue && looksLikeSnakeCaseToken(rawValue)
+            ? humanizeSnakeCase(rawValue)
+            : rawValue
+
+        return {
+          key,
+          label: displayLabel,
+          value: rawValue,
+          displayLabel,
+          displayValue,
+        }
+      })
+      .filter(item => item.value)
+  }, [lead])
 
   const countryOptions = useMemo(
     () => [
@@ -816,7 +1039,10 @@ const LeadDetails: React.FC = () => {
   }, [isCallsDisabled])
 
   const workflowFollowupTypeOptions = useMemo(() => {
-    if (selectedStatusLabel === 'FINAL_REMINDER') {
+    if (pipelineSop === null) {
+      return []
+    }
+    if (pipelineSop === 'FINAL_REMINDER') {
       return [{ value: 'FINAL_REMINDER', label: 'Final Reminder' }]
     }
 
@@ -830,15 +1056,18 @@ const LeadDetails: React.FC = () => {
     }
 
     return options
-  }, [isCallsDisabled, selectedStatusLabel])
+  }, [isCallsDisabled, pipelineSop])
 
   const selectedWorkflowFollowupType =
-    selectedStatusLabel === 'FINAL_REMINDER'
+    pipelineSop === 'FINAL_REMINDER'
       ? 'FINAL_REMINDER'
       : workflowFollowupType
 
   React.useEffect(() => {
-    if (selectedStatusLabel === 'FINAL_REMINDER') {
+    if (pipelineSop === null) {
+      return
+    }
+    if (pipelineSop === 'FINAL_REMINDER') {
       setWorkflowFollowupType('FINAL_REMINDER')
       return
     }
@@ -854,14 +1083,12 @@ const LeadDetails: React.FC = () => {
 
       return current
     })
-  }, [isCallsDisabled, selectedStatusLabel])
+  }, [isCallsDisabled, pipelineSop])
 
   const qualificationMissing = useMemo(() => {
     const missing: string[] = []
     if (!qualification.leadCountry.trim()) missing.push('leadCountry')
-    if (!qualification.nationality.trim()) missing.push('nationality')
     if (!qualification.clientCurrency.trim()) missing.push('clientCurrency')
-    if (!qualification.destinationName.trim()) missing.push('destination')
     if (!qualification.travelDate) missing.push('travelDate')
     if (!qualification.travelEndDate) missing.push('travelEndDate')
     if (
@@ -927,7 +1154,7 @@ const LeadDetails: React.FC = () => {
         leadCountry: qualification.leadCountry.trim() || undefined,
         nationality: qualification.nationality.trim() || undefined,
         clientCurrency: qualification.clientCurrency.trim() || undefined,
-        destinationName: qualification.destinationName.trim(),
+        destinationName: qualification.destinationName.trim() || undefined,
         travelDate: qualification.travelDate.trim() || undefined,
         travelEndDate: qualification.travelEndDate.trim() || undefined,
         adultsCount: Number(qualification.adultsCount),
@@ -956,7 +1183,35 @@ const LeadDetails: React.FC = () => {
     setStatusSaving(true)
     setStatusError('')
     setConversionFollowUpMessage('')
-    const conversion = sopLabelToCanonical(selectedStatusLabel)
+
+    const customLabelTrimmed =
+      decodeCustomStatusComboValue(statusComboValue)?.trim() ?? ''
+    if (customLabelTrimmed) {
+      try {
+        await leadsService.updateLead(id, {
+          customStatusLabel: customLabelTrimmed,
+          notes: statusNotes.trim() || undefined,
+          activityCreatedAt: nowWallClockString(),
+          activityTimezone: getBrowserTimeZone()
+        })
+        await Promise.all([loadLead(), loadFollowups()])
+        setStatusNotes('')
+        toast.success('Custom status saved. Pipeline unchanged.')
+      } catch (err) {
+        reportApiError(err, 'Could not save custom status.', setStatusError)
+      } finally {
+        setStatusSaving(false)
+      }
+      return
+    }
+
+    if (pipelineSop === null) {
+      setStatusSaving(false)
+      toast.error('Choose a standard status.')
+      return
+    }
+
+    const conversion = sopLabelToCanonical(pipelineSop)
 
     if (
       STATUS_REQUIRING_QUALIFICATION.has(conversion.canonical) &&
@@ -964,15 +1219,6 @@ const LeadDetails: React.FC = () => {
     ) {
       setStatusSaving(false)
       toast.error(`Missing required fields: ${qualificationMissing.join(', ')}`)
-      return
-    }
-    if (
-      (conversion.canonical === 'LOST' ||
-        conversion.canonical === 'NON_RESPONSIVE') &&
-      !isComplianceComplete
-    ) {
-      setStatusSaving(false)
-      toast.error('Follow-up compliance is incomplete. Required: 6 calls + 7 WhatsApp + 1 final reminder.')
       return
     }
     if (conversion.canonical === 'LOST' && !closedReason.trim()) {
@@ -1019,6 +1265,7 @@ const LeadDetails: React.FC = () => {
       await leadsService.updateLead(id, {
         status: conversion.canonical,
         subStatus: conversion.subStatus,
+        customStatusLabel: null,
         followupType: selectedWorkflowFollowupType,
         notes: statusNotes.trim() || undefined,
         activityCreatedAt: nowWallClockString(),
@@ -1032,7 +1279,7 @@ const LeadDetails: React.FC = () => {
         leadCountry: qualification.leadCountry.trim() || undefined,
         nationality: qualification.nationality.trim() || undefined,
         clientCurrency: qualification.clientCurrency.trim() || undefined,
-        destinationName: qualification.destinationName.trim(),
+        destinationName: qualification.destinationName.trim() || undefined,
         travelDate: qualification.travelDate.trim() || undefined,
         travelEndDate: qualification.travelEndDate.trim() || undefined,
         adultsCount: Number(qualification.adultsCount),
@@ -1187,14 +1434,19 @@ const LeadDetails: React.FC = () => {
     setFollowupScheduleOk('')
     try {
       const wall = wallClockFromDatetimeLocal(followupDraft.followupDate)
+      const createdAtTime = nowWallClockString()
+      const timezone = getBrowserTimeZone()
+      
+      console.log('Scheduling followup with createdAt:', createdAtTime, 'timezone:', timezone)
+      
       await leadsService.addFollowup(id, {
         followupType: followupDraft.followupType,
         followupLocalAt: wall,
         cadenceCode: followupDraft.cadenceCode || undefined,
         notes: followupDraft.notes || undefined,
-        clientTimezone: getBrowserTimeZone(),
-        activityCreatedAt: nowWallClockString(),
-        activityTimezone: getBrowserTimeZone()
+        clientTimezone: timezone,
+        activityCreatedAt: createdAtTime,
+        activityTimezone: timezone
       })
       setFollowupDraft({
         followupType: 'CALL',
@@ -1399,17 +1651,11 @@ const LeadDetails: React.FC = () => {
       const formData = new FormData()
       formData.append('quotationId', selectedLeadQuotation.id)
       formData.append('pdf', pdfBlob, `quotation-${pdfData.quoteReference || selectedLeadQuotation.id}.pdf`)
-      const token = localStorage.getItem('auth_token')
-      const uploadRes = await fetch(`/api/quotations/${selectedLeadQuotation.id}/upload-pdf`, {
-        method: 'POST',
-        body: formData,
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      })
-      if (!uploadRes.ok) {
-        throw new Error('Failed to upload PDF')
-      }
-      const uploadData = await uploadRes.json()
-      const pdfUrl = uploadData?.pdfUrl
+      const uploadData: any = await quotationsApi.uploadPdf(
+        selectedLeadQuotation.id,
+        formData
+      )
+      const pdfUrl = uploadData?.data?.pdfUrl ?? uploadData?.pdfUrl
 
       await quotationsApi.send(selectedLeadQuotation.id, {
         channel,
@@ -1478,27 +1724,149 @@ const LeadDetails: React.FC = () => {
 
   return (
     <div className='space-y-6'>
+      {showCustomFields ? (
+        <div
+          className='fixed inset-0 z-[70] flex items-end justify-center bg-black/40 p-4 sm:items-center'
+          role='dialog'
+          aria-modal='true'
+          onClick={() => setShowCustomFields(false)}
+        >
+          <div
+            className='w-full max-w-3xl min-w-0 rounded-2xl bg-white p-4 shadow-xl dark:bg-gray-900 sm:p-5'
+            onClick={e => e.stopPropagation()}
+          >
+            <div className='flex items-start justify-between gap-3'>
+              <div className='min-w-0'>
+                <p className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                  Custom Fields
+                </p>
+                <p className='text-xs text-gray-500'>
+                  {customFieldEntries.length} field(s)
+                </p>
+              </div>
+              <button
+                type='button'
+                onClick={() => setShowCustomFields(false)}
+                className='rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-800 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800'
+              >
+                Close
+              </button>
+            </div>
+
+            <div className='mt-3 max-h-[65vh] min-w-0 overflow-auto rounded-xl border border-gray-200 dark:border-gray-700'>
+              {customFieldEntries.length === 0 ? (
+                <div className='p-4 text-sm text-gray-500'>
+                  No custom fields on this lead.
+                </div>
+              ) : (
+                <div className='divide-y divide-gray-100 dark:divide-gray-800'>
+                  {customFieldEntries.map((item, index) => (
+                    <div
+                      key={item.key}
+                      className='min-w-0 space-y-2 p-3 sm:p-4'
+                    >
+                      <div className='min-w-0 text-xs font-semibold leading-snug text-gray-700 [overflow-wrap:anywhere] break-words dark:text-gray-200'>
+                        {item.displayLabel}
+                      </div>
+                      <div
+                        className={`min-w-0 rounded-xl px-3 py-2.5 text-sm font-medium leading-relaxed shadow-sm [overflow-wrap:anywhere] break-words whitespace-pre-wrap ${CUSTOM_FIELD_ANSWER_SURFACE[index % CUSTOM_FIELD_ANSWER_SURFACE.length]}`}
+                      >
+                        {item.displayValue}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
       <div
         ref={pdfTemplateRef}
         style={{ display: 'none', position: 'absolute', top: '-9999px' }}
       >
         {quotationPdfData ? <PdfTemplate data={quotationPdfData} /> : null}
       </div>
-      <div className='flex items-center gap-3'>
-        <button
-          onClick={() => navigate('/leads')}
-          className='inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
-        >
-          <FaArrowLeft className='text-sm' />
-        </button>
-        <div>
-          <h1 className='text-2xl font-bold text-gray-900 dark:text-gray-100'>
-            Lead Details
-          </h1>
-          <p className='text-sm text-gray-500'>
-            SOP workflow with compliance and SLA tracking.
-          </p>
+      <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
+        <div className='flex items-center gap-3 min-w-0'>
+          <button
+            onClick={() => navigate('/leads')}
+            className='inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
+          >
+            <FaArrowLeft className='text-sm' />
+          </button>
+          <div className='min-w-0'>
+            <h1 className='text-2xl font-bold text-gray-900 dark:text-gray-100'>
+              Lead Details
+            </h1>
+            <p className='text-sm text-gray-500'>
+              SOP workflow with compliance and SLA tracking.
+            </p>
+          </div>
         </div>
+        {lead && id ? (
+          <div className='flex flex-wrap items-center gap-2 shrink-0'>
+            <label className='sr-only' htmlFor='wa-line-quick'>
+              WhatsApp business line
+            </label>
+            <select
+              id='wa-line-quick'
+              value={waQuickLine}
+              onChange={e =>
+                setWaQuickLine(e.target.value as 'all' | 'in' | 'uae')
+              }
+              className='rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs font-medium text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200'
+            >
+              <option value='all'>WA: All numbers</option>
+              <option value='in'>WA: India</option>
+              <option value='uae'>WA: UAE</option>
+            </select>
+            <button
+              type='button'
+              onClick={() =>
+                navigate(
+                  `/whatsapp?leadId=${encodeURIComponent(id)}&region=${encodeURIComponent(waQuickLine)}`
+                )
+              }
+              className='inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700'
+            >
+              <FaWhatsapp className='text-sm' />
+              WhatsApp
+            </button>
+           
+            {lead.email && String(lead.email).includes('@') ? (
+              <a
+                href={`mailto:${String(lead.email).trim()}?subject=${encodeURIComponent(`Lead ${String(lead.leadCode ?? lead.lead_code ?? id)}`)}`}
+                className='inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-800 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800'
+              >
+                <FaEnvelope className='text-sm text-blue-600' />
+                Email
+              </a>
+            ) : (
+              <span
+                className='inline-flex cursor-not-allowed items-center gap-1.5 rounded-lg border border-dashed border-gray-200 px-3 py-1.5 text-xs text-gray-400 dark:border-gray-700'
+                title='No email on lead'
+              >
+                <FaEnvelope className='text-sm' />
+                Email
+              </span>
+            )}
+             <button
+              type='button'
+              onClick={() => setShowCustomFields(true)}
+              className='inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-800 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800'
+              title='View custom form fields'
+            >
+              <FaListUl className='text-sm text-gray-500' />
+              Custom Fields
+              {customFieldEntries.length ? (
+                <span className='ml-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'>
+                  {customFieldEntries.length}
+                </span>
+              ) : null}
+            </button>
+          </div>
+        ) : null}
       </div>
 
       {error ? (
@@ -1565,11 +1933,13 @@ const LeadDetails: React.FC = () => {
                   ) : null}
                 </div>
                 <StatusBadge
-                  status={deriveSopStatusLabel(
-                    lead.status,
-                    lead.subStatus,
-                    lead.statusLabel
-                  )}
+                  status={resolveLeadDisplayedStatus({
+                    customStatusLabel:
+                      lead.customStatusLabel ?? lead.custom_status_label,
+                    canonicalStatus: lead.status,
+                    subStatus: lead.subStatus,
+                    providedStatusLabel: lead.statusLabel
+                  })}
                 />
               </div>
 
@@ -1593,10 +1963,10 @@ const LeadDetails: React.FC = () => {
                  <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
                   Date of creation: {createdAtLabel}
                 </p>
-                 {lead.responseAt ? (
+                {lead.responseAt ? (
                   <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
                     {`First contact logged at ${
-                      formatDateTime(lead.responseAt, String(lead.responseAt))
+                      formatDateTime(lead.responseAt, String(lead.responseAt), leadTimeZone)
                     }.`}
                   </p>
                 ) : null}
@@ -1606,7 +1976,8 @@ const LeadDetails: React.FC = () => {
                 {lead.responseDeadline ? (
                   <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
                     First-contact deadline:{' '}
-                    {formatDateTime(lead.responseDeadline) ||
+                    {firstContactDeadlineFromCreationLabel ||
+                      formatDateTime(lead.responseDeadline, String(lead.responseDeadline), leadTimeZone) ||
                       String(lead.responseDeadline)}
                   </p>
                 ) : null}
@@ -1981,40 +2352,62 @@ const LeadDetails: React.FC = () => {
             </p>
             <SearchableDropdown
               className='mt-2'
-              value={selectedStatusLabel}
+              value={statusComboValue}
               options={statusOptions}
               searchPlaceholder='Search status...'
-              onChange={value =>
-                setSelectedStatusLabel(value as SopStatusLabel)
-              }
+              creatable
+              onCreatePick={text => {
+                const t = String(text ?? '').trim()
+                if (!t) return
+                setStatusComboValue(encodeCustomStatusComboValue(t))
+                setGlobalStatusPresets(prev =>
+                  prev.some(x => x.toLowerCase() === t.toLowerCase())
+                    ? prev
+                    : [...prev, t].sort((a, b) => a.localeCompare(b))
+                )
+                void leadsService.addCustomStatusPreset(t).catch(() => {})
+              }}
+              onChange={value => setStatusComboValue(value)}
             />
+            <p className='mt-1 text-[11px] text-gray-500 dark:text-gray-400'>
+               </p>
             <label className='mt-2 block text-xs font-medium text-gray-700 dark:text-gray-300'>
               Follow-up Type
             </label>
-            <SearchableDropdown
-              className='mt-1'
-              value={selectedWorkflowFollowupType}
-              options={workflowFollowupTypeOptions}
-              searchPlaceholder='Search follow-up type...'
-              onChange={value =>
-                setWorkflowFollowupType(
-                  value as 'CALL' | 'WHATSAPP' | 'FINAL_REMINDER'
-                )
-              }
-            />
-            <p className='mt-1 text-[11px] text-gray-500 dark:text-gray-400'>
-              Workflow Action history uses this type for status changes. Schedule
-              Follow-up also logs below with the same scheduled date and time.
-            </p>
+            {pipelineSop !== null ? (
+              <>
+                <SearchableDropdown
+                  className='mt-1'
+                  value={selectedWorkflowFollowupType}
+                  options={workflowFollowupTypeOptions}
+                  searchPlaceholder='Search follow-up type...'
+                  onChange={value =>
+                    setWorkflowFollowupType(
+                      value as 'CALL' | 'WHATSAPP' | 'FINAL_REMINDER'
+                    )
+                  }
+                />
+                <p className='mt-1 text-[11px] text-gray-500 dark:text-gray-400'>
+                  Workflow Action history uses this type for status changes.
+                  Schedule Follow-up also logs below with the same scheduled date
+                  and time.
+                </p>
+              </>
+            ) : (
+              <p className='mt-1 text-[11px] text-gray-500 dark:text-gray-400'>
+                Custom status keeps the current pipeline stage. Pick a standard
+                status above to log call / WhatsApp on transition.
+              </p>
+            )}
             {latestScheduleForWorkflow?.followupDate ||
             latestScheduleForWorkflow?.followupLocalAt ||
             latestScheduleForWorkflow?.followup_local_at ? (
-              <p className='mt-2 text-xs font-medium text-gray-700 dark:text-gray-200'>
+              <p className='bg-yellow-300 p-2 mt-2 text-xs font-medium text-gray-700  dark:text-gray-200  border border-yellow-500 rounded-lg'>
                 Latest scheduled action time:{' '}
                 {formatFollowupDisplay(latestScheduleForWorkflow)}
               </p>
             ) : null}
-            {selectedStatusLabel === 'CONVERTED' ? (
+            {pipelineSop === 'CONVERTED' ? (
               <div className='mt-3 rounded-lg border border-gray-200 bg-gray-50/80 p-3 text-sm dark:border-gray-600 dark:bg-gray-800/40'>
                 <p className='font-medium text-gray-900 dark:text-gray-100'>
                   Sent quotation for this lead
@@ -2088,7 +2481,7 @@ const LeadDetails: React.FC = () => {
               value={statusNotes}
               onChange={event => setStatusNotes(event.target.value)}
             />
-            {(selectedStatusLabel === 'LOST' || selectedStatusLabel === 'NON_RESPONSIVE') ? (
+            {(pipelineSop === 'LOST' || pipelineSop === 'NON_RESPONSIVE') ? (
               <>
                 <label className='mt-2 block text-xs font-medium text-gray-700 dark:text-gray-300'>
                   Closed Reason (required for LOST/NON_RESPONSIVE)
@@ -2106,7 +2499,7 @@ const LeadDetails: React.FC = () => {
               onClick={() => void updateStatus()}
               disabled={
                 statusSaving ||
-                (selectedStatusLabel === 'CONVERTED' && loadingSentQuotations)
+                (pipelineSop === 'CONVERTED' && loadingSentQuotations)
               }
               className='mt-2 inline-flex items-center gap-2 rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-60'
             >
@@ -2505,10 +2898,16 @@ const LeadDetails: React.FC = () => {
                         ) : null}
                       </div>
                       <span className='inline-flex items-center gap-1 text-xs text-gray-500'>
-                        <FaClock />
-                        {formatHistoryActionDisplay(item)}
+                        <FaClock />Schedule Time :  {formatFollowupDisplay(item)}
+                        
                       </span>
                     </div>
+                    <p className='mt-2 text-xs text-gray-500 dark:text-gray-400'>
+                      Created at:{' '}
+                      <span className='font-medium text-gray-700 dark:text-gray-200'>
+                        {formatHistoryActionDisplay(item)}
+                      </span>
+                    </p>
                     <p className='mt-2 text-xs text-gray-500 dark:text-gray-400'>
                       Action by:{' '}
                       <span className='font-medium text-gray-700 dark:text-gray-200'>

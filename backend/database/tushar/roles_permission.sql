@@ -140,6 +140,7 @@ INSERT INTO tmp_role_permissions (role_code, perm_key) VALUES
 ('sales_consultant', 'bookings:read'),
 ('sales_consultant', 'bookings:update'),
 ('sales_consultant', 'customers:read'),
+('sales_consultant', 'campaigns:read'),
 ('sales_consultant', 'visa:read'),
 ('sales_consultant', 'suppliers:read'),
 ('sales_consultant', 'suppliers:create'),
@@ -207,6 +208,31 @@ WHERE EXISTS (
     ON trp.role_code = r.name AND trp.perm_key = p.`key`
   WHERE r.id = rp.role_id
 );
+
+-- Accounts team logins (default password: Welcome@123 — bcrypt rounds 8, bcryptjs-compatible)
+INSERT INTO users (id, full_name, email, phone, password_hash, role_id, is_active, active)
+SELECT 'a1111111-1111-4111-8111-111111111101', 'Accounts User One', 'accounts1@getfares.com', '9800000051',
+  '$2a$08$AdDZOZSwGNzLJ/iBlXbW0O4MHnGYXJlFVPJOkWboDN7LOOdGyrZ9u', r.id, TRUE, TRUE
+FROM roles r WHERE r.name = 'accounts' LIMIT 1
+ON DUPLICATE KEY UPDATE
+  role_id = VALUES(role_id),
+  full_name = VALUES(full_name),
+  password_hash = VALUES(password_hash),
+  is_active = TRUE,
+  active = TRUE,
+  updated_at = CURRENT_TIMESTAMP;
+
+INSERT INTO users (id, full_name, email, phone, password_hash, role_id, is_active, active)
+SELECT 'a2222222-2222-4222-8222-222222222202', 'Accounts User Two', 'accounts2@getfares.com', '9800000052',
+  '$2a$08$AdDZOZSwGNzLJ/iBlXbW0O4MHnGYXJlFVPJOkWboDN7LOOdGyrZ9u', r.id, TRUE, TRUE
+FROM roles r WHERE r.name = 'accounts' LIMIT 1
+ON DUPLICATE KEY UPDATE
+  role_id = VALUES(role_id),
+  full_name = VALUES(full_name),
+  password_hash = VALUES(password_hash),
+  is_active = TRUE,
+  active = TRUE,
+  updated_at = CURRENT_TIMESTAMP;
 
 COMMIT;
 

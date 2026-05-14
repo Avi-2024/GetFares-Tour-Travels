@@ -6,7 +6,7 @@ import { ComplaintsValidation } from "./complaints.validation.js";
 import { ComplaintsSchema } from "./complaints.schema.js";
 import { createComplaintsEvents } from "./complaints.events.js";
 
-function createComplaintsModule({ dependencies }) {
+function createComplaintsModule({ dependencies, repositories = {} }) {
   const repository = createComplaintsRepository({
     db: dependencies.db,
     logger: dependencies.logger,
@@ -20,6 +20,8 @@ function createComplaintsModule({ dependencies }) {
 
   const service = createComplaintsService({
     repository,
+    bookingsRepository: repositories.bookings,
+    leadsRepository: repositories.leads,
     logger: dependencies.logger,
     events,
   });

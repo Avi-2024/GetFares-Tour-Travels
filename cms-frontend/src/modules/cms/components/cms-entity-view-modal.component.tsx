@@ -1,6 +1,9 @@
 import { Component } from "react";
 import CmsModalShellComponent from "./cms-modal-shell.component";
-import { CmsEntityFormCatalog } from "../cms-entity-form.catalog";
+import {
+  CmsEntityFormCatalog,
+  type CmsEntityFieldDefinition,
+} from "../cms-entity-form.catalog";
 import type { CmsMediaAsset, CmsTableEntry } from "../cms.datasource";
 import type { CmsSectionKey } from "../cms-section.models";
 import { CmsServiceContainer } from "../core/cms.service.container";
@@ -61,25 +64,110 @@ class CmsEntityViewModalComponent extends Component<
     return value.replace(/[A-Z]/g, (char) => `_${char.toLowerCase()}`);
   }
 
-  private readValue(key: string): string {
+  private readRawValue(key: string): unknown {
     const { entry } = this.props;
     if (!entry) {
-      return "--";
+      return undefined;
     }
     const direct = entry.raw[key];
-    if (direct !== undefined && direct !== null && String(direct).trim()) {
-      return String(direct);
+    if (direct !== undefined && direct !== null) {
+      return direct;
     }
     const snake = this.toSnake(key);
     const fallback = entry.raw[snake];
-    if (
-      fallback !== undefined &&
-      fallback !== null &&
-      String(fallback).trim()
-    ) {
-      return String(fallback);
+    if (fallback !== undefined && fallback !== null) {
+      return fallback;
+    }
+    return undefined;
+  }
+
+  private formatScalarValue(value: unknown): string {
+    if (value === undefined || value === null) {
+      return "--";
+    }
+    if (typeof value === "string") {
+      return value.trim() || "--";
+    }
+    if (typeof value === "number" || typeof value === "boolean") {
+      return String(value);
+    }
+    if (Array.isArray(value)) {
+      const items = value
+        .map((item) => this.formatScalarValue(item))
+        .filter((item) => item !== "--");
+      return items.length ? items.join(", ") : "--";
     }
     return "--";
+  }
+
+  private readValue(key: string): string {
+    return this.formatScalarValue(this.readRawValue(key));
+  }
+
+  private formatArrayValue(values: unknown[]): string {
+    const items = values
+      .map((item) => this.formatScalarValue(item))
+      .filter((item) => item !== "--");
+    return items.length ? items.join("\n") : "--";
+  }
+
+  private formatListObjectRow(
+    item: Record<string, unknown>,
+    field: CmsEntityFieldDefinition,
+  ): string {
+    const orderedParts = (field.itemFields ?? [])
+      .map((itemField) =>
+        this.formatScalarValue(
+          item[itemField.key] ?? item[this.toSnake(itemField.key)],
+        ),
+      )
+      .filter((part) => part !== "--");
+
+    if (orderedParts.length) {
+      return orderedParts.join(" | ");
+    }
+
+    const fallbackParts = Object.values(item)
+      .map((value) => this.formatScalarValue(value))
+      .filter((part) => part !== "--");
+
+    return fallbackParts.join(" | ");
+  }
+
+  private formatFieldValue(field: CmsEntityFieldDefinition): string {
+    const displayValue = this.readRawValue(`${field.key}Display`);
+
+    if (Array.isArray(displayValue)) {
+      return this.formatArrayValue(displayValue);
+    }
+
+    if (typeof displayValue === "string" && displayValue.trim()) {
+      return displayValue.trim();
+    }
+
+    const value = this.readRawValue(field.key);
+
+    if (field.type === "list-text" || field.type === "multi-select") {
+      return Array.isArray(value) ? this.formatArrayValue(value) : "--";
+    }
+
+    if (field.type === "list-object") {
+      if (!Array.isArray(value)) {
+        return "--";
+      }
+
+      const rows = value
+        .filter(
+          (item): item is Record<string, unknown> =>
+            Boolean(item) && typeof item === "object" && !Array.isArray(item),
+        )
+        .map((item) => this.formatListObjectRow(item, field))
+        .filter(Boolean);
+
+      return rows.length ? rows.join("\n") : "--";
+    }
+
+    return this.formatScalarValue(value);
   }
 
   private resolveStatus(value: string): { label: string; className: string } {
@@ -174,34 +262,54 @@ class CmsEntityViewModalComponent extends Component<
     const hasReferenceId = definition.fields.some(
       (field) => field.key === "referenceId",
     );
-    if (!hasReferenceId) {
+    const hasMainPackageId = definition.fields.some(
+      (field) => field.key === "mainPackageId",
+    );
+    const hasDestinationId = definition.fields.some(
+      (field) => field.key === "destinationId",
+    );
+    if (!hasReferenceId && !hasMainPackageId && !hasDestinationId) {
       this.setState({ referenceLabelById: {} });
       return;
     }
 
     try {
-      const [packages, destinations, visa] = await Promise.all([
-        this.cmsService.list("published-packages"),
-        this.cmsService.list("destinations"),
-        this.cmsService.list("visa-destinations"),
-      ]);
       const referenceLabelById: Record<string, string> = {};
 
-      packages.forEach((item) => {
-        referenceLabelById[item.id] =
-          item.row.cells.package?.value ||
-          String(item.raw.name || item.raw.title || item.id);
-      });
-      destinations.forEach((item) => {
-        referenceLabelById[item.id] =
-          item.row.cells.destination?.value ||
-          String(item.raw.name || item.raw.title || item.id);
-      });
-      visa.forEach((item) => {
-        referenceLabelById[item.id] =
-          item.row.cells.title?.value ||
-          String(item.raw.title || item.raw.name || item.id);
-      });
+      if (hasReferenceId || hasDestinationId) {
+        const [packages, destinations, visa] = await Promise.all([
+          hasReferenceId ? this.cmsService.list("published-packages") : Promise.resolve([]),
+          this.cmsService.list("destinations"),
+          hasReferenceId ? this.cmsService.list("visa-destinations") : Promise.resolve([]),
+        ]);
+        packages.forEach((item) => {
+          referenceLabelById[item.id] =
+            item.row.cells.package?.value ||
+            String(item.raw.name || item.raw.title || item.id);
+        });
+        destinations.forEach((item) => {
+          const label =
+            item.row.cells.destination?.value ||
+            String(item.raw.name || item.raw.title || item.id);
+          referenceLabelById[item.id] = label;
+          // also map snake_case id if different
+          const snakeId = String(item.raw.destination_id ?? item.raw.id ?? "");
+          if (snakeId && snakeId !== item.id) referenceLabelById[snakeId] = label;
+        });
+        visa.forEach((item) => {
+          referenceLabelById[item.id] =
+            item.row.cells.title?.value ||
+            String(item.raw.title || item.raw.name || item.id);
+        });
+      }
+
+      if (hasMainPackageId) {
+        const mainPackages = await this.cmsService.listAdminMainPackages();
+        mainPackages.forEach((item) => {
+          referenceLabelById[item.id] =
+            String(item.raw.title || item.raw.packageName || item.raw.name || item.id);
+        });
+      }
 
       this.setState({ referenceLabelById });
     } catch {
@@ -254,15 +362,59 @@ class CmsEntityViewModalComponent extends Component<
         return;
       }
 
-      const value = this.readValue(field.key);
+      // For ID reference fields, try to resolve name first from raw joined fields
+      if (field.key === "destinationId") {
+        const rawId = String(
+          this.readRawValue("destinationId") ??
+          this.readRawValue("destination_id") ??
+          "",
+        ).trim();
+        // First try joined name fields from raw
+        const joinedName = String(
+          this.readRawValue("destinationName") ??
+          this.readRawValue("destination_name") ??
+          this.readRawValue("destination") ??
+          "",
+        ).trim();
+        const lookedUp = rawId ? (this.state.referenceLabelById[rawId] ?? "") : "";
+        const resolved = joinedName || lookedUp;
+        // Only show if we have a real name (not a UUID)
+        const isUuid = /^[0-9a-f-]{36}$/i.test(resolved);
+        if (resolved && !isUuid) {
+          items.push({ key: field.key, label: field.label, value: resolved });
+        } else if (rawId && !resolved) {
+          // Still loading — skip for now, will re-render when state updates
+        }
+        return;
+      }
+
+      if (field.key === "mainPackageId") {
+        const rawId = String(this.readRawValue("mainPackageId") ?? this.readRawValue("main_package_id") ?? "").trim();
+        const lookedUp = rawId ? (this.state.referenceLabelById[rawId] ?? "") : "";
+        const isUuid = /^[0-9a-f-]{36}$/i.test(lookedUp);
+        if (lookedUp && !isUuid) {
+          items.push({ key: field.key, label: field.label, value: lookedUp });
+        }
+        return;
+      }
+
+      if (field.key === "referenceId") {
+        const rawId = String(this.readRawValue("referenceId") ?? this.readRawValue("reference_id") ?? "").trim();
+        const lookedUp = rawId ? (this.state.referenceLabelById[rawId] ?? "") : "";
+        const isUuid = /^[0-9a-f-]{36}$/i.test(lookedUp);
+        if (lookedUp && !isUuid) {
+          items.push({ key: field.key, label: field.label, value: lookedUp });
+        }
+        return;
+      }
+
+      const value = this.formatFieldValue(field);
       if (value === "--") {
         return;
       }
 
       let displayValue = value;
-      if (field.key === "referenceId") {
-        displayValue = this.state.referenceLabelById[value] || value;
-      } else if (field.type === "date" || this.isLikelyDateField(field.key)) {
+      if (field.type === "date" || this.isLikelyDateField(field.key)) {
         displayValue = this.formatDateValue(value);
       }
 
@@ -302,8 +454,14 @@ class CmsEntityViewModalComponent extends Component<
         this.readValue(definition.descriptionKey)
       : "";
     const metadataItems = this.getMetadataItems();
+    const rawMedia = this.props.entry?.raw?.media;
+    const mediaTitleImage =
+      rawMedia && typeof rawMedia === "object" && !Array.isArray(rawMedia) ?
+        (rawMedia as Record<string, unknown>).title_image
+      : null;
     const heroImageCandidates = [
       this.state.mediaItems[0]?.mediaUrl,
+      typeof mediaTitleImage === "string" ? mediaTitleImage : "",
       this.readValue("imageUrl"),
       this.readValue("heroImageUrl"),
       this.readValue("thumbnailUrl"),
@@ -380,7 +538,7 @@ class CmsEntityViewModalComponent extends Component<
                   <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-(--text-secondary)">
                     {item.label}
                   </p>
-                  <p className="mt-1 text-sm text-(--text-primary)">
+                  <p className="mt-1 text-sm whitespace-pre-line text-(--text-primary)">
                     {item.value}
                   </p>
                 </div>

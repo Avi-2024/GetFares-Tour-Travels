@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FaCalendarPlus,
@@ -17,11 +17,13 @@ import EmptyState from "../../components/ui/EmptyState";
 import StatusBadge from "../../components/ui/StatusBadge";
 import SurfaceCard from "../../components/ui/SurfaceCard";
 import SearchableDropdown from "../../components/ui/SearchableDropdown";
+import VirtualizedTable from "../../components/ui/VirtualizedTable";
 import { reportApiError } from "../../lib/notify";
 import { useLeadsService } from "../../hooks/useLeadsService";
+import { useUsersService } from "../../hooks/useUsersService";
 
 import type { LeadListItem, LeadsPagination } from "../../services/leadsService";
-import { toStatusLabelText, sopLabelToCanonical } from "../../utils/leadStatus";
+import { sopLabelToCanonical } from "../../utils/leadStatus";
 
 interface LeadStats {
   totalLeads: number;
@@ -30,26 +32,49 @@ interface LeadStats {
   slaBreached: number;
 }
 
+const EMPTY_LEAD_STATS: LeadStats = {
+  totalLeads: 0,
+  newToday: 0,
+  followupActive: 0,
+  slaBreached: 0,
+};
+
 const quickFilters = [
   { key: "ALL", label: "All" },
   { key: "ACTIVE", label: "Active" },
   { key: "FOLLOW_UP", label: "Follow-up" },
   { key: "CLOSED", label: "Closed" },
   { key: "LATE_RESPONSE", label: "Late Response" },
+  { key: "LOST", label: "Lost" },
 ] as const;
 type QuickFilter = (typeof quickFilters)[number]["key"];
+type LeadSourceFilter = "ALL" | "META_INDIA" | "META_UAE";
 
 type LeadFilterState = {
   fromDate: string;
   toDate: string;
   country: string;
   destination: string;
+  leadSource: string;
   email: string;
   phone: string;
   leadId: string;
+  consultant: string;
   status: "ALL" | "NEW" | "CONTACTED" | "NEGOTIATION" | "QUOTED" | "FOLLOW_UP_1" | "FOLLOW_UP_2" | "FOLLOW_UP_3" | "FOLLOW_UP_4" | "FINAL_REMINDER" | "CONVERTED" | "LOST" | "NON_RESPONSIVE";
   sla: "ALL" | "OVERDUE" | "WITHIN_SLA" | "PENDING";
-  sortBy: "NEWEST_FIRST" | "OLDEST_FIRST" | "NAME_A_Z" | "STATUS";
+  sortBy: "CREATED_AT_DESC" | "CREATED_AT_ASC" | "NAME_ASC" | "STATUS_ASC" | "COUNTRY_ASC";
+};
+
+type ConsultantUser = {
+  id?: string;
+  fullName?: string;
+  full_name?: string;
+  name?: string;
+  email?: string;
+  role?: string;
+  isActive?: boolean;
+  is_active?: boolean;
+  active?: boolean | null;
 };
 
 const defaultFilters: LeadFilterState = {
@@ -57,12 +82,14 @@ const defaultFilters: LeadFilterState = {
   toDate: "",
   country: "",
   destination: "",
+  leadSource: "",
   email: "",
   phone: "",
   leadId: "",
+  consultant: "",
   status: "ALL",
   sla: "ALL" as const,
-  sortBy: "NEWEST_FIRST",
+  sortBy: "CREATED_AT_DESC",
 };
 
 const formatPaxSummary = (lead: LeadListItem) => {
@@ -89,7 +116,6 @@ const formatMoney = (amount: number, currency = 'INR') => {
   }
 }
 
-
 const truncateEmail = (value: string, maxLength = 26) => {
   const safe = (value || "").trim();
   if (!safe) return "N/A";
@@ -97,25 +123,40 @@ const truncateEmail = (value: string, maxLength = 26) => {
   return `${safe.slice(0, Math.max(3, maxLength - 3))}...`;
 };
 
+const extractRows = <T,>(response: unknown): T[] => {
+  const payload = response as { data?: T[] | { data?: T[]; items?: T[] } };
+  if (Array.isArray(payload?.data)) return payload.data;
+  const nested = payload?.data as { data?: T[]; items?: T[] } | undefined;
+  if (Array.isArray(nested?.data)) return nested.data;
+  if (Array.isArray(nested?.items)) return nested.items;
+  return Array.isArray(response) ? (response as T[]) : [];
+};
+
 const Leads: React.FC = () => {
   const [quickFilter, setQuickFilter] = useState<QuickFilter>("ALL");
+  const [leadSourceFilter, setLeadSourceFilter] = useState<LeadSourceFilter>("ALL");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState("");
   const [fetchedLeads, setFetchedLeads] = useState<LeadListItem[]>([]);
+  const [leadStats, setLeadStats] = useState<LeadStats>(EMPTY_LEAD_STATS);
   const [pagination, setPagination] = useState<LeadsPagination | null>(null);
   const [destinationNames, setDestinationNames] = useState<string[]>([]);
-  const destinationsFetchedRef = React.useRef(false)
+  const destinationsFetchedRef = React.useRef(false);
+  const [leadSourceNames, setLeadSourceNames] = useState<string[]>([]);
+  const leadSourcesFetchedRef = React.useRef(false);
+  const [consultantUsers, setConsultantUsers] = useState<Array<{ id: string; name: string }>>([]);
+  const consultantsFetchedRef = React.useRef(false);
+  const [pageSize, setPageSize] = useState(25);
   const [draftFilters, setDraftFilters] = useState<LeadFilterState>(defaultFilters);
   const [appliedFilters, setAppliedFilters] = useState<LeadFilterState>(defaultFilters);
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  // Lead ID: separate local input state + debounced value for client-side filtering only
-  
-  const pageSize = 15;
   const nav = useNavigate();
   const leadsService = useLeadsService();
+  const usersService = useUsersService();
+  const deferredSearch = useDeferredValue(debouncedSearch);
 
   const countryOptions = useMemo(
     () => [
@@ -126,14 +167,6 @@ const Leads: React.FC = () => {
         .map((name) => ({ value: name, label: name })),
     ],
     [],
-  );
-
-  const destinationOptions = useMemo(
-    () => [
-      { value: "", label: "All " },
-      ...destinationNames.map((name) => ({ value: name, label: name })),
-    ],
-    [destinationNames],
   );
 
   const statusOptions = useMemo(
@@ -158,26 +191,59 @@ const Leads: React.FC = () => {
   const slaOptions = useMemo(
     () => [
       { value: "ALL", label: "All SLA" },
-      { value: "OVERDUE", label: "Overdue (Breached)" },
+      { value: "OVERDUE", label: "Breached SLA" },
       { value: "WITHIN_SLA", label: "Within SLA" },
-      { value: "PENDING", label: "Pending" },
     ],
     [],
   );
 
+  const destinationOptions = useMemo(
+    () => [
+      { value: "", label: "All Destinations" },
+      ...destinationNames.map((name) => ({ value: name, label: name })),
+    ],
+    [destinationNames],
+  );
+
+  const leadSourceOptions = useMemo(
+    () => [
+      { value: "", label: "All lead sources" },
+      ...leadSourceNames.map((name) => ({ value: name, label: name })),
+    ],
+    [leadSourceNames],
+  );
+
+  const consultantOptions = useMemo(
+    () => [
+      { value: "", label: "All Consultants" },
+      ...consultantUsers.map((user) => ({ value: user.id, label: user.name })),
+    ],
+    [consultantUsers],
+  );
+
   const sortOptions = useMemo(
     () => [
-      { value: "NEWEST_FIRST", label: "Newest First" },
-      { value: "OLDEST_FIRST", label: "Oldest First" },
-      { value: "NAME_A_Z", label: "Name A-Z" },
-      { value: "STATUS", label: "Status" },
+      { value: "CREATED_AT_DESC", label: "Created desc" },
+      { value: "CREATED_AT_ASC", label: "Created asc" },
+      { value: "NAME_ASC", label: "Name A-Z" },
+      { value: "STATUS_ASC", label: "Status" },
+      { value: "COUNTRY_ASC", label: "Country" },
     ],
     [],
   );
 
   const buildLeadQuery = (queryPage: number, queryLimit: number) => {
-    const normalizedLeadId = appliedFilters.leadId.trim().toUpperCase();
-    const leadIdActive = Boolean(normalizedLeadId);
+    const chipSourceValue =
+      leadSourceFilter === "META_INDIA"
+        ? "meta_india"
+        : leadSourceFilter === "META_UAE"
+          ? "meta_uae"
+          : "";
+    const dropdownSource = appliedFilters.leadSource.trim();
+    const effectiveSource =
+      leadSourceFilter !== "ALL" ?
+        chipSourceValue
+      : dropdownSource || undefined;
 
     // Resolve canonical status + subStatus from SOP label
     let canonicalStatus: string | undefined
@@ -191,6 +257,7 @@ const Leads: React.FC = () => {
     // Common filters applied in both modes
     const commonFilters = {
       ...(quickFilter !== "ALL" ? { quickFilter } : {}),
+      ...(effectiveSource ? { source: effectiveSource } : {}),
       ...(appliedFilters.country ? { country: appliedFilters.country } : {}),
       ...(canonicalStatus ? { status: canonicalStatus } : {}),
       ...(subStatus ? { subStatus } : {}),
@@ -200,24 +267,15 @@ const Leads: React.FC = () => {
       ...(appliedFilters.sla !== "ALL" ? { sla: appliedFilters.sla } : {}),
     }
 
-    // When leadId active: use backend `search` param (supports LIKE on lead_code)
-    // fetch limit:500 so client-side partial match works across all records
-    if (leadIdActive) {
-      return {
-        page: 1,
-        limit: 500,
-        search: normalizedLeadId, // backend LIKE matches lead_code, id, meta_lead_id
-        ...commonFilters,
-      }
-    }
-
     return {
       page: queryPage,
       limit: queryLimit,
-      ...(debouncedSearch ? { search: debouncedSearch } : {}),
+      ...(deferredSearch ? { search: deferredSearch } : {}),
       ...commonFilters,
       ...(appliedFilters.email.trim() ? { email: appliedFilters.email.trim() } : {}),
       ...(appliedFilters.phone.trim() ? { phone: appliedFilters.phone.trim() } : {}),
+      ...(appliedFilters.leadId.trim() ? { leadId: appliedFilters.leadId.trim() } : {}),
+      ...(appliedFilters.consultant.trim() ? { assignedTo: appliedFilters.consultant.trim() } : {}),
       ...(appliedFilters.sortBy ? { sortBy: appliedFilters.sortBy } : {}),
     }
   };
@@ -228,12 +286,7 @@ const Leads: React.FC = () => {
     destinationsFetchedRef.current = true
     const fetchDestinations = async () => {
       try {
-        const result = await leadsService.listLeadsPage({ page: 1, limit: 500 })
-        const names = result.items
-          .map((lead) => lead.destination)
-          .filter((d) => d && d !== 'N/A')
-          .filter((d, i, self) => self.indexOf(d) === i)
-          .sort((a, b) => a.localeCompare(b))
+        const names = await leadsService.getLeadDestinations({ limit: 500 })
         setDestinationNames(names)
       } catch {
         // silently ignore — destination filter just won't populate
@@ -241,6 +294,45 @@ const Leads: React.FC = () => {
     }
     void fetchDestinations()
   }, [leadsService])
+
+  useEffect(() => {
+    if (leadSourcesFetchedRef.current) return
+    leadSourcesFetchedRef.current = true
+    const run = async () => {
+      try {
+        const names = await leadsService.getLeadSources({ limit: 200 })
+        setLeadSourceNames(names)
+      } catch {
+        setLeadSourceNames([])
+      }
+    }
+    void run()
+  }, [leadsService])
+
+  // Load all unique consultants once on mount — fetch from all leads
+  useEffect(() => {
+    if (consultantsFetchedRef.current) return
+    consultantsFetchedRef.current = true
+    const fetchConsultants = async () => {
+      try {
+        // Fetch a large batch to get all unique consultants
+        const response = await usersService.list()
+        const salesConsultants = extractRows<ConsultantUser>(response)
+          .filter(user => String(user.role || '').trim().toLowerCase() === 'sales_consultant')
+          .filter(user => user.isActive !== false && user.is_active !== false && user.active !== false)
+          .map(user => ({
+            id: String(user.id || '').trim(),
+            name: String(user.fullName || user.full_name || user.name || user.email || '').trim(),
+          }))
+          .filter(user => user.id && user.name)
+          .sort((left, right) => left.name.localeCompare(right.name))
+        setConsultantUsers(salesConsultants)
+      } catch {
+        // silently ignore — consultant filter just won't populate
+      }
+    }
+    void fetchConsultants()
+  }, [usersService])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -256,8 +348,13 @@ const Leads: React.FC = () => {
       setError("");
       try {
         const query = buildLeadQuery(page, pageSize);
-        const result = await leadsService.listLeadsPage(query);
+        const { page: _page, limit: _limit, ...statsQuery } = query;
+        const [result, stats] = await Promise.all([
+          leadsService.listLeadsPage(query),
+          leadsService.getLeadStats(statsQuery),
+        ]);
         setFetchedLeads(result.items);
+        setLeadStats(stats);
         setPagination(
           result.pagination || {
             page,
@@ -269,6 +366,7 @@ const Leads: React.FC = () => {
       } catch (err) {
         reportApiError(err, "Failed to load leads", setError);
         setFetchedLeads([]);
+        setLeadStats(EMPTY_LEAD_STATS);
         setPagination({
           page: 1,
           limit: pageSize,
@@ -282,7 +380,8 @@ const Leads: React.FC = () => {
     void fetchLeads();
   }, [
     appliedFilters,
-    debouncedSearch,
+    deferredSearch,
+    leadSourceFilter,
     leadsService,
     page,
     pageSize,
@@ -296,35 +395,8 @@ const Leads: React.FC = () => {
   }, [page, pagination]);
 
   const totalPages = Math.max(1, pagination?.totalPages ?? 1);
-  const leadIdFilter = appliedFilters.leadId.trim().toUpperCase();
-  const rows = useMemo(() => {
-    if (!leadIdFilter) return fetchedLeads;
-    // Client-side filter: keep only leads whose leadCode/id contains the typed value
-    // Backend already narrowed results via search LIKE, this ensures only lead_code matches show
-    return fetchedLeads.filter((lead) => {
-      const leadCode = String((lead as any).leadCode ?? lead.leadId ?? '').trim().toUpperCase()
-      const leadId   = String(lead.id ?? '').trim().toUpperCase()
-      const metaId   = String((lead as any).metaLeadId ?? '').trim().toUpperCase()
-      return leadCode.includes(leadIdFilter) || leadId.includes(leadIdFilter) || metaId.includes(leadIdFilter)
-    })
-  }, [fetchedLeads, leadIdFilter]);
-  const leadIdModeActive = Boolean(leadIdFilter);
-  const effectiveTotalPages = leadIdModeActive ? 1 : totalPages;
-
-  const leadStats = useMemo<LeadStats>(
-    () => ({
-      totalLeads: pagination?.total ?? fetchedLeads.length,
-      newToday: fetchedLeads.filter((lead) => lead.statusLabel === "NEW")
-        .length,
-      followupActive: fetchedLeads.filter(
-        (lead) =>
-          lead.statusLabel.startsWith("FOLLOW_UP") ||
-          lead.statusLabel === "FINAL_REMINDER",
-      ).length,
-      slaBreached: fetchedLeads.filter((lead) => lead.slaBreached).length,
-    }),
-    [fetchedLeads, pagination?.total],
-  );
+  const rows = fetchedLeads;
+  const effectiveTotalPages = totalPages;
 
   const activeFilterCount = useMemo(() => {
     let count = 0;
@@ -332,14 +404,17 @@ const Leads: React.FC = () => {
     if (appliedFilters.toDate) count += 1;
     if (appliedFilters.country) count += 1;
     if (appliedFilters.destination) count += 1;
+    if (appliedFilters.leadSource.trim()) count += 1;
     if (appliedFilters.email) count += 1;
     if (appliedFilters.phone) count += 1;
     if (appliedFilters.leadId) count += 1;
+    if (appliedFilters.consultant) count += 1;
     if (appliedFilters.status !== "ALL") count += 1;
     if (appliedFilters.sla !== "ALL") count += 1;
-    if (appliedFilters.sortBy !== "NEWEST_FIRST") count += 1;
+    if (appliedFilters.sortBy !== "CREATED_AT_DESC") count += 1;
+    if (leadSourceFilter !== "ALL") count += 1;
     return count;
-  }, [appliedFilters]);
+  }, [appliedFilters, leadSourceFilter]);
 
   const updateDraftFilter = <K extends keyof LeadFilterState>(
     key: K,
@@ -370,6 +445,8 @@ const Leads: React.FC = () => {
         email: draftFilters.email.trim(),
         phone: draftFilters.phone.trim(),
         leadId: draftFilters.leadId.trim(),
+        consultant: draftFilters.consultant.trim(),
+        leadSource: draftFilters.leadSource.trim(),
       });
       setPage(1);
     }, delay);
@@ -382,6 +459,7 @@ const Leads: React.FC = () => {
     setDraftFilters(defaultFilters);
     setAppliedFilters(defaultFilters);
     setQuickFilter("ALL");
+    setLeadSourceFilter("ALL");
     setSearch("");
     setPage(1);
   };
@@ -411,7 +489,7 @@ const Leads: React.FC = () => {
 
     const escapeCsv = (value: string) => `"${value.replace(/\"/g, '\"\"')}"`;
     try {
-      const exportLimit = 500;
+      const exportLimit = 50;
       const firstPage = await leadsService.listLeadsPage(
         buildLeadQuery(1, exportLimit),
       );
@@ -436,7 +514,7 @@ const Leads: React.FC = () => {
         getVisaHolidayLabel(lead),
         lead.consultant && lead.consultant !== "Unassigned" ? lead.consultant : "-",
         lead.assignedBy ?? "-",
-        toStatusLabelText(lead.statusLabel),
+        lead.statusDisplay,
         lead.slaBreached ? "Breached" : (lead.sla ?? ""),
       ]);
 
@@ -468,7 +546,7 @@ const Leads: React.FC = () => {
     if (leadType === 'HOLIDAY') return 'Holidays';
     
     // Fallback: check packageName and statusLabel
-    const source = `${lead.packageName ?? ""} ${lead.statusLabel ?? ""}`
+    const source = `${lead.packageName ?? ""} ${lead.statusDisplay ?? ""}`
       .trim()
       .toLowerCase();
     return source.includes("visa") ? "Visa" : "Holidays";
@@ -486,6 +564,142 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
   if (!value) return null
   return { label: 'Budget', value: formatMoney(value, currency) }
 }
+
+  const tableColumns = useMemo(
+    () => [
+      { key: "createdAt", label: "Date", width: "120px", align: "center" as const },
+      { key: "lead", label: "Lead", width: "180px" },
+      { key: "salesPerson", label: "Sales Person", width: "160px" },
+      { key: "leadId", label: "Lead ID", width: "110px" },
+      { key: "leadSource", label: "Lead Source", width: "180px" },
+      { key: "contact", label: "Contact", width: "220px" },
+      { key: "destination", label: "Destination", width: "170px" },
+      { key: "type", label: "Visa/Holidays", width: "140px" },
+      { key: "country", label: "Lead Country", width: "140px" },
+      { key: "status", label: "Status", width: "150px", align: "center" as const },
+      { key: "sla", label: "SLA", width: "120px", align: "center" as const },
+      { key: "view", label: "View", width: "110px", align: "right" as const },
+    ],
+    [],
+  );
+
+  const renderDesktopLeadRow = (lead: LeadListItem) => {
+    const money = getLeadMoneyLabel(lead);
+    const dateLabel = (() => {
+      const raw = String(lead.clientCreatedAt || lead.createdAt || "").trim();
+      const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
+      return match ? `${match[3]}/${match[2]}/${match[1]}` : "-";
+    })();
+    const priorityTone =
+      lead.priority === "High" ?
+        "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
+      : lead.priority === "Medium" ?
+        "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+      : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300";
+    const priorityLabel =
+      lead.priority === "High" ? "🔥 Hot"
+      : lead.priority === "Medium" ? "⚡ Warm"
+      : "❄️ Cold";
+    const maxNameLength = 17;
+    const displayName = lead.name.length > maxNameLength ? lead.name.slice(0, maxNameLength) + '...' : lead.name;
+
+    return (
+      <div
+        className="grid border-b border-gray-100 bg-white transition-colors hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-900 dark:hover:bg-gray-800/40"
+        style={{
+          gridTemplateColumns: "120px 180px 160px 110px 180px 220px 170px 140px 140px 150px 120px 110px",
+          width: "max-content",
+          minWidth: "100%",
+        }}
+      >
+        <div className="px-3 py-4 text-center text-sm font-medium text-gray-700 dark:text-gray-200">
+          {dateLabel}
+        </div>
+        <div className="px-3 py-4">
+          <div className="">
+            <div className="flex items-center gap-1">
+              <p className="text-sm font-medium text-gray-900 dark:text-gray-100" title={lead.name}>{displayName}</p>
+              {lead.name.length > maxNameLength && (
+                <FaInfoCircle className="text-gray-400 hover:text-blue-500 cursor-help flex-shrink-0" title={lead.name} />
+              )}
+            </div>
+            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${priorityTone}`}>
+              {priorityLabel}
+            </span>
+            <p className="text-xs text-gray-500 dark:text-gray-400">{formatPaxSummary(lead)}</p>
+            {money ? (
+              <p className="text-xs text-gray-600 dark:text-gray-300">
+                {money.label}: {money.value}
+              </p>
+            ) : null}
+          </div>
+        </div>
+        <div className="px-3 py-4">
+          <div className="space-y-1">
+            {lead.consultant && lead.consultant !== "Unassigned" && (
+              <p className="text-xs text-gray-700 dark:text-gray-300">
+                {lead.consultant}
+              </p>
+            )}
+            {lead.assignedBy && (
+              <p className="text-xs text-blue-600 dark:text-blue-400">
+                Assigned by: {lead.assignedBy}
+              </p>
+            )}
+            {(!lead.consultant || lead.consultant === "Unassigned") && !lead.assignedBy && (
+              <p className="text-xs text-gray-500 dark:text-gray-400">-</p>
+            )}
+          </div>
+        </div>
+        <div className="px-3 py-4">
+          <button
+            onClick={() => handleViewLead(lead)}
+            className="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:underline cursor-pointer"
+          >
+            {lead.leadId}
+          </button>
+        </div>
+        <div className="px-3 py-4 text-sm text-gray-700 dark:text-gray-200">
+          <span className="line-clamp-2 break-words">{lead.source || "-"}</span>
+        </div>
+        <div className="px-3 py-4">
+          <div className="flex items-center gap-1">
+            <p className="truncate text-sm font-medium text-gray-800 dark:text-gray-200" title={lead.email}>
+              {truncateEmail(lead.email)}
+            </p>
+            {lead.email && lead.email.length > 26 && (
+              <FaInfoCircle className="text-gray-400 hover:text-blue-500 cursor-help flex-shrink-0" title={lead.email} />
+            )}
+          </div>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{lead.phone}</p>
+        </div>
+        <div className="px-3 py-4 text-sm font-medium text-gray-800 dark:text-gray-200">
+          {lead.destination}
+        </div>
+        <div className="px-3 py-4 text-sm font-medium text-gray-800 dark:text-gray-200">
+          {getVisaHolidayLabel(lead)}
+        </div>
+        <div className="px-3 py-4 text-sm font-medium text-gray-700 dark:text-gray-300">
+          {lead.leadCountry || "-"}
+        </div>
+        <div className="flex items-center justify-center px-3 py-4">
+          <StatusBadge status={lead.statusDisplay} />
+        </div>
+        <div className={`px-3 py-4 text-center text-sm font-medium ${lead.slaBreached ? "text-red-600" : "text-gray-700 dark:text-gray-200"}`}>
+          {lead.slaBreached ? "Breached" : lead.sla}
+        </div>
+        <div className="px-3 py-4 text-right">
+          <button
+            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium hover:bg-gray-50 transition-colors dark:border-gray-700 dark:hover:bg-gray-800"
+            onClick={() => handleViewLead(lead)}
+          >
+            <FaEye />
+            View
+          </button>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-4 sm:space-y-6 min-w-0">
@@ -541,23 +755,74 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
               </div>
             ) : null}
             <div className="w-full overflow-x-auto pb-1 scrollbar-hide">
-              <div className="inline-flex rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-1">
-                {quickFilters.map((item) => (
+              <div className="flex w-full min-w-max items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 p-1 dark:border-gray-700 dark:bg-gray-800">
+                <div className="flex items-center gap-1">
+                  {quickFilters.map((item) => (
+                    <button
+                      key={item.key}
+                      onClick={() => {
+                        setQuickFilter(item.key);
+                        setPage(1);
+                      }}
+                      className={`px-3 py-2 text-xs sm:text-sm font-medium rounded-lg whitespace-nowrap transition-all ${
+                        quickFilter === item.key
+                          ? "bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm"
+                          : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="ml-auto inline-flex items-center gap-2 rounded-lg bg-gray-100 p-1 text-xs font-medium sm:text-sm">
                   <button
-                    key={item.key}
                     onClick={() => {
-                      setQuickFilter(item.key);
+                      setLeadSourceFilter("ALL");
+                      setDraftFilters((p) => ({ ...p, leadSource: "" }));
+                      setAppliedFilters((p) => ({ ...p, leadSource: "" }));
                       setPage(1);
                     }}
-                    className={`px-3 py-2 text-xs sm:text-sm font-medium rounded-lg whitespace-nowrap transition-all ${
-                      quickFilter === item.key
-                        ? "bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm"
-                        : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+                    className={`whitespace-nowrap rounded-md px-3 py-1.5 transition-all duration-300 hover:bg-white hover:shadow-md ${
+                      leadSourceFilter === "ALL"
+                        ? "bg-[#2F3640] text-white"
+                        : "bg-white text-[#2F3640]"
                     }`}
                   >
-                    {item.label}
+                    All
                   </button>
-                ))}
+
+                  <button
+                    onClick={() => {
+                      setLeadSourceFilter("META_INDIA");
+                      setDraftFilters((p) => ({ ...p, leadSource: "" }));
+                      setAppliedFilters((p) => ({ ...p, leadSource: "" }));
+                      setPage(1);
+                    }}
+                    className={`whitespace-nowrap rounded-md px-3 py-1.5 transition-all duration-300 hover:bg-white hover:shadow-md ${
+                      leadSourceFilter === "META_INDIA"
+                        ? "bg-[#F97316] text-white"
+                        : "bg-white text-[#F97316]"
+                    }`}
+                  >
+                    Meta India
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setLeadSourceFilter("META_UAE");
+                      setDraftFilters((p) => ({ ...p, leadSource: "" }));
+                      setAppliedFilters((p) => ({ ...p, leadSource: "" }));
+                      setPage(1);
+                    }}
+                    className={`whitespace-nowrap rounded-md px-3 py-1.5 transition-all duration-300 hover:bg-white hover:shadow-md ${
+                      leadSourceFilter === "META_UAE"
+                        ? "bg-[#10B981] text-white"
+                        : "bg-white text-[#10B981]"
+                    }`}
+                  >
+                    Meta UAE
+                  </button>
+                </div>
               </div>
             </div>
             <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_auto] lg:items-end">
@@ -653,7 +918,7 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
                 <div>
                   <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
                     Country
@@ -679,6 +944,35 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
                     searchPlaceholder="Search destination..."
                     onChange={(value) =>
                       updateDraftFilter("destination", value)
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
+                    Lead source
+                  </label>
+                  <SearchableDropdown
+                    className="w-full"
+                    value={draftFilters.leadSource}
+                    options={leadSourceOptions}
+                    placeholder="All lead sources"
+                    searchPlaceholder="Search source..."
+                    onChange={(value) => updateDraftFilter("leadSource", value)}
+                    disabled={leadSourceFilter !== "ALL"}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
+                    Consultant
+                  </label>
+                  <SearchableDropdown
+                    className="w-full"
+                    value={draftFilters.consultant}
+                    options={consultantOptions}
+                    placeholder="All Consultants"
+                    searchPlaceholder="Search consultant..."
+                    onChange={(value) =>
+                      updateDraftFilter("consultant", value)
                     }
                   />
                 </div>
@@ -752,26 +1046,55 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
                   <FaDownload className="mr-2" />
                   <span>{exporting ? "Exporting..." : "Export Filtered"}</span>
                 </button>
+                <select
+                  value={pageSize}
+                  onChange={(event) => {
+                    setPageSize(Number(event.target.value));
+                    setPage(1);
+                  }}
+                  className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+                >
+                  {[10, 25, 50].map((size) => (
+                    <option key={size} value={size}>
+                      {size} rows
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>
 
           {loading ? (
-            <div className="p-8 text-center text-sm text-gray-500 dark:text-gray-400">
-              Loading leads...
+            <div className="space-y-3 p-4">
+              {Array.from({ length: 8 }).map((_, index) => (
+                <div
+                  key={index}
+                  className="h-20 animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800"
+                />
+              ))}
             </div>
           ) : rows.length === 0 ? (
             <div className="p-8">
               <EmptyState
                 title="No leads found"
-                description="Try adjusting your filter combination and search query."
+                description="Try adjusting yo ur filter combination and search query."
                 icon={<FaUsers className="text-4xl" />}
               />
             </div>
           ) : (
             <>
+              <div className="hidden lg:block">
+                <VirtualizedTable
+                  columns={tableColumns}
+                  rows={rows}
+                  rowHeight={96}
+                  height={560}
+                  renderRow={(lead) => renderDesktopLeadRow(lead)}
+                />
+              </div>
+
               <div
-                className="leads-table-scroll hidden max-w-full min-w-0 overflow-x-scroll overscroll-x-contain lg:block"
+                className="hidden leads-table-scroll max-w-full min-w-0 overflow-x-scroll overscroll-x-contain"
                 style={{ WebkitOverflowScrolling: "touch" }}
               >
                 <table
@@ -780,14 +1103,16 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
                 >
                   <colgroup>
                     <col style={{ width: 120, minWidth: 120 }} />
-                    <col style={{ width: 220, minWidth: 220 }} />
+                    <col style={{ width: 180, minWidth: 180 }} />
+                    <col style={{ width: 160, minWidth: 160 }} />
                     <col style={{ width: 110, minWidth: 110 }} />
-                    <col style={{ width: 200, minWidth: 200 }} />
+                    <col style={{ width: 180, minWidth: 180 }} />
+                    <col style={{ width: 220, minWidth: 220 }} />
+                    <col style={{ width: 170, minWidth: 170 }} />
+                    <col style={{ width: 140, minWidth: 140 }} />
+                    <col style={{ width: 140, minWidth: 140 }} />
                     <col style={{ width: 150, minWidth: 150 }} />
                     <col style={{ width: 120, minWidth: 120 }} />
-                    <col style={{ width: 130, minWidth: 130 }} />
-                    <col style={{ width: 140, minWidth: 140 }} />
-                    <col style={{ width: 110, minWidth: 110 }} />
                     <col style={{ width: 110, minWidth: 110 }} />
                   </colgroup>
                   <thead className="bg-gray-50  dark:bg-gray-800/50 sticky top-0 z-10">
@@ -799,7 +1124,13 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
                         Lead
                       </th>
                       <th className="px-3 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
+                        Sales Person
+                      </th>
+                      <th className="px-3 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
                         Lead ID
+                      </th>
+                      <th className="px-3 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
+                        Lead Source
                       </th>
                       <th className="px-3 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
                         Contact
@@ -812,6 +1143,9 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
                       </th>
                       <th className="px-3 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
                         Lead Country
+                      </th>
+                      <th className="px-3 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
+                        Sales Person
                       </th>
                       <th className="px-3 py-3.5 text-center text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
                         Status
@@ -867,6 +1201,10 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
                                 </p>
                               )
                             })()}
+                          </div>
+                        </td>
+                        <td className="px-3 py-4 align-top">
+                          <div className="space-y-1">
                             {lead.consultant && lead.consultant !== "Unassigned" && (
                               <p className="text-xs text-gray-700 dark:text-gray-300">
                                 Assigned to: {lead.consultant}
@@ -877,11 +1215,22 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
                                 Assigned by: {lead.assignedBy}
                               </p>
                             )}
+                            {(!lead.consultant || lead.consultant === "Unassigned") && !lead.assignedBy && (
+                              <span className="text-sm text-gray-500 dark:text-gray-400">-</span>
+                            )}
                           </div>
                         </td>
                         <td className="px-3 py-4 whitespace-nowrap">
-                          <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                          <button
+                            onClick={() => handleViewLead(lead)}
+                            className="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:underline cursor-pointer"
+                          >
                             {lead.leadId}
+                          </button>
+                        </td>
+                        <td className="px-3 py-4">
+                          <span className="line-clamp-2 break-words text-sm text-gray-700 dark:text-gray-200">
+                            {lead.source || "-"}
                           </span>
                         </td>
                         <td className="px-3 py-4">
@@ -922,7 +1271,7 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
                         </td>
                         <td className="min-w-[140px] px-3 py-4 text-center align-middle">
                           <div className="flex justify-center">
-                            <StatusBadge status={lead.statusLabel} />
+                            <StatusBadge status={lead.statusDisplay} />
                           </div>
                         </td>
                         <td className="px-3 py-4 text-center align-middle whitespace-nowrap">
@@ -951,133 +1300,35 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
                 </table>
               </div>
 
-              <div className="block lg:hidden divide-y divide-gray-100 dark:divide-gray-800">
-                {rows.map((lead) => (
-                  <div key={lead.id} className="p-4 space-y-2">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <p className="font-semibold text-gray-900 dark:text-gray-100">
-                            {lead.name}
-                          </p>
-                          <span
-                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-                              lead.priority === "High"
-                                ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
-                                : lead.priority === "Medium"
-                                ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
-                                : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
-                            }`}
-                          >
-                            {lead.priority === "High" ? "🔥 Hot" : lead.priority === "Medium" ? "⚡ Warm" : "❄️ Cold"}
-                          </span>
-                        </div>
-                        <p className="text-xs text-gray-500">
-                          Lead ID: {lead.leadId}
-                        </p>
-                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                          {formatPaxSummary(lead)}
-                        </p>
-                        {(() => {
-                          const money = getLeadMoneyLabel(lead)
-                          if (!money) return null
-                          return (
-                            <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">
-                              <span className="text-gray-500">{money.label}:</span>{" "}
-                              {money.value}
-                            </p>
-                          )
-                        })()}
-                        {lead.consultant && lead.consultant !== "Unassigned" && (
-                          <p className="mt-1 text-xs text-gray-700 dark:text-gray-300">
-                            Assigned to: {lead.consultant}
-                          </p>
-                        )}
-                      
-                        {lead.assignedBy && (
-                          <p className="mt-1 text-xs text-blue-600 dark:text-blue-400">
-                            Assigned by: {lead.assignedBy}
-                          </p>
-                        )}
-                      </div>
-                      <StatusBadge status={lead.statusLabel} />
-                    </div>
-                    <div className="grid grid-cols-1 gap-1.5">
-                      <div className="flex items-center gap-1">
-                        <p className="text-xs text-gray-600 dark:text-gray-300">
-                          <span className="text-gray-500">Contact:</span>{" "}
-                          {truncateEmail(lead.email, 22)} • {lead.phone}
-                        </p>
-                        {lead.email && lead.email.length > 22 && (
-                          <FaInfoCircle
-                            className="text-gray-400 text-xs flex-shrink-0"
-                            title={lead.email}
-                          />
-                        )}
-                      </div>
-                    </div>
-                    <p className="text-sm text-gray-700 dark:text-gray-200">
-                      {lead.destination}
-                    </p>
-                    <p className="text-xs text-gray-600 dark:text-gray-300">
-                      <span className="text-gray-500">Visa/Holidays:</span>{" "}
-                      {getVisaHolidayLabel(lead)}
-                    </p>
-                    <p className="text-xs text-gray-600 dark:text-gray-300">
-                      <span className="text-gray-500">Lead Country:</span>{" "}
-                      {lead.leadCountry || "-"}
-                    </p>
-                    <div className="flex items-center justify-between">
-                      <p
-                        className={`text-xs ${
-                          lead.slaBreached ? "text-red-600" : "text-gray-500"
-                        }`}
-                      >
-                        SLA: {lead.slaBreached ? "Breached" : lead.sla}
-                      </p>
-                      <button
-                        className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 text-xs hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
-                        onClick={() => handleViewLead(lead)}
-                      >
-                        <FaEye />
-                        View
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+
 
 		              <div className="flex items-center justify-between px-4 py-2.5 border-t border-gray-200 dark:border-gray-800">
 		                <p className="text-sm text-gray-500 dark:text-gray-400">
 		                  Showing{" "}
-		                  {leadIdModeActive
-		                    ? (rows.length ? 1 : 0)
-		                    : pagination?.total
-		                      ? (page - 1) * (pagination.limit || pageSize) + 1
-		                      : 0}
-		                  -{leadIdModeActive
-		                    ? rows.length
-		                    : pagination?.total
-		                      ? Math.min(pagination.total, (page - 1) * (pagination.limit || pageSize) + rows.length)
-		                      : 0}{" "}
-		                  of {leadIdModeActive ? rows.length : (pagination?.total ?? rows.length)}
-		                </p>
-		                <div className="flex items-center gap-2">
-		                  <button
-		                    onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-		                    disabled={leadIdModeActive || page === 1 || loading}
-		                    className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 disabled:opacity-40"
-		                  >
-	                    <FaChevronLeft />
-	                  </button>
-	                  <span className="px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-sm font-medium">
-	                    {leadIdModeActive ? 1 : page}
-	                  </span>
-		                  <button
-		                    onClick={() => setPage((prev) => Math.min(effectiveTotalPages, prev + 1))}
-		                    disabled={leadIdModeActive || page === effectiveTotalPages || loading}
-		                    className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 disabled:opacity-40"
-		                  >
+			                  {pagination?.total
+			                    ? (page - 1) * (pagination.limit || pageSize) + 1
+			                    : 0}
+			                  -{pagination?.total
+			                    ? Math.min(pagination.total, (page - 1) * (pagination.limit || pageSize) + rows.length)
+			                    : 0}{" "}
+			                  of {pagination?.total ?? rows.length}
+			                </p>
+			                <div className="flex items-center gap-2">
+			                  <button
+			                    onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+			                    disabled={page === 1 || loading}
+			                    className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 disabled:opacity-40"
+			                  >
+		                    <FaChevronLeft />
+		                  </button>
+		                  <span className="px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-sm font-medium">
+		                    {page}
+		                  </span>
+			                  <button
+			                    onClick={() => setPage((prev) => Math.min(effectiveTotalPages, prev + 1))}
+			                    disabled={page === effectiveTotalPages || loading}
+			                    className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 disabled:opacity-40"
+			                  >
 	                    <FaChevronRight />
 	                  </button>
                 </div>

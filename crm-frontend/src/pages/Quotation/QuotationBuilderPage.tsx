@@ -542,6 +542,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
   const [templatesLoading, setTemplatesLoading] = useState(false)
   const [templatesError, setTemplatesError] = useState('')
   const [selectedTemplateId, setSelectedTemplateId] = useState('')
+  const AUTO_TEMPLATE_SENTINEL = 'AUTO_TEMPLATE'
   const [suppliers, setSuppliers] = useState<
     Array<{ id: string; name: string }>
   >([])
@@ -617,14 +618,6 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     description: ''
   })
   const [packageType] = useState('Leisure')
-  const [services] = useState<Record<ServiceKey, boolean>>({
-    hotel: true,
-    flights: true,
-    tours: true,
-    visa: false,
-    insurance: true,
-    insurance2: true
-  })
   const [costs, setCosts] = useState<PricingCosts>({
     supplierCost: 0,
     markupPercent: 0,
@@ -708,6 +701,38 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     return /^[A-Z]{3}$/.test(normalized) ? normalized : ''
   }, [selectedLead?.clientCurrency, selectedLead?.client_currency])
 
+  /** Visa-lead quotations: pricing + PDF blocks differ from holiday packages. */
+  const isVisaLeadQuotation = useMemo(() => {
+    const leadType = String(
+      (selectedLead as any)?.leadType ?? (selectedLead as any)?.lead_type ?? ''
+    )
+      .trim()
+      .toUpperCase()
+    return leadType === 'VISA'
+  }, [selectedLead])
+
+  const servicesEnabled = useMemo<Record<ServiceKey, boolean>>(
+    () =>
+      isVisaLeadQuotation
+        ? {
+            hotel: false,
+            flights: false,
+            tours: false,
+            visa: true,
+            insurance: true,
+            insurance2: false
+          }
+        : {
+            hotel: true,
+            flights: true,
+            tours: true,
+            visa: false,
+            insurance: true,
+            insurance2: true
+          },
+    [isVisaLeadQuotation]
+  )
+
   const resolvedTravelStartDate = useMemo(() => {
     if (form.startDate) return form.startDate
     return toDateInputString(selectedLead?.travelDate ?? '')
@@ -766,6 +791,11 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     return leadType === 'VISA'
   }, [selectedLead, selectedTemplate?.templateType])
 
+  useEffect(() => {
+    if (!isVisaLeadQuotation) return
+    setSelectedTemplateId('')
+  }, [isVisaLeadQuotation, selectedLeadId])
+
   const leadDropdownOptions = useMemo(
     () => [
       { value: '', label: 'Select a lead' },
@@ -783,17 +813,18 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
 
   const quotationTemplateOptions = useMemo(
     () => [
-      // { value: "", label: "No template (manual quotation)" },
-      // Use empty value for custom/manual quotations.
-      // This keeps `templateId` undefined on save payload.
-      { value: '', label: 'Custom Quotation' },
+      { value: '', label: 'No Template (Custom Quotation)' },
+      {
+        value: AUTO_TEMPLATE_SENTINEL,
+        label: 'Custom Template (Save to Templates)'
+      },
       ...templates.map(template => ({
         value: template.id,
         label: `${template.code} - ${template.name}${!template.isActive ? ' (Inactive)' : ''
           }`
       }))
     ],
-    [templates]
+    [AUTO_TEMPLATE_SENTINEL, templates]
   )
 
   const supplierDropdownOptions = useMemo(
@@ -915,8 +946,9 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
       .filter(Boolean)
 
   const selectedServiceDefinitions = useMemo(
-    () => SERVICE_DEFINITIONS.filter(definition => services[definition.key]),
-    [services]
+    () =>
+      SERVICE_DEFINITIONS.filter(definition => servicesEnabled[definition.key]),
+    [servicesEnabled]
   )
 
   const flagPricingCellChange = useCallback((cellId: string) => {
@@ -1094,7 +1126,8 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     if (!activeDefinitions.length) return []
 
     const globalSupplierCost = Number(costs.supplierCost) || 0
-    const globalMarkup = Number(costs.markupPercent) || 0
+    const rawGlobalMarkup = Number(costs.markupPercent)
+    const globalMarkup = Number.isFinite(rawGlobalMarkup) ? rawGlobalMarkup : 0
 
     // Rows with a baseCost override bypass weighted allocation for supplier cost.
     const overriddenKeys = new Set(
@@ -1142,13 +1175,18 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     return activeDefinitions.map((definition, index) => {
       const override = serviceOverrides[definition.key] ?? {}
       const effectiveWeight = effectiveWeights[index]
-      const isFlightService = definition.key === 'flights'
+      const useFixedServiceCharge =
+        definition.key === 'flights' ||
+        (isVisaLeadQuotation && definition.key === 'visa')
 
       const overrideMarkup = override.markupPercent
-      const effectiveMarkup =
+      const parsedOverrideMarkup =
         overrideMarkup !== undefined && overrideMarkup !== ''
           ? Number(overrideMarkup)
-          : globalMarkup
+          : NaN
+      const effectiveMarkup = Number.isFinite(parsedOverrideMarkup)
+        ? parsedOverrideMarkup
+        : globalMarkup
 
       let baseCost: number
       if (overriddenKeys.has(definition.key)) {
@@ -1179,7 +1217,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
           ? Number(((baseCost * Number(overrideMarkup)) / 100).toFixed(2))
           : null
 
-      const computedMarkupAmount = isFlightService
+      const computedMarkupAmount = useFixedServiceCharge
         ? Number(
           (
             overrideServiceCharge ??
@@ -1196,18 +1234,21 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
           ? Number(((markupAmount / baseCost) * 100).toFixed(2))
           : 0
 
+      const finite = (n: number) => (Number.isFinite(n) ? n : 0)
+
       return {
         ...definition,
         weight: effectiveWeight,
-        baseCost,
-        markupPercent,
-        markupAmount,
-        sellValue: finalSell
+        baseCost: finite(baseCost),
+        markupPercent: finite(markupPercent),
+        markupAmount: finite(markupAmount),
+        sellValue: finite(finalSell)
       }
     })
   }, [
     costs.markupPercent,
     costs.supplierCost,
+    isVisaLeadQuotation,
     selectedServiceDefinitions,
     serviceOverrides
   ])
@@ -1242,7 +1283,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
       setLeadsLoading(true)
       setLeadsError('')
       try {
-        const data = await leadsService.listLeadsRaw({ page: 1, limit: 100 })
+        const data = await leadsService.listLeadsRaw({ page: 1, limit: 50 })
         setLeads((Array.isArray(data) ? data : []) as LeadOption[])
       } catch (error) {
         console.error('Failed to load leads:', error)
@@ -1300,7 +1341,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     if (!token) return
     setPackagesLoading(true)
     quotationsApi
-      .listPackages({ limit: 200 })
+      .listPackages({ limit: 50 })
       .then((res: any) => {
         const list = res?.data?.data ?? res?.data ?? res ?? []
         setPackages(Array.isArray(list) ? list : [])
@@ -1635,6 +1676,18 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
           quotation.lead && typeof quotation.lead === 'object'
             ? (quotation.lead as Record<string, unknown>)
             : null
+        const isVisaLeadSnapshot =
+          String(
+            quotation.leadType ??
+              quotation.lead_type ??
+              relationLead?.leadType ??
+              relationLead?.lead_type ??
+              snapshotLead?.leadType ??
+              snapshotLead?.lead_type ??
+              ''
+          )
+            .trim()
+            .toUpperCase() === 'VISA'
         const relationDestination =
           quotation.destination && typeof quotation.destination === 'object'
             ? (quotation.destination as Record<string, unknown>)
@@ -1886,7 +1939,12 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
 
         const snapshotFlightServiceCharge = Number(
           serviceRowSnapshot
-            .filter((row: any) => normalizeServiceKey(row?.key) === 'flights')
+            .filter((row: any) => {
+              const key = normalizeServiceKey(row?.key)
+              if (key === 'flights') return true
+              if (isVisaLeadSnapshot && key === 'visa') return true
+              return false
+            })
             .reduce((sum: number, row: any) => {
               const baseCost = toFiniteNumber(row?.baseCost, 0)
               const serviceCharge = toFiniteNumber(
@@ -1914,9 +1972,10 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
               serviceCharge:
                 row?.serviceCharge !== undefined && row?.serviceCharge !== null
                   ? String(row.serviceCharge)
-                  : key === 'flights' &&
-                    row?.markupAmount !== undefined &&
-                    row?.markupAmount !== null
+                  : (key === 'flights' ||
+                      (isVisaLeadSnapshot && key === 'visa')) &&
+                      row?.markupAmount !== undefined &&
+                      row?.markupAmount !== null
                     ? String(row.markupAmount)
                     : undefined,
               sellValue:
@@ -2433,7 +2492,11 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     )
     const serviceMarkupTotal = Number(
       serviceCostRows
-        .filter(row => row.key !== 'flights')
+        .filter(row => {
+          if (row.key === 'flights') return false
+          if (isVisaLeadQuotation && row.key === 'visa') return false
+          return true
+        })
         .reduce(
           (sum, row) =>
             sum + ((Number(row.sellValue) || 0) - (Number(row.baseCost) || 0)),
@@ -2474,6 +2537,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     finance.gstPercent,
     finance.tcsEnabled,
     finance.tcsPercent,
+    isVisaLeadQuotation,
     serviceCostRows
   ])
 
@@ -2582,48 +2646,60 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     [serviceCostRows]
   )
 
-  const nonFlightServiceRows = useMemo(
-    () => serviceCostRows.filter(row => row.key !== 'flights'),
-    [serviceCostRows]
+  /** Rows where markup is %-based (excludes flights + visa-on-visa-lead fixed charges). */
+  const markupEligibleRows = useMemo(
+    () =>
+      serviceCostRows.filter(row => {
+        if (row.key === 'flights') return false
+        if (isVisaLeadQuotation && row.key === 'visa') return false
+        return true
+      }),
+    [serviceCostRows, isVisaLeadQuotation]
   )
 
-  const flightServiceChargeTotal = useMemo(
+  const fixedServiceChargeTotal = useMemo(
     () =>
       Number(
         serviceCostRows
-          .filter(row => row.key === 'flights')
+          .filter(
+            row =>
+              row.key === 'flights' ||
+              (isVisaLeadQuotation && row.key === 'visa')
+          )
           .reduce(
             (sum, row) =>
-              sum + ((Number(row.sellValue) || 0) - (Number(row.baseCost) || 0)),
+              sum +
+              ((Number(row.sellValue) || 0) - (Number(row.baseCost) || 0)),
             0
           )
           .toFixed(2)
       ),
-    [serviceCostRows]
+    [serviceCostRows, isVisaLeadQuotation]
   )
 
   const markupBaseCostTotal = useMemo(
     () =>
       Number(
-        nonFlightServiceRows
+        markupEligibleRows
           .reduce((sum, row) => sum + (Number(row.baseCost) || 0), 0)
           .toFixed(2)
       ),
-    [nonFlightServiceRows]
+    [markupEligibleRows]
   )
 
   const totalMarkupFromServices = useMemo(
     () =>
       Number(
-        nonFlightServiceRows
+        markupEligibleRows
           .reduce(
             (sum, row) =>
-              sum + ((Number(row.sellValue) || 0) - (Number(row.baseCost) || 0)),
+              sum +
+              ((Number(row.sellValue) || 0) - (Number(row.baseCost) || 0)),
             0
           )
           .toFixed(2)
       ),
-    [nonFlightServiceRows]
+    [markupEligibleRows]
   )
 
   const effectiveMarkupPercent = useMemo(() => {
@@ -2699,23 +2775,26 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     const errors: PricingFieldErrors = {}
     selectedServiceDefinitions.forEach(definition => {
       const override = serviceOverrides[definition.key] ?? {}
-      const isFlightService = definition.key === 'flights'
+      const useFixedServiceCharge =
+        definition.key === 'flights' ||
+        (isVisaLeadQuotation && definition.key === 'visa')
       const baseCostError = getNumericOverrideError(override.baseCost, {
         min: 0
       })
-      const markupError = isFlightService
+      const markupError = useFixedServiceCharge
         ? getNumericOverrideError(override.serviceCharge, { min: 0 })
         : getNumericOverrideError(override.markupPercent, {
-          min: 0,
-          max: 100
-        })
+            min: 0,
+            max: 100
+          })
       if (baseCostError) errors[`${definition.key}.baseCost`] = baseCostError
       if (markupError)
-        errors[`${definition.key}.${isFlightService ? 'serviceCharge' : 'markupPercent'}`] =
-          markupError
+        errors[
+          `${definition.key}.${useFixedServiceCharge ? 'serviceCharge' : 'markupPercent'}`
+        ] = markupError
     })
     return errors
-  }, [selectedServiceDefinitions, serviceOverrides])
+  }, [isVisaLeadQuotation, selectedServiceDefinitions, serviceOverrides])
   const hasPricingErrors = Object.keys(pricingFieldErrors).length > 0
   const inclusionLines = useMemo(
     () => toBulletList(form.inclusions),
@@ -3094,7 +3173,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
         label: definition.label,
         itemType: definition.itemType
       })),
-      services,
+      services: servicesEnabled,
       serviceRows: serviceCostRows.map(row => {
         const override = serviceOverrides[row.key] ?? {}
         return {
@@ -3112,7 +3191,8 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
               ? Number(override.markupPercent)
               : row.markupPercent,
           serviceCharge:
-            row.key === 'flights'
+            row.key === 'flights' ||
+            (isVisaLeadQuotation && row.key === 'visa')
               ? override.serviceCharge !== undefined &&
                 override.serviceCharge !== ''
                 ? Number(override.serviceCharge)
@@ -3166,7 +3246,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
         addOnMarkup: addOnMarkupTotal,
         manualServiceFee: Number(costs.serviceFee) || 0,
         serviceFee: Number(
-          ((Number(costs.serviceFee) || 0) + flightServiceChargeTotal).toFixed(2)
+          ((Number(costs.serviceFee) || 0) + fixedServiceChargeTotal).toFixed(2)
         ),
         taxPercent: 0,
         discount: Number(costs.discount) || 0,
@@ -3291,9 +3371,10 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
       }
 
       const manualServiceFee = Number(costs.serviceFee) || 0
-      // Flight markup is treated as service charge (not markup %) and must still
-      // be included in persisted financial totals for backend parity.
-      const serviceFee = Number((manualServiceFee + flightServiceChargeTotal).toFixed(2))
+      // Flight / visa-lead visa row: fixed service charge rolls into persisted service fee.
+      const serviceFee = Number(
+        (manualServiceFee + fixedServiceChargeTotal).toFixed(2)
+      )
       const totalSupplierCost = Number(
         (serviceBaseCostTotal + addOnBaseCostTotal).toFixed(2)
       )
@@ -3351,9 +3432,13 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
         ? selectedTemplateId
         : undefined
 
-      // If "Custom Quotation" selected, auto-save it as a reusable template
-      // before saving quotation.
-      if (!isEditMode && !selectedTemplateId) {
+      // If "Custom Template (Save to Templates)" selected, auto-save it as a reusable template
+      // before saving quotation. Skip for visa leads (no package template flow).
+      if (
+        !isEditMode &&
+        selectedTemplateId === AUTO_TEMPLATE_SENTINEL &&
+        !isVisaLeadQuotation
+      ) {
         const templatePayload = {
           code: buildAutoTemplateCode(),
           name: buildAutoTemplateName(),
@@ -3625,51 +3710,62 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                   />
                 </div>
                 <div className='md:col-span-2 rounded-xl border border-gray-200 p-3 dark:border-gray-700'>
-                  <div className='grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto] md:items-end'>
-                    <div>
-                      <label className='field-label'>Quotation Template</label>
-                      <SearchableDropdown
-                        value={selectedTemplateId}
-                        options={quotationTemplateOptions}
-                        disabled={templatesLoading}
-                        searchPlaceholder='Search quotation template...'
-                        onChange={nextId => {
-                          // Backward-compat for older "CUSTOM" sentinel.
-                          const normalizedId = nextId === 'CUSTOM' ? '' : nextId
-                          setSelectedTemplateId(normalizedId)
-                          const template =
-                            templates.find(item => item.id === normalizedId) ||
-                            null
-                          applyTemplateDefaults(template)
-                        }}
-                      />
-                    </div>
-                    <button
-                      type='button'
-                      onClick={() => applyTemplateDefaults(selectedTemplate)}
-                      disabled={!selectedTemplate}
-                      className='rounded-lg border border-blue-200 px-3 py-2 text-xs font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-40 disabled:cursor-not-allowed dark:border-blue-800 dark:text-blue-200 dark:hover:bg-blue-900/30'
-                    >
-                      Apply Template Defaults
-                    </button>
-                  </div>
-                  {templatesLoading ? (
-                    <p className='mt-2 text-xs text-gray-500'>
-                      Loading templates...
+                  {!isVisaLeadQuotation ? (
+                    <>
+                      <div className='grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto] md:items-end'>
+                        <div>
+                          <label className='field-label'>Quotation Template</label>
+                          <SearchableDropdown
+                            value={selectedTemplateId}
+                            options={quotationTemplateOptions}
+                            disabled={templatesLoading}
+                            searchPlaceholder='Search quotation template...'
+                            onChange={nextId => {
+                              const normalizedId =
+                                nextId === 'CUSTOM' ? AUTO_TEMPLATE_SENTINEL : nextId
+                              setSelectedTemplateId(normalizedId)
+                              const template =
+                                normalizedId &&
+                                normalizedId !== AUTO_TEMPLATE_SENTINEL
+                                  ? templates.find(item => item.id === normalizedId) || null
+                                  : null
+                              applyTemplateDefaults(template)
+                            }}
+                          />
+                        </div>
+                        <button
+                          type='button'
+                          onClick={() => applyTemplateDefaults(selectedTemplate)}
+                          disabled={!selectedTemplate}
+                          className='rounded-lg border border-blue-200 px-3 py-2 text-xs font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-40 disabled:cursor-not-allowed dark:border-blue-800 dark:text-blue-200 dark:hover:bg-blue-900/30'
+                        >
+                          Apply Template Defaults
+                        </button>
+                      </div>
+                      {templatesLoading ? (
+                        <p className='mt-2 text-xs text-gray-500'>
+                          Loading templates...
+                        </p>
+                      ) : null}
+                      {templatesError ? (
+                        <p className='mt-2 text-xs text-red-600'>
+                          {templatesError}
+                        </p>
+                      ) : null}
+                      {selectedTemplate ? (
+                        <p className='mt-2 text-xs text-gray-600 dark:text-gray-300'>
+                          Selected: {selectedTemplate.name} (
+                          {selectedTemplate.templateType}) - Min margin{' '}
+                          {selectedTemplate.minMarginPercent}%
+                        </p>
+                      ) : null}
+                    </>
+                  ) : (
+                    <p className='mb-3 text-xs text-gray-500 dark:text-gray-400'>
+                      Visa lead quotations do not use package templates. Use
+                      pricing below for insurance and visa only.
                     </p>
-                  ) : null}
-                  {templatesError ? (
-                    <p className='mt-2 text-xs text-red-600'>
-                      {templatesError}
-                    </p>
-                  ) : null}
-                  {selectedTemplate ? (
-                    <p className='mt-2 text-xs text-gray-600 dark:text-gray-300'>
-                      Selected: {selectedTemplate.name} (
-                      {selectedTemplate.templateType}) - Min margin{' '}
-                      {selectedTemplate.minMarginPercent}%
-                    </p>
-                  ) : null}
+                  )}
 
                   <div className='mt-3'>
                     <label className='field-label'>Supplier</label>
@@ -3688,32 +3784,34 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                   </div>
                 </div>
 
-                <div className='md:col-span-2 rounded-xl border border-green-200 bg-green-50/30 p-3 dark:border-green-800 dark:bg-green-900/10'>
-                  <label className='field-label text-green-700 dark:text-green-300'>
-                    Load from package (Ready or Customized)
-                  </label>
-                  <p className='mb-2 text-[11px] text-green-600 dark:text-green-400'>
-                    Select a catalog package to prefill the quotation. After
-                    loading, you can edit the title, duration, itinerary, and
-                    content here without changing the source package. Customized
-                    packages also load editable service lines.
-                  </p>
-                  <SearchableDropdown
-                    value={selectedPackageId}
-                    options={packageOptions}
-                    disabled={packagesLoading}
-                    searchPlaceholder='Search packages...'
-                    onChange={pkgId => {
-                      setSelectedPackageId(pkgId)
-                      if (pkgId) void loadFromPackage(pkgId)
-                    }}
-                  />
-                  {packagesLoading ? (
-                    <p className='mt-1 text-xs text-gray-500'>
-                      Loading packages...
+                {!isVisaLeadQuotation ? (
+                  <div className='md:col-span-2 rounded-xl border border-green-200 bg-green-50/30 p-3 dark:border-green-800 dark:bg-green-900/10'>
+                    <label className='field-label text-green-700 dark:text-green-300'>
+                      Load from package (Ready or Customized)
+                    </label>
+                    <p className='mb-2 text-[11px] text-green-600 dark:text-green-400'>
+                      Select a catalog package to prefill the quotation. After
+                      loading, you can edit the title, duration, itinerary, and
+                      content here without changing the source package. Customized
+                      packages also load editable service lines.
                     </p>
-                  ) : null}
-                </div>
+                    <SearchableDropdown
+                      value={selectedPackageId}
+                      options={packageOptions}
+                      disabled={packagesLoading}
+                      searchPlaceholder='Search packages...'
+                      onChange={pkgId => {
+                        setSelectedPackageId(pkgId)
+                        if (pkgId) void loadFromPackage(pkgId)
+                      }}
+                    />
+                    {packagesLoading ? (
+                      <p className='mt-1 text-xs text-gray-500'>
+                        Loading packages...
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
 
                 <div className='md:col-span-2 rounded-xl border border-gray-200 bg-gray-50/40 p-3 dark:border-gray-700 dark:bg-gray-900/20'>
                   <p className='text-[11px] font-semibold uppercase tracking-wide text-gray-500'>
@@ -4083,68 +4181,70 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                 </div>
               </div>
             </SurfaceCard>
-            <SurfaceCard>
-              <div className='mb-4'>
-                <h2 className='text-base font-semibold text-gray-900 dark:text-gray-100'>
-                  Itinerary Items
-                </h2>
-                <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
-                  Day fields are created automatically from the quotation Days value.
-                </p>
-              </div>
-              {parseDayCount(form.durationDays) <= 0 ? (
-                <div className='rounded-xl border border-dashed border-blue-200 bg-blue-50/40 px-3 py-4 text-sm text-gray-500 dark:border-blue-900/40 dark:bg-blue-900/10 dark:text-gray-400'>
-                  Enter the total Days in duration to generate itinerary
-                  fields.
+            {!isVisaLeadQuotation ? (
+              <SurfaceCard>
+                <div className='mb-4'>
+                  <h2 className='text-base font-semibold text-gray-900 dark:text-gray-100'>
+                    Itinerary Items
+                  </h2>
+                  <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+                    Day fields are created automatically from the quotation Days value.
+                  </p>
                 </div>
-              ) : (
-                <div className='space-y-3'>
-                  {itineraryItems.map((item, index) => (
-                    <div
-                      key={item.id}
-                      className='rounded-xl border border-blue-100 bg-blue-50/30 p-3 dark:border-blue-900/40 dark:bg-blue-900/10'
-                    >
-                      <div className='mb-3 flex items-center gap-2'>
-                        <span className='rounded-md bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700 dark:bg-blue-950/40 dark:text-blue-200'>
-                          {getDayLabel(index)}
-                        </span>
-                        <input
+                {parseDayCount(form.durationDays) <= 0 ? (
+                  <div className='rounded-xl border border-dashed border-blue-200 bg-blue-50/40 px-3 py-4 text-sm text-gray-500 dark:border-blue-900/40 dark:bg-blue-900/10 dark:text-gray-400'>
+                    Enter the total Days in duration to generate itinerary
+                    fields.
+                  </div>
+                ) : (
+                  <div className='space-y-3'>
+                    {itineraryItems.map((item, index) => (
+                      <div
+                        key={item.id}
+                        className='rounded-xl border border-blue-100 bg-blue-50/30 p-3 dark:border-blue-900/40 dark:bg-blue-900/10'
+                      >
+                        <div className='mb-3 flex items-center gap-2'>
+                          <span className='rounded-md bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700 dark:bg-blue-950/40 dark:text-blue-200'>
+                            {getDayLabel(index)}
+                          </span>
+                          <input
+                            className='field-input'
+                            placeholder='Title (Arrival, Sightseeing, Leisure...)'
+                            value={item.title}
+                            onChange={event => {
+                              const nextValue = event.target.value
+                              setItineraryItems(prev =>
+                                prev.map((row, rowIndex) =>
+                                  rowIndex === index
+                                    ? { ...row, title: nextValue }
+                                    : row
+                                )
+                              )
+                            }}
+                          />
+                        </div>
+                        <textarea
                           className='field-input'
-                          placeholder='Title (Arrival, Sightseeing, Leisure...)'
-                          value={item.title}
+                          rows={4}
+                          placeholder='Add the plan for this day...'
+                          value={item.description}
                           onChange={event => {
                             const nextValue = event.target.value
                             setItineraryItems(prev =>
                               prev.map((row, rowIndex) =>
                                 rowIndex === index
-                                  ? { ...row, title: nextValue }
+                                  ? { ...row, description: nextValue }
                                   : row
                               )
                             )
                           }}
                         />
                       </div>
-                      <textarea
-                        className='field-input'
-                        rows={4}
-                        placeholder='Add the plan for this day...'
-                        value={item.description}
-                        onChange={event => {
-                          const nextValue = event.target.value
-                          setItineraryItems(prev =>
-                            prev.map((row, rowIndex) =>
-                              rowIndex === index
-                                ? { ...row, description: nextValue }
-                                : row
-                            )
-                          )
-                        }}
-                      />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </SurfaceCard>
+                    ))}
+                  </div>
+                )}
+              </SurfaceCard>
+            ) : null}
             <SurfaceCard>
               <div className='mb-3 flex items-start justify-between gap-3'>
                 <div>
@@ -4192,8 +4292,9 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                     Step 2: Markup
                   </p>
                   <p className='mt-1'>
-                    Markup percent is applied per service. Flights use fixed
-                    service charge instead of percentage.
+                    {isVisaLeadQuotation
+                      ? 'Insurance uses markup %. Visa row uses base value plus fixed service charge (like flights on holiday quotes).'
+                      : 'Markup percent is applied per service. Flights use fixed service charge instead of percentage.'}
                   </p>
                 </div>
                 <div className='rounded-lg border border-gray-200 bg-white px-3 py-2.5 dark:border-gray-700 dark:bg-gray-900'>
@@ -4218,80 +4319,88 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                     onCellKeyDown={focusNextPricingInput}
                     suppliers={suppliers}
                     suppliersLoading={suppliersLoading}
+                    visaLeadMode={isVisaLeadQuotation}
                   />
-                  <div className='rounded-xl border border-blue-200 bg-blue-50/30 p-3 dark:border-blue-800 dark:bg-blue-900/10'>
-                    <div className='mb-2 flex items-center justify-between'>
-                      <h3 className='text-sm font-semibold text-gray-800 dark:text-gray-100'>
-                        Add-on Services
-                      </h3>
-                      <button
-                        onClick={() => setShowAddOnModal(true)}
-                        className='rounded-lg border border-gray-200 bg-gray-100 px-2.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
-                      >
-                        <FaPlus className='mr-1 inline' /> Add Service
-                      </button>
-                    </div>
-                    {addOnServices.length ? (
-                      <div className='space-y-2 text-xs text-gray-600 dark:text-gray-300'>
-                        <div className='grid grid-cols-[1fr_auto_auto_auto_auto] gap-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500'>
-                          <span>Service</span>
-                          <span className='text-right w-20'>Base Cost</span>
-                          <span className='text-right w-20'>Markup</span>
-                          <span className='text-right w-20'>Sell Value</span>
-                          <span className='text-right w-16'>Actions</span>
-                        </div>
-                        {addOnServices.map(service => (
-                          <div
-                            key={service.id}
-                            className='grid grid-cols-[1fr_auto_auto_auto_auto] items-center gap-2'
-                          >
-                            <span>{service.name}</span>
-                            <span className='text-right w-20'>
-                              {money(Number(service.baseCost) || 0)}
-                            </span>
-                            <span className='text-right w-20'>
-                              {money(Number(service.markup) || 0)}
-                            </span>
-                            <span className='text-right w-20 font-medium text-gray-800 dark:text-gray-100'>
-                              {money(Number(service.sellValue) || 0)}
-                            </span>
-                            <div className='flex gap-1'>
-                              <button
-                                onClick={() => editAddOnService(service)}
-                                className='rounded p-1 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20'
-                                title='Edit'
-                              >
-                                <FaPencil className='text-xs' />
-                              </button>
-                              <button
-                                onClick={() => removeAddOnService(service.id)}
-                                className='rounded p-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20'
-                                title='Remove'
-                              >
-                                <FaTrash className='text-xs' />
-                              </button>
-                            </div>
+                  {!isVisaLeadQuotation ? (
+                    <div className='rounded-xl border border-blue-200 bg-blue-50/30 p-3 dark:border-blue-800 dark:bg-blue-900/10'>
+                      <div className='mb-2 flex items-center justify-between'>
+                        <h3 className='text-sm font-semibold text-gray-800 dark:text-gray-100'>
+                          Add-on Services
+                        </h3>
+                        <button
+                          onClick={() => setShowAddOnModal(true)}
+                          className='rounded-lg border border-gray-200 bg-gray-100 px-2.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
+                        >
+                          <FaPlus className='mr-1 inline' /> Add Service
+                        </button>
+                      </div>
+                      {addOnServices.length ? (
+                        <div className='space-y-2 text-xs text-gray-600 dark:text-gray-300'>
+                          <div className='grid grid-cols-[1fr_auto_auto_auto_auto] gap-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500'>
+                            <span>Service</span>
+                            <span className='text-right w-20'>Base Cost</span>
+                            <span className='text-right w-20'>Markup</span>
+                            <span className='text-right w-20'>Sell Value</span>
+                            <span className='text-right w-16'>Actions</span>
                           </div>
-                        ))}
-                        <div className='flex items-center justify-between border-t border-gray-200 pt-2 text-xs font-semibold text-gray-700 dark:border-gray-700 dark:text-gray-200'>
-                          <span>Add-on Total</span>
-                          <span className='truncate max-w-[150px]'>{money(Math.min(addOnTotal, 999999999999))}</span>
+                          {addOnServices.map(service => (
+                            <div
+                              key={service.id}
+                              className='grid grid-cols-[1fr_auto_auto_auto_auto] items-center gap-2'
+                            >
+                              <span>{service.name}</span>
+                              <span className='text-right w-20'>
+                                {money(Number(service.baseCost) || 0)}
+                              </span>
+                              <span className='text-right w-20'>
+                                {money(Number(service.markup) || 0)}
+                              </span>
+                              <span className='text-right w-20 font-medium text-gray-800 dark:text-gray-100'>
+                                {money(Number(service.sellValue) || 0)}
+                              </span>
+                              <div className='flex gap-1'>
+                                <button
+                                  onClick={() => editAddOnService(service)}
+                                  className='rounded p-1 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20'
+                                  title='Edit'
+                                >
+                                  <FaPencil className='text-xs' />
+                                </button>
+                                <button
+                                  onClick={() => removeAddOnService(service.id)}
+                                  className='rounded p-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20'
+                                  title='Remove'
+                                >
+                                  <FaTrash className='text-xs' />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                          <div className='flex items-center justify-between border-t border-gray-200 pt-2 text-xs font-semibold text-gray-700 dark:border-gray-700 dark:text-gray-200'>
+                            <span>Add-on Total</span>
+                            <span className='truncate max-w-[150px]'>{money(Math.min(addOnTotal, 999999999999))}</span>
+                          </div>
+                          <div className='flex items-center justify-between border-t border-gray-200 pt-2 text-xs font-semibold text-gray-800 dark:border-gray-700 dark:text-gray-100'>
+                            <span>Services Total</span>
+                            <span className='truncate max-w-[150px]'>{money(Math.min(serviceChargesTotal, 999999999999))}</span>
+                          </div>
                         </div>
-                        <div className='flex items-center justify-between border-t border-gray-200 pt-2 text-xs font-semibold text-gray-800 dark:border-gray-700 dark:text-gray-100'>
-                          <span>Services Total</span>
-                          <span className='truncate max-w-[150px]'>{money(Math.min(serviceChargesTotal, 999999999999))}</span>
+                      ) : (
+                        <div className='space-y-2 text-xs text-gray-500'>
+                          <p>No add-on services added yet.</p>
+                          <div className='flex items-center justify-between border-t border-gray-200 pt-2 text-xs font-semibold text-gray-800 dark:border-gray-700 dark:text-gray-100'>
+                            <span>Services Total</span>
+                            <span className='truncate max-w-[150px]'>{money(Math.min(serviceChargesTotal, 999999999999))}</span>
+                          </div>
                         </div>
-                      </div>
-                    ) : (
-                      <div className='space-y-2 text-xs text-gray-500'>
-                        <p>No add-on services added yet.</p>
-                        <div className='flex items-center justify-between border-t border-gray-200 pt-2 text-xs font-semibold text-gray-800 dark:border-gray-700 dark:text-gray-100'>
-                          <span>Services Total</span>
-                          <span className='truncate max-w-[150px]'>{money(Math.min(serviceChargesTotal, 999999999999))}</span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className='rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-900/20 dark:text-gray-400'>
+                      <span className='font-medium text-gray-800 dark:text-gray-200'>Services total: </span>
+                      {money(Math.min(serviceChargesTotal, 999999999999))}
+                    </div>
+                  )}
                   <div className='rounded-lg border border-blue-100 bg-blue-50 px-3 py-3 dark:border-blue-900/50 dark:bg-blue-900/20'>
                     <p className='text-xs uppercase text-center text-blue-700 dark:text-blue-300'>
                       Total Sale Value
@@ -4312,7 +4421,8 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                   setFinance={setFinance}
                   addOnTotal={addOnTotal}
                   addOnMarkup={addOnMarkupTotal}
-                  flightServiceCharge={flightServiceChargeTotal}
+                  fixedServiceChargeTotal={fixedServiceChargeTotal}
+                  visaLeadQuotation={isVisaLeadQuotation}
                   effectiveMarkupPercent={effectiveMarkupPercent}
                   subtotal={subtotal}
                   taxes={taxes}
@@ -4327,30 +4437,34 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                   Inclusions
                 </h3>
                 <p className='mb-2 text-[11px] text-gray-500 dark:text-gray-400'>
-                  Tap icons to add/remove common inclusion lines quickly.
+                  {isVisaLeadQuotation
+                    ? 'Optional for visa quotations — list what is covered (e.g. documentation support, appointment booking).'
+                    : 'Tap icons to add/remove common inclusion lines quickly.'}
                 </p>
-                <div className='mb-3 flex flex-wrap gap-2'>
-                  {INCLUSION_SHORTCUTS.map(shortcut => {
-                    const Icon = shortcut.icon
-                    const isActive = inclusionLineSet.has(
-                      shortcut.line.toLowerCase()
-                    )
-                    return (
-                      <button
-                        key={shortcut.key}
-                        type='button'
-                        onClick={() => toggleInclusionShortcut(shortcut.line)}
-                        className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition ${isActive
-                            ? 'border-green-300 bg-green-50 text-green-700 dark:border-green-700 dark:bg-green-900/20 dark:text-green-300'
-                            : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300 hover:text-blue-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-blue-700 dark:hover:text-blue-300'
-                          }`}
-                      >
-                        <Icon className='text-xs' />
-                        <span>{shortcut.label}</span>
-                      </button>
-                    )
-                  })}
-                </div>
+                {!isVisaLeadQuotation ? (
+                  <div className='mb-3 flex flex-wrap gap-2'>
+                    {INCLUSION_SHORTCUTS.map(shortcut => {
+                      const Icon = shortcut.icon
+                      const isActive = inclusionLineSet.has(
+                        shortcut.line.toLowerCase()
+                      )
+                      return (
+                        <button
+                          key={shortcut.key}
+                          type='button'
+                          onClick={() => toggleInclusionShortcut(shortcut.line)}
+                          className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition ${isActive
+                              ? 'border-green-300 bg-green-50 text-green-700 dark:border-green-700 dark:bg-green-900/20 dark:text-green-300'
+                              : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300 hover:text-blue-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-blue-700 dark:hover:text-blue-300'
+                            }`}
+                        >
+                          <Icon className='text-xs' />
+                          <span>{shortcut.label}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                ) : null}
                 <textarea
                   rows={5}
                   value={form.inclusions}
@@ -4364,6 +4478,11 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                 <h3 className='mb-2 text-sm font-semibold text-red-700'>
                   Exclusions
                 </h3>
+                {isVisaLeadQuotation ? (
+                  <p className='mb-2 text-[11px] text-gray-500 dark:text-gray-400'>
+                    Optional — list what is not covered (e.g. embassy fees, personal travel).
+                  </p>
+                ) : null}
                 <textarea
                   rows={5}
                   value={form.exclusions}
@@ -4378,98 +4497,119 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
               <h3 className='mb-3 text-sm font-semibold text-gray-900 dark:text-gray-100'>
                 Template Content Blocks
               </h3>
-              <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
-                <div className='md:col-span-2'>
-                  <label className='field-label'>Header Branding</label>
-                  <textarea
-                    rows={2}
-                    className='field-input'
-                    value={form.headerBranding}
-                    onChange={event =>
-                      setForm(prev => ({
-                        ...prev,
-                        headerBranding: event.target.value
-                      }))
-                    }
-                    placeholder='Brand header line shown on quotation'
-                  />
+              {isVisaLeadQuotation ? (
+                <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
+                  <div>
+                    <label className='field-label'>Payment Terms</label>
+                    <textarea
+                      rows={4}
+                      className='field-input'
+                      value={form.paymentTerms}
+                      onChange={event =>
+                        setForm(prev => ({
+                          ...prev,
+                          paymentTerms: event.target.value
+                        }))
+                      }
+                      placeholder='Payment plan and conditions'
+                    />
+                  </div>
+                  <div>
+                    <label className='field-label'>Cancellation Policy</label>
+                    <textarea
+                      rows={4}
+                      className='field-input'
+                      value={form.cancellationPolicy}
+                      onChange={event =>
+                        setForm(prev => ({
+                          ...prev,
+                          cancellationPolicy: event.target.value
+                        }))
+                      }
+                      placeholder='Cancellation and refund terms'
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className='field-label'>Payment Terms</label>
-                  <textarea
-                    rows={3}
-                    className='field-input'
-                    value={form.paymentTerms}
-                    onChange={event =>
-                      setForm(prev => ({
-                        ...prev,
-                        paymentTerms: event.target.value
-                      }))
-                    }
-                    placeholder='Payment plan and conditions'
-                  />
+              ) : (
+                <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
+                 
+                  <div>
+                    <label className='field-label'>Payment Terms</label>
+                    <textarea
+                      rows={3}
+                      className='field-input'
+                      value={form.paymentTerms}
+                      onChange={event =>
+                        setForm(prev => ({
+                          ...prev,
+                          paymentTerms: event.target.value
+                        }))
+                      }
+                      placeholder='Payment plan and conditions'
+                    />
+                  </div>
+                  <div>
+                    <label className='field-label'>Cancellation Policy</label>
+                    <textarea
+                      rows={3}
+                      className='field-input'
+                      value={form.cancellationPolicy}
+                      onChange={event =>
+                        setForm(prev => ({
+                          ...prev,
+                          cancellationPolicy: event.target.value
+                        }))
+                      }
+                      placeholder='Cancellation and refund terms'
+                    />
+                  </div>
+                  <div>
+                    <label className='field-label'>Hotel details</label>
+                    <textarea
+                      rows={3}
+                      className='field-input'
+                      value={form.hotelDetails}
+                      onChange={event =>
+                        setForm(prev => ({
+                          ...prev,
+                          hotelDetails: event.target.value
+                        }))
+                      }
+                      placeholder='Hotel name, star category, rooms, meal plan, check-in/out'
+                    />
+                  </div>
+                  <div>
+                    <label className='field-label'>Visa details</label>
+                    <textarea
+                      rows={3}
+                      className='field-input'
+                      value={form.visaDetails}
+                      onChange={event =>
+                        setForm(prev => ({
+                          ...prev,
+                          visaDetails: event.target.value
+                        }))
+                      }
+                      placeholder='Visa type, fees, processing time, documents required'
+                    />
+                  </div>
+                  <div className='md:col-span-2'>
+                    <label className='field-label'>Footer Disclaimer</label>
+                    <textarea
+                      rows={2}
+                      className='field-input'
+                      value={form.footerDisclaimer}
+                      onChange={event =>
+                        setForm(prev => ({
+                          ...prev,
+                          footerDisclaimer: event.target.value
+                        }))
+                      }
+                      placeholder='Legal/compliance footer note'
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className='field-label'>Cancellation Policy</label>
-                  <textarea
-                    rows={3}
-                    className='field-input'
-                    value={form.cancellationPolicy}
-                    onChange={event =>
-                      setForm(prev => ({
-                        ...prev,
-                        cancellationPolicy: event.target.value
-                      }))
-                    }
-                    placeholder='Cancellation and refund terms'
-                  />
-                </div>
-                <div>
-                  <label className='field-label'>Hotel details</label>
-                  <textarea
-                    rows={3}
-                    className='field-input'
-                    value={form.hotelDetails}
-                    onChange={event =>
-                      setForm(prev => ({
-                        ...prev,
-                        hotelDetails: event.target.value
-                      }))
-                    }
-                    placeholder='Hotel name, star category, rooms, meal plan, check-in/out'
-                  />
-                </div>
-                <div>
-                  <label className='field-label'>Visa details</label>
-                  <textarea
-                    rows={3}
-                    className='field-input'
-                    value={form.visaDetails}
-                    onChange={event =>
-                      setForm(prev => ({
-                        ...prev,
-                        visaDetails: event.target.value
-                      }))
-                    }
-                    placeholder='Visa type, fees, processing time, documents required'
-                  />
-                </div>
-                <div className='md:col-span-2'>
-                  <label className='field-label'>Footer Disclaimer</label>
-                  <textarea
-                    rows={2}
-                    className='field-input'
-                    value={form.footerDisclaimer}
-                    onChange={event =>
-                      setForm(prev => ({
-                        ...prev,
-                        footerDisclaimer: event.target.value
-                      }))
-                    }
-                    placeholder='Legal/compliance footer note'
-                  />
-                </div>
-              </div>
+              )}
             </SurfaceCard>
           </div>
 
@@ -4727,24 +4867,26 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                     </div>
                   </div>
 
-                  <div className='mb-4 rounded-xl border border-gray-200 p-3'>
-                    <p className='mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500'>
-                      Itinerary Snapshot
-                    </p>
-                    <div className='space-y-2'>
-                      {itineraryItems.map(item => (
-                        <div
-                          key={`preview-itinerary-${item.id}`}
-                          className='text-xs'
-                        >
-                          <p className='font-medium text-gray-800'>
-                            {item.day}: {item.title}
-                          </p>
-                          <p className='text-gray-500'>{item.description}</p>
-                        </div>
-                      ))}
+                  {!isVisaLeadQuotation ? (
+                    <div className='mb-4 rounded-xl border border-gray-200 p-3'>
+                      <p className='mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                        Itinerary Snapshot
+                      </p>
+                      <div className='space-y-2'>
+                        {itineraryItems.map(item => (
+                          <div
+                            key={`preview-itinerary-${item.id}`}
+                            className='text-xs'
+                          >
+                            <p className='font-medium text-gray-800'>
+                              {item.day}: {item.title}
+                            </p>
+                            <p className='text-gray-500'>{item.description}</p>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  ) : null}
 
                   {form.inclusions.trim() || form.exclusions.trim() ? (
                     <div className='mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2'>
@@ -4783,7 +4925,8 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                     </div>
                   ) : null}
 
-                  {form.hotelDetails.trim() || form.visaDetails.trim() ? (
+                  {!isVisaLeadQuotation &&
+                  (form.hotelDetails.trim() || form.visaDetails.trim()) ? (
                     <div className='mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2'>
                       {form.hotelDetails.trim() ? (
                         <div className='rounded-xl border border-sky-200 bg-sky-50 p-3'>
@@ -4815,7 +4958,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
 
                   {form.paymentTerms.trim() ||
                     form.cancellationPolicy.trim() ||
-                    form.footerDisclaimer.trim() ? (
+                    (!isVisaLeadQuotation && form.footerDisclaimer.trim()) ? (
                     <div className='mt-4 space-y-2 rounded-xl border border-gray-200 p-3 text-xs dark:border-gray-700'>
                       {form.paymentTerms.trim() ? (
                         <div>
@@ -4837,7 +4980,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                           </p>
                         </div>
                       ) : null}
-                      {form.footerDisclaimer.trim() ? (
+                      {!isVisaLeadQuotation && form.footerDisclaimer.trim() ? (
                         <div>
                           <p className='font-semibold text-gray-700 dark:text-gray-200'>
                             Footer Disclaimer
@@ -5082,7 +5225,8 @@ const PricingTable = ({
   onCellKeyDown,
   money,
   suppliers,
-  suppliersLoading
+  suppliersLoading,
+  visaLeadMode = false
 }: {
   rows: ServiceCostRow[]
   overrides: ServiceOverridesState
@@ -5098,6 +5242,7 @@ const PricingTable = ({
   money: (value: number) => string
   suppliers: Array<{ id: string; name: string }>
   suppliersLoading: boolean
+  visaLeadMode?: boolean
 }) => {
   return (
     <div className='space-y-3'>
@@ -5125,6 +5270,7 @@ const PricingTable = ({
                 money={money}
                 suppliers={suppliers}
                 suppliersLoading={suppliersLoading}
+                visaLeadMode={visaLeadMode}
               />
             ))}
           </div>
@@ -5168,7 +5314,8 @@ const PricingRow = ({
   onCellKeyDown,
   money,
   suppliers,
-  suppliersLoading
+  suppliersLoading,
+  visaLeadMode = false
 }: {
   row: ServiceCostRow
   rowIndex: number
@@ -5185,8 +5332,11 @@ const PricingRow = ({
   money: (value: number) => string
   suppliers: Array<{ id: string; name: string }>
   suppliersLoading: boolean
+  visaLeadMode?: boolean
 }) => {
-  const isFlightService = row.key === 'flights'
+  /** Flights row, or visa row on visa-lead quotes: fixed service charge (not markup %). */
+  const isFlightService =
+    row.key === 'flights' || (visaLeadMode && row.key === 'visa')
   const markupFieldKey: 'markupPercent' | 'serviceCharge' = isFlightService
     ? 'serviceCharge'
     : 'markupPercent'
@@ -5216,17 +5366,18 @@ const PricingRow = ({
     }
   }
 
+  const n2 = (n: number) => (Number.isFinite(n) ? n : 0)
   const displayBaseCost = hasBaseCostOverride
     ? String(override.baseCost)
-    : row.baseCost.toFixed(2)
+    : n2(row.baseCost).toFixed(2)
   const displayMarkup = hasMarkupOverride
     ? String(
       isFlightService ? override.serviceCharge : override.markupPercent
     )
     : isFlightService
-      ? row.markupAmount.toFixed(2)
-      : row.markupPercent.toFixed(1)
-  const displaySell = row.sellValue.toFixed(2)
+      ? n2(row.markupAmount).toFixed(2)
+      : n2(row.markupPercent).toFixed(1)
+  const displaySell = n2(row.sellValue).toFixed(2)
 
   const sharedInputClass =
     'h-9 w-full rounded-lg border border-gray-300 bg-white px-2.5 py-2 text-sm leading-tight text-right tabular-nums transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 overflow-hidden text-ellipsis'
@@ -5270,7 +5421,7 @@ const PricingRow = ({
         </div>
         <div className='rounded-lg bg-blue-50 px-3 py-1.5 dark:bg-blue-900/30'>
           <p className='text-xs font-semibold text-blue-700 dark:text-blue-300 truncate'>
-            {money(Math.min(row.sellValue, 999999999999))}
+            {money(Math.min(n2(row.sellValue), 999999999999))}
           </p>
           <p className='text-[10px] text-blue-600 dark:text-blue-400'>
             Sell Value
@@ -5356,7 +5507,8 @@ const PricingRow = ({
             </p>
           ) : null}
           <p className='mt-1 text-[10px] text-gray-500 dark:text-gray-400'>
-            {isFlightService ? 'Service Charge' : 'Markup'}: {money(Math.min(row.markupAmount, 999999999999))}
+            {isFlightService ? 'Service Charge' : 'Markup'}:{' '}
+            {money(Math.min(n2(row.markupAmount), 999999999999))}
           </p>
         </div>
 
@@ -5408,7 +5560,8 @@ const SummaryPanel = ({
   setFinance,
   addOnTotal,
   addOnMarkup,
-  flightServiceCharge,
+  fixedServiceChargeTotal,
+  visaLeadQuotation = false,
   effectiveMarkupPercent,
   subtotal,
   taxes,
@@ -5429,7 +5582,8 @@ const SummaryPanel = ({
   setFinance: React.Dispatch<React.SetStateAction<FinanceBreakdown>>
   addOnTotal: number
   addOnMarkup: number
-  flightServiceCharge: number
+  fixedServiceChargeTotal: number
+  visaLeadQuotation?: boolean
   effectiveMarkupPercent: number
   subtotal: number
   taxes: number
@@ -5438,7 +5592,13 @@ const SummaryPanel = ({
 }) => {
   const inputClass =
     'h-10 w-full min-w-0 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm leading-tight text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100'
-  const totalServiceFee = Number((costs.serviceFee + flightServiceCharge).toFixed(2))
+  const safeFixed = Number.isFinite(fixedServiceChargeTotal)
+    ? fixedServiceChargeTotal
+    : 0
+  const safeManualFee = Number.isFinite(Number(costs.serviceFee))
+    ? Number(costs.serviceFee)
+    : 0
+  const totalServiceFee = Number((safeManualFee + safeFixed).toFixed(2))
 
   const updateCost = (field: keyof PricingCosts, value: string) => {
     setCosts(previous => {
@@ -5478,7 +5638,7 @@ const SummaryPanel = ({
       const next = Number(value)
       if (!Number.isFinite(next)) return previous
       const boundedTotal = Math.max(0, next)
-      const manualFee = Math.max(0, boundedTotal - flightServiceCharge)
+      const manualFee = Math.max(0, boundedTotal - safeFixed)
       return {
         ...previous,
         serviceFee: Number(manualFee.toFixed(2))
@@ -5531,7 +5691,7 @@ const SummaryPanel = ({
               type='number'
               min='0'
               step='0.01'
-              value={costs.supplierCost}
+              value={Number.isFinite(costs.supplierCost) ? costs.supplierCost : 0}
               onFocus={event => event.currentTarget.select()}
               onChange={event => updateCost('supplierCost', event.target.value)}
               className={inputClass}
@@ -5550,7 +5710,8 @@ const SummaryPanel = ({
             />
           </div>
           <p className='-mt-1 break-words text-[11px] text-gray-500 dark:text-gray-400'>
-            Manual {money(costs.serviceFee)} + Flight charge {money(flightServiceCharge)}
+            Manual {money(safeManualFee)} + fixed-row charge {money(safeFixed)}
+            {visaLeadQuotation ? ' (visa)' : ' (flights)'}
           </p>
           <div className='grid grid-row-[minmax(0,1fr)_minmax(0,120px)] items-center gap-1'>
             <span className='min-w-0 text-xs leading-snug text-gray-500'>Apply GST</span>
@@ -5572,7 +5733,7 @@ const SummaryPanel = ({
                 type='number'
                 min='0'
                 step='0.1'
-                value={finance.gstPercent}
+                value={Number.isFinite(finance.gstPercent) ? finance.gstPercent : 0}
                 onFocus={event => event.currentTarget.select()}
                 onChange={event =>
                   updateFinancePercent('gstPercent', event.target.value)
@@ -5601,7 +5762,7 @@ const SummaryPanel = ({
                 type='number'
                 min='0'
                 step='0.1'
-                value={finance.tcsPercent}
+                value={Number.isFinite(finance.tcsPercent) ? finance.tcsPercent : 0}
                 onFocus={event => event.currentTarget.select()}
                 onChange={event =>
                   updateFinancePercent('tcsPercent', event.target.value)
@@ -5626,7 +5787,10 @@ const SummaryPanel = ({
           <div className='grid grid-row-[minmax(0,1fr)_minmax(0,120px)] items-center gap-1'>
             <span className='min-w-0 text-xs leading-snug text-gray-500'>Effective Markup %</span>
             <div className='h-10 w-full min-w-0 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 text-sm leading-tight text-right tabular-nums font-semibold text-blue-700 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-300'>
-              {effectiveMarkupPercent.toFixed(2)}
+              {(Number.isFinite(effectiveMarkupPercent)
+                ? effectiveMarkupPercent
+                : 0
+              ).toFixed(2)}
             </div>
           </div>
           <div className='grid grid-row-[minmax(0,1fr)_minmax(0,120px)] items-center gap-1'>
@@ -5635,7 +5799,7 @@ const SummaryPanel = ({
               type='number'
               min='0'
               step='0.01'
-              value={costs.discount}
+              value={Number.isFinite(costs.discount) ? costs.discount : 0}
               onFocus={event => event.currentTarget.select()}
               onChange={event => updateCost('discount', event.target.value)}
               className={inputClass}
@@ -5655,9 +5819,13 @@ const SummaryPanel = ({
               </span>
             </div>
             <div className='flex min-w-0 flex-col items-center pb-5 justify-between gap-2'>
-              <span className='min-w-0 text-center'>Flight Service Charge</span>
+              <span className='min-w-0 text-center'>
+                {visaLeadQuotation
+                  ? 'Visa fixed service charge'
+                  : 'Flight service charge'}
+              </span>
               <span className='min-w-0 max-w-[120px] truncate text-right font-medium tabular-nums'>
-                {money(flightServiceCharge)}
+                {money(safeFixed)}
               </span>
             </div>
             <div className='flex min-w-0 items-center flex-col pb-5 justify-between gap-2'>

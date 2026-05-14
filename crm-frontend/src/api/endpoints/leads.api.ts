@@ -73,7 +73,7 @@ export const leadsEndpoints = {
     apiClient.get<{ data: Lead }>(`/api/leads/${id}`),
 
   update: (id: string, payload: UpdateLeadPayload) =>
-    apiClient.patch<{ data: Lead }>(`/api/leads/${id}`, payload),
+    apiClient.put<{ data: Lead }>(`/api/leads/${id}`, payload),
 
   assign: (id: string, assignedTo: string, reason?: string) =>
     apiClient.post(`/api/leads/${id}/assign`, { assignedTo, reason }),
@@ -85,7 +85,7 @@ export const leadsEndpoints = {
     apiClient.get(`/api/leads/${id}/followups`),
 
   markAsLost: (id: string, reason: string, notes?: string) =>
-    apiClient.patch(`/api/leads/${id}`, { status: 'LOST', closedReason: reason, notes }),
+    apiClient.put(`/api/leads/${id}`, { status: 'LOST', closedReason: reason, notes }),
 
   checkDuplicate: (email?: string, phone?: string) =>
     apiClient.get<{ data: { isDuplicate: boolean; matches?: Lead[] } }>(

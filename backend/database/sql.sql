@@ -150,7 +150,7 @@ WHERE key IN (
 )
 ON CONFLICT DO NOTHING;
 
--- Sales Consultant: 14 permissions
+-- Sales Consultant: 15 permissions
 INSERT INTO role_permissions (role_id, permission_id, is_active)
 SELECT
   (SELECT id FROM roles WHERE name = 'sales_consultant'),
@@ -164,6 +164,7 @@ WHERE key IN (
   'bookings:read',
   'bookings:update',
   'customers:read',
+  'campaigns:read',
   'visa:read',
   'suppliers:read',
   'suppliers:create',

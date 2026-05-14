@@ -49,7 +49,10 @@ function createCmsPackagesRepository({ db, schema }) {
         if (strictSet.has(missingColumn)) {
           throw error;
         }
-        if (!(missingColumn in mutableInput) || removedColumns.has(missingColumn)) {
+        if (
+          !(missingColumn in mutableInput) ||
+          removedColumns.has(missingColumn)
+        ) {
           throw error;
         }
         delete mutableInput[missingColumn];
@@ -195,6 +198,7 @@ function createCmsPackagesRepository({ db, schema }) {
     async softDeletePackageById(id) {
       return db.update(schema.packagesTable, id, {
         is_deleted: true,
+        display_order: -1,
       });
     },
 
@@ -229,6 +233,12 @@ function createCmsPackagesRepository({ db, schema }) {
       if (country) {
         values.push(country);
         clauses.push("LOWER(mp.country) = LOWER(?)");
+      }
+
+      const destinationId = normalizeCountry(filters.destinationId);
+      if (destinationId) {
+        values.push(destinationId);
+        clauses.push("mp.destination_id = ?");
       }
 
       if (filters.is_featured !== undefined) {
@@ -267,36 +277,36 @@ function createCmsPackagesRepository({ db, schema }) {
       return runWithColumnFallback(
         data,
         async (safeData) => {
-        try {
-          return await db.insert(schema.mainPackagesTable, safeData);
-        } catch (error) {
-          const message = String(error?.message || "");
-          const requiresLegacyPackageId =
-            /package_id/i.test(message) &&
-            (/doesn't have a default value/i.test(message) ||
-              /cannot be null/i.test(message));
+          try {
+            return await db.insert(schema.mainPackagesTable, safeData);
+          } catch (error) {
+            const message = String(error?.message || "");
+            const requiresLegacyPackageId =
+              /package_id/i.test(message) &&
+              (/doesn't have a default value/i.test(message) ||
+                /cannot be null/i.test(message));
 
-          if (!requiresLegacyPackageId) {
-            throw error;
+            if (!requiresLegacyPackageId) {
+              throw error;
+            }
+
+            const shadowPackageId = randomUUID();
+            await db.insert(schema.packagesTable, {
+              id: shadowPackageId,
+              name: safeData.title || "Main Package",
+              destination: safeData.country || "Unknown",
+              starting_price:
+                typeof safeData.amount === "number" ? safeData.amount : 0,
+              package_category: "main_shadow",
+              status: "DRAFT",
+              is_deleted: false,
+            });
+
+            return db.insert(schema.mainPackagesTable, {
+              ...safeData,
+              package_id: shadowPackageId,
+            });
           }
-
-          const shadowPackageId = randomUUID();
-          await db.insert(schema.packagesTable, {
-            id: shadowPackageId,
-            name: safeData.title || "Main Package",
-            destination: safeData.country || "Unknown",
-            starting_price:
-              typeof safeData.amount === "number" ? safeData.amount : 0,
-            package_category: "main_shadow",
-            status: "DRAFT",
-            is_deleted: false,
-          });
-
-          return db.insert(schema.mainPackagesTable, {
-            ...safeData,
-            package_id: shadowPackageId,
-          });
-        }
         },
         ["title", "amount", "features", "inclusions"],
       );
@@ -321,7 +331,10 @@ function createCmsPackagesRepository({ db, schema }) {
       if (!existing) {
         return null;
       }
-      await db.update(schema.mainPackagesTable, id, { is_deleted: true });
+      await db.update(schema.mainPackagesTable, id, {
+        is_deleted: true,
+        display_order: -1,
+      });
       return db.findById(schema.mainPackagesTable, id);
     },
 
@@ -330,7 +343,9 @@ function createCmsPackagesRepository({ db, schema }) {
       if (!existing) {
         return null;
       }
-      await db.query(`DELETE FROM ${schema.mainPackagesTable} WHERE id = ?`, [id]);
+      await db.query(`DELETE FROM ${schema.mainPackagesTable} WHERE id = ?`, [
+        id,
+      ]);
       return existing;
     },
 
@@ -389,14 +404,50 @@ function createCmsPackagesRepository({ db, schema }) {
       }
     },
 
+    async findAllSubPackages(filters = {}) {
+      const values = [];
+      const clauses = ["p.main_package_id IS NOT NULL"];
+      if (filters.includeDeleted !== true) {
+        clauses.push("p.is_deleted = false");
+      }
+      if (filters.country) {
+        values.push(filters.country);
+        clauses.push("mp.country = ?");
+      }
+
+      try {
+        const result = await db.query(
+          `SELECT p.*, mp.title AS main_package_title
+           FROM ${schema.packagesTable} p
+           LEFT JOIN ${schema.mainPackagesTable} mp ON mp.id = p.main_package_id
+           WHERE ${clauses.join(" AND ")}
+           ORDER BY p.display_order, p.created_at DESC`,
+          values,
+        );
+        return result.rows;
+      } catch (error) {
+        if (!isMissingColumnError(error)) {
+          throw error;
+        }
+        return [];
+      }
+    },
+
     async findSubPackageById(id) {
-      return db.findById(schema.packagesTable, id);
+      const result = await db.query(
+        `SELECT p.*, mp.title AS main_package_title
+         FROM ${schema.packagesTable} p
+         LEFT JOIN ${schema.mainPackagesTable} mp ON mp.id = p.main_package_id
+         WHERE p.id = ?
+         LIMIT 1`,
+        [id],
+      );
+      return result.rows[0] || null;
     },
 
     async createSubPackage(data) {
-      return runWithColumnFallback(
-        { ...data, is_deleted: false },
-        (safeData) => db.insert(schema.packagesTable, safeData),
+      return runWithColumnFallback({ ...data, is_deleted: false }, (safeData) =>
+        db.insert(schema.packagesTable, safeData),
       );
     },
 
@@ -411,7 +462,10 @@ function createCmsPackagesRepository({ db, schema }) {
       if (!existing) {
         return null;
       }
-      await db.update(schema.packagesTable, id, { is_deleted: true });
+      await db.update(schema.packagesTable, id, {
+        is_deleted: true,
+        display_order: -1,
+      });
       return db.findById(schema.packagesTable, id);
     },
 

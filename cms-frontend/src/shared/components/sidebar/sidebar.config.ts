@@ -38,7 +38,7 @@ class SidebarConfig {
         "sub-packages",
         "Package",
         "/cms/packages/sub",
-        "Package variants",
+        "Package records",
         PackageSearch,
       ),
     ]),

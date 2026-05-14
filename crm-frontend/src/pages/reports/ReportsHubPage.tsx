@@ -20,18 +20,25 @@ import { DateInput } from '../../components/form'
 import FilterTabs from '../../components/ui/FilterTabs'
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import { reportsApi } from '../../api/reports'
+import { suppliersApi } from '../../api/suppliers'
 import { reportApiError } from '../../lib/notify'
+import { useAuth } from '../../context/AuthContext'
+import { useLeadsService } from '../../hooks/useLeadsService'
+import { useUsersService } from '../../hooks/useUsersService'
 
 type ReportTabId =
   | 'dashboard_executive_kpis'
   | 'funnel_conversion'
   | 'revenue_monthly'
+  | 'revenue_by_destination'
+  | 'sales_by_agent'
   | 'leads_by_source'
   | 'leads_by_consultant'
   | 'outstanding_payments'
   | 'visa_summary'
   | 'marketing_performance'
   | 'supplier_performance'
+  | 'supplier_booking_volume'
   | 'pipeline_forecast'
 
 type PrimitiveValue = string | number | boolean | null
@@ -45,12 +52,15 @@ const reportTabs: ReportTab[] = [
   { id: 'dashboard_executive_kpis', label: 'Executive KPIs' },
   { id: 'funnel_conversion', label: 'Funnel Conversion' },
   { id: 'revenue_monthly', label: 'Revenue Monthly' },
+  { id: 'revenue_by_destination', label: 'Revenue by Destination' },
+  { id: 'sales_by_agent', label: 'Sales by Agent' },
   { id: 'leads_by_source', label: 'Leads by Source' },
   { id: 'leads_by_consultant', label: 'Leads by Consultant' },
   { id: 'outstanding_payments', label: 'Outstanding Payments' },
   { id: 'visa_summary', label: 'Visa Summary' },
   { id: 'marketing_performance', label: 'Marketing Performance' },
   { id: 'supplier_performance', label: 'Supplier Performance' },
+  { id: 'supplier_booking_volume', label: 'Supplier Bookings' },
   { id: 'pipeline_forecast', label: 'Pipeline Forecast' }
 ]
 
@@ -61,12 +71,16 @@ const reportsFetcher: Record<
   dashboard_executive_kpis: reportsApi.dashboardExecutiveKpis,
   funnel_conversion: reportsApi.funnelConversion,
   revenue_monthly: reportsApi.revenueMonthly,
+  revenue_by_destination: reportsApi.revenueByDestination,
+  sales_by_agent: reportsApi.targetVsAchievement,
   leads_by_source: reportsApi.leadsBySource,
   leads_by_consultant: reportsApi.leadsByConsultant,
   outstanding_payments: reportsApi.outstandingPayments,
   visa_summary: reportsApi.visaSummary,
   marketing_performance: reportsApi.marketingPerformance,
   supplier_performance: reportsApi.supplierPerformance,
+  supplier_booking_volume: (params?: Record<string, string | number | boolean>) =>
+    reportsApi.financeSupplierServices({ ...params, page: 1, limit: 1000 }),
   pipeline_forecast: reportsApi.pipelineForecast
 }
 
@@ -74,6 +88,8 @@ const VALUE_KEY_PREFERENCE: Record<ReportTabId, string[]> = {
   dashboard_executive_kpis: ['value'],
   funnel_conversion: ['count', 'sharePercent'],
   revenue_monthly: ['revenue', 'profit', 'cost'],
+  revenue_by_destination: ['revenue', 'totalBookings'],
+  sales_by_agent: ['achievedAmount', 'targetAmount', 'achievementPercent'],
   leads_by_source: ['totalLeads', 'convertedLeads', 'conversionRatePercent'],
   leads_by_consultant: ['totalLeads', 'convertedLeads', 'avgResponseMinutes'],
   outstanding_payments: ['outstandingAmount', 'totalAmount', 'advanceReceived'],
@@ -85,11 +101,14 @@ const VALUE_KEY_PREFERENCE: Record<ReportTabId, string[]> = {
     'roiPercent'
   ],
   supplier_performance: ['totalCases', 'successRatePercent', 'averageVisaFee'],
+  supplier_booking_volume: ['totalBookings', 'totalServices', 'estimatedBaseCost'],
   pipeline_forecast: ['expectedRevenue', 'expectedConversions']
 }
 
 const KPI_CARD_ORDER: { key: string; label: string }[] = [
   { key: 'totalLeads', label: 'Total Leads' },
+  { key: 'holidayLeads', label: 'Holiday Leads' },
+  { key: 'visaLeads', label: 'Visa Leads' },
   { key: 'convertedLeads', label: 'Converted Leads' },
   { key: 'conversionRatePercent', label: 'Conversion Rate (%)' },
   { key: 'totalBookings', label: 'Total Bookings' },
@@ -125,6 +144,20 @@ const REPORT_META: Record<
     chartKind: 'area',
     helper:
       'A good month is not just higher revenue. Profit should also rise with it, otherwise margin is leaking.'
+  },
+  revenue_by_destination: {
+    description:
+      'Destination-wise booking and revenue view to show which trips are selling most.',
+    chartKind: 'bar',
+    helper:
+      'Use destination filter here to isolate one place and compare booking count against revenue.'
+  },
+  sales_by_agent: {
+    description:
+      'Person-wise sales performance using target, achieved amount, and achievement percentage.',
+    chartKind: 'bar',
+    helper:
+      'Use this when overall revenue looks good but you still need to see which sales agent is driving results.'
   },
   leads_by_source: {
     description:
@@ -168,6 +201,13 @@ const REPORT_META: Record<
     helper:
       'Use this to compare reliability, not just cost. A slightly expensive supplier can still be better if success rate is stronger.'
   },
+  supplier_booking_volume: {
+    description:
+      'Supplier-wise booking count using booked services so teams can see who handled how many bookings.',
+    chartKind: 'bar',
+    helper:
+      'Use supplier and destination filters together to see which vendor is strongest for one destination.'
+  },
   pipeline_forecast: {
     description:
       'Expected future revenue and conversions based on the current pipeline.',
@@ -187,6 +227,32 @@ const CHART_COLORS = [
 ]
 
 const MOBILE_BREAKPOINT = 640
+
+type ReportConsultantOption = {
+  id: string
+  fullName?: string
+  isActive?: boolean
+  role?: string
+}
+
+type ReportFilterOption = {
+  id: string
+  label: string
+}
+
+const normalizeReporterRole = (role?: string) =>
+  String(role || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_')
+
+const isSalesConsultantRole = (role?: string) =>
+  normalizeReporterRole(role) === 'sales_consultant'
+
+const canPickReportSalesConsultant = (role?: string) => {
+  const n = normalizeReporterRole(role)
+  return n === 'super_admin' || n === 'superadmin' || n === 'admin' || n === 'accounts'
+}
 
 const toDateValue = (date: Date) => {
   const yyyy = date.getFullYear()
@@ -232,6 +298,105 @@ const toPrimitiveValue = (value: unknown): PrimitiveValue => {
   } catch {
     return String(value)
   }
+}
+
+const normalizeFilterText = (value: unknown) => String(value || '').trim()
+
+const extractListRows = <T,>(response: unknown): T[] => {
+  const payload = response as {
+    data?: { data?: T[]; items?: T[]; rows?: T[] } | T[]
+  }
+  const root = payload?.data
+  if (Array.isArray(root)) return root
+  if (Array.isArray(root?.data)) return root.data
+  if (Array.isArray(root?.items)) return root.items
+  if (Array.isArray(root?.rows)) return root.rows
+  return []
+}
+
+const toDestinationFilterOptions = (values: string[]): ReportFilterOption[] =>
+  values
+    .map(value => normalizeFilterText(value))
+    .filter(Boolean)
+    .map(value => ({ id: value, label: value }))
+    .sort((left, right) => left.label.localeCompare(right.label))
+
+const buildSupplierBookingRows = (
+  payload: unknown,
+  selectedDestinationLabel: string
+): ReportRecord[] => {
+  const root = payload as { rows?: unknown[] }
+  const sourceRows = Array.isArray(root?.rows)
+    ? root.rows
+    : Array.isArray(payload)
+      ? payload
+      : []
+  const normalizedDestination = normalizeFilterText(selectedDestinationLabel).toLowerCase()
+  const grouped = new Map<
+    string,
+    {
+      supplierId: string
+      supplierName: string
+      bookingIds: Set<string>
+      destinations: Set<string>
+      totalServices: number
+      estimatedBaseCost: number
+    }
+  >()
+
+  sourceRows.forEach((item, index) => {
+    const row = (item ?? {}) as Record<string, unknown>
+    const destination = normalizeFilterText(row.destination || 'N/A')
+    if (
+      normalizedDestination &&
+      destination.toLowerCase() !== normalizedDestination
+    ) {
+      return
+    }
+
+    const supplierId =
+      normalizeFilterText(row.supplierId) || `UNASSIGNED-${index + 1}`
+    const supplierName =
+      normalizeFilterText(row.supplierName) || 'Not selected'
+    const bookingId =
+      normalizeFilterText(row.bookingId) ||
+      normalizeFilterText(row.bookingNumber) ||
+      `${supplierId}-${index + 1}`
+    const estimatedBaseCost = toNumberSafe(row.basePrice) ?? 0
+
+    if (!grouped.has(supplierId)) {
+      grouped.set(supplierId, {
+        supplierId,
+        supplierName,
+        bookingIds: new Set<string>(),
+        destinations: new Set<string>(),
+        totalServices: 0,
+        estimatedBaseCost: 0
+      })
+    }
+
+    const target = grouped.get(supplierId)
+    if (!target) return
+    target.bookingIds.add(bookingId)
+    if (destination) target.destinations.add(destination)
+    target.totalServices += 1
+    target.estimatedBaseCost += estimatedBaseCost
+  })
+
+  return Array.from(grouped.values())
+    .map(item => ({
+      supplierId: item.supplierId,
+      supplierName: item.supplierName,
+      totalBookings: item.bookingIds.size,
+      totalServices: item.totalServices,
+      destinationsCovered: item.destinations.size,
+      estimatedBaseCost: Number(item.estimatedBaseCost.toFixed(2)),
+      destinationList: Array.from(item.destinations).join(', ') || 'N/A'
+    }))
+    .sort(
+      (left, right) =>
+        Number(right.totalBookings || 0) - Number(left.totalBookings || 0)
+    )
 }
 
 const toRecord = (value: unknown): ReportRecord | null => {
@@ -322,7 +487,10 @@ const deriveLabelColumn = (rows: ReportRecord[], numericColumns: string[]) => {
     'stage',
     'month',
     'source',
+    'destination',
     'name',
+    'supplierName',
+    'fullName',
     'consultantName',
     'bookingNumber',
     'bookingId',
@@ -366,6 +534,9 @@ const toExecutiveKpis = (payload: unknown): ExecutiveKpis | null => {
 }
 
 const ReportsHubPage = () => {
+  const { user } = useAuth()
+  const leadsService = useLeadsService()
+  const usersService = useUsersService()
   const now = useMemo(() => new Date(), [])
   const initialFrom = useMemo(() => {
     const start = new Date(now.getFullYear(), now.getMonth(), 1)
@@ -388,11 +559,36 @@ const ReportsHubPage = () => {
       : false
   )
 
+  const showConsultantPicker = canPickReportSalesConsultant(user?.role)
+
+  const [reportConsultantId, setReportConsultantId] = useState('')
+  const [consultantOptions, setConsultantOptions] = useState<ReportConsultantOption[]>([])
+  const [consultantsLoading, setConsultantsLoading] = useState(false)
+  const [destinationOptions, setDestinationOptions] = useState<ReportFilterOption[]>([])
+  const [supplierOptions, setSupplierOptions] = useState<ReportFilterOption[]>([])
+  const [destinationFilterId, setDestinationFilterId] = useState('')
+  const [supplierFilterId, setSupplierFilterId] = useState('')
+  const [loadingDestinationOptions, setLoadingDestinationOptions] = useState(false)
+  const [loadingSupplierOptions, setLoadingSupplierOptions] = useState(false)
+
   const activeTabLabel = useMemo(
     () => reportTabs.find(item => item.id === tab)?.label ?? 'Report',
     [tab]
   )
   const activeMeta = useMemo(() => REPORT_META[tab], [tab])
+  const selectedDestinationLabel = useMemo(
+    () =>
+      destinationOptions.find(option => option.id === destinationFilterId)?.label ??
+      '',
+    [destinationFilterId, destinationOptions]
+  )
+  const canUseDestinationFilter =
+    tab === 'dashboard_executive_kpis' ||
+    tab === 'leads_by_source' ||
+    tab === 'revenue_by_destination' ||
+    tab === 'supplier_booking_volume'
+  const showSupplierFilter =
+    tab === 'supplier_performance' || tab === 'supplier_booking_volume'
 
   const reportTabIds = useMemo(
     () => new Set(reportTabs.map(item => item.id)),
@@ -414,6 +610,106 @@ const ReportsHubPage = () => {
   }, [])
 
   useEffect(() => {
+    if (!showConsultantPicker || !localStorage.getItem('auth_token')) return
+    let cancelled = false
+    const load = async () => {
+      setConsultantsLoading(true)
+      try {
+        const response = await usersService.list()
+        const list = (
+          ((response as { data?: ReportConsultantOption[] }).data ?? []) as ReportConsultantOption[]
+        )
+          .filter(u => u?.id && u.isActive !== false)
+          .filter(u => isSalesConsultantRole(u.role))
+        if (!cancelled) {
+          list.sort((a, b) =>
+            String(a.fullName || '').localeCompare(String(b.fullName || ''), undefined, {
+              sensitivity: 'base'
+            })
+          )
+          setConsultantOptions(list)
+        }
+      } catch {
+        if (!cancelled) setConsultantOptions([])
+      } finally {
+        if (!cancelled) setConsultantsLoading(false)
+      }
+    }
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [showConsultantPicker, usersService])
+
+  useEffect(() => {
+    if (!reportConsultantId || consultantOptions.length === 0) return
+    const ok = consultantOptions.some(c => c.id === reportConsultantId)
+    if (!ok) setReportConsultantId('')
+  }, [consultantOptions, reportConsultantId])
+
+  useEffect(() => {
+    if (!localStorage.getItem('auth_token')) return
+    let cancelled = false
+
+    const loadFilterOptions = async () => {
+      setLoadingDestinationOptions(true)
+      setLoadingSupplierOptions(true)
+      try {
+        const [destinationNames, suppliersResponse] = await Promise.all([
+          leadsService.getLeadDestinations({ limit: 500 }),
+          suppliersApi.list({ page: 1, limit: 500 })
+        ])
+
+        if (cancelled) return
+
+        const destinations = toDestinationFilterOptions(destinationNames)
+
+        const suppliers = extractListRows<{
+          id?: string
+          name?: string
+          isActive?: boolean
+        }>(suppliersResponse)
+          .filter(item => item?.id && item.isActive !== false)
+          .map(item => ({
+            id: String(item.id),
+            label: normalizeFilterText(item.name) || String(item.id)
+          }))
+          .sort((left, right) => left.label.localeCompare(right.label))
+
+        setDestinationOptions(destinations)
+        setSupplierOptions(suppliers)
+      } catch {
+        if (!cancelled) {
+          setDestinationOptions([])
+          setSupplierOptions([])
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingDestinationOptions(false)
+          setLoadingSupplierOptions(false)
+        }
+      }
+    }
+
+    void loadFilterOptions()
+    return () => {
+      cancelled = true
+    }
+  }, [leadsService])
+
+  useEffect(() => {
+    if (!destinationFilterId || destinationOptions.length === 0) return
+    const ok = destinationOptions.some(option => option.id === destinationFilterId)
+    if (!ok) setDestinationFilterId('')
+  }, [destinationFilterId, destinationOptions])
+
+  useEffect(() => {
+    if (!supplierFilterId || supplierOptions.length === 0) return
+    const ok = supplierOptions.some(option => option.id === supplierFilterId)
+    if (!ok) setSupplierFilterId('')
+  }, [supplierFilterId, supplierOptions])
+
+  useEffect(() => {
     let cancelled = false
 
     const loadExecutiveKpis = async () => {
@@ -421,6 +717,10 @@ const ReportsHubPage = () => {
         const params: Record<string, string | number | boolean> = {}
         if (from) params.from = from
         if (to) params.to = to
+        if (reportConsultantId) params.userId = reportConsultantId
+        if (selectedDestinationLabel && canUseDestinationFilter) {
+          params.destination = selectedDestinationLabel
+        }
         const response = await reportsApi.dashboardExecutiveKpis(params)
         const payload = extractPayload(response)
         const parsed = toExecutiveKpis(payload)
@@ -438,7 +738,7 @@ const ReportsHubPage = () => {
     return () => {
       cancelled = true
     }
-  }, [from, to])
+  }, [from, to, reportConsultantId, selectedDestinationLabel, canUseDestinationFilter])
 
   useEffect(() => {
     let cancelled = false
@@ -450,13 +750,34 @@ const ReportsHubPage = () => {
         const params: Record<string, string | number | boolean> = {}
         if (from) params.from = from
         if (to) params.to = to
+        if (reportConsultantId) params.userId = reportConsultantId
         if (tab === 'pipeline_forecast') {
           params.periodMonths = 3
+        }
+        if (selectedDestinationLabel && canUseDestinationFilter) {
+          params.destination = selectedDestinationLabel
+        }
+        if (showSupplierFilter && supplierFilterId) {
+          params.supplierId = supplierFilterId
         }
 
         const response = await reportsFetcher[tab](params)
         const payload = extractPayload(response)
-        const nextRows = toRowsForTab(tab, payload)
+        let nextRows =
+          tab === 'supplier_booking_volume'
+            ? buildSupplierBookingRows(payload, selectedDestinationLabel)
+            : toRowsForTab(tab, payload)
+
+        if (tab === 'revenue_by_destination' && selectedDestinationLabel) {
+          const normalizedDestination = selectedDestinationLabel.toLowerCase()
+          nextRows = nextRows.filter(
+            row =>
+              String(row.destination || '')
+                .trim()
+                .toLowerCase() === normalizedDestination
+          )
+        }
+
         const nextColumns = deriveColumns(nextRows)
         const numericColumns = deriveNumericColumns(nextRows)
         const preferredValues = VALUE_KEY_PREFERENCE[tab]
@@ -486,7 +807,15 @@ const ReportsHubPage = () => {
     return () => {
       cancelled = true
     }
-  }, [tab, from, to])
+  }, [
+    tab,
+    from,
+    to,
+    reportConsultantId,
+    selectedDestinationLabel,
+    showSupplierFilter,
+    supplierFilterId
+  ])
 
   const numericColumns = useMemo(() => deriveNumericColumns(rows), [rows])
   const labelColumn = useMemo(
@@ -616,7 +945,7 @@ const ReportsHubPage = () => {
   return (
     <div className='mx-auto w-full max-w-none min-w-0 space-y-6 overflow-x-hidden pb-8'>
       <SurfaceCard className='overflow-hidden border border-slate-200/80 bg-gradient-to-br from-white via-slate-50 to-blue-50/70 p-4 shadow-[0_24px_50px_-34px_rgba(15,23,42,0.55)] dark:border-slate-800 dark:from-slate-950 dark:via-slate-900 dark:to-blue-950/30 sm:p-5 lg:p-6'>
-        <div className='grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end'>
+        <div className='grid gap-5'>
           <div className='space-y-1'>
             <p className='text-[10px] font-semibold uppercase tracking-[0.22em] text-blue-600 dark:text-blue-300'>
               Executive Analytics
@@ -628,9 +957,65 @@ const ReportsHubPage = () => {
               PRD Module 7 report space. Cards, chart, and table use backend APIs.
             </p>
           </div>
-          <div className='grid w-full gap-3 sm:grid-cols-2 lg:grid-cols-3 lg:items-end xl:w-auto xl:grid-cols-[minmax(180px,1fr)_minmax(180px,1fr)_auto]'>
+          <div className='grid w-full gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:items-end 2xl:grid-cols-6'>
             <DateInput label='From' value={from} onChange={setFrom} className='w-full' />
             <DateInput label='To' value={to} onChange={setTo} className='w-full' />
+            {showConsultantPicker ? (
+              <label className='flex w-full flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300'>
+                <span>Sales consultant</span>
+                <select
+                  value={reportConsultantId}
+                  onChange={event => setReportConsultantId(event.target.value)}
+                  disabled={consultantsLoading}
+                  className='field-input h-11 w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 text-sm font-normal text-slate-900 shadow-sm disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100'
+                >
+                  <option value=''>All sales consultants (firm-wide)</option>
+                  {consultantOptions.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.fullName || c.id.slice(0, 8)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+            <label className='flex w-full flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300'>
+              <span>Destination</span>
+              <select
+                value={destinationFilterId}
+                onChange={event => setDestinationFilterId(event.target.value)}
+                disabled={loadingDestinationOptions || !canUseDestinationFilter}
+                className='field-input h-11 w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 text-sm font-normal text-slate-900 shadow-sm disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100'
+              >
+                <option value=''>
+                  {canUseDestinationFilter
+                    ? 'All destinations'
+                    : 'Open Leads by Source tab'}
+                </option>
+                {destinationOptions.map(option => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {showSupplierFilter ? (
+              <label className='flex w-full flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300'>
+                <span>Supplier</span>
+                <select
+                  value={supplierFilterId}
+                  onChange={event => setSupplierFilterId(event.target.value)}
+                  disabled={loadingSupplierOptions}
+                  className='field-input h-11 w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 text-sm font-normal text-slate-900 shadow-sm disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100'
+                >
+                  <option value=''>All suppliers</option>
+                  {supplierOptions.map(option => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             <button
               onClick={exportCsv}
               disabled={!rows.length}
@@ -949,6 +1334,9 @@ const ReportsHubPage = () => {
                 </p>
                 <p className='mt-0.5 text-xs font-semibold text-gray-900 dark:text-gray-100 sm:mt-1 sm:text-sm'>
                   {from || 'Start not set'} to {to || 'Today'}
+                  {reportConsultantId && showConsultantPicker
+                    ? ` · Consultant-scoped`
+                    : ''}
                 </p>
               </div>
               <div className='rounded-lg border border-gray-200 bg-white px-3 py-2 dark:border-gray-800 dark:bg-gray-900 sm:rounded-xl sm:px-4 sm:py-3'>

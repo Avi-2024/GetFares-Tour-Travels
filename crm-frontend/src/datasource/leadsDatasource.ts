@@ -1,6 +1,10 @@
 import type { HttpClient } from "../api/apiClient";
 
 export type LeadsQuery = Record<string, string | number | boolean | undefined>;
+export type LeadDestinationListResponse =
+  | { data?: { items?: string[] } }
+  | { data?: string[] }
+  | string[];
 
 export type LeadDestinationRecord =
   | {
@@ -62,6 +66,8 @@ export type LeadApiRecord = {
   package?: string | null;
   status?: string | null;
   statusLabel?: string | null;
+  customStatusLabel?: string | null;
+  custom_status_label?: string | null;
   subStatus?: string | null;
   priority?: string | null;
   priorityLevel?: number | string | null;
@@ -124,6 +130,22 @@ export type LeadFollowupsResponse =
   | { data?: LeadFollowupRecord[] }
   | LeadFollowupRecord[];
 
+export type LeadStatsResponse =
+  | {
+      data?: {
+        totalLeads?: number;
+        newToday?: number;
+        followupActive?: number;
+        slaBreached?: number;
+      };
+    }
+  | {
+      totalLeads?: number;
+      newToday?: number;
+      followupActive?: number;
+      slaBreached?: number;
+    };
+
 export type LeadActivityCreatePayload = {
   lead_id: string;
   notes?: string;
@@ -135,6 +157,8 @@ export type LeadActivityCreatePayload = {
 export const createLeadsDatasource = (client: HttpClient) => ({
   list: (params?: LeadsQuery) =>
     client.get<LeadsListResponse>("/api/leads", { params }),
+  getStats: (params?: LeadsQuery) =>
+    client.get<LeadStatsResponse>("/api/leads/stats", { params }),
   create: (payload: unknown) => client.post("/api/leads", payload),
   getById: (id: string) => client.get(`/api/leads/${id}`),
   update: (id: string, payload: unknown) => client.patch(`/api/leads/${id}`, payload),
@@ -155,6 +179,10 @@ export const createLeadsDatasource = (client: HttpClient) => ({
     }),
   getCampaigns: () => client.get("/api/campaigns", { params: { status: "ACTIVE" } }),
   getDestinations: () => client.get("/api/destinations"),
+  getLeadDestinations: (params?: LeadsQuery) =>
+    client.get<LeadDestinationListResponse>("/api/leads/destinations", { params }),
+  getLeadSources: (params?: LeadsQuery) =>
+    client.get<LeadDestinationListResponse>("/api/leads/sources", { params }),
   distribute: (payload?: { limit?: number; reason?: string }) =>
     client.post("/api/leads/distribute", payload),
   reassignInactive: (payload?: { inactiveMinutes?: number; limit?: number; reason?: string }) =>
@@ -189,6 +217,10 @@ export const createLeadsDatasource = (client: HttpClient) => ({
     }),
   publicCapture: (payload: unknown) =>
     client.post("/api/webhooks/website-enquiry", payload, { skipAuth: true }),
+  listCustomStatusPresets: () =>
+    client.get<unknown>("/api/leads/custom-status-presets"),
+  addCustomStatusPreset: (label: string) =>
+    client.post<unknown>("/api/leads/custom-status-presets", { label }),
 });
 
 export type LeadsDatasource = ReturnType<typeof createLeadsDatasource>;

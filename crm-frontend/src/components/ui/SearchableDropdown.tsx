@@ -23,6 +23,11 @@ type SearchableDropdownProps = {
   hasError?: boolean
   searchPlaceholder?: string
   dropdownPlacement?: 'down' | 'up'
+  onSearch?: (query: string) => void
+  /** When typing does not match an option exactly, offer using the typed text */
+  creatable?: boolean
+  onCreatePick?: (trimmedSearch: string) => void
+  createPrompt?: string
 }
 
 const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
@@ -34,13 +39,34 @@ const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
   disabled = false,
   hasError = false,
   searchPlaceholder = 'Search...',
-  dropdownPlacement = 'down'
+  dropdownPlacement = 'down',
+  onSearch,
+  creatable = false,
+  onCreatePick,
+  createPrompt = 'Use as custom:'
 }) => {
   const [isOpen, setIsOpen] = useState(false)
   const [query, setQuery] = useState('')
   const rootRef = useRef<HTMLDivElement | null>(null)
   const dropdownRef = useRef<HTMLDivElement | null>(null)
   const [placement, setPlacement] = useState<'down' | 'up'>(dropdownPlacement)
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  React.useEffect(() => {
+    if (onSearch && query.trim()) {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current)
+      }
+      searchTimeoutRef.current = setTimeout(() => {
+        onSearch(query.trim())
+      }, 300)
+    }
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current)
+      }
+    }
+  }, [query, onSearch])
 
   React.useEffect(() => {
     const onPointerDown = (event: MouseEvent) => {
@@ -77,6 +103,17 @@ const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
       return searchable.includes(term)
     })
   }, [options, query])
+
+  const queryTrimmed = query.trim()
+  const hasExactMatch = useMemo(() => {
+    if (!queryTrimmed) return false
+    const lc = queryTrimmed.toLowerCase()
+    return options.some(
+      o =>
+        o.label.trim().toLowerCase() === lc ||
+        String(o.value).trim().toLowerCase() === lc,
+    )
+  }, [options, queryTrimmed])
 
   const enableScroll = options.length > 5
 
@@ -137,6 +174,23 @@ const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
                 : 'overflow-y-visible'
             }`}
           >
+            {creatable &&
+            Boolean(onCreatePick) &&
+            queryTrimmed.length > 0 &&
+            !hasExactMatch ?
+              <button
+                type='button'
+                onClick={() => {
+                  onCreatePick?.(queryTrimmed)
+                  setIsOpen(false)
+                  setQuery('')
+                }}
+                className='mb-2 w-full rounded-lg border border-dashed border-blue-300 bg-blue-50/90 px-3 py-2.5 text-left text-sm font-medium text-blue-800 hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-950/60 dark:text-blue-100 dark:hover:bg-blue-900/60'
+              >
+                {createPrompt}{' '}
+                <span className='break-words'>&quot;{queryTrimmed}&quot;</span>
+              </button>
+            : null}
             {filteredOptions.length ? (
               filteredOptions.map(item => {
                 const isActive = item.value === value

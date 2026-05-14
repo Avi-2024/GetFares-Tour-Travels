@@ -13,6 +13,7 @@ import QuotationDetailPage from "./pages/Quotation/QuotationDetailPage";
 import Settings from "./components/layout/Settings";
 
 import LeadsDetail from "./pages/leads/LeadDetails";
+import WhatsAppInboxPage from "./pages/leads/WhatsAppInboxPage";
 import CreateLead from "./pages/leads/CreateLead";
 
 import DashboardLayout from "./components/layout/Layout";
@@ -24,6 +25,7 @@ import VisaDetailPage from "./pages/visa/VisaDetailPage";
 import VisaCreatePage from "./pages/visa/VisaCreatePage";
 import ComplaintsPage from "./pages/complaints/ComplaintsPage";
 import ReportsHubPage from "./pages/reports/ReportsHubPage";
+import TestReportPage from "./pages/reports/TestReportPage";
 import QuotationTemplatesPage from "./pages/Quotation/QuotationTemplatesPage";
 import BookingDetailPage from "./pages/Booking/BookingDetailPage";
 import CampaignsPage from "./pages/campaigns/CampaignsPage";
@@ -67,6 +69,8 @@ function App() {
 
             <Route element={<PermissionRoute permission="leads:read" />}>
               <Route path="/leads" element={<Leads />} />
+              <Route path="/whatsapp" element={<WhatsAppInboxPage />} />
+              <Route path="/leads/:id/whatsapp" element={<WhatsAppInboxPage />} />
               <Route path="/leads/:id" element={<LeadsDetail />} />
               <Route path="/leads-details" element={<LeadsDetail />} />
             </Route>
@@ -133,6 +137,7 @@ function App() {
 
             <Route element={<PermissionRoute permission="reports:read" />}>
               <Route path="/reports" element={<ReportsHubPage />} />
+              <Route path="/reports/test" element={<TestReportPage />} />
               <Route path="/finance-system" element={<FinanceSystem />} />
             </Route>
 

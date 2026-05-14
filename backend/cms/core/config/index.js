@@ -29,7 +29,7 @@ const config = Object.freeze({
   },
 
   upload: {
-    maxFileSize: parseInt(process.env.MAX_FILE_SIZE || "10485760", 10), // 10MB
+    maxFileSize: parseInt(process.env.MAX_FILE_SIZE || "1073741824", 10), // 1GB
     allowedImageTypes: ["image/jpeg", "image/png", "image/webp", "image/gif"],
     allowedVideoTypes: ["video/mp4", "video/webm"],
   },

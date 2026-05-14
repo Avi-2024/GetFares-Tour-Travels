@@ -1,3 +1,4 @@
+
 -- Migration: Add soft delete support to customers table
 -- Purpose: Enable soft deletion of customer records (DELETE /api/customers/:id)
 -- Date: 2026-04-16
@@ -11,3 +12,4 @@ CREATE INDEX idx_customers_is_deleted ON customers(is_deleted);
 
 -- Optional: Create a composite index for list operations with filtering
 CREATE INDEX idx_customers_is_deleted_segment ON customers(is_deleted, segment);
+

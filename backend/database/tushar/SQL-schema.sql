@@ -407,6 +407,7 @@ CREATE TABLE IF NOT EXISTS customers (
 );
 CREATE INDEX idx_customers_is_deleted ON customers(is_deleted);
 CREATE INDEX idx_customers_is_deleted_segment ON customers(is_deleted, segment);
+CREATE INDEX idx_customers_active_created_at ON customers(is_deleted, created_at);
 
 CREATE TABLE IF NOT EXISTS customer_leads (
     customer_id CHAR(36),
@@ -428,6 +429,9 @@ CREATE TABLE IF NOT EXISTS complaints (
     FOREIGN KEY (booking_id) REFERENCES bookings(id),
     FOREIGN KEY (assigned_to) REFERENCES users(id)
 );
+CREATE INDEX idx_complaints_status_created_at ON complaints(status, created_at);
+CREATE INDEX idx_complaints_assigned_created_at ON complaints(assigned_to, created_at);
+CREATE INDEX idx_complaints_booking_created_at ON complaints(booking_id, created_at);
 
 CREATE TABLE IF NOT EXISTS complaint_activities (
     id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
@@ -1106,6 +1110,7 @@ ALTER TABLE customers
   ADD COLUMN pan_number VARCHAR(20),
   ADD COLUMN address_line TEXT,
   ADD COLUMN client_currency VARCHAR(10) DEFAULT 'INR';
+CREATE INDEX idx_customers_active_currency ON customers(is_deleted, client_currency);
 
 ALTER TABLE suppliers
   ADD COLUMN pan_number VARCHAR(20),
@@ -1578,6 +1583,7 @@ CREATE TABLE landing_places (
     name VARCHAR(100) NOT NULL,
     country VARCHAR(100),
     tag VARCHAR(50),
+    description TEXT,
     image_url TEXT NOT NULL,
     display_order INT DEFAULT 0,
     is_active BOOLEAN DEFAULT TRUE,
@@ -2345,6 +2351,10 @@ CREATE INDEX idx_supplier_payables_supplier_id ON supplier_payables(supplier_id)
 CREATE INDEX idx_supplier_payables_status ON supplier_payables(status);
 
 CREATE INDEX idx_packages_status_publish ON packages(status, publish_to_website);
+CREATE INDEX idx_packages_active_created_at ON packages(is_deleted, created_at);
+CREATE INDEX idx_packages_active_status_created_at ON packages(is_deleted, status, created_at);
+CREATE INDEX idx_packages_active_category_created_at ON packages(is_deleted, package_category, created_at);
+CREATE INDEX idx_packages_active_sold_out_created_at ON packages(is_deleted, is_sold_out, created_at);
 
 CREATE INDEX idx_package_enquiries_package_id ON package_enquiries(package_id);
 
@@ -2581,6 +2591,107 @@ SET @sql = IF(
 );
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
+-- =========================================
+-- 2026-04-21: DESTINATION MEDIA + DISPLAY ORDER UNIQUENESS
+-- =========================================
+
+SET @sql = IF(
+  (SELECT COUNT(*) FROM information_schema.columns
+   WHERE table_schema = DATABASE()
+     AND table_name = 'destinations'
+     AND column_name = 'title_image_url') = 0,
+  'ALTER TABLE destinations ADD COLUMN title_image_url TEXT NULL',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @sql = IF(
+  (SELECT COUNT(*) FROM information_schema.columns
+   WHERE table_schema = DATABASE()
+     AND table_name = 'destinations'
+     AND column_name = 'media') = 0,
+  'ALTER TABLE destinations ADD COLUMN media JSON NULL',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+UPDATE destinations
+SET media = JSON_OBJECT(
+  'title_image', COALESCE(NULLIF(title_image_url, ''), NULLIF(thumbnail_url, ''), NULLIF(hero_image_url, '')),
+  'gallery', JSON_ARRAY()
+)
+WHERE media IS NULL OR JSON_TYPE(media) <> 'OBJECT';
+
+SET @sql = IF(
+  (SELECT COUNT(*) FROM information_schema.statistics
+   WHERE table_schema = DATABASE()
+     AND table_name = 'landing_places'
+     AND index_name = 'ux_landing_places_country_display_order') = 0,
+  'CREATE UNIQUE INDEX ux_landing_places_country_display_order ON landing_places(country, display_order)',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @sql = IF(
+  (SELECT COUNT(*) FROM information_schema.statistics
+   WHERE table_schema = DATABASE()
+     AND table_name = 'destination_media'
+     AND index_name = 'ux_destination_media_destination_display_order') = 0,
+  'CREATE UNIQUE INDEX ux_destination_media_destination_display_order ON destination_media(destination_id, display_order)',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @sql = IF(
+  (SELECT COUNT(*) FROM information_schema.statistics
+   WHERE table_schema = DATABASE()
+     AND table_name = 'season_cards'
+     AND index_name = 'ux_season_cards_destination_display_order') = 0,
+  'CREATE UNIQUE INDEX ux_season_cards_destination_display_order ON season_cards(destination_id, display_order)',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @sql = IF(
+  (SELECT COUNT(*) FROM information_schema.statistics
+   WHERE table_schema = DATABASE()
+     AND table_name = 'main_packages'
+     AND index_name = 'ux_main_packages_country_display_order') = 0,
+  'CREATE UNIQUE INDEX ux_main_packages_country_display_order ON main_packages(country, display_order)',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @sql = IF(
+  (SELECT COUNT(*) FROM information_schema.statistics
+   WHERE table_schema = DATABASE()
+     AND table_name = 'sub_packages'
+     AND index_name = 'ux_sub_packages_main_display_order') = 0,
+  'CREATE UNIQUE INDEX ux_sub_packages_main_display_order ON sub_packages(main_package_id, display_order)',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @sql = IF(
+  (SELECT COUNT(*) FROM information_schema.statistics
+   WHERE table_schema = DATABASE()
+     AND table_name = 'visa_destinations'
+     AND index_name = 'ux_visa_destinations_country_display_order') = 0,
+  'CREATE UNIQUE INDEX ux_visa_destinations_country_display_order ON visa_destinations(country, display_order)',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @sql = IF(
+  (SELECT COUNT(*) FROM information_schema.statistics
+   WHERE table_schema = DATABASE()
+     AND table_name = 'featured_picks'
+     AND index_name = 'ux_featured_picks_country_display_order') = 0,
+  'SELECT 1',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
 SET @sql = IF(
   (SELECT COUNT(*) FROM information_schema.columns
    WHERE table_schema = DATABASE()
@@ -2621,4 +2732,4 @@ SET @sql = IF(
 );
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
-
+-- RBAC seed (`accounts` role, permissions, two accounts users): run roles_permission.sql after this schema.

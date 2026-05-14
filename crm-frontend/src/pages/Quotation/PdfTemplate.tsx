@@ -45,10 +45,13 @@ interface PdfTemplateProps {
         quotationStatus?: string;
         supplierName?: string;
         enabledServices?: string;
+        /** Hides holiday-only blocks; shows payment/cancellation and pricing-focused PDF. */
+        visaLeadQuotation?: boolean;
     };
 }
 
 const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
+    const visaMode = Boolean(data.visaLeadQuotation);
     const currency = String(data.currency || 'INR').toUpperCase();
 
     const parseAmount = (value: unknown) => {
@@ -158,11 +161,11 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
                     {/* PACKAGE SECTION */}
                     <div className="package-section">
                         <div>
-                            <h3>PACKAGE NAME :-</h3>
-                            <p>{data.packageName}</p>
-                            <strong>Guest Email: {data.email}</strong>
+                            <h3>{visaMode ? 'QUOTATION :' : 'PACKAGE NAME :'} {data.packageName} </h3>
+                            
+                            <strong>Guest Email : {data.email}</strong>
                             {data.packageType && (
-                                <p className="package-type">
+                                <p >
                                     <b>Package Type :   {data.packageType}    </b>
                                 </p>
                             )}
@@ -195,11 +198,24 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
                             </p>
                         </div>
                     </div>
-                    {/* INCLUDED SERVICES */}
+                    {/* INCLUDED SERVICES (holiday); visa mode uses enabledServices lines */}
                     <div className="pdf-block">
-                        <div className="pdf-block-title">Included Services</div>
+                        <div className="pdf-block-title">{visaMode ? 'Services' : 'Included Services'}</div>
                         <div className="pdf-block-body">
-                            {inclusionsList.length > 0 ? (
+                            {visaMode ? (
+                                enabledServicesList.length > 0 ? (
+                                    <div className="pdf-services-grid">
+                                        {enabledServicesList.map((service, index) => (
+                                            <div key={index} className="pdf-service">
+                                                <span className="pdf-service-icon">{getServiceIcon(service)}</span>
+                                                <span className="pdf-service-text">{service}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="pdf-muted">Insurance and visa service lines</div>
+                                )
+                            ) : inclusionsList.length > 0 ? (
                                 <div className="pdf-services-grid">
                                     {inclusionsList.map((service, index) => (
                                         <div key={index} className="pdf-service">
@@ -240,6 +256,8 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
 
                     <div className="pdf-page-grid">
                         <div className="pdf-col">
+                            {!visaMode ? (
+                                <>
                             <div className="pdf-block">
                                 <div className="pdf-block-title">Itinerary Snapshot</div>
                                 <div className="pdf-block-body">
@@ -289,6 +307,39 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
                                     )}
                                 </div>
                             </div>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="pdf-block">
+                                        <div className="pdf-block-title">Inclusions</div>
+                                        <div className="pdf-block-body">
+                                            {inclusionsList.length ? (
+                                                <ul className="pdf-list">
+                                                    {inclusionsList.map((item, idx) => (
+                                                        <li key={idx}>{item}</li>
+                                                    ))}
+                                                </ul>
+                                            ) : (
+                                                <div className="pdf-muted">-</div>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="pdf-block">
+                                        <div className="pdf-block-title">Exclusions</div>
+                                        <div className="pdf-block-body">
+                                            {exclusionsList.length ? (
+                                                <ul className="pdf-list">
+                                                    {exclusionsList.map((item, idx) => (
+                                                        <li key={idx}>{item}</li>
+                                                    ))}
+                                                </ul>
+                                            ) : (
+                                                <div className="pdf-muted">-</div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </>
+                            )}
                         </div>
 
                         <div className="pdf-col">
@@ -310,13 +361,13 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
                                 </div>
                             </div> */}
 
-                            {section('Header Branding', data.headerBranding)}
+                            {!visaMode ? section('Header Branding', data.headerBranding) : null}
                             {section('Payment Terms', data.paymentTerms)}
                             {section('Cancellation Policy', data.cancellationPolicy)}
-                            {section('Footer Disclaimer', data.footerDisclaimer)}
-                            {section('Hotel Details', data.hotelDetails)}
+                            {!visaMode ? section('Footer Disclaimer', data.footerDisclaimer) : null}
+                            {!visaMode ? section('Hotel Details', data.hotelDetails) : null}
 
-                            <div className="pdf-block">
+                            {/* <div className="pdf-block">
                                 <div className="pdf-block-title">Trip Summary</div>
                                 <div className="pdf-block-body">
                                     <div className="pdf-kv"><b>Quote Reference:</b> {data.quoteReference || 'N/A'}</div>
@@ -330,8 +381,9 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
                                     <div className="pdf-kv"><b>Package Type:</b> {data.packageType || 'N/A'}</div>
                                     <div className="pdf-kv"><b>Supplier:</b> {data.supplierName || 'N/A'}</div>
                                 </div>
-                            </div>
+                            </div> */}
 
+                            {!visaMode ? (
                             <div className="pdf-block">
                                 <div className="pdf-block-title">Enabled Services</div>
                                 <div className="pdf-block-body">
@@ -346,6 +398,7 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
                                     )}
                                 </div>
                             </div>
+                            ) : null}
                         </div>
                     </div>
                 </div>

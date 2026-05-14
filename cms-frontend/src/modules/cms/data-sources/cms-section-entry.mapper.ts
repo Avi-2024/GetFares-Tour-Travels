@@ -183,13 +183,7 @@ class CmsSectionEntryMapper {
             ),
           ),
           amount: new CmsTableCell(
-            `${this.accessor.getText(
-              record,
-              "amountCurrency",
-              "amount_currency",
-              "startingPriceCurrency",
-              "starting_price_currency",
-            )} ${this.accessor.getText(record, "amount", "startingPrice", "starting_price")}`.trim(),
+            this.accessor.getText(record, "amount", "startingPrice", "starting_price"),
           ),
           destination: new CmsTableCell(
             this.accessor.getText(
@@ -257,7 +251,11 @@ class CmsSectionEntryMapper {
             0;
           entries.push({
             id,
-            raw: subPackage,
+            raw: {
+              ...subPackage,
+              country: this.accessor.getText(mainPackage, "country", "destination_country") || undefined,
+              mainPackageId: mainId,
+            },
             row: new CmsTableRow(id, {
               variant: new CmsTableCell(
                 this.accessor.getText(subPackage, "title", "packageName", "name"),

@@ -43,6 +43,20 @@ export type PackageRecord = {
   isSoldOut: boolean;
   createdAt: string | null;
   updatedAt: string | null;
+  // CMS-like fields
+  country: string | null;
+  image: string | null;
+  rating: number | null;
+  location: string | null;
+  transport: string | null;
+  snapshot: string | null;
+  highlights: string[];
+  features: { iconName: string; description: string }[];
+  metaTitle: string | null;
+  metaDescription: string | null;
+  keywords: string | null;
+  displayOrder: number | null;
+  isFeatured: boolean;
 };
 
 export type PackageEnquiry = {
@@ -57,6 +71,28 @@ export type PackageEnquiry = {
   email: string | null;
   source: string | null;
   createdAt: string | null;
+};
+
+export type PackageListPagination = {
+  page: number;
+  limit: number;
+  totalItems: number;
+  totalPages: number;
+};
+
+export type PackageListSummary = {
+  totalPackages: number;
+  publishedCount: number;
+  activeCount: number;
+  soldOutCount: number;
+  destinationCount: number;
+  totalValue: number;
+};
+
+export type PackageListResponse = {
+  items: PackageRecord[];
+  pagination: PackageListPagination;
+  summary: PackageListSummary;
 };
 
 const extractList = <T>(response: unknown): T[] => {
@@ -79,9 +115,105 @@ const extractItem = <T>(response: unknown): T | null => {
   return data as T;
 };
 
+const extractPagination = (
+  response: unknown,
+  itemCount: number,
+): PackageListPagination => {
+  const payload = (response ?? {}) as {
+    data?: { pagination?: Partial<PackageListPagination> } | unknown;
+    pagination?: Partial<PackageListPagination>;
+  };
+  const nested =
+    typeof payload.data === "object" && payload.data !== null
+      ? (payload.data as { pagination?: Partial<PackageListPagination> }).pagination
+      : undefined;
+  const pagination = payload.pagination ?? nested ?? {};
+  const parsedLimit = Number(pagination.limit ?? itemCount ?? 25) || 25;
+  return {
+    page: Number(pagination.page ?? 1),
+    limit: parsedLimit,
+    totalItems: Number(pagination.totalItems ?? itemCount),
+    totalPages: Number(
+      pagination.totalPages ??
+        Math.max(1, Math.ceil(itemCount / Math.max(1, parsedLimit))),
+    ),
+  };
+};
+
+const extractSummary = (
+  response: unknown,
+  items: PackageRecord[],
+): PackageListSummary => {
+  const payload = (response ?? {}) as {
+    data?: { summary?: Partial<PackageListSummary> } | unknown;
+    summary?: Partial<PackageListSummary>;
+  };
+  const nested =
+    typeof payload.data === "object" && payload.data !== null
+      ? (payload.data as { summary?: Partial<PackageListSummary> }).summary
+      : undefined;
+  const summary = payload.summary ?? nested ?? {};
+  return {
+    totalPackages: Number(summary.totalPackages ?? items.length),
+    publishedCount: Number(
+      summary.publishedCount ??
+        items.filter((item) => item.publishToWebsite).length,
+    ),
+    activeCount: Number(
+      summary.activeCount ?? items.filter((item) => item.status === "ACTIVE").length,
+    ),
+    soldOutCount: Number(
+      summary.soldOutCount ?? items.filter((item) => item.isSoldOut).length,
+    ),
+    destinationCount: Number(
+      summary.destinationCount ??
+        new Set(items.map((item) => item.destination?.trim()).filter(Boolean)).size,
+    ),
+    totalValue: Number(
+      summary.totalValue ??
+        items.reduce((sum, item) => sum + Number(item.startingPrice || 0), 0),
+    ),
+  };
+};
+
 const toNumber = (value: unknown, fallback = 0) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const parseMaybeJson = <T>(value: unknown, fallback: T): T => {
+  if (value == null) return fallback;
+  if (typeof value === "string") {
+    try {
+      return JSON.parse(value) as T;
+    } catch {
+      return fallback;
+    }
+  }
+  return value as T;
+};
+
+const toStringList = (value: unknown): string[] => {
+  const parsed = parseMaybeJson<unknown>(value, value);
+  return Array.isArray(parsed)
+    ? parsed.map((item) => String(item ?? "").trim()).filter(Boolean)
+    : [];
+};
+
+const toFeatureList = (
+  value: unknown,
+): { iconName: string; description: string }[] => {
+  const parsed = parseMaybeJson<unknown>(value, value);
+  return Array.isArray(parsed)
+    ? parsed
+        .map((item: any) => ({
+          iconName: String(
+            item?.iconName ?? item?.icon_name ?? item?.title ?? "",
+          ).trim(),
+          description: String(item?.description ?? "").trim(),
+        }))
+        .filter((item) => item.iconName || item.description)
+    : [];
 };
 
 const toPackageRecord = (row: any): PackageRecord => {
@@ -98,6 +230,11 @@ const toPackageRecord = (row: any): PackageRecord => {
         sellValue: s?.sellValue != null ? toNumber(s.sellValue) : undefined,
       }))
     : [];
+  
+  // Parse highlights
+  const highlights = toStringList(row?.highlights);
+  const features = toFeatureList(row?.features);
+  
   return {
     id: String(row?.id ?? ""),
     name: String(row?.name ?? ""),
@@ -123,6 +260,20 @@ const toPackageRecord = (row: any): PackageRecord => {
     isSoldOut: Boolean(row?.isSoldOut),
     createdAt: row?.createdAt ?? null,
     updatedAt: row?.updatedAt ?? null,
+    // CMS-like fields
+    country: row?.country ?? null,
+    image: row?.image ?? null,
+    rating: row?.rating != null ? toNumber(row.rating) : null,
+    location: row?.location ?? null,
+    transport: row?.transport ?? null,
+    snapshot: row?.snapshot ?? null,
+    highlights,
+    features,
+    metaTitle: row?.metaTitle ?? null,
+    metaDescription: row?.metaDescription ?? null,
+    keywords: row?.keywords ?? null,
+    displayOrder: row?.displayOrder != null ? toNumber(row.displayOrder) : null,
+    isFeatured: Boolean(row?.isFeatured),
   };
 };
 
@@ -141,9 +292,14 @@ const toEnquiryRecord = (row: any): PackageEnquiry => ({
 });
 
 export const createPackagesService = (datasource: PackagesDatasource) => ({
-  list: async (params?: PackagesQuery): Promise<PackageRecord[]> => {
+  list: async (params?: PackagesQuery): Promise<PackageListResponse> => {
     const response = await datasource.list(params);
-    return extractList<any>(response).map(toPackageRecord);
+    const items = extractList<any>(response).map(toPackageRecord);
+    return {
+      items,
+      pagination: extractPagination(response, items.length),
+      summary: extractSummary(response, items),
+    };
   },
   create: async (payload: unknown): Promise<PackageRecord | null> => {
     const response = await datasource.create(payload);

@@ -1,5 +1,5 @@
 import { Component, type ReactNode } from "react";
-import { CirclePlus, Eye, PencilLine, RotateCcw, Trash2 } from "lucide-react";
+import { CirclePlus, Copy, Eye, PencilLine, RotateCcw, Trash2 } from "lucide-react";
 import SurfaceCardComponent from "../../../shared/components/cards/surface-card.component";
 import type { CmsTableEntry } from "../types/cms-table-entry.type";
 
@@ -13,6 +13,7 @@ interface CmsSectionTableProps {
   supportsCreate: boolean;
   supportsEdit: boolean;
   supportsDelete: boolean;
+  supportsCopy?: boolean;
   supportsRestore?: boolean;
   deleteActionLabel?: string;
   emptyStateMessage?: string;
@@ -21,6 +22,7 @@ interface CmsSectionTableProps {
   onView: (entry: CmsTableEntry) => void;
   onEdit: (entry: CmsTableEntry) => void;
   onDelete: (entry: CmsTableEntry) => void;
+  onCopy?: (entry: CmsTableEntry) => void;
   onRestore?: (entry: CmsTableEntry) => void;
   onImagePreview: (url: string, label: string) => void;
   getImageUrl: (entry: CmsTableEntry) => string | null;
@@ -99,6 +101,7 @@ class CmsSectionTableComponent extends Component<CmsSectionTableProps> {
       supportsCreate,
       supportsEdit,
       supportsDelete,
+      supportsCopy = false,
       supportsRestore = false,
       deleteActionLabel = "Delete",
       emptyStateMessage = "No records found for the selected filters.",
@@ -106,6 +109,7 @@ class CmsSectionTableComponent extends Component<CmsSectionTableProps> {
       onView,
       onEdit,
       onDelete,
+      onCopy,
       onRestore,
       onImagePreview,
       getImageUrl,
@@ -208,6 +212,14 @@ class CmsSectionTableComponent extends Component<CmsSectionTableProps> {
                       onClick: () => onEdit(entry),
                       icon: <PencilLine size={14} />,
                     })}
+                    {supportsCopy &&
+                      onCopy &&
+                      this.renderActionButton({
+                        label: `Copy ${entryLabel}`,
+                        title: "Copy",
+                        onClick: () => onCopy(entry),
+                        icon: <Copy size={14} />,
+                      })}
                     {supportsRestore &&
                       onRestore &&
                       this.renderActionButton({
@@ -275,15 +287,21 @@ class CmsSectionTableComponent extends Component<CmsSectionTableProps> {
                         return (
                           <td
                             key={`${entry.id}-${column.key}`}
-                            className={`px-4 py-3 ${column.isHighlighted ? "font-semibold text-[var(--text-primary)]" : "text-[var(--text-secondary)]"}`}
+                            className={`px-4 py-3 ${
+                              column.isHighlighted
+                                ? "max-w-[220px] font-semibold text-[var(--text-primary)]"
+                                : "max-w-[160px] text-[var(--text-secondary)]"
+                            }`}
                           >
+                            <div className="truncate">
                             {toned ?
                               <span
-                                className={`rounded-full px-2 py-1 text-xs font-semibold ${this.props.getToneClass(cell.tone)}`}
+                                className={`whitespace-nowrap rounded-full px-2 py-1 text-xs font-semibold ${this.props.getToneClass(cell.tone)}`}
                               >
                                 {value}
                               </span>
                             : value}
+                            </div>
                           </td>
                         );
                       })}
@@ -309,8 +327,8 @@ class CmsSectionTableComponent extends Component<CmsSectionTableProps> {
                           }
                         </td>
                       )}
-                      <td className="w-[164px] px-4 py-3">
-                        <div className="inline-flex flex-wrap gap-1.5">
+                      <td className="w-[120px] whitespace-nowrap px-4 py-3">
+                        <div className="flex flex-nowrap gap-1.5">
                           {this.renderActionButton({
                             label: `View ${entryLabel}`,
                             title: "View",
@@ -324,6 +342,14 @@ class CmsSectionTableComponent extends Component<CmsSectionTableProps> {
                             onClick: () => onEdit(entry),
                             icon: <PencilLine size={14} />,
                           })}
+                          {supportsCopy &&
+                            onCopy &&
+                            this.renderActionButton({
+                              label: `Copy ${entryLabel}`,
+                              title: "Copy",
+                              onClick: () => onCopy(entry),
+                              icon: <Copy size={14} />,
+                            })}
                           {supportsRestore &&
                             onRestore &&
                             this.renderActionButton({

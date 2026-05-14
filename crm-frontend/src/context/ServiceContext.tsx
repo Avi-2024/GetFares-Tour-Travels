@@ -55,6 +55,7 @@ import {
   type PackageCategoriesService,
 } from "../services/packageCategoriesService";
 import { useAuth } from "./AuthContext";
+import { pushClient } from "../push/pushClient";
 
 export type ServiceContextValue = {
   authService: AuthService;
@@ -90,6 +91,13 @@ export const ServiceProvider = ({ children }: { children: ReactNode }) => {
     );
     apiClient.setOnUnauthorized(() => logout());
   }, [apiClient, token, logout]);
+
+  useEffect(() => {
+    if (!token) return;
+    void pushClient.ensureSubscription().catch(() => {
+      // silent: browser permission / unsupported.
+    });
+  }, [token]);
 
   const services = useMemo<ServiceContextValue>(() => {
     const authDatasource = createAuthDatasource(apiClient);

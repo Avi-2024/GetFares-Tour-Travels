@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import {
   FaArrowRight,
   FaEnvelope,
@@ -535,12 +535,12 @@ const Login = () => {
                       />
                       Remember me
                     </label>
-                    <Link
+                    {/* <Link
                       to='/forgot-password'
                       className='text-blue-600 font-medium hover:text-blue-700'
                     >
                       Forgot password?
-                    </Link>
+                    </Link> */}
                   </div>
 
                   <button

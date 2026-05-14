@@ -130,6 +130,18 @@ const Dashboard: React.FC = () => {
     }
     return `${(value / 1_000_000_000).toFixed(1).replace(/\.0$/, '')}B`
   }
+  const formatRevenueValue = (value: number) => {
+    try {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: selectedCurrency,
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0
+      }).format(value)
+    } catch (_error) {
+      return `${selectedCurrency} ${Number(value || 0).toLocaleString('en-US')}`
+    }
+  }
   // Convert revenue when currency changes
   useEffect(() => {
     const convertRevenue = async () => {
@@ -263,9 +275,11 @@ const Dashboard: React.FC = () => {
       }
 
       try {
+        setRevenueLoaded(false)
         // Load revenue data
         const revenueResponse = (await dashboardApi.getRevenue({
-          range: range.toLowerCase()
+          range: range.toLowerCase(),
+          currency: selectedCurrency
         })) as any
         const revenue = revenueResponse?.data || revenueResponse
         if (Array.isArray(revenue)) {
@@ -283,7 +297,7 @@ const Dashboard: React.FC = () => {
     }
 
     loadRevenueData()
-  }, [token, range])
+  }, [token, range, selectedCurrency])
 
   const kpis = useMemo(() => {
     if (!dashboardStats || !statsLoaded) {
@@ -508,14 +522,18 @@ const Dashboard: React.FC = () => {
                 <XAxis dataKey='name' stroke='#9ca3af' fontSize={12} />
                 <YAxis stroke='#9ca3af' fontSize={12} />
                 <Tooltip
-                  formatter={(v: number | string | undefined, name) => [
-                    `$${Number(v ?? 0).toLocaleString()}`,
-                    name === 'last' ? 'Previous' : 'Current'
+                  formatter={(
+                    v: number | string | undefined,
+                    _name,
+                    item: any
+                  ) => [
+                    formatRevenueValue(Number(v ?? 0)),
+                    item?.dataKey === 'last' ? 'Previous' : 'Current'
                   ]}
                 />
                 <Legend />
                 <Area
-                  type='monotone'
+                  type='linear'
                   dataKey='revenue'
                   fill='url(#g)'
                   stroke='#2563eb'
@@ -523,7 +541,7 @@ const Dashboard: React.FC = () => {
                   name='Current'
                 />
                 <Line
-                  type='monotone'
+                  type='linear'
                   dataKey='last'
                   stroke='#94a3b8'
                   strokeWidth={2}

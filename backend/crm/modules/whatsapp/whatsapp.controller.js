@@ -1,12 +1,12 @@
 function createWhatsappController({ service }) {
   return Object.freeze({
     async configStatus(_req, res) {
-      const result = service.getConfigStatus();
+      const result = await service.getConfigStatus();
       res.status(200).json({ data: result });
     },
 
     async verify(req, res) {
-      const challenge = service.verifyWebhook(
+      const challenge = await service.verifyWebhook(
         req.validated?.query ?? req.query,
       );
       res.status(200).send(challenge);
@@ -27,6 +27,24 @@ function createWhatsappController({ service }) {
 
     async sendText(req, res) {
       const result = await service.sendTextMessage(req.validated.body, req.context);
+      res.status(200).json({ data: result });
+    },
+
+    async listConversationMessages(req, res) {
+      const { leadId } = req.validated.params;
+      const region = req.validated.query?.region;
+      const result = await service.listConversationMessages({ leadId, region });
+      res.status(200).json({ data: result });
+    },
+
+    async listThreads(req, res) {
+      const q = req.validated.query;
+      const result = await service.listConversationThreads({
+        page: q?.page,
+        limit: q?.limit,
+        q: q?.q,
+        region: q?.region,
+      });
       res.status(200).json({ data: result });
     },
 

@@ -8,6 +8,55 @@ function createLeadsController({ service }) {
       res.status(200).json({ data: result });
     },
 
+    async listStats(req, res) {
+      const result = await service.listStats(
+        req.validated?.query || req.query,
+        req.context,
+      );
+      res.status(200).json({ data: result });
+    },
+
+
+
+
+    
+    async listDestinations(req, res) {
+      const result = await service.listDestinations(
+        req.validated?.query || req.query,
+        req.context,
+      );
+      res.status(200).json({ data: result });
+    },
+
+    async listLeadSources(req, res) {
+      const result = await service.listLeadSources(
+        req.validated?.query || req.query,
+        req.context,
+      );
+      res.status(200).json({ data: result });
+    },
+
+    async listPlatforms(req, res) {
+      const result = await service.listPlatforms(
+        req.validated?.query || req.query,
+        req.context,
+      );
+      res.status(200).json({ data: result });
+    },
+
+    async listCustomStatusPresets(req, res) {
+      const items = await service.listCustomStatusPresets();
+      res.status(200).json({ data: { items } });
+    },
+
+    async addCustomStatusPreset(req, res) {
+      const items = await service.addCustomStatusPreset(
+        req.validated.body.label,
+        req.context,
+      );
+      res.status(201).json({ data: { items } });
+    },
+
     async getById(req, res) {
       const result = await service.getById(
         req.validated.params.id,

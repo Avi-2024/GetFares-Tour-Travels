@@ -97,6 +97,13 @@ function createDestinationsController({ service, uploadService }) {
 
     create: asyncHandler(async (req, res) => {
       const payload = { ...req.body };
+      if (typeof payload.media === "string") {
+        try {
+          payload.media = JSON.parse(payload.media);
+        } catch {
+          payload.media = {};
+        }
+      }
       if (!payload.country && req.query.country) {
         payload.country = req.query.country;
       }
@@ -121,8 +128,14 @@ function createDestinationsController({ service, uploadService }) {
           allowVideo: false,
           required: false,
         });
-        payload.heroImageUrl = bannerUpload?.url || payload.heroImageUrl;
-        payload.thumbnailUrl = bannerUpload?.url || payload.thumbnailUrl;
+        payload.media = {
+          ...(payload.media && typeof payload.media === "object" ?
+            payload.media
+          : {}),
+          title_image: bannerUpload?.url || payload.media?.title_image || null,
+          gallery:
+            Array.isArray(payload.media?.gallery) ? payload.media.gallery : [],
+        };
       }
 
       const destination = await service.create(payload);
@@ -143,6 +156,13 @@ function createDestinationsController({ service, uploadService }) {
 
     update: asyncHandler(async (req, res) => {
       const payload = { ...req.body };
+      if (typeof payload.media === "string") {
+        try {
+          payload.media = JSON.parse(payload.media);
+        } catch {
+          payload.media = {};
+        }
+      }
       if (!payload.country && req.query.country) {
         payload.country = req.query.country;
       }
@@ -167,8 +187,14 @@ function createDestinationsController({ service, uploadService }) {
           allowVideo: false,
           required: false,
         });
-        payload.heroImageUrl = bannerUpload?.url || payload.heroImageUrl;
-        payload.thumbnailUrl = bannerUpload?.url || payload.thumbnailUrl;
+        payload.media = {
+          ...(payload.media && typeof payload.media === "object" ?
+            payload.media
+          : {}),
+          title_image: bannerUpload?.url || payload.media?.title_image || null,
+          gallery:
+            Array.isArray(payload.media?.gallery) ? payload.media.gallery : [],
+        };
       }
 
       const destination = await service.update(req.params.id, payload);
@@ -325,7 +351,6 @@ function createDestinationsController({ service, uploadService }) {
       res.json(result);
     }),
 
-    // Package mapping endpoints
     getPackages: asyncHandler(async (req, res) => {
       const packages = await service.getPackages(req.params.id);
       res.json({

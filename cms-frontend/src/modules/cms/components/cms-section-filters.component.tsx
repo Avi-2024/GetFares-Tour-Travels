@@ -93,13 +93,35 @@ class CmsSectionFiltersComponent extends Component<
   }
 
   private onInputChange = (value: string): void => {
+    let nextValue = value;
+    const normalized = value.trim().toLowerCase();
+    const hasColon = normalized.includes(":");
+    if (!hasColon && normalized.length >= 3) {
+      const matches = this.props.columns.filter((column) => {
+        const key = column.key.toLowerCase();
+        const label = column.label.toLowerCase();
+        return key.startsWith(normalized) || label.startsWith(normalized);
+      });
+      if (matches.length === 1) {
+        nextValue = `${matches[0].key}: `;
+      }
+    }
     this.setState({
-      inputValue: value,
+      inputValue: nextValue,
     });
-    this.scheduleDebounce(value);
+    this.scheduleDebounce(nextValue);
   };
 
   private addFilterToken = (token: UniversalFilterToken): void => {
+    if (!token.value || !token.value.trim()) {
+      this.setState({
+        inputValue: `${token.key}: `,
+        debouncedValue: `${token.key}: `,
+        isInputFocused: true,
+        activeSuggestionIndex: 0,
+      });
+      return;
+    }
     const normalizedTokenKey = `${token.key}:${token.value.trim().toLowerCase()}`;
     const alreadyAdded = this.props.activeFilters.some(
       (existing) =>
@@ -190,9 +212,6 @@ class CmsSectionFiltersComponent extends Component<
     if (!this.state.isInputFocused) {
       return [];
     }
-    if (!this.state.debouncedValue.trim()) {
-      return [];
-    }
     return this.props.getSuggestions(
       this.state.debouncedValue,
       this.props.columns,
@@ -207,7 +226,7 @@ class CmsSectionFiltersComponent extends Component<
     const listboxId = `${this.props.sectionTitle.replaceAll(/\s+/g, "-").toLowerCase()}-filter-suggestions`;
 
     return (
-      <SurfaceCardComponent>
+      <SurfaceCardComponent className="overflow-visible relative z-10">
         <div className="space-y-3" ref={this.rootRef}>
           <div className="relative">
             <Search
@@ -250,7 +269,7 @@ class CmsSectionFiltersComponent extends Component<
               <div
                 id={listboxId}
                 role="listbox"
-                className="absolute z-30 mt-1 max-h-60 w-full overflow-y-auto rounded-xl border border-[var(--border)] bg-(--surface) p-1 shadow-lg"
+                className="absolute z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-xl border border-[var(--border)] bg-(--surface) p-1 shadow-lg"
               >
                 {suggestions.map((suggestion, index) => (
                   <button

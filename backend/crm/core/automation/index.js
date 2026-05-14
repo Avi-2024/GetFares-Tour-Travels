@@ -26,6 +26,9 @@ function createAutomationRuntime({ container, modules }) {
   const logger = container?.logger;
   const config = container?.config?.automation || {};
   const intervals = config.intervalsMs || {};
+  const leadCadencePaused = true;
+  const quotationRemindersPaused = true;
+  const supplierPayableAlertsPaused = true;
 
   const leadsService = modules?.leads?.service;
   const quotationsService = modules?.quotations?.service;
@@ -61,7 +64,9 @@ function createAutomationRuntime({ container, modules }) {
       run: async () => {
         const [overdue, cadence, nonResponsive] = await Promise.all([
           leadsService.processOverdueFollowups({}, {}),
-          leadsService.processCadenceAutomation({}, {}),
+          leadCadencePaused ?
+            Promise.resolve({ processed: 0, skipped: true, reason: "PAUSED_IN_BACKEND" })
+          : leadsService.processCadenceAutomation({}, {}),
           leadsService.processNonResponsive({}, {}),
         ]);
 
@@ -92,7 +97,10 @@ function createAutomationRuntime({ container, modules }) {
     jobs.push({
       name: "quotation_reminders",
       intervalMs: intervals.quotationReminders,
-      run: async () => quotationsService.runReminderAutomation({}, {}),
+      run: async () =>
+        quotationRemindersPaused ?
+          { processed: 0, skipped: true, reason: "PAUSED_IN_BACKEND" }
+        : quotationsService.runReminderAutomation({}, {}),
     });
   }
 
@@ -151,12 +159,14 @@ function createAutomationRuntime({ container, modules }) {
       name: "supplier_payable_deadline_alerts",
       intervalMs: intervals.supplierPayables,
       run: async () =>
-        suppliersService.processPayableDeadlineAlerts(
-          {
-            lookaheadDays: safeNumber(config.supplierLookaheadDays, 2, 60),
-          },
-          {},
-        ),
+        supplierPayableAlertsPaused ?
+          { processed: 0, skipped: true, reason: "PAUSED_IN_BACKEND" }
+        : suppliersService.processPayableDeadlineAlerts(
+            {
+              lookaheadDays: safeNumber(config.supplierLookaheadDays, 2, 60),
+            },
+            {},
+          ),
     });
   }
 

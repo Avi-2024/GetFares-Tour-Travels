@@ -1,4 +1,5 @@
 import { Component, type ChangeEvent } from "react";
+import { FaTimes } from "react-icons/fa";
 import SearchDropDown from "../../../shared/components/search-dropdown.component";
 import IconPickerComponent from "../../../shared/components/icon-picker.component";
 import type {
@@ -147,7 +148,7 @@ class CmsEntityFormGroupsComponent extends Component<CmsEntityFormGroupsProps> {
         : (currencyField.options ?? []);
       return (
         <div className="flex items-stretch">
-          <div className="w-34 shrink-0">
+          <div className="w-36 shrink-0">
             <SearchDropDown
               value={currencyValue}
               options={currencyOptions.map((option) => ({
@@ -157,14 +158,18 @@ class CmsEntityFormGroupsComponent extends Component<CmsEntityFormGroupsProps> {
               }))}
               placeholder="Currency"
               onChange={(nextValue) => onFieldChange(currencyField, nextValue)}
-              className="h-10 w-full rounded-l-xl rounded-r-none border border-(--border) border-r-0 bg-(--surface) px-9 pr-9 text-sm text-(--text-primary) outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--ring)"
+              className="h-10 w-full rounded-l-xl rounded-r-none border border-(--border) border-r-0 bg-(--surface) pl-9 pr-12 text-sm text-(--text-primary) outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--ring)"
             />
           </div>
           <input
             type="number"
             value={String(value ?? "")}
+            onKeyDown={(e) => {
+              if (e.key === "ArrowUp" || e.key === "ArrowDown") e.preventDefault();
+            }}
+            onWheel={(e) => e.currentTarget.blur()}
             onChange={(event) => onFieldChange(field, event.target.value)}
-            className="h-10 w-full rounded-r-xl rounded-l-none border border-(--border) bg-(--surface) px-3 text-sm text-(--text-primary) outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--ring)"
+            className="h-10 w-full rounded-r-xl rounded-l-none border border-(--border) bg-(--surface) px-3 text-sm text-(--text-primary) outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--ring) [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
           />
         </div>
       );
@@ -174,9 +179,22 @@ class CmsEntityFormGroupsComponent extends Component<CmsEntityFormGroupsProps> {
       return (
         <textarea
           value={String(value ?? "")}
-          onChange={(event) => onFieldChange(field, event.target.value)}
+          onChange={(event) => {
+            if (field.lettersOnly) {
+              const filtered = event.target.value.replace(/[^a-zA-Z\s]/g, "");
+              const capitalized = filtered.charAt(0).toUpperCase() + filtered.slice(1);
+              onFieldChange(field, capitalized);
+              return;
+            }
+            if (field.capitalizeFirst) {
+              const v = event.target.value;
+              onFieldChange(field, v.charAt(0).toUpperCase() + v.slice(1));
+              return;
+            }
+            onFieldChange(field, event.target.value);
+          }}
           rows={4}
-          className={`${className} h-auto py-2`}
+          className={`${className} h-auto py-2 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-(--border)`}
         />
       );
     }
@@ -325,10 +343,9 @@ class CmsEntityFormGroupsComponent extends Component<CmsEntityFormGroupsProps> {
                     );
                     onFieldChange(field, next);
                   }}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] text-sm font-bold text-(--danger) transition hover:bg-[color-mix(in_srgb,var(--danger)_18%,transparent)]"
-                  aria-label={`Remove ${field.label} item ${index + 1}`}
+                  className="inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] text-(--danger) transition hover:bg-[color-mix(in_srgb,var(--danger)_18%,transparent)]"
                 >
-                  ×
+                  <FaTimes size={11} />
                 </button>
               </div>
             ))}
@@ -366,7 +383,7 @@ class CmsEntityFormGroupsComponent extends Component<CmsEntityFormGroupsProps> {
                 key={`${field.key}-${rowIndex}`}
                 className="rounded-2xl border border-(--border) bg-(--surface) p-3 shadow-[0_8px_24px_color-mix(in_srgb,var(--text-primary)_8%,transparent)]"
               >
-                <div className="mb-2 flex items-center justify-between">
+                <div className="mb-2 flex items-center justify-between gap-2">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-(--text-secondary)">
                     {field.label} #{rowIndex + 1}
                   </p>
@@ -378,10 +395,10 @@ class CmsEntityFormGroupsComponent extends Component<CmsEntityFormGroupsProps> {
                       );
                       onFieldChange(field, next);
                     }}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] text-sm font-bold text-(--danger) transition hover:bg-[color-mix(in_srgb,var(--danger)_18%,transparent)]"
+                    className="inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] text-(--danger) transition hover:bg-[color-mix(in_srgb,var(--danger)_18%,transparent)]"
                     aria-label={`Remove ${field.label} row ${rowIndex + 1}`}
                   >
-                    ×
+                    <FaTimes size={11} />
                   </button>
                 </div>
                 <div className="grid gap-2 md:grid-cols-2">
@@ -398,17 +415,19 @@ class CmsEntityFormGroupsComponent extends Component<CmsEntityFormGroupsProps> {
                       >
                         <span>{itemField.label}</span>
                         {isIconField ?
-                          <IconPickerComponent
-                            value={itemValue}
-                            onChange={(nextIcon) => {
-                              const next = [...rows];
-                              next[rowIndex] = {
-                                ...next[rowIndex],
-                                [itemField.key]: nextIcon,
-                              };
-                              onFieldChange(field, next);
-                            }}
-                          />
+                          <span className="normal-case tracking-normal">
+                            <IconPickerComponent
+                              value={itemValue}
+                              onChange={(nextIcon) => {
+                                const next = [...rows];
+                                next[rowIndex] = {
+                                  ...next[rowIndex],
+                                  [itemField.key]: nextIcon,
+                                };
+                                onFieldChange(field, next);
+                              }}
+                            />
+                          </span>
                         : isTextarea ?
                           <textarea
                             value={itemValue}
@@ -427,6 +446,12 @@ class CmsEntityFormGroupsComponent extends Component<CmsEntityFormGroupsProps> {
                             type={inputType}
                             value={itemValue}
                             placeholder={itemField.placeholder}
+                            onKeyDown={(e) => {
+                              if (inputType === "number" && (e.key === "ArrowUp" || e.key === "ArrowDown")) e.preventDefault();
+                            }}
+                            onWheel={(e) => {
+                              if (inputType === "number") e.currentTarget.blur();
+                            }}
                             onChange={(event) => {
                               const next = [...rows];
                               next[rowIndex] = {
@@ -435,7 +460,7 @@ class CmsEntityFormGroupsComponent extends Component<CmsEntityFormGroupsProps> {
                               };
                               onFieldChange(field, next);
                             }}
-                            className="h-10 w-full rounded-lg border border-(--border) bg-(--surface) px-3 text-sm normal-case tracking-normal text-(--text-primary) outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--ring)"
+                            className={`h-10 w-full rounded-lg border border-(--border) bg-(--surface) px-3 text-sm normal-case tracking-normal text-(--text-primary) outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--ring) ${inputType === "number" ? "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" : ""}`}
                           />
                         }
                       </label>
@@ -498,12 +523,40 @@ class CmsEntityFormGroupsComponent extends Component<CmsEntityFormGroupsProps> {
       );
     }
 
+    const isDisplayOrder = field.key === "displayOrder";
+
     return (
       <input
         type={type}
         value={String(value ?? "")}
-        onChange={(event) => onFieldChange(field, event.target.value)}
-        className={className}
+        min={isDisplayOrder ? 1 : undefined}
+        onKeyDown={(e) => {
+          if (type === "number" && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+            e.preventDefault();
+          }
+        }}
+        onWheel={(e) => {
+          if (type === "number") e.currentTarget.blur();
+        }}
+        onChange={(event) => {
+          if (isDisplayOrder) {
+            const num = Number(event.target.value);
+            if (event.target.value !== "" && num < 1) return;
+          }
+          if (field.lettersOnly) {
+            const filtered = event.target.value.replace(/[^a-zA-Z\s]/g, "");
+            const capitalized = filtered.charAt(0).toUpperCase() + filtered.slice(1);
+            onFieldChange(field, capitalized);
+            return;
+          }
+          if (field.capitalizeFirst) {
+            const v = event.target.value;
+            onFieldChange(field, v.charAt(0).toUpperCase() + v.slice(1));
+            return;
+          }
+          onFieldChange(field, event.target.value);
+        }}
+        className={`${className} ${type === "number" ? "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" : ""}`}
       />
     );
   }
@@ -535,11 +588,15 @@ class CmsEntityFormGroupsComponent extends Component<CmsEntityFormGroupsProps> {
                 .map((field) => (
                   <div
                     key={field.key}
-                    className="block space-y-1 text-xs font-semibold uppercase tracking-[0.08em] text-(--text-secondary)"
+                    className={`space-y-1 text-xs font-semibold uppercase tracking-[0.08em] text-(--text-secondary) ${
+                      field.type === "switch" ? "flex flex-col justify-end" : "block"
+                    }`}
                   >
                     <span>
                       {field.label}
-                      {field.required ? " *" : ""}
+                      {field.required && (
+                        <span className="ml-0.5 text-[var(--danger)]">*</span>
+                      )}
                     </span>
                     {this.renderInput(field)}
                     {field.helperText && (

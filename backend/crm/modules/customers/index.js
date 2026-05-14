@@ -6,7 +6,7 @@ import { CustomersValidation } from "./customers.validation.js";
 import { CustomersSchema } from "./customers.schema.js";
 import { createCustomersEvents } from "./customers.events.js";
 
-function createCustomersModule({ dependencies }) {
+function createCustomersModule({ dependencies, repositories = {} }) {
   const repository = createCustomersRepository({
     db: dependencies.db,
     logger: dependencies.logger,
@@ -20,6 +20,7 @@ function createCustomersModule({ dependencies }) {
 
   const service = createCustomersService({
     repository,
+    leadsRepository: repositories.leads,
     logger: dependencies.logger,
     events,
   });

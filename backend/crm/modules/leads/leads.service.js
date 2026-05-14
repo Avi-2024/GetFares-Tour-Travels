@@ -418,6 +418,39 @@ function createLeadsService({ repository, logger, events }) {
     return repository.normalizePhone(phone);
   }
 
+  async function applyVisibilityScope(mappedFilters = {}, context = {}) {
+    const nextFilters = { ...mappedFilters };
+    const userId = context.user?.id || null;
+    const userRole = normalizeRoleToken(context.user?.role);
+    const isAgent = isAgentRole(userRole);
+    const isManager = isManagerRole(userRole);
+
+    if (isAgent && userId) {
+      nextFilters.assignedTo = userId;
+      const agentCountrySet = await getUserCountrySet(userId);
+      if (agentCountrySet.size > 0) {
+        nextFilters.allowedCountries = [...agentCountrySet];
+      }
+    }
+
+    if (isManager && userId) {
+      const [managerCountrySet, managedAgentIds] = await Promise.all([
+        getUserCountrySet(userId),
+        repository.findManagedAgentIds(userId),
+      ]);
+      const visibleAssigneeIds = [userId, ...managedAgentIds].filter(Boolean);
+      if (visibleAssigneeIds.length > 0) {
+        nextFilters.visibleAssigneeIds = [...new Set(visibleAssigneeIds)];
+        nextFilters.includeUnassigned = true;
+      }
+      if (managerCountrySet.size > 0) {
+        nextFilters.allowedCountries = [...managerCountrySet];
+      }
+    }
+
+    return nextFilters;
+  }
+
   function normalizeLeadType(value) {
     if (!value) {
       return "HOLIDAY";
@@ -470,14 +503,27 @@ function createLeadsService({ repository, logger, events }) {
       .trim()
       .toUpperCase()
       .replace(/[\s-]+/g, "_");
+    if (normalized === "CREATED_AT_DESC" || normalized === "CREATED_DESC") {
+      return "CREATED_AT_DESC";
+    }
+    if (normalized === "CREATED_AT_ASC" || normalized === "CREATED_ASC") {
+      return "CREATED_AT_ASC";
+    }
     if (normalized === "OLDEST_FIRST" || normalized === "OLDEST") {
       return "OLDEST_FIRST";
     }
-    if (normalized === "NAME_A_Z" || normalized === "NAME") {
+    if (
+      normalized === "NAME_A_Z" ||
+      normalized === "NAME" ||
+      normalized === "NAME_ASC"
+    ) {
       return "NAME_A_Z";
     }
-    if (normalized === "STATUS") {
+    if (normalized === "STATUS" || normalized === "STATUS_ASC") {
       return "STATUS";
+    }
+    if (normalized === "COUNTRY_ASC" || normalized === "COUNTRY") {
+      return "COUNTRY_ASC";
     }
     return "NEWEST_FIRST";
   }
@@ -494,6 +540,7 @@ function createLeadsService({ repository, logger, events }) {
     if (normalized === "FOLLOW_UP") return "FOLLOW_UP";
     if (normalized === "CLOSED") return "CLOSED";
     if (normalized === "LATE_RESPONSE") return "LATE_RESPONSE";
+    if (normalized === "LOST") return "LOST";
     return undefined;
   }
 
@@ -622,15 +669,6 @@ function createLeadsService({ repository, logger, events }) {
     const missing = [];
     if (!input.leadCountry && !input.country) {
       missing.push("leadCountry");
-    }
-    if (!input.nationality) {
-      missing.push("nationality");
-    }
-    const hasDestination = Boolean(
-      input.destinationId || input.destinationName || input.destination,
-    );
-    if (!hasDestination) {
-      missing.push("destination");
     }
     if (!input.travelDate) {
       missing.push("travelDate");
@@ -957,10 +995,12 @@ function createLeadsService({ repository, logger, events }) {
     const leadCountry = payload.leadCountry ?? payload.country ?? null;
     const normalizedLeadType = normalizeLeadType(payload.leadType ?? payload.type);
 
-    const mapped = {
-      full_name: payload.fullName || null,
-      phone: normalizePhone(payload.phone),
-      email: normalizeEmail(payload.email),
+	    const mapped = {
+	      full_name: payload.fullName || null,
+	      phone: normalizePhone(payload.phone),
+	      phone_normalized: normalizePhone(payload.phone),
+	      email: normalizeEmail(payload.email),
+      city: payload.city || null,
       pan_number: payload.panNumber || null,
       address_line: payload.addressLine || null,
       client_currency: payload.clientCurrency || null,
@@ -987,11 +1027,19 @@ function createLeadsService({ repository, logger, events }) {
       sub_status: payload.subStatus || null,
       temperature,
       source: payload.source || "Manual",
+      platform: payload.platform || null,
+      campaign_name: payload.campaignName || null,
+      ad_name: payload.adName || null,
       campaign_id: payload.campaignId || null,
       utm_source: payload.utmSource || null,
       utm_medium: payload.utmMedium || null,
       utm_campaign: payload.utmCampaign || null,
       meta_lead_id: payload.metaLeadId || null,
+      meta_page_id: payload.metaPageId || null,
+      meta_form_id: payload.metaFormId || null,
+      meta_ad_id: payload.metaAdId || null,
+      meta_adset_id: payload.metaAdsetId || null,
+      meta_campaign_id: payload.metaCampaignId || null,
       priority_level:
         payload.priorityLevel ?? mapTemperatureToPriority(temperature),
       is_vip: payload.isVip ?? false,
@@ -1011,6 +1059,14 @@ function createLeadsService({ repository, logger, events }) {
         : null,
       client_created_at: payload.clientCreatedAt || null,
       client_timezone: payload.clientTimezone || null,
+      dynamic_fields:
+        payload.dynamicFields && typeof payload.dynamicFields === "object" ?
+          JSON.stringify(payload.dynamicFields)
+        : null,
+      dynamic_field_labels:
+        payload.dynamicFieldLabels && typeof payload.dynamicFieldLabels === "object" ?
+          JSON.stringify(payload.dynamicFieldLabels)
+        : null,
     };
 
     if (useCustomerLinking) {
@@ -1028,11 +1084,15 @@ function createLeadsService({ repository, logger, events }) {
     if (payload.fullName !== undefined) {
       mapped.full_name = payload.fullName;
     }
-    if (payload.phone !== undefined) {
-      mapped.phone = normalizePhone(payload.phone);
-    }
+	    if (payload.phone !== undefined) {
+	      mapped.phone = normalizePhone(payload.phone);
+	      mapped.phone_normalized = normalizePhone(payload.phone);
+	    }
     if (payload.email !== undefined) {
       mapped.email = normalizeEmail(payload.email);
+    }
+    if (payload.city !== undefined) {
+      mapped.city = payload.city || null;
     }
     if (payload.panNumber !== undefined) {
       mapped.pan_number = payload.panNumber;
@@ -1082,6 +1142,15 @@ function createLeadsService({ repository, logger, events }) {
     if (payload.source !== undefined) {
       mapped.source = payload.source;
     }
+    if (payload.platform !== undefined) {
+      mapped.platform = payload.platform || null;
+    }
+    if (payload.campaignName !== undefined) {
+      mapped.campaign_name = payload.campaignName || null;
+    }
+    if (payload.adName !== undefined) {
+      mapped.ad_name = payload.adName || null;
+    }
     if (payload.campaignId !== undefined) {
       mapped.campaign_id = payload.campaignId;
     }
@@ -1096,6 +1165,33 @@ function createLeadsService({ repository, logger, events }) {
     }
     if (payload.metaLeadId !== undefined) {
       mapped.meta_lead_id = payload.metaLeadId || null;
+    }
+    if (payload.metaPageId !== undefined) {
+      mapped.meta_page_id = payload.metaPageId || null;
+    }
+    if (payload.metaFormId !== undefined) {
+      mapped.meta_form_id = payload.metaFormId || null;
+    }
+    if (payload.metaAdId !== undefined) {
+      mapped.meta_ad_id = payload.metaAdId || null;
+    }
+    if (payload.metaAdsetId !== undefined) {
+      mapped.meta_adset_id = payload.metaAdsetId || null;
+    }
+    if (payload.metaCampaignId !== undefined) {
+      mapped.meta_campaign_id = payload.metaCampaignId || null;
+    }
+    if (payload.dynamicFields !== undefined) {
+      mapped.dynamic_fields =
+        payload.dynamicFields && typeof payload.dynamicFields === "object" ?
+          JSON.stringify(payload.dynamicFields)
+        : null;
+    }
+    if (payload.dynamicFieldLabels !== undefined) {
+      mapped.dynamic_field_labels =
+        payload.dynamicFieldLabels && typeof payload.dynamicFieldLabels === "object" ?
+          JSON.stringify(payload.dynamicFieldLabels)
+        : null;
     }
     if (payload.adultsCount !== undefined) {
       mapped.adults_count = payload.adultsCount;
@@ -1159,6 +1255,25 @@ function createLeadsService({ repository, logger, events }) {
     }
     if (payload.closedReason !== undefined) {
       mapped.closed_reason = payload.closedReason;
+    }
+    if (payload.customStatusLabel !== undefined) {
+      const rawCs = payload.customStatusLabel;
+      mapped.custom_status_label =
+        rawCs === null || String(rawCs ?? "").trim() === "" ?
+          null
+        : String(rawCs).trim().slice(0, 191) || null;
+    }
+    if (
+      options.persistStatusTransitionCustom &&
+      payload.statusTransitionCustom !== undefined
+    ) {
+      const raw = payload.statusTransitionCustom;
+      if (raw === null || raw === "") {
+        mapped.status_transition_custom = null;
+      } else {
+        const v = String(raw).trim();
+        mapped.status_transition_custom = v || null;
+      }
     }
     if (payload.nextFollowupDate !== undefined) {
       mapped.next_followup_date = payload.nextFollowupDate;
@@ -1764,6 +1879,20 @@ function createLeadsService({ repository, logger, events }) {
       createdWithLeadCode = await repository.ensureLeadCode(created.id);
     }
 
+    if (created?.id && payload.dynamicFields) {
+      try {
+        await repository.upsertLeadDynamicFields?.(created.id, {
+          fields: payload.dynamicFields,
+          labels: payload.dynamicFieldLabels || {},
+        });
+      } catch (error) {
+        logger?.warn?.(
+          { err: error, module: "leads", leadId: created.id },
+          "Failed to persist dynamic lead fields; fixed fields saved",
+        );
+      }
+    }
+
     if (payload.notes) {
       const createActivityStamp = resolveActivityStamp({
         activityCreatedAt: payload.clientCreatedAt,
@@ -1823,7 +1952,7 @@ function createLeadsService({ repository, logger, events }) {
         "Listing leads",
       );
       const page = toPositiveInt(filters.page, 1, 1000000);
-      const limit = toPositiveInt(filters.limit, 15, 500);
+      const limit = toPositiveInt(filters.limit, 25, 50);
       const mappedFilters = {
         ...filters,
         page,
@@ -1841,6 +1970,63 @@ function createLeadsService({ repository, logger, events }) {
         toDate: filters.toDate || undefined,
         sla: normalizeSlaFilter(filters.sla),
         sortBy: normalizeSortBy(filters.sortBy),
+      };
+
+      const scopedFilters = await applyVisibilityScope(mappedFilters, context);
+      const result = await repository.findAll(scopedFilters);
+      const rows = Array.isArray(result?.items) ? result.items : [];
+      const total = Number.isFinite(Number(result?.total)) ?
+        Math.max(0, Number(result.total))
+      : rows.length;
+      const normalizedRows = rows.map((lead) => withTemperature(lead));
+      const safeLimit = Number.isFinite(Number(result?.limit)) ?
+        Math.max(1, Number(result.limit))
+      : limit;
+      const safePage = Number.isFinite(Number(result?.page)) ?
+        Math.max(1, Number(result.page))
+      : page;
+
+      return {
+        data: normalizedRows,
+        pagination: {
+          page: safePage,
+          limit: safeLimit,
+          total,
+          totalPages: Math.max(1, Math.ceil(total / safeLimit)),
+        },
+      };
+    },
+
+    async listStats(filters = {}, context = {}) {
+      logger.debug(
+        { module: "leads", requestId: context.requestId, filters },
+        "Listing lead stats",
+      );
+      const mappedFilters = {
+        ...filters,
+        search: filters.search ? String(filters.search).trim() : undefined,
+        quickFilter: normalizeQuickFilter(filters.quickFilter),
+        status:
+          filters.status ? normalizeLeadStatus(filters.status) : undefined,
+        email: filters.email ? String(filters.email).trim() : undefined,
+        phone: filters.phone ? String(filters.phone).trim() : undefined,
+        leadId: filters.leadId ? String(filters.leadId).trim() : undefined,
+        destination:
+          filters.destination ? String(filters.destination).trim() : undefined,
+        fromDate: filters.fromDate || undefined,
+        toDate: filters.toDate || undefined,
+        sla: normalizeSlaFilter(filters.sla),
+      };
+
+      const scopedFilters = await applyVisibilityScope(mappedFilters, context);
+      return repository.findStats(scopedFilters);
+    },
+
+    async listDestinations(filters = {}, context = {}) {
+      const mappedFilters = {
+        search: filters.search ? String(filters.search).trim() : undefined,
+        country: filters.country ? String(filters.country).trim() : undefined,
+        limit: toPositiveInt(filters.limit, 200, 500),
       };
 
       const userId = context.user?.id || null;
@@ -1871,28 +2057,99 @@ function createLeadsService({ repository, logger, events }) {
         }
       }
 
-      const result = await repository.findAll(mappedFilters);
-      const rows = Array.isArray(result?.items) ? result.items : [];
-      const total = Number.isFinite(Number(result?.total)) ?
-        Math.max(0, Number(result.total))
-      : rows.length;
-      const normalizedRows = rows.map((lead) => withTemperature(lead));
-      const safeLimit = Number.isFinite(Number(result?.limit)) ?
-        Math.max(1, Number(result.limit))
-      : limit;
-      const safePage = Number.isFinite(Number(result?.page)) ?
-        Math.max(1, Number(result.page))
-      : page;
+      const items = await repository.findDistinctDestinations(mappedFilters);
+      return { items };
+    },
 
-      return {
-        data: normalizedRows,
-        pagination: {
-          page: safePage,
-          limit: safeLimit,
-          total,
-          totalPages: Math.max(1, Math.ceil(total / safeLimit)),
-        },
+    async listLeadSources(filters = {}, context = {}) {
+      const mappedFilters = {
+        search: filters.search ? String(filters.search).trim() : undefined,
+        country: filters.country ? String(filters.country).trim() : undefined,
+        limit: toPositiveInt(filters.limit, 200, 200),
       };
+
+      const userId = context.user?.id || null;
+      const userRole = normalizeRoleToken(context.user?.role);
+      const isAgent = isAgentRole(userRole);
+      const isManager = isManagerRole(userRole);
+
+      if (isAgent && userId) {
+        mappedFilters.assignedTo = userId;
+        const agentCountrySet = await getUserCountrySet(userId);
+        if (agentCountrySet.size > 0) {
+          mappedFilters.allowedCountries = [...agentCountrySet];
+        }
+      }
+
+      if (isManager && userId) {
+        const [managerCountrySet, managedAgentIds] = await Promise.all([
+          getUserCountrySet(userId),
+          repository.findManagedAgentIds(userId),
+        ]);
+        const visibleAssigneeIds = [userId, ...managedAgentIds].filter(Boolean);
+        if (visibleAssigneeIds.length > 0) {
+          mappedFilters.visibleAssigneeIds = [...new Set(visibleAssigneeIds)];
+          mappedFilters.includeUnassigned = true;
+        }
+        if (managerCountrySet.size > 0) {
+          mappedFilters.allowedCountries = [...managerCountrySet];
+        }
+      }
+
+      const items = await repository.findDistinctLeadSources(mappedFilters);
+      return { items };
+    },
+
+    async listPlatforms(filters = {}, context = {}) {
+      const mappedFilters = {
+        search: filters.search ? String(filters.search).trim() : undefined,
+        country: filters.country ? String(filters.country).trim() : undefined,
+        limit: toPositiveInt(filters.limit, 100, 200),
+      };
+
+      const userId = context.user?.id || null;
+      const userRole = normalizeRoleToken(context.user?.role);
+      const isAgent = isAgentRole(userRole);
+      const isManager = isManagerRole(userRole);
+
+      if (isAgent && userId) {
+        mappedFilters.assignedTo = userId;
+        const agentCountrySet = await getUserCountrySet(userId);
+        if (agentCountrySet.size > 0) {
+          mappedFilters.allowedCountries = [...agentCountrySet];
+        }
+      }
+
+      if (isManager && userId) {
+        const [managerCountrySet, managedAgentIds] = await Promise.all([
+          getUserCountrySet(userId),
+          repository.findManagedAgentIds(userId),
+        ]);
+        const visibleAssigneeIds = [userId, ...managedAgentIds].filter(Boolean);
+        if (visibleAssigneeIds.length > 0) {
+          mappedFilters.visibleAssigneeIds = [...new Set(visibleAssigneeIds)];
+          mappedFilters.includeUnassigned = true;
+        }
+        if (managerCountrySet.size > 0) {
+          mappedFilters.allowedCountries = [...managerCountrySet];
+        }
+      }
+
+      const items = await repository.findDistinctPlatforms(mappedFilters);
+      return { items };
+    },
+
+    getById,
+    async listCustomStatusPresets() {
+      return repository.listCustomStatusPresets();
+    },
+    async addCustomStatusPreset(label, context = {}) {
+      const trimmed = String(label ?? "").trim().slice(0, 191);
+      if (!trimmed) {
+        throw new AppError(400, "label is required", "INVALID_PRESET_LABEL");
+      }
+      await repository.ensureCustomStatusPreset(trimmed, context.user?.id || null);
+      return repository.listCustomStatusPresets();
     },
 
     getById,
@@ -2110,6 +2367,7 @@ function createLeadsService({ repository, logger, events }) {
         );
       }
 
+      const scheduleActivityStamp = resolveActivityStamp(payload);
       const followup = await repository.createFollowup({
         leadId: lead.id,
         userId: payload.userId || context.user?.id || lead.assignedTo || null,
@@ -2117,6 +2375,7 @@ function createLeadsService({ repository, logger, events }) {
         followupDate: wall,
         cadenceCode: payload.cadenceCode || null,
         notes: payload.notes,
+        createdAt: scheduleActivityStamp?.createdAt || null,
         clientTimezone: tz,
         followupLocalAt: wall,
         isScheduleOnly: true,
@@ -2135,7 +2394,6 @@ function createLeadsService({ repository, logger, events }) {
         ) || String(followup.followupDate || "").trim();
       const note = String(payload.notes || "").trim();
 
-      const scheduleActivityStamp = resolveActivityStamp(payload);
       if (scheduleActivityStamp) {
         await repository.createActivity({
           leadId: lead.id,
@@ -2701,11 +2959,6 @@ function createLeadsService({ repository, logger, events }) {
         payload.qualificationCompleted = true;
       }
 
-      if (nextStatus === "LOST" || nextStatus === NON_RESPONSIVE_STATUS) {
-        const compliance = await repository.getFollowupComplianceStats(id);
-        const policy = getFollowupPolicy(existing);
-        assertFollowupCompliance(compliance, policy);
-      }
       const useCustomerLinking = await repository.hasLeadCustomerColumn();
       const customerPatch = {};
 
@@ -2745,6 +2998,7 @@ function createLeadsService({ repository, logger, events }) {
 
       const mapped = buildUpdateRecord(existing, payload, {
         useCustomerLinking,
+        persistStatusTransitionCustom: hasExplicitStatus,
       });
 
       const shouldCreateWorkflowHistory = hasExplicitStatus;
@@ -2802,6 +3056,20 @@ function createLeadsService({ repository, logger, events }) {
           await repository.update(id, mapped)
         : await repository.findById(id);
 
+      if (payload.dynamicFields !== undefined) {
+        try {
+          await repository.upsertLeadDynamicFields?.(id, {
+            fields: payload.dynamicFields || {},
+            labels: payload.dynamicFieldLabels || {},
+          });
+        } catch (error) {
+          logger?.warn?.(
+            { err: error, module: "leads", leadId: id },
+            "Failed to persist dynamic lead fields update; fixed fields saved",
+          );
+        }
+      }
+
       if (shouldCreateWorkflowHistory && workflowFollowupType && workflowRecordedAt) {
         const scheduledAt = scheduledReminder?.followupDate;
         const wall =
@@ -2840,17 +3108,94 @@ function createLeadsService({ repository, logger, events }) {
         }
       }
 
+      /** Custom-status-only saves skip workflow rows; mirror them into follow-up history. */
+      if (!hasExplicitStatus && payload.customStatusLabel !== undefined) {
+        const nextCustomRaw = payload.customStatusLabel;
+        const nextCustomTrimmed =
+          nextCustomRaw === null || nextCustomRaw === undefined ?
+            ""
+          : String(nextCustomRaw).trim();
+        const prevCustomTrimmed =
+          existing.customStatusLabel != null ?
+            String(existing.customStatusLabel).trim()
+          : "";
+        const userNotesTrimmed = String(payload.notes ?? "").trim();
+        const customChanged =
+          nextCustomTrimmed !== prevCustomTrimmed;
+        const shouldLogHistory =
+          !!nextCustomTrimmed && resolveActivityStamp(payload) ?
+            Boolean(customChanged || userNotesTrimmed)
+          : false;
+        if (shouldLogHistory) {
+          const customStamp = resolveActivityStamp(payload);
+          const snapshotMax = 60;
+          const wall = customStamp.createdAt;
+          const tz = customStamp.timezone;
+          const historyLines = [];
+          if (userNotesTrimmed) {
+            historyLines.push(userNotesTrimmed);
+          }
+          historyLines.push(`Custom status: ${nextCustomTrimmed}`);
+          const snap =
+            nextCustomTrimmed.length <= snapshotMax ?
+              nextCustomTrimmed
+            : `${nextCustomTrimmed.slice(0, Math.max(0, snapshotMax - 3))}...`;
+          await repository.createFollowup({
+            leadId: id,
+            userId:
+              context.user?.id || updated?.assignedTo || existing.assignedTo || null,
+            followupType: "EMAIL",
+            followupDate: wall,
+            clientTimezone: tz,
+            followupLocalAt: wall,
+            statusSnapshot: snap,
+            notes: historyLines.join("\n\n"),
+            isCompleted: true,
+            isScheduleOnly: false,
+            countsTowardCompliance: false,
+          });
+        }
+      }
+
+      let activityNotes = "";
       if (payload.notes) {
+        activityNotes = String(payload.notes).trim();
+      } else if (
+        !hasExplicitStatus &&
+        payload.customStatusLabel !== undefined &&
+        String(payload.customStatusLabel ?? "").trim()
+      ) {
+        activityNotes = `Custom status: ${String(payload.customStatusLabel).trim()}`;
+      }
+
+      if (activityNotes) {
         const updateActivityStamp = resolveActivityStamp(payload);
         if (updateActivityStamp) {
           await repository.createActivity({
             leadId: id,
             userId: context.user?.id,
             activityType: "LEAD_UPDATED",
-            notes: payload.notes,
+            notes: activityNotes,
             createdAt: updateActivityStamp.createdAt,
             timezone: updateActivityStamp.timezone,
           });
+        }
+      }
+
+      if (
+        payload.customStatusLabel !== undefined &&
+        String(payload.customStatusLabel ?? "").trim()
+      ) {
+        try {
+          await repository.ensureCustomStatusPreset(
+            String(payload.customStatusLabel).trim(),
+            context.user?.id || null,
+          );
+        } catch (presetErr) {
+          logger?.warn?.(
+            { err: presetErr, leadId: id },
+            "Could not persist global custom status preset",
+          );
         }
       }
 

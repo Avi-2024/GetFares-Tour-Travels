@@ -21,6 +21,7 @@ const USER_ID_HINT_KEYS = Object.freeze([
   "userId",
   "assigneeId",
   "assignedTo",
+  "createdById",
   "createdBy",
   "updatedBy",
   "sentBy",
@@ -148,6 +149,21 @@ function createNotificationsService({
       return `No first contact within 15 minutes — ${label}. Review or reassign.`;
     }
 
+    if (eventName === "refunds.created") {
+      const amt = payload.refundAmount ?? payload.refund_amount;
+      const booking = payload.bookingId || payload.booking_id;
+      const parts = [];
+      if (amt != null && amt !== "") parts.push(`amount ${amt}`);
+      if (booking) parts.push(`booking ${booking}`);
+      return parts.length ?
+          `New refund assigned to you (${parts.join(", ")}). Open Refunds to review.`
+        : "New refund assigned to you. Open Refunds to review.";
+    }
+
+    if (eventName === "refunds.updated") {
+      return "A refund you are assigned was updated. Check Refunds for details.";
+    }
+
     const domain = toDomain(eventName);
     const entityId = extractEntityId(payload);
     if (!entityId) {
@@ -240,6 +256,18 @@ function createNotificationsService({
 
   function buildDomainRecipients(eventName, payload = {}) {
     const domain = toDomain(eventName);
+    const assignedFinance = payload.assignedTo || payload.assigned_to;
+    if (
+      (eventName === "refunds.created" || eventName === "refunds.updated") &&
+      assignedFinance
+    ) {
+      return normalizeRecipients({
+        userIds: [assignedFinance],
+        roles: [],
+        teamIds: [],
+      });
+    }
+
     const userIds = extractUsersFromPayload(payload);
     const baseRoles = ROLE_BY_DOMAIN[domain] || ["manager"];
     const explicitRoles = Array.isArray(payload.roles) ? payload.roles : [];
@@ -260,6 +288,10 @@ function createNotificationsService({
     const title =
       eventName === "leads.sla_breached" ?
         "Lead SLA: no response in 15 minutes"
+      : eventName === "refunds.created" ?
+        "New refund assigned"
+      : eventName === "refunds.updated" ?
+        "Refund updated"
       : toTitle(eventName);
 
     return publish({

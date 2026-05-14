@@ -129,7 +129,10 @@ function createDestinationsRepository({ db, schema }) {
         return null;
       }
       try {
-        await db.update(schema.tableName, id, { is_deleted: true });
+        await db.update(schema.tableName, id, {
+          is_deleted: true,
+          display_order: -1,
+        });
         return db.findById(schema.tableName, id);
       } catch (error) {
         if (!isMissingColumnError(error)) {

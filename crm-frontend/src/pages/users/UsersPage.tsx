@@ -327,6 +327,17 @@ const UserFormModal = ({
     })
   }, [selectedCountryIso2])
 
+  useEffect(() => {
+    if (!isOpen) return
+
+    const selected = roles.find(role => role.id === initialFormData.role)
+    setFormData(initialFormData)
+    setSelectedCountryIso2(resolveIso2FromCountryName(initialFormData.country))
+    setRoleSearch(selected?.name ?? '')
+    setCreateRoleName('')
+    setRoleDropdownOpen(false)
+  }, [initialFormData, isOpen, resolveIso2FromCountryName, roles])
+
   const handleCountryChange = (option: UserCountryOption | null) => {
     const iso2 = option?.iso2 || 'in'
     setSelectedCountryIso2(iso2)
@@ -985,19 +996,47 @@ const UsersPage: React.FC<UsersPageProps> = ({ embedded = false }) => {
 
     try {
       const roleName = formData.roleName?.trim() || undefined
-      const roleId = roleName ? undefined : formData.role || null
+      const roleId = roleName ? undefined : formData.role || undefined
       const normalizedPhone = normalizePhone(formData.phone)
-      
-      await usersApi.update(selectedUser.id, {
-        fullName: formData.fullName,
-        email: formData.email,
-        phone: normalizedPhone || undefined,
-        country: formData.country || undefined,
-        agentType: formData.agentType || undefined,
-        roleId: roleId ?? null,
-        roleName: roleName || undefined,
-        isActive: formData.isActive
-      })
+      const existingPhone = normalizePhone(selectedUser.phone)
+      const existingCountry =
+        selectedUser.country || selectedUser.agentCountry || ''
+      const updatePayload: Record<string, unknown> = {}
+
+      if (formData.fullName !== selectedUser.fullName) {
+        updatePayload.fullName = formData.fullName
+      }
+      if (formData.email !== selectedUser.email) {
+        updatePayload.email = formData.email
+      }
+      if ((normalizedPhone || '') !== (existingPhone || '')) {
+        updatePayload.phone = normalizedPhone || undefined
+      }
+      if ((formData.country || '') !== existingCountry) {
+        updatePayload.country = formData.country || undefined
+      }
+      if ((formData.agentType || '') !== (selectedUser.agentType || '')) {
+        updatePayload.agentType = formData.agentType || undefined
+      }
+      if (roleName) {
+        if (roleName !== (selectedUser.role || '')) {
+          updatePayload.roleName = roleName
+        }
+      } else if (roleId && roleId !== selectedUser.roleId) {
+        updatePayload.roleId = roleId
+      }
+      if (Boolean(formData.isActive) !== Boolean(selectedUser.isActive)) {
+        updatePayload.isActive = Boolean(formData.isActive)
+      }
+
+      if (!Object.keys(updatePayload).length) {
+        showToast('No changes to update.', 'info')
+        setShowEditModal(false)
+        setSelectedUser(null)
+        return
+      }
+
+      await usersApi.update(selectedUser.id, updatePayload)
 
       setShowEditModal(false)
       setSelectedUser(null)

@@ -12,19 +12,29 @@ function createPublicCmsRoutes({ controller }) {
   router
     .route("/destinations/:slug/highlights")
     .get(controller.getDestinationHighlightsBySlug);
-  router.route("/destinations/:slug/media").get(controller.getDestinationMediaBySlug);
+  router
+    .route("/destinations/:slug/media")
+    .get(controller.getDestinationMediaBySlug);
   router
     .route("/destinations/:slug/season-cards")
     .get(controller.getDestinationSeasonCardsBySlug);
-  router.route("/destinations/:slug/packages").get(controller.getDestinationPackagesBySlug);
+  router
+    .route("/destinations/:slug/packages")
+    .get(controller.getDestinationPackagesBySlug);
 
   router.route("/packages/published").get(controller.listPublishedPackages);
   router.route("/packages/main").get(controller.listMainPackages);
-  router.route("/packages/main/:mainPackageId/sub").get(controller.listSubPackages);
+  router
+    .route("/packages/main/:mainPackageId/sub")
+    .get(controller.listSubPackages);
 
   router.route("/visa-destinations").get(controller.listVisaDestinations);
-  router.route("/visa-destinations/:slug").get(controller.getVisaDestinationBySlug);
-  router.route("/visa-destinations/:slug/details").get(controller.getVisaDetailsBySlug);
+  router
+    .route("/visa-destinations/:slug")
+    .get(controller.getVisaDestinationBySlug);
+  router
+    .route("/visa-destinations/:slug/details")
+    .get(controller.getVisaDetailsBySlug);
 
   router.route("/featured-picks").get(controller.listFeaturedPicks);
   router.route("/creative-toolkit").get(controller.listFeaturedPicks);

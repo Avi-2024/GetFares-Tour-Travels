@@ -25,6 +25,13 @@ function createReportsRoutes({
     asyncHandler(controller.leadsByConsultant),
   );
   router.get(
+    "/leads/deal-lines",
+    requireAuth,
+    authorize("reports:read"),
+    validateRequest(validation.dealLines),
+    asyncHandler(controller.dealLines),
+  );
+  router.get(
     "/leads/aging",
     requireAuth,
     authorize("reports:read"),
@@ -133,6 +140,13 @@ function createReportsRoutes({
     authorize("reports:read"),
     validateRequest(validation.callLog),
     asyncHandler(controller.callLog),
+  );
+  router.get(
+    "/activities/feed",
+    requireAuth,
+    authorize("reports:read"),
+    validateRequest(validation.activityFeed),
+    asyncHandler(controller.activityFeed),
   );
 
   router.get(

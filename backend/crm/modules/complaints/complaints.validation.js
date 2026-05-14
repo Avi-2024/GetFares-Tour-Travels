@@ -1,6 +1,8 @@
 import { z } from "zod";
 
 const complaintStatus = z.enum(["OPEN", "IN_PROGRESS", "RESOLVED"]);
+const complaintSortBy = z.enum(["createdAt", "status", "issueType"]);
+const complaintSortOrder = z.enum(["asc", "desc"]);
 
 const createPayload = z.object({
   bookingId: z.string().uuid().optional(),
@@ -46,7 +48,12 @@ const list = z.object({
   query: z
     .object({
       page: z.coerce.number().int().positive().optional(),
-      limit: z.coerce.number().int().positive().optional(),
+      limit: z.coerce.number().int().positive().max(50).optional(),
+      search: z.string().trim().max(150).optional(),
+      sortBy: complaintSortBy.optional(),
+      sortOrder: complaintSortOrder.optional(),
+      createdFrom: z.string().date().optional(),
+      createdTo: z.string().date().optional(),
       status: complaintStatus.optional(),
       assignedTo: z.string().uuid().optional(),
       bookingId: z.string().uuid().optional(),

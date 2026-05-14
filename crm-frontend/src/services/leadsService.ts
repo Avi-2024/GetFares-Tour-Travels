@@ -11,6 +11,7 @@ import type {
 import {
   deriveSopStatusLabel,
   normalizeStatusToken,
+  resolveLeadDisplayedStatus,
   type CanonicalLeadStatus,
   type SopStatusLabel,
 } from "../utils/leadStatus";
@@ -38,12 +39,15 @@ export type LeadListItem = {
   salary?: number | null;
   status: CanonicalLeadStatus;
   statusLabel: SopStatusLabel;
+  /** Pipeline SOP plus custom_status_label when set (badges, export). */
+  statusDisplay: string;
   subStatus: string | null;
   priority: LeadPriority;
   sla: string;
   slaBreached: boolean;
   consultant: string;
   assignedBy: string | null;
+  source: string | null;
 };
 
 export type LeadsPagination = {
@@ -51,6 +55,25 @@ export type LeadsPagination = {
   limit: number;
   total: number;
   totalPages: number;
+};
+
+export type LeadStatsSummary = {
+  totalLeads: number;
+  newToday: number;
+  followupActive: number;
+  slaBreached: number;
+};
+
+const extractStringList = (response: unknown) => {
+  const payload = (response as { data?: unknown })?.data ?? response;
+  if (Array.isArray(payload)) {
+    return payload.map((item) => String(item || "").trim()).filter(Boolean);
+  }
+  const items = (payload as { items?: unknown })?.items;
+  if (Array.isArray(items)) {
+    return items.map((item) => String(item || "").trim()).filter(Boolean);
+  }
+  return [];
 };
 
 const toPlainText = (value: unknown, fallback = "N/A"): string => {
@@ -187,8 +210,20 @@ const extractListPayload = (response: LeadsListResponse) => {
   return { items, pagination };
 };
 
+function extractCustomStatusPresetItems(response: unknown): string[] {
+  const payload = (response as { data?: unknown })?.data ?? response;
+  const wrapper = payload as { items?: unknown };
+  const root = payload;
+  const items = wrapper?.items ?? (root as string[]);
+  if (!Array.isArray(items)) return [];
+  return items
+    .map((item) => (typeof item === "string" ? item.trim() : String(item ?? "").trim()))
+    .filter(Boolean);
+}
+
 const extractArray = (response: unknown) => {
   const payload = (response as { data?: unknown })?.data ?? response;
+
   if (Array.isArray(payload)) return payload;
 
   const firstLevelData = (payload as { data?: unknown; items?: unknown })?.data;
@@ -213,6 +248,19 @@ const extractArray = (response: unknown) => {
 const extractFollowups = (response: LeadFollowupsResponse) => {
   const rows = extractArray(response);
   return Array.isArray(rows) ? (rows as LeadFollowupRecord[]) : [];
+};
+
+const extractStats = (response: unknown): LeadStatsSummary => {
+  const payload = (response as { data?: unknown })?.data ?? response;
+  const record =
+    payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
+
+  return {
+    totalLeads: normalizeCount(record.totalLeads, 0),
+    newToday: normalizeCount(record.newToday, 0),
+    followupActive: normalizeCount(record.followupActive, 0),
+    slaBreached: normalizeCount(record.slaBreached, 0),
+  };
 };
 
 const normalizePriority = (lead: LeadApiRecord): LeadPriority => {
@@ -301,6 +349,18 @@ const normalizeCanonicalStatus = (value: unknown): CanonicalLeadStatus => {
 const toListItem = (lead: LeadApiRecord, index: number): LeadListItem => {
   const status = normalizeCanonicalStatus(lead.status);
   const statusLabel = deriveSopStatusLabel(lead.status, lead.subStatus, lead.statusLabel);
+  const customRaw =
+    (lead as LeadApiRecord & { customStatusLabel?: string | null })
+      .customStatusLabel ??
+    (lead as LeadApiRecord & { custom_status_label?: string | null })
+      .custom_status_label ??
+    null;
+  const statusDisplay = resolveLeadDisplayedStatus({
+    customStatusLabel: customRaw,
+    canonicalStatus: lead.status,
+    subStatus: lead.subStatus,
+    providedStatusLabel: lead.statusLabel,
+  });
   const leadIdFromBackend = toPlainText(
     (lead as LeadApiRecord & { leadCode?: string | null; lead_code?: string | null })
       .leadCode ??
@@ -357,12 +417,14 @@ const toListItem = (lead: LeadApiRecord, index: number): LeadListItem => {
           : null,
     status,
     statusLabel,
+    statusDisplay,
     subStatus: lead.subStatus ?? null,
     priority: normalizePriority(lead),
     sla: lead.sla ?? lead.slaStatus ?? "N/A",
     slaBreached: Boolean(lead.slaBreached),
     consultant: lead.assignedUser?.fullName ?? "Unassigned",
     assignedBy: lead.assignedByUser?.fullName ?? null,
+    source: lead.source ?? lead.leadSource ?? null,
   };
 };
 
@@ -382,8 +444,16 @@ export const createLeadsService = (datasource: LeadsDatasource) => ({
       pagination,
     };
   },
+  getLeadStats: async (params?: LeadsQuery): Promise<LeadStatsSummary> => {
+    const response = await datasource.getStats(params);
+    return extractStats(response);
+  },
   listLeadsRaw: async (params?: LeadsQuery): Promise<LeadApiRecord[]> => {
-    const response = await datasource.list(params);
+    const nextParams = {
+      ...(params || {}),
+      limit: Math.min(Number((params as any)?.limit || 25), 50)
+    };
+    const response = await datasource.list(nextParams);
     return extractListPayload(response).items;
   },
   createLead: (payload: unknown) => datasource.create(payload),
@@ -413,6 +483,14 @@ export const createLeadsService = (datasource: LeadsDatasource) => ({
     const response = await datasource.getDestinations();
     return extractArray(response);
   },
+  getLeadDestinations: async (params?: LeadsQuery) => {
+    const response = await datasource.getLeadDestinations(params);
+    return extractStringList(response);
+  },
+  getLeadSources: async (params?: LeadsQuery) => {
+    const response = await datasource.getLeadSources(params);
+    return extractStringList(response);
+  },
   distributeLeads: (payload?: { limit?: number; reason?: string }) =>
     datasource.distribute(payload),
   reassignInactiveLeads: (payload?: {
@@ -439,6 +517,14 @@ export const createLeadsService = (datasource: LeadsDatasource) => ({
     extra?: { activityCreatedAt?: string; activityTimezone?: string },
   ) => datasource.disableCalls(id, disabled, extra),
   submitPublicLead: (payload: unknown) => datasource.publicCapture(payload),
+  listCustomStatusPresets: async (): Promise<string[]> => {
+    const response = await datasource.listCustomStatusPresets();
+    return extractCustomStatusPresetItems(response);
+  },
+  addCustomStatusPreset: async (label: string): Promise<string[]> => {
+    const response = await datasource.addCustomStatusPreset(label.trim());
+    return extractCustomStatusPresetItems(response);
+  },
 });
 
 export type LeadsService = ReturnType<typeof createLeadsService>;

@@ -120,6 +120,7 @@ const ROLE_PERMISSIONS = {
     "quotations:*",
     "bookings:create", "bookings:read", "bookings:update",
     "customers:read", "customers:create", "customers:update",
+    "campaigns:read",
     "visa:read",
     "suppliers:read", "suppliers:create", "suppliers:update",
     "complaints:create", "complaints:read",

@@ -1,13 +1,58 @@
 import nodemailer from "nodemailer";
 import { env } from "../config/index.js";
+import { AppError } from "../errors/index.js";
 
 function createMailService({ logger }) {
   let transporter = null;
 
+  function normalizeMailError(error) {
+    const message = String(error?.message || "").trim();
+    const host = String(env.SMTP_HOST || "").trim();
+    const user = String(env.SMTP_USER || "").trim();
+    const isSendGrid = /sendgrid/i.test(host) || user === "apikey";
+
+    if (
+      /invalid login/i.test(message) ||
+      /authentication failed/i.test(message) ||
+      /\b535\b/.test(message)
+    ) {
+      throw new AppError(
+        502,
+        isSendGrid
+          ? "SendGrid SMTP authentication failed. Update backend SMTP_PASSWORD with active SendGrid API key and restart backend."
+          : "SMTP authentication failed. Update backend SMTP credentials and restart backend.",
+        "SMTP_AUTH_FAILED",
+        {
+          host: host || null,
+          user: user || null,
+          provider: isSendGrid ? "sendgrid" : "smtp",
+        },
+      );
+    }
+
+    if (/configuration is missing/i.test(message)) {
+      throw new AppError(
+        500,
+        "SMTP configuration is missing in backend environment.",
+        "SMTP_CONFIG_MISSING",
+        {
+          host: host || null,
+          user: user || null,
+        },
+      );
+    }
+
+    return error;
+  }
+
   function getTransporter() {
     if (!transporter) {
       if (!env.SMTP_HOST || !env.SMTP_USER || !env.SMTP_PASSWORD) {
-        throw new Error("SMTP configuration is missing in environment variables");
+        throw new AppError(
+          500,
+          "SMTP configuration is missing in backend environment.",
+          "SMTP_CONFIG_MISSING",
+        );
       }
 
       transporter = nodemailer.createTransport({
@@ -90,7 +135,7 @@ function createMailService({ logger }) {
         "Failed to send email"
       );
 
-      throw error;
+      throw normalizeMailError(error);
     }
   }
 
@@ -102,7 +147,7 @@ function createMailService({ logger }) {
       return true;
     } catch (error) {
       logger.error({ err: error }, "SMTP connection verification failed");
-      throw error;
+      throw normalizeMailError(error);
     }
   }
 

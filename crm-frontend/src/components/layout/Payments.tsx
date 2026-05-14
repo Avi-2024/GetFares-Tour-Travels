@@ -28,11 +28,9 @@ import SearchableDropdown from "../ui/SearchableDropdown";
 import CurrencySelector from "../ui/CurrencySelector";
 import { paymentsApi } from "../../api/payments";
 import { bookingsApi } from "../../api/bookings";
-import { quotationsApi } from "../../api/quotations";
 import { leadsApi } from "../../api/leads";
 import { customersApi } from "../../api/customers";
 import { getApiErrorMessage } from "../../api/apiClient";
-import { useLeadsService } from "../../hooks/useLeadsService";
 import { getCurrencyOptions,  formatCurrency } from "../../utils/currency";
 
 type TxStatus = "completed" | "pending" | "failed" | "refunded";
@@ -181,6 +179,8 @@ const unwrapList = (response: unknown) => {
   return [];
 };
 
+
+
 const pickCustomerName = (...sources: any[]) => {
   for (const source of sources) {
     const candidate =
@@ -256,6 +256,10 @@ const pickCustomerPhone = (...sources: any[]) => {
 
   return "";
 };
+
+
+
+
 
 const toNumber = (value: unknown, fallback = 0) => {
   if (value === null || value === undefined) return fallback;
@@ -798,7 +802,6 @@ const PaymentFormModal = ({
   onSave: (data: any) => void;
   onCancel: () => void;
 }) => {
-  const leadsService = useLeadsService();
   const buildFormData = (tx: Transaction | null) => ({
     customer: tx?.customer || "",
     bookingId: tx?.bookingId || "",
@@ -825,7 +828,13 @@ const PaymentFormModal = ({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [currency, setCurrency] = useState(transaction?.currency || 'INR');
   const [customers, setCustomers] = useState<
-    Array<{ id: string; name: string; email?: string }>
+    Array<{
+      id: string;
+      name: string;
+      email?: string;
+      phone?: string;
+      customerId?: string;
+    }>
   >([]);
   const [bookings, setBookings] = useState<
     Array<{
@@ -833,6 +842,7 @@ const PaymentFormModal = ({
       bookingNumber: string;
       customer?: string;
       customerId?: string;
+      currency?: string;
       totalAmount?: number;
     }>
   >([]);
@@ -940,6 +950,9 @@ const PaymentFormModal = ({
   useEffect(() => {
     clearInvoiceSelection();
     clearProofSelection();
+    setFormData(buildFormData(transaction));
+    setCurrency(transaction?.currency || "INR");
+    setErrors({});
   }, [transaction, clearInvoiceSelection, clearProofSelection]);
 
   const handleInvoiceFileChange = (
@@ -986,120 +999,70 @@ const PaymentFormModal = ({
     setProofFile(file);
   };
 
-  // Load customers and bookings when modal opens
+      // Load customers and bookings when modal opens
   useEffect(() => {
     if (!isOpen) return;
 
     const loadData = async () => {
-      // Load customers from leads and customers
       setLoadingCustomers(true);
-      try {
-        const [leadsRes, customersRes] = await Promise.allSettled([
-          leadsService.listLeadsRaw({ limit: 100 }),
-          customersApi.list({ limit: 100 }),
-        ]);
-
-        const customersList: Array<{
-          id: string;
-          name: string;
-          email?: string;
-        }> = [];
-
-        // Add leads
-        if (leadsRes.status === "fulfilled") {
-          const leads = Array.isArray(leadsRes.value) ? leadsRes.value : [];
-          leads.forEach((lead: any) => {
-            customersList.push({
-              id: `lead-${lead.id}`,
-              name: lead.fullName || lead.full_name || lead.name || "Unknown",
-              email: lead.email,
-            });
-          });
-        }
-
-        // Add customers
-        if (customersRes.status === "fulfilled") {
-          const customersPayload = customersRes.value as any;
-          const customersData =
-            customersPayload?.data?.data ||
-            customersPayload?.data ||
-            customersPayload ||
-            [];
-          const customerRecords =
-            Array.isArray(customersData) ? customersData : [];
-          customerRecords.forEach((customer: any) => {
-            customersList.push({
-              id: `customer-${customer.id}`,
-              name:
-                customer.fullName ||
-                customer.full_name ||
-                customer.name ||
-                "Unknown",
-              email: customer.email,
-            });
-          });
-        }
-
-        setCustomers(customersList);
-      } catch (err) {
-        console.error("Failed to load customers:", err);
-      } finally {
-        setLoadingCustomers(false);
-      }
-
-      // Load bookings
       setLoadingBookings(true);
       try {
-        const bookingsRes = await bookingsApi.list({ limit: 100 });
-        const bookingsPayload = bookingsRes as any;
-        const bookingsData =
-          bookingsPayload?.data?.data ||
-          bookingsPayload?.data ||
-          bookingsPayload ||
-          [];
-        const bookingsList = Array.isArray(bookingsData) ? bookingsData : [];
+        const paymentOptionsRes = await customersApi.getPaymentOptions();
+        const paymentOptions = unwrapList(paymentOptionsRes);
 
-        setBookings(
-          bookingsList.map((booking: any) => ({
-            id: booking.id,
-            bookingNumber:
-              booking.bookingNumber ||
-              booking.booking_number ||
-              booking.code ||
-              `BK-${booking.id}`,
-            customer:
-              booking.customerName ||
-              booking.customer_name ||
-              booking.customer ||
-              "",
-            customerId:
-              (
-                booking.customerId ||
-                booking.customer_id ||
-                booking.customer?.id
-              ) ?
-                `customer-${booking.customerId || booking.customer_id || booking.customer?.id}`
-              : booking.leadId || booking.lead_id || booking.lead?.id ?
-                `lead-${booking.leadId || booking.lead_id || booking.lead?.id}`
-              : "",
-            totalAmount: Number(
-              booking.totalAmount ??
-                booking.total_amount ??
-                booking.finalPrice ??
-                booking.final_price ??
-                0,
-            ),
-          })),
+        const nextCustomers = paymentOptions.map((customer: any) => ({
+          id: `customer-${String(customer?.customerId || "")}`,
+          name:
+            customer?.fullName ??
+            customer?.full_name ??
+            customer?.name ??
+            "Unknown",
+          email: customer?.email ?? undefined,
+          phone: customer?.phone ?? undefined,
+          customerId: String(customer?.customerId || ""),
+        }));
+        const nextBookings = paymentOptions.flatMap((customer: any) =>
+          (Array.isArray(customer?.bookings) ? customer.bookings : []).map(
+            (booking: any) => ({
+              id: String(booking?.id || ""),
+              bookingNumber:
+                booking?.bookingNumber ??
+                booking?.booking_number ??
+                booking?.id ??
+                "",
+              customer:
+                customer?.fullName ??
+                customer?.full_name ??
+                customer?.name ??
+                "",
+              customerId: `customer-${String(customer?.customerId || "")}`,
+              currency:
+                booking?.currency ??
+                customer?.clientCurrency ??
+                customer?.client_currency ??
+                "INR",
+              totalAmount: Number(
+                booking?.amount ??
+                  booking?.totalAmount ??
+                  booking?.total_amount ??
+                  0,
+              ),
+            }),
+          ),
         );
+
+        setCustomers(nextCustomers);
+        setBookings(nextBookings);
       } catch (err) {
-        console.error("Failed to load bookings:", err);
+        console.error("Failed to load payment options:", err);
       } finally {
+        setLoadingCustomers(false);
         setLoadingBookings(false);
       }
     };
 
     void loadData();
-  }, [isOpen, leadsService]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -1187,6 +1150,7 @@ const PaymentFormModal = ({
       String(formData.paymentReference || formData.referenceId || "").trim();
     onSave({
       ...formData,
+      currency,
       paymentReference: resolvedPaymentReference || undefined,
       referenceId: resolvedPaymentReference,
       amount:
@@ -1265,9 +1229,14 @@ const PaymentFormModal = ({
                 />
               : <SearchableDropdown
                   value={formData.bookingId}
-                  onChange={(value) =>
-                    setFormData({ ...formData, bookingId: value })
-                  }
+                  onChange={(value) => {
+                    const nextBooking =
+                      bookings.find((booking) => booking.id === value) || null;
+                    setFormData({ ...formData, bookingId: value });
+                    if (nextBooking?.currency) {
+                      setCurrency(String(nextBooking.currency).toUpperCase());
+                    }
+                  }}
                   options={bookingDropdownOptions}
                   hasError={Boolean(errors.bookingId)}
                   searchPlaceholder="Search booking..."
@@ -1281,6 +1250,7 @@ const PaymentFormModal = ({
           </div>
 
           <div className="grid grid-cols-3 gap-4">
+          
             <div>
               <label className="field-label">Amount *</label>
               <input
@@ -1300,7 +1270,7 @@ const PaymentFormModal = ({
               {errors.amount && (
                 <p className="text-xs text-red-500 mt-1">{errors.amount}</p>
               )}
-              {!errors.amount && selectedBookingTotal !== null && (
+              {selectedBookingTotal !== null && (
                 <p className="text-xs text-gray-500 mt-1">
                   Max payable amount: {selectedBookingTotal.toLocaleString()}
                 </p>
@@ -2230,17 +2200,34 @@ const Payments: React.FC = () => {
       const data = unwrapData<any[]>(res) ?? [];
       const paymentRows = Array.isArray(data) ? data : [];
 
+      const initialRows = paymentRows.map((row) => {
+        const tx = mapPaymentToTransaction(row);
+        return {
+          ...tx,
+          bookingLabel: tx.bookingLabel || tx.bookingId,
+        };
+      });
+
+      const needsBookingHydration = initialRows.some(
+        (tx) =>
+          !tx.bookingLabel ||
+          tx.bookingLabel === tx.bookingId ||
+          tx.customer === "Unknown" ||
+          !tx.customer,
+      );
+
+      if (!needsBookingHydration) {
+        setTransactions(initialRows);
+        return;
+      }
+
       const bookingIds = Array.from(
         new Set(
-          paymentRows
-            .map((row) => String(row?.bookingId ?? row?.booking_id ?? ""))
-            .filter(Boolean),
+          initialRows.map((row) => String(row.bookingId || "")).filter(Boolean),
         ),
       );
 
       let bookingById: Record<string, any> = {};
-      let quotationById: Record<string, any> = {};
-      let leadById: Record<string, any> = {};
       if (bookingIds.length) {
         try {
           const bookingsRes = await bookingsApi.list({ page: 1, limit: 500 });
@@ -2260,214 +2247,18 @@ const Payments: React.FC = () => {
         }
       }
 
-      const quotationIds = Array.from(
-        new Set(
-          Object.values(bookingById)
-            .map((booking: any) =>
-              String(
-                booking?.quotationId ??
-                  booking?.quotation_id ??
-                  booking?.quoteId ??
-                  booking?.quote_id ??
-                  "",
-              ),
-            )
-            .filter(Boolean),
-        ),
-      );
-
-      if (quotationIds.length) {
-        try {
-          const quotationsRes = await quotationsApi.list({
-            page: 1,
-            limit: 500,
-          });
-          const quotationRows = unwrapList(quotationsRes);
-          quotationById = quotationRows.reduce(
-            (acc: Record<string, any>, quote: any) => {
-              const key = String(
-                quote?.id ?? quote?.quotationId ?? quote?.quotation_id ?? "",
-              );
-              if (key) acc[key] = quote;
-              return acc;
-            },
-            {} as Record<string, any>,
-          );
-        } catch (_error) {
-          quotationById = {};
-        }
-      }
-
-      const leadIds = Array.from(
-        new Set(
-          Object.values(bookingById)
-            .map((booking: any) =>
-              String(booking?.leadId ?? booking?.lead_id ?? ""),
-            )
-            .concat(
-              Object.values(quotationById).map((quote: any) =>
-                String(
-                  quote?.leadId ??
-                    quote?.lead_id ??
-                    quote?.lead?.id ??
-                    quote?.leadSnapshot?.id ??
-                    "",
-                ),
-              ),
-            )
-            .filter(Boolean),
-        ),
-      );
-
-      if (leadIds.length) {
-        try {
-          const leadsRes = await leadsApi.list({ page: 1, limit: 500 });
-          const leadRows = unwrapList(leadsRes);
-          leadById = leadRows.reduce(
-            (acc: Record<string, any>, lead: any) => {
-              const key = String(
-                lead?.id ?? lead?.leadId ?? lead?.lead_id ?? "",
-              );
-              if (key) acc[key] = lead;
-              return acc;
-            },
-            {} as Record<string, any>,
-          );
-        } catch (_error) {
-          leadById = {};
-        }
-      }
-
-      const customerIds = Array.from(
-        new Set(
-          paymentRows
-            .map((row) => String(row?.customerId ?? row?.customer_id ?? ""))
-            .concat(
-              Object.values(bookingById).map((booking: any) =>
-                String(
-                  booking?.customerId ??
-                    booking?.customer_id ??
-                    booking?.customer?.id ??
-                    "",
-                ),
-              ),
-            )
-            .concat(
-              Object.values(quotationById).map((quote: any) =>
-                String(
-                  quote?.customerId ??
-                    quote?.customer_id ??
-                    quote?.customer?.id ??
-                    "",
-                ),
-              ),
-            )
-            .filter(Boolean),
-        ),
-      );
-
-      let customerById: Record<string, any> = {};
-      if (customerIds.length) {
-        try {
-          const customersRes = await customersApi.list({ page: 1, limit: 500 });
-          const customersData = unwrapList(customersRes);
-          customerById = customersData.reduce(
-            (acc: Record<string, any>, customer: any) => {
-              const key = String(
-                customer?.id ??
-                  customer?.customerId ??
-                  customer?.customer_id ??
-                  "",
-              );
-              if (key) acc[key] = customer;
-              return acc;
-            },
-            {} as Record<string, any>,
-          );
-        } catch (_error) {
-          customerById = {};
-        }
-      }
-
       const rows = paymentRows.map((row) => {
         const tx = mapPaymentToTransaction(row);
         const bookingKey = String(row?.bookingId ?? row?.booking_id ?? "");
         const booking = bookingById[bookingKey];
         if (!booking) return tx;
 
-        const quotationKey = String(
-          booking?.quotationId ??
-            booking?.quotation_id ??
-            booking?.quoteId ??
-            booking?.quote_id ??
-            "",
-        );
-        const quotation = quotationById[quotationKey];
-        const leadKey = String(
-          booking?.leadId ??
-            booking?.lead_id ??
-            quotation?.leadId ??
-            quotation?.lead_id ??
-            quotation?.lead?.id ??
-            quotation?.leadSnapshot?.id ??
-            "",
-        );
-        const lead = leadById[leadKey];
-        const customerKey = String(
-          tx.customerId ??
-            row?.customerId ??
-            row?.customer_id ??
-            booking?.customerId ??
-            booking?.customer_id ??
-            quotation?.customerId ??
-            quotation?.customer_id ??
-            "",
-        );
-        const customerRecord =
-          customerKey ? customerById[customerKey] : undefined;
-
         const bookingNumber =
           booking?.bookingNumber ??
           booking?.bookingId ??
           booking?.code ??
           tx.bookingId;
-        const bookingCustomer =
-          pickCustomerName(booking, quotation, lead) || tx.customer;
-        const customerEmail =
-          tx.customerEmail ||
-          pickCustomerEmail(
-            row,
-            row?.customer,
-            booking,
-            booking?.customer,
-            quotation,
-            quotation?.customer,
-            lead,
-            customerRecord,
-          );
-        const customerPhone =
-          tx.customerPhone ||
-          pickCustomerPhone(
-            row,
-            row?.customer,
-            booking,
-            booking?.customer,
-            quotation,
-            quotation?.customer,
-            lead,
-            customerRecord,
-          );
-        const derivedVerifiedByName =
-          tx.verifiedByName ||
-          (tx.verifiedBy &&
-            pickCustomerName(
-              customerById[tx.verifiedBy],
-              leadById[tx.verifiedBy],
-            )) ||
-          (tx.verifiedBy && tx.customerId && tx.verifiedBy === tx.customerId ?
-            bookingCustomer
-          : undefined);
-        const normalizedCustomerId = customerKey || tx.customerId;
+        const bookingCustomer = pickBookingCustomerName(booking) || tx.customer;
 
         return {
           ...tx,
@@ -2476,10 +2267,23 @@ const Payments: React.FC = () => {
             tx.customer === "Unknown" ?
               String(bookingCustomer || tx.customer)
             : tx.customer,
-          customerId: normalizedCustomerId,
-          customerEmail: customerEmail || undefined,
-          customerPhone: customerPhone || undefined,
-          verifiedByName: derivedVerifiedByName || undefined,
+          customerId:
+            tx.customerId ||
+            String(
+              booking?.customerId ??
+                booking?.customer_id ??
+                booking?.customer?.id ??
+                "",
+            ) ||
+            undefined,
+          customerEmail:
+            tx.customerEmail ||
+            pickCustomerEmail(row, row?.customer, booking, booking?.customer) ||
+            undefined,
+          customerPhone:
+            tx.customerPhone ||
+            pickCustomerPhone(row, row?.customer, booking, booking?.customer) ||
+            undefined,
         };
       });
       setTransactions(rows);
@@ -2699,6 +2503,7 @@ const Payments: React.FC = () => {
       if (hasAttachment) {
         const formData = new FormData();
         formData.append("amount", String(toNumber(data.amount, 0)));
+        formData.append("currency", String(data.currency || "INR"));
         formData.append("paymentMode", mapTxModeToApi(data.mode));
         formData.append("status", mapTxStatusToApi(data.status));
         if (data.paymentReference) {
@@ -2736,6 +2541,7 @@ const Payments: React.FC = () => {
       } else {
         await paymentsApi.update(data.id, {
           amount: toNumber(data.amount, 0),
+          currency: String(data.currency || "INR"),
           paymentMode: mapTxModeToApi(data.mode),
           paymentReference: data.paymentReference || undefined,
           gatewayOrderId: data.gatewayOrderId || undefined,
@@ -2771,6 +2577,7 @@ const Payments: React.FC = () => {
                 (selectedTransaction?.amount && selectedTransaction.amount < 0 ?
                   -1
                 : 1),
+              currency: data.currency || tx.currency || "INR",
               mode: data.mode as PaymentMode,
               referenceId: data.referenceId || tx.referenceId,
               paymentReference: data.paymentReference || tx.paymentReference,
@@ -2821,6 +2628,7 @@ const Payments: React.FC = () => {
         const formData = new FormData();
         formData.append("bookingId", data.bookingId);
         formData.append("amount", String(toNumber(data.amount, 0)));
+        formData.append("currency", String(data.currency || "INR"));
         formData.append("paymentMode", mapTxModeToApi(data.mode));
         formData.append("status", mapTxStatusToApi(data.status));
         formData.append("isVerified", String(data.status === "completed"));
@@ -2860,6 +2668,7 @@ const Payments: React.FC = () => {
         await paymentsApi.create({
           bookingId: data.bookingId,
           amount: toNumber(data.amount, 0),
+          currency: String(data.currency || "INR"),
           paymentMode: mapTxModeToApi(data.mode),
           paymentReference: data.paymentReference || undefined,
           gatewayOrderId: data.gatewayOrderId || undefined,

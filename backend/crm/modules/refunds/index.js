@@ -6,7 +6,7 @@ import { RefundsValidation } from "./refunds.validation.js";
 import { RefundsSchema } from "./refunds.schema.js";
 import { createRefundsEvents } from "./refunds.events.js";
 
-function createRefundsModule({ dependencies }) {
+function createRefundsModule({ dependencies, repositories = {} }) {
   const repository = createRefundsRepository({
     db: dependencies.db,
     logger: dependencies.logger,
@@ -20,11 +20,16 @@ function createRefundsModule({ dependencies }) {
 
   const service = createRefundsService({
     repository,
+    bookingsRepository: repositories.bookings,
+    leadsRepository: repositories.leads,
     logger: dependencies.logger,
     events,
   });
 
-  const controller = createRefundsController({ service });
+  const controller = createRefundsController({
+    service,
+    s3: dependencies.storage?.s3,
+  });
 
   const router = createRefundsRoutes({
     controller,
@@ -32,6 +37,7 @@ function createRefundsModule({ dependencies }) {
     validateRequest: dependencies.middlewares.validateRequest,
     requireAuth: dependencies.middlewares.requireAuth,
     authorize: dependencies.middlewares.authorize,
+    config: dependencies.config,
   });
 
   return Object.freeze({

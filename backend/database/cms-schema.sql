@@ -12,6 +12,7 @@ CREATE TABLE landing_places (
     name VARCHAR(100) NOT NULL,
     country VARCHAR(100),
     tag VARCHAR(50),
+    description TEXT,
     image_url TEXT NOT NULL,
     display_order INT DEFAULT 0,
     is_active BOOLEAN DEFAULT TRUE,

@@ -22,8 +22,19 @@ interface CmsEntityEditorModalProps {
   sectionKey: CmsSectionKey;
   sectionTitle: string;
   entry: CmsTableEntry | null;
+  initialValues?: Record<string, unknown>;
+  allRows?: CmsTableEntry[];
   onClose: () => void;
   onSaved: (message: string) => Promise<void> | void;
+}
+
+interface LandingCopy {
+  id: number;
+  formValues: Record<string, unknown>;
+  formErrors: Record<string, string>;
+  errorMessage: string;
+  imageFile: File | null;
+  imagePreview: string;
 }
 
 interface CmsEntityEditorModalState {
@@ -37,11 +48,20 @@ interface CmsEntityEditorModalState {
   fieldImageFiles: Record<string, File | null>;
   fieldImagePreviews: Record<string, string>;
   relationOptions: Record<RelationSourceKey, CmsFieldOption[]>;
+  allDestinations: CmsFieldOption[];
+  allMainPackages: CmsFieldOption[];
+  allFeaturedReferences: CmsFieldOption[];
   mediaItems: CmsEntityMediaEditorItem[];
   removedMediaIds: string[];
   mediaErrorMessage: string;
   mediaInfoMessage: string;
   slugTouched: boolean;
+  showDisplayOrderConflict: boolean;
+  conflictingEntryLabel: string;
+  pendingForcePayload: Record<string, unknown> | null;
+  copies: LandingCopy[];
+  copyIdCounter: number;
+  isCopyAdding: boolean;
 }
 
 class CmsEntityEditorModalComponent extends Component<
@@ -68,11 +88,20 @@ class CmsEntityEditorModalComponent extends Component<
       "visa-destinations": [],
       "featured-references": [],
     },
+    allDestinations: [],
+    allMainPackages: [],
+    allFeaturedReferences: [],
     mediaItems: [],
     removedMediaIds: [],
     mediaErrorMessage: "",
     mediaInfoMessage: "",
     slugTouched: false,
+    showDisplayOrderConflict: false,
+    conflictingEntryLabel: "",
+    pendingForcePayload: null,
+    copies: [],
+    copyIdCounter: 0,
+    isCopyAdding: false,
   };
 
   componentDidMount(): void {
@@ -167,8 +196,26 @@ class CmsEntityEditorModalComponent extends Component<
     return value.trim();
   }
 
-  private parseArrayValue(value: unknown): unknown[] {
+  private parseArrayValue(value: unknown, fieldDef?: CmsEntityFieldDefinition): unknown[] {
     if (Array.isArray(value)) {
+      // For list-object fields, normalize nested array fields to comma-separated strings
+      if (fieldDef?.type === "list-object" && fieldDef.itemFields) {
+        const arrayItemFields = new Set(
+          fieldDef.itemFields
+            .filter((f) => !f.type || f.type === "text")
+            .map((f) => f.key),
+        );
+        return value.map((item) => {
+          if (!item || typeof item !== "object" || Array.isArray(item)) return item;
+          const normalized: Record<string, unknown> = { ...(item as Record<string, unknown>) };
+          for (const key of arrayItemFields) {
+            if (Array.isArray(normalized[key])) {
+              normalized[key] = (normalized[key] as unknown[]).join(", ");
+            }
+          }
+          return normalized;
+        });
+      }
       return value;
     }
     if (typeof value === "string") {
@@ -197,7 +244,9 @@ class CmsEntityEditorModalComponent extends Component<
     if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
       return text;
     }
-    const slashMatch = text.match(/^(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{4})$/);
+    const slashMatch = text.match(
+      /^(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{4})$/,
+    );
     if (slashMatch) {
       const [, mm, dd, yyyy] = slashMatch;
       return `${yyyy}-${mm.padStart(2, "0")}-${dd.padStart(2, "0")}`;
@@ -239,26 +288,24 @@ class CmsEntityEditorModalComponent extends Component<
     source: RelationSourceKey,
   ): Promise<CmsFieldOption[]> {
     if (source === "featured-references") {
-      const [packages, destinations, visa] = await Promise.all([
-        this.cmsService.list("published-packages"),
+      const [destinations, visa] = await Promise.all([
         this.cmsService.list("destinations"),
         this.cmsService.list("visa-destinations"),
       ]);
       return [
-        ...packages.map((item) => ({
-          value: item.id,
-          label: `Package - ${item.row.cells.package?.value ?? item.id}`,
-          meta: {
-            destinationName: item.row.cells.destination?.value ?? "",
-          },
-        })),
         ...destinations.map((item) => ({
           value: item.id,
           label: `Destination - ${item.row.cells.destination?.value ?? item.id}`,
+          meta: {
+            country: String(item.raw.country ?? item.raw.destination_country ?? ""),
+          },
         })),
         ...visa.map((item) => ({
           value: item.id,
           label: `Visa - ${item.row.cells.country?.value ?? item.id}`,
+          meta: {
+            country: String(item.raw.country ?? ""),
+          },
         })),
       ];
     }
@@ -274,6 +321,11 @@ class CmsEntityEditorModalComponent extends Component<
           item.row.cells.title?.value ||
           item.row.cells.mainPackage?.value ||
           item.id,
+        meta: {
+          country: String(
+            item.raw.country ?? item.raw.destination_country ?? "",
+          ),
+        },
       }));
     }
 
@@ -301,6 +353,11 @@ class CmsEntityEditorModalComponent extends Component<
       return rows.map((item) => ({
         value: item.id,
         label: item.row.cells.destination?.value || item.id,
+        meta: {
+          country: String(
+            item.raw.country ?? item.raw.destination_country ?? "",
+          ),
+        },
       }));
     }
 
@@ -311,6 +368,11 @@ class CmsEntityEditorModalComponent extends Component<
           item.row.cells.title?.value ||
           item.row.cells.mainPackage?.value ||
           item.id,
+        meta: {
+          country: String(
+            item.raw.country ?? item.raw.destination_country ?? "",
+          ),
+        },
       }));
     }
 
@@ -339,6 +401,10 @@ class CmsEntityEditorModalComponent extends Component<
     const definition = CmsEntityFormCatalog.get(this.props.sectionKey);
     const formValues: Record<string, unknown> = {};
     definition.fields.forEach((field) => {
+      if (this.props.initialValues && field.key in this.props.initialValues) {
+        formValues[field.key] = this.props.initialValues[field.key];
+        return;
+      }
       if (field.defaultValue !== undefined) {
         formValues[field.key] =
           Array.isArray(field.defaultValue) ?
@@ -407,6 +473,17 @@ class CmsEntityEditorModalComponent extends Component<
         if (value === undefined && field.key === "seasonFocus") {
           value = this.getRawValue(this.props.entry as CmsTableEntry, "season");
         }
+        // For sub-packages, resolve country from the raw record (stored as destination_country or via mainPackage)
+        if (
+          value === undefined &&
+          this.props.sectionKey === "sub-packages" &&
+          field.key === "country"
+        ) {
+          value =
+            this.getRawValue(this.props.entry as CmsTableEntry, "country") ??
+            this.getRawValue(this.props.entry as CmsTableEntry, "destination_country") ??
+            this.getRawValue(this.props.entry as CmsTableEntry, "destinationCountry");
+        }
         if (value === undefined || value === null) {
           return;
         }
@@ -425,7 +502,7 @@ class CmsEntityEditorModalComponent extends Component<
           return;
         }
         if (field.type === "list-text" || field.type === "list-object") {
-          formValues[field.key] = this.parseArrayValue(value);
+          formValues[field.key] = this.parseArrayValue(value, field);
           return;
         }
         if (field.type === "date") {
@@ -438,6 +515,107 @@ class CmsEntityEditorModalComponent extends Component<
 
     this.revokeAllPreviewUrls();
 
+    // Pre-populate image previews from initial values (copy mode)
+    const fieldImagePreviews: Record<string, string> = {};
+    let copyMediaItems: CmsEntityMediaEditorItem[] = [];
+    if (this.props.initialValues) {
+      const definition2 = CmsEntityFormCatalog.get(this.props.sectionKey);
+      definition2.fields.forEach((field) => {
+        if (field.type === "url" && /image|thumbnail|hero|banner/i.test(field.key)) {
+          const val = String(formValues[field.key] ?? "").trim();
+          if (val) fieldImagePreviews[field.key] = val;
+        }
+      });
+
+      // For media-enabled sections, pre-populate mediaItems from raw data
+      if (definition2.mediaEnabled) {
+        const raw = this.props.initialValues;
+        const media = raw.media;
+        const mediaRecord =
+          media && typeof media === "object" && !Array.isArray(media)
+            ? (media as Record<string, unknown>)
+            : {};
+
+        if (this.props.sectionKey === "destinations") {
+          const titleImageUrl = String(
+            mediaRecord.title_image ??
+            raw.titleImageUrl ??
+            raw.thumbnailUrl ??
+            raw.heroImageUrl ??
+            "",
+          ).trim();
+          const gallery = Array.isArray(mediaRecord.gallery)
+            ? (mediaRecord.gallery as string[]).filter(Boolean)
+            : [];
+          if (titleImageUrl) {
+            copyMediaItems.push({
+              id: null,
+              clientId: "copy-title-image",
+              mediaUrl: titleImageUrl,
+              thumbnailUrl: titleImageUrl,
+              title: "Title Image",
+              altText: "Title Image",
+              isPrimary: true,
+              mediaKind: "image",
+              pendingFile: null,
+              previewUrl: undefined,
+            });
+          }
+          gallery.slice(0, 4).forEach((url, i) => {
+            copyMediaItems.push({
+              id: null,
+              clientId: `copy-gallery-${i}`,
+              mediaUrl: url,
+              thumbnailUrl: url,
+              title: "",
+              altText: "",
+              isPrimary: false,
+              mediaKind: "image",
+              pendingFile: null,
+              previewUrl: undefined,
+            });
+          });
+        } else {
+          // For other media-enabled sections — try raw fields first, then fetch from media API
+          const imageUrl = String(
+            raw.imageUrl ?? raw.image_url ?? raw.heroImageUrl ?? raw.bannerImageUrl ?? "",
+          ).trim();
+          if (imageUrl) {
+            copyMediaItems.push({
+              id: null,
+              clientId: "copy-primary-image",
+              mediaUrl: imageUrl,
+              thumbnailUrl: imageUrl,
+              title: "",
+              altText: "",
+              isPrimary: true,
+              mediaKind: "image",
+              pendingFile: null,
+              previewUrl: undefined,
+            });
+          } else if (raw.id) {
+            // Fetch from media API (e.g. main-packages stores images via media API)
+            const entityType = this.cmsService.getMediaEntityType(this.props.sectionKey);
+            const fetchedMedia = await this.cmsService.listMedia(entityType, String(raw.id)).catch(() => []);
+            fetchedMedia.forEach((item) => {
+              copyMediaItems.push({
+                id: null,
+                clientId: `copy-media-${item.id}`,
+                mediaUrl: item.mediaUrl,
+                thumbnailUrl: item.thumbnailUrl || item.mediaUrl,
+                title: item.title || "",
+                altText: item.altText || "",
+                isPrimary: item.isPrimary,
+                mediaKind: item.mediaKind || "image",
+                pendingFile: null,
+                previewUrl: undefined,
+              });
+            });
+          }
+        }
+      }
+    }
+
     this.setState({
       isBootstrapping: true,
       isMediaUploading: false,
@@ -446,12 +624,18 @@ class CmsEntityEditorModalComponent extends Component<
       formErrors: {},
       formUploadErrorMessage: "",
       fieldImageFiles: {},
-      fieldImagePreviews: {},
-      mediaItems: [],
+      fieldImagePreviews,
+      mediaItems: copyMediaItems,
       removedMediaIds: [],
       mediaErrorMessage: "",
       mediaInfoMessage: "",
       slugTouched: false,
+      allDestinations: [],
+      allMainPackages: [],
+      allFeaturedReferences: [],
+      copies: [],
+      copyIdCounter: 0,
+      isCopyAdding: false,
     });
 
     const relationSources = Array.from(
@@ -461,11 +645,34 @@ class CmsEntityEditorModalComponent extends Component<
           .filter((item): item is RelationSourceKey => Boolean(item)),
       ),
     );
-    const nextOptions = { ...this.state.relationOptions };
+    const nextOptions: Record<RelationSourceKey, CmsFieldOption[]> = {
+      destinations: [],
+      "published-packages": [],
+      "main-packages": [],
+      "visa-destinations": [],
+      "featured-references": [],
+    };
     for (const source of relationSources) {
       nextOptions[source] = await this.loadRelationOptions(source).catch(
         () => [],
       );
+    }
+
+    // Store full lists before filtering, then filter by pre-selected country (edit mode)
+    const allDestinations = nextOptions.destinations;
+    const allMainPackages = nextOptions["main-packages"];
+    const allFeaturedReferences = nextOptions["featured-references"];
+    const currentCountry = String(formValues["country"] ?? "");
+    if (currentCountry) {
+      if (allDestinations.length > 0) {
+        nextOptions.destinations = this.filterByCountry(allDestinations, currentCountry);
+      }
+      if (allMainPackages.length > 0) {
+        nextOptions["main-packages"] = this.filterByCountry(allMainPackages, currentCountry);
+      }
+      if (allFeaturedReferences.length > 0) {
+        nextOptions["featured-references"] = this.filterByCountry(allFeaturedReferences, currentCountry);
+      }
     }
 
     if (this.props.entry && definition.mediaEnabled) {
@@ -476,11 +683,23 @@ class CmsEntityEditorModalComponent extends Component<
         .listMedia(entityType, this.props.entry.id)
         .catch(() => []);
       if (this.props.sectionKey === "destinations") {
+        const rawMedia = this.getRawValue(this.props.entry, "media");
+        const mediaRecord =
+          rawMedia && typeof rawMedia === "object" && !Array.isArray(rawMedia) ?
+            (rawMedia as Record<string, unknown>)
+          : {};
         const titleImageUrl = this.toNonEmptyString(
-          this.getRawValue(this.props.entry, "titleImageUrl") ??
+          mediaRecord.title_image ??
+            this.getRawValue(this.props.entry, "titleImageUrl") ??
             this.getRawValue(this.props.entry, "thumbnailUrl") ??
             this.getRawValue(this.props.entry, "heroImageUrl"),
         );
+        const inlineGallery =
+          Array.isArray(mediaRecord.gallery) ?
+            mediaRecord.gallery
+              .map((item) => this.toNonEmptyString(item))
+              .filter((item): item is string => Boolean(item))
+          : [];
         const mappedGallery = media
           .filter(
             (item) => this.toNonEmptyString(item.mediaUrl) !== titleImageUrl,
@@ -498,10 +717,26 @@ class CmsEntityEditorModalComponent extends Component<
             pendingFile: null,
             previewUrl: undefined,
           }));
+        if (!mappedGallery.length && inlineGallery.length) {
+          mappedGallery.push(
+            ...inlineGallery.slice(0, 4).map((url, index) => ({
+              id: "",
+              clientId: `destination-gallery-inline-${index}`,
+              mediaUrl: url,
+              thumbnailUrl: url,
+              title: "",
+              altText: "",
+              isPrimary: false,
+              mediaKind: "image" as const,
+              pendingFile: null,
+              previewUrl: undefined,
+            })),
+          );
+        }
         const primaryItem =
           titleImageUrl ?
             {
-              id: null,
+              id: "",
               clientId: "destination-title-image",
               mediaUrl: titleImageUrl,
               thumbnailUrl: titleImageUrl,
@@ -536,8 +771,21 @@ class CmsEntityEditorModalComponent extends Component<
 
     this.setState({
       relationOptions: nextOptions,
+      allDestinations,
+      allMainPackages,
+      allFeaturedReferences,
       isBootstrapping: false,
     });
+  }
+
+  private filterByCountry(
+    options: CmsFieldOption[],
+    country: string,
+  ): CmsFieldOption[] {
+    if (!country) return options;
+    return options.filter(
+      (option) => String(option.meta?.country ?? "") === country,
+    );
   }
 
   private onFieldChange = (
@@ -554,12 +802,32 @@ class CmsEntityEditorModalComponent extends Component<
           formValues[slugField.key] = this.slugify(String(nextValue || ""));
         }
       }
+
+      let nextRelationOptions = prev.relationOptions;
+      if (field.key === "country") {
+        const country = String(nextValue ?? "");
+        nextRelationOptions = { ...prev.relationOptions };
+        if (prev.allDestinations.length > 0) {
+          nextRelationOptions.destinations = this.filterByCountry(prev.allDestinations, country);
+          formValues["destinationId"] = "";
+        }
+        if (prev.allMainPackages.length > 0) {
+          nextRelationOptions["main-packages"] = this.filterByCountry(prev.allMainPackages, country);
+          formValues["mainPackageId"] = "";
+        }
+        if (prev.allFeaturedReferences.length > 0) {
+          nextRelationOptions["featured-references"] = this.filterByCountry(prev.allFeaturedReferences, country);
+          formValues["referenceId"] = "";
+        }
+      }
+
       return {
         formValues,
         formErrors: { ...prev.formErrors, [field.key]: "" },
         formUploadErrorMessage: "",
         slugTouched:
           field.key.toLowerCase().includes("slug") ? true : prev.slugTouched,
+        relationOptions: nextRelationOptions,
       };
     });
   };
@@ -615,6 +883,16 @@ class CmsEntityEditorModalComponent extends Component<
       imageFieldFiles: this.state.fieldImageFiles,
     });
     this.setState({ formErrors: result.errors });
+    if (!result.isValid) {
+      const firstErrorField = definition.fields.find(
+        (field) => result.errors[field.key],
+      );
+      const message =
+        firstErrorField ?
+          `Please fill in the "${firstErrorField.label}" field.`
+        : "Please fill in all required fields.";
+      this.setState({ formUploadErrorMessage: message });
+    }
     return result.isValid;
   }
 
@@ -644,8 +922,11 @@ class CmsEntityEditorModalComponent extends Component<
     const payload: Record<string, unknown> = {};
     const definition = CmsEntityFormCatalog.get(this.props.sectionKey);
     definition.fields.forEach((field) => {
+      if (this.props.sectionKey === "sub-packages" && field.key === "country") {
+        return;
+      }
       const value = this.state.formValues[field.key];
-      if (field.type === "number") {
+      if (field.type === "number" || field.key === "displayOrder") {
         payload[field.key] = String(value ?? "").trim() ? Number(value) : null;
       } else {
         payload[field.key] = value;
@@ -653,16 +934,17 @@ class CmsEntityEditorModalComponent extends Component<
     });
     const mediaItems = mediaItemsOverride ?? this.state.mediaItems;
     const primary = mediaItems.find((item) => item.isPrimary) ?? mediaItems[0];
-      if (primary) {
-        if (this.props.sectionKey === "landing-places")
-          payload.imageUrl = primary.mediaUrl;
+    if (primary) {
+      if (this.props.sectionKey === "landing-places")
+        payload.imageUrl = primary.mediaUrl;
       if (this.props.sectionKey === "destinations") {
-        payload.titleImageUrl = primary.mediaUrl;
-        payload.heroImageUrl = primary.mediaUrl;
-        payload.thumbnailUrl = primary.thumbnailUrl || primary.mediaUrl;
-        payload.gallery = mediaItems
-          .filter((item) => !item.isPrimary)
-          .map((item) => item.mediaUrl);
+        payload.media = {
+          title_image: primary.mediaUrl,
+          gallery: mediaItems
+            .filter((item) => !item.isPrimary)
+            .map((item) => item.mediaUrl)
+            .slice(0, 4),
+        };
       }
       if (this.props.sectionKey === "visa-destinations") {
         payload.imageUrl = primary.mediaUrl;
@@ -776,15 +1058,75 @@ class CmsEntityEditorModalComponent extends Component<
     if (!this.validate()) return;
     const destinationMediaError = this.validateDestinationMedia();
     if (destinationMediaError) {
-      this.setState({
-        mediaErrorMessage: destinationMediaError,
-      });
+      this.setState({ mediaErrorMessage: destinationMediaError });
       return;
     }
+
+    // Client-side display order conflict check — only when display order actually changes
+    const definition = CmsEntityFormCatalog.get(this.props.sectionKey);
+    const hasDisplayOrderField = definition.fields.some((f) => f.key === "displayOrder");
+    if (hasDisplayOrderField) {
+      const pendingOrder = Number(this.state.formValues["displayOrder"]);
+      const originalOrder = this.props.entry
+        ? Number(this.props.entry.raw.display_order ?? this.props.entry.raw.displayOrder)
+        : null;
+      const isDisplayOrderChanged = this.props.mode === "create" || pendingOrder !== originalOrder;
+      if (isDisplayOrderChanged && pendingOrder >= 1) {
+        const allRows = this.props.allRows ?? [];
+        const currentCountry = this.toNonEmptyString(
+          this.state.formValues["country"] ??
+            this.props.entry?.raw.country ??
+            this.props.entry?.raw.destination_country ??
+            this.props.entry?.raw.destinationCountry,
+        );
+        const currentSectionKey = this.toNonEmptyString(
+          this.state.formValues["sectionKey"] ??
+            this.props.entry?.raw.section_key ??
+            this.props.entry?.raw.sectionKey,
+        );
+        const conflicting = allRows.find((r) => {
+          const rowCountry = this.toNonEmptyString(
+            r.raw.country ?? r.raw.destination_country ?? r.raw.destinationCountry,
+          );
+          const rowSectionKey = this.toNonEmptyString(
+            r.raw.section_key ?? r.raw.sectionKey,
+          );
+          return (
+            r.id !== this.props.entry?.id &&
+            Number(r.raw.display_order ?? r.raw.displayOrder) === pendingOrder &&
+            (currentCountry === "" || rowCountry === currentCountry) &&
+            currentSectionKey === rowSectionKey
+          );
+        });
+        if (conflicting) {
+          const conflictingEntryLabel = String(
+            conflicting.raw.title ??
+              conflicting.raw.name ??
+              conflicting.raw.place_name ??
+              conflicting.raw.placeName ??
+              conflicting.raw.destination ??
+              conflicting.raw.country ??
+              conflicting.id,
+          );
+          let payload: Record<string, unknown> = {};
+          const uploadedMediaItems = await this.uploadPendingMediaFiles();
+          payload = this.createPayload(uploadedMediaItems);
+          payload = await this.uploadPendingFieldImages(payload);
+          this.setState({
+            showDisplayOrderConflict: true,
+            conflictingEntryLabel,
+            pendingForcePayload: payload,
+          });
+          return;
+        }
+      }
+    }
+
     this.setState({ isSubmitting: true, mediaErrorMessage: "" });
+    let payload: Record<string, unknown> = {};
     try {
       const uploadedMediaItems = await this.uploadPendingMediaFiles();
-      let payload = this.createPayload(uploadedMediaItems);
+      payload = this.createPayload(uploadedMediaItems);
       payload = await this.uploadPendingFieldImages(payload);
 
       const requiresPrimaryImageOnCreate =
@@ -827,6 +1169,10 @@ class CmsEntityEditorModalComponent extends Component<
       }
 
       if (this.props.mode === "create") {
+        if (this.state.copies.length > 0 && !this.validateCopies()) {
+          this.setState({ isSubmitting: false });
+          return;
+        }
         const created = await this.cmsService.create(
           this.props.sectionKey,
           payload,
@@ -837,6 +1183,9 @@ class CmsEntityEditorModalComponent extends Component<
           "";
         if (entityId) {
           await this.syncMedia(entityId);
+        }
+        if (this.state.copies.length > 0) {
+          await this.submitAllCopies();
         }
         await this.props.onSaved("Record created successfully.");
       } else if (this.props.entry) {
@@ -861,8 +1210,174 @@ class CmsEntityEditorModalComponent extends Component<
     }
   };
 
+  private onForceDisplayOrder = async (): Promise<void> => {
+    const { pendingForcePayload } = this.state;
+    if (!pendingForcePayload) return;
+    this.setState({ isSubmitting: true, showDisplayOrderConflict: false });
+    try {
+      const forcePayload = { ...pendingForcePayload, forceDisplayOrder: true };
+      if (this.props.mode === "create") {
+        const created = await this.cmsService.create(this.props.sectionKey, forcePayload);
+        const entityId =
+          (created?.id as string | undefined) ??
+          (created?.["id"] as string | undefined) ??
+          "";
+        if (entityId) await this.syncMedia(entityId);
+        await this.props.onSaved("Record created successfully.");
+      } else if (this.props.entry) {
+        await this.cmsService.update(this.props.sectionKey, this.props.entry, forcePayload);
+        await this.syncMedia(this.props.entry.id);
+        await this.props.onSaved("Record updated successfully.");
+      }
+      this.revokeAllPreviewUrls();
+      this.setState({ isSubmitting: false, pendingForcePayload: null });
+      this.props.onClose();
+    } catch (error) {
+      const message = this.mapApiErrorMessage(error, "Failed to save.");
+      this.setState({ isSubmitting: false, mediaErrorMessage: message, pendingForcePayload: null });
+      ToastService.error(message);
+    }
+  };
+
+  private onAddCopy = (): void => {
+    this.setState({ isCopyAdding: true });
+    setTimeout(() => {
+      this.setState((prev) => {
+        const existingFile = prev.fieldImageFiles["imageUrl"] ?? null;
+        const existingPreview =
+          prev.fieldImagePreviews["imageUrl"] ??
+          String(prev.formValues.imageUrl ?? "");
+        return {
+          isCopyAdding: false,
+          copies: [
+            ...prev.copies,
+            {
+              id: prev.copyIdCounter + 1,
+              formValues: { ...prev.formValues },
+              formErrors: {},
+              errorMessage: "",
+              imageFile: existingFile,
+              imagePreview: existingPreview,
+            },
+          ],
+          copyIdCounter: prev.copyIdCounter + 1,
+        };
+      });
+    }, 300);
+  };
+
+  private onCopyFieldChange = (
+    copyId: number,
+    field: CmsEntityFieldDefinition,
+    nextValue: unknown,
+  ): void => {
+    this.setState((prev) => ({
+      copies: prev.copies.map((copy) =>
+        copy.id !== copyId
+          ? copy
+          : {
+              ...copy,
+              formValues: { ...copy.formValues, [field.key]: nextValue },
+              formErrors: { ...copy.formErrors, [field.key]: "" },
+            },
+      ),
+    }));
+  };
+
+  private onCopyImageUpload = async (
+    copyId: number,
+    field: CmsEntityFieldDefinition,
+    file: File,
+  ): Promise<void> => {
+    if (!file.type.startsWith("image/")) return;
+    const previewUrl = URL.createObjectURL(file);
+    this.setState((prev) => ({
+      copies: prev.copies.map((copy) =>
+        copy.id !== copyId
+          ? copy
+          : {
+              ...copy,
+              imageFile: file,
+              imagePreview: previewUrl,
+              formValues: { ...copy.formValues, [field.key]: previewUrl },
+              formErrors: { ...copy.formErrors, [field.key]: "" },
+            },
+      ),
+    }));
+  };
+
+  private onCopyImageClear = (
+    copyId: number,
+    field: CmsEntityFieldDefinition,
+  ): void => {
+    this.setState((prev) => ({
+      copies: prev.copies.map((copy) =>
+        copy.id !== copyId
+          ? copy
+          : {
+              ...copy,
+              imageFile: null,
+              imagePreview: "",
+              formValues: { ...copy.formValues, [field.key]: "" },
+            },
+      ),
+    }));
+  };
+
+  private onRemoveCopy = (copyId: number): void => {
+    this.setState((prev) => ({
+      copies: prev.copies.filter((copy) => copy.id !== copyId),
+    }));
+  };
+
+  private validateCopies(): boolean {
+    const definition = CmsEntityFormCatalog.get(this.props.sectionKey);
+    let allValid = true;
+    const updatedCopies = this.state.copies.map((copy) => {
+      const result = this.validator.validate({
+        fields: definition.fields,
+        formValues: copy.formValues,
+        imageFieldFiles: copy.imageFile ? { imageUrl: copy.imageFile } : {},
+      });
+      if (!result.isValid) {
+        allValid = false;
+        const firstError = definition.fields.find((f) => result.errors[f.key]);
+        return {
+          ...copy,
+          formErrors: result.errors,
+          errorMessage: firstError
+            ? `Please fill in the "${firstError.label}" field.`
+            : "Please fill in all required fields.",
+        };
+      }
+      return { ...copy, formErrors: {}, errorMessage: "" };
+    });
+    this.setState({ copies: updatedCopies });
+    return allValid;
+  }
+
+  private async submitAllCopies(): Promise<void> {
+    const definition = CmsEntityFormCatalog.get(this.props.sectionKey);
+    for (const copy of this.state.copies) {
+      const payload: Record<string, unknown> = {};
+      definition.fields.forEach((field) => {
+        const value = copy.formValues[field.key];
+        payload[field.key] =
+          field.type === "number" || field.key === "displayOrder"
+            ? String(value ?? "").trim() ? Number(value) : null
+            : value;
+      });
+      // upload pending image file if present
+      if (copy.imageFile) {
+        const uploadedUrl = await this.cmsService.uploadMedia(copy.imageFile);
+        payload.imageUrl = uploadedUrl;
+      }
+      await this.cmsService.create(this.props.sectionKey, payload);
+    }
+  }
+
   private onUploadMedia = async (file: File): Promise<void> => {
-    const allowVideo = this.props.sectionKey === "destinations";
+    const allowVideo = true;
     if (
       !file.type.startsWith("image/") &&
       !(allowVideo && file.type.startsWith("video/"))
@@ -891,7 +1406,6 @@ class CmsEntityEditorModalComponent extends Component<
       ToastService.warning(message);
       return;
     }
-
     this.setState({
       isMediaUploading: true,
       mediaErrorMessage: "",
@@ -1260,62 +1774,165 @@ class CmsEntityEditorModalComponent extends Component<
 
   render() {
     const definition = CmsEntityFormCatalog.get(this.props.sectionKey);
+    const isCopySupported = false;
     return (
-      <CmsModalShellComponent
-        isOpen={this.props.isOpen}
-        title={`${this.props.mode === "create" ? "Create" : "Edit"} ${this.props.sectionTitle} Record`}
-        description="Structured enterprise form with validated fields and media controls."
-        size={
-          this.props.mode === "create" ?
-            definition.createSize
-          : definition.editSize
-        }
-        confirmLabel={
-          this.props.mode === "create" ? "Create Record" : "Save Changes"
-        }
-        isSubmitting={this.state.isSubmitting}
-        confirmDisabled={
-          this.state.isBootstrapping ||
-          this.state.isMediaUploading ||
-          Boolean(this.state.uploadingFieldKey)
-        }
-        onConfirm={() => void this.onSubmit()}
-        onCancel={this.props.onClose}
-      >
-        <div className="space-y-4">
-          {this.state.formUploadErrorMessage && (
-            <div className="rounded-xl border border-[color-mix(in_srgb,var(--danger)_35%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] px-3 py-2 text-xs text-[var(--danger)]">
-              {this.state.formUploadErrorMessage}
-            </div>
-          )}
-          <CmsEntityFormGroupsComponent
-            definition={definition}
-            formValues={this.state.formValues}
-            formErrors={this.state.formErrors}
-            imageFieldPreviews={this.state.fieldImagePreviews}
-            relationOptions={this.state.relationOptions}
-            onFieldChange={this.onFieldChange}
-            onFieldFileUpload={this.onFieldFileUpload}
-            onFieldImageClear={this.onFieldImageClear}
-            uploadingFieldKey={this.state.uploadingFieldKey}
-          />
+      <>
+        <CmsModalShellComponent
+          isOpen={this.props.isOpen}
+          title={`${this.props.mode === "create" ? "Create" : "Edit"} ${this.props.sectionTitle} Record`}
+          description="Structured enterprise form with validated fields and media controls."
+          size={
+            this.props.mode === "create" ?
+              definition.createSize
+            : definition.editSize
+          }
+          confirmLabel={
+            this.props.mode === "create" ? "Create Record" : "Save Changes"
+          }
+          isSubmitting={this.state.isSubmitting}
+          confirmDisabled={
+            this.state.isBootstrapping ||
+            this.state.isMediaUploading ||
+            Boolean(this.state.uploadingFieldKey)
+          }
+          onConfirm={() => void this.onSubmit()}
+          onCancel={this.props.onClose}
+        >
+          <div className="space-y-4">
+            {this.state.formUploadErrorMessage && (
+              <div className="rounded-xl border border-[color-mix(in_srgb,var(--danger)_35%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] px-3 py-2 text-xs text-[var(--danger)]">
+                {this.state.formUploadErrorMessage}
+              </div>
+            )}
+            <CmsEntityFormGroupsComponent
+              definition={definition}
+              formValues={this.state.formValues}
+              formErrors={this.state.formErrors}
+              imageFieldPreviews={this.state.fieldImagePreviews}
+              relationOptions={this.state.relationOptions}
+              onFieldChange={this.onFieldChange}
+              onFieldFileUpload={this.onFieldFileUpload}
+              onFieldImageClear={this.onFieldImageClear}
+              uploadingFieldKey={this.state.uploadingFieldKey}
+            />
 
-          {definition.mediaEnabled &&
-            (this.props.sectionKey === "destinations" ?
-              this.renderDestinationMediaSection()
-            : <CmsEntityMediaEditorComponent
-                mediaItems={this.state.mediaItems}
-                mediaErrorMessage={this.state.mediaErrorMessage}
-                mediaInfoMessage={this.state.mediaInfoMessage}
-                isMediaUploading={this.state.isMediaUploading}
-                onUploadMedia={this.onUploadMedia}
-                onSetCoverMedia={this.onSetCoverMedia}
-                onMoveMediaUp={this.onMoveMediaUp}
-                onMoveMediaDown={this.onMoveMediaDown}
-                onRemoveMedia={this.onRemoveMedia}
-              />)}
-        </div>
-      </CmsModalShellComponent>
+            {definition.mediaEnabled &&
+              (this.props.sectionKey === "destinations" ?
+                this.renderDestinationMediaSection()
+              : <CmsEntityMediaEditorComponent
+                  mediaItems={this.state.mediaItems}
+                  mediaErrorMessage={this.state.mediaErrorMessage}
+                  mediaInfoMessage={this.state.mediaInfoMessage}
+                  isMediaUploading={this.state.isMediaUploading}
+                  allowVideo={true}
+                  onUploadMedia={this.onUploadMedia}
+                  onSetCoverMedia={this.onSetCoverMedia}
+                  onMoveMediaUp={this.onMoveMediaUp}
+                  onMoveMediaDown={this.onMoveMediaDown}
+                  onRemoveMedia={this.onRemoveMedia}
+                />)}
+
+            {isCopySupported && (
+              <div className="flex justify-end border-t border-[var(--border)] pt-3">
+                <button
+                  type="button"
+                  onClick={this.onAddCopy}
+                  disabled={this.state.isSubmitting || this.state.isCopyAdding}
+                  className="inline-flex items-center gap-2 rounded-lg border border-[var(--border)] px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] transition hover:bg-(--background-soft) disabled:opacity-60"
+                >
+                  {this.state.isCopyAdding ? (
+                    <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-[var(--text-secondary)] border-t-transparent" />
+                  ) : (
+                    <span>⧉</span>
+                  )}
+                  {this.state.isCopyAdding ? "Copying..." : "Copy Fields"}
+                </button>
+              </div>
+            )}
+
+            {isCopySupported && this.state.copies.map((copy, index) => (
+              <div
+                key={copy.id}
+                className="rounded-2xl border border-[var(--border)] bg-(--surface) p-4 space-y-4"
+              >
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wide">
+                    Copy #{index + 1}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => this.onRemoveCopy(copy.id)}
+                    className="inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-[color-mix(in_srgb,var(--danger)_35%,transparent)] text-[var(--danger)] hover:bg-[color-mix(in_srgb,var(--danger)_10%,transparent)]"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {copy.errorMessage && (
+                  <div className="rounded-xl border border-[color-mix(in_srgb,var(--danger)_35%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] px-3 py-2 text-xs text-[var(--danger)]">
+                    {copy.errorMessage}
+                  </div>
+                )}
+
+                <CmsEntityFormGroupsComponent
+                  definition={definition}
+                  formValues={copy.formValues}
+                  formErrors={copy.formErrors}
+                  imageFieldPreviews={{ imageUrl: copy.imagePreview }}
+                  relationOptions={this.state.relationOptions}
+                  onFieldChange={(field, value) =>
+                    this.onCopyFieldChange(copy.id, field, value)
+                  }
+                  onFieldFileUpload={(field, file) =>
+                    this.onCopyImageUpload(copy.id, field, file)
+                  }
+                  onFieldImageClear={(field) =>
+                    this.onCopyImageClear(copy.id, field)
+                  }
+                />
+              </div>
+            ))}
+          </div>
+        </CmsModalShellComponent>
+
+        {this.state.showDisplayOrderConflict && (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50">
+            <div className="w-full max-w-sm rounded-2xl border border-[var(--border)] bg-(--surface) p-6 shadow-xl">
+              <h3 className="text-sm font-semibold text-[var(--text-primary)]">
+                Display Order Conflict
+              </h3>
+              <p className="mt-2 text-xs text-[var(--text-secondary)]">
+                Display order is already taken by{" "}
+                <span className="font-semibold text-[var(--text-primary)]">
+                  {this.state.conflictingEntryLabel}
+                </span>
+                . Do you want to replace it?
+              </p>
+              <div className="mt-4 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    this.setState({
+                      showDisplayOrderConflict: false,
+                      pendingForcePayload: null,
+                    })
+                  }
+                  className="modal-btn-secondary"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void this.onForceDisplayOrder()}
+                  className="modal-btn-primary"
+                >
+                  Yes, Replace
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </>
     );
   }
 }

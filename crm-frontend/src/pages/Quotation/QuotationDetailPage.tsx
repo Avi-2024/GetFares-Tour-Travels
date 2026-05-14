@@ -35,6 +35,13 @@ type ComponentRow = {
   itemType: 'HOTEL' | 'FLIGHT' | 'TRANSFER' | 'VISA' | 'INSURANCE' | 'OTHER'
   description: string
   cost: number
+  sellValue?: number
+  /** Legacy combined margin; prefer markupLine + serviceChargeLine in visa view */
+  serviceCharge?: number
+  /** %-based margin amount (insurance, hotel, tours, …) */
+  markupLine?: number
+  /** Fixed service charge (visa, flights) */
+  serviceChargeLine?: number
 }
 
 type VersionRow = {
@@ -166,6 +173,92 @@ const extractImportantNoteValue = (notes: unknown, label: string): string | null
   return value || null
 }
 
+/** Builder snapshot row — DB quotation_items only store base cost, so prefer this when present. */
+function mapSnapshotServiceRowToComponent (
+  raw: Record<string, unknown>,
+  index: number,
+  tripDestination: string
+): ComponentRow {
+  const base = toNumber(
+    raw.baseCost ?? raw.base_cost ?? raw.cost,
+    0
+  )
+  const sellStored = toNumber(raw.sellValue ?? raw.sell_value, NaN)
+  const rawServiceCharge = toNumber(raw.serviceCharge ?? raw.service_charge, NaN)
+  const markupAmount = toNumber(raw.markupAmount ?? raw.markup_amount, NaN)
+  const markupPct = toNumber(raw.markupPercent ?? raw.markup_percent, NaN)
+
+  const itemTypeRaw = raw.itemType ?? raw.item_type
+  const key = raw.key
+  const typeUpper = String(itemTypeRaw || 'OTHER').toUpperCase()
+  const allowedTypes = [
+    'HOTEL',
+    'FLIGHT',
+    'TRANSFER',
+    'VISA',
+    'INSURANCE',
+    'OTHER'
+  ] as const
+  const itemType = (
+    allowedTypes.includes(typeUpper as (typeof allowedTypes)[number])
+      ? typeUpper
+      : 'OTHER'
+  ) as ComponentRow['itemType']
+
+  const fixedChargeRow = itemType === 'VISA' || itemType === 'FLIGHT'
+
+  let sellValue = Number.isFinite(sellStored)
+    ? sellStored
+    : NaN
+
+  let markupLine = 0
+  let serviceChargeLine = 0
+
+  if (fixedChargeRow) {
+    serviceChargeLine = Number.isFinite(rawServiceCharge)
+      ? rawServiceCharge
+      : Number.isFinite(markupAmount)
+        ? markupAmount
+        : Number.isFinite(sellValue)
+          ? Math.max(0, sellValue - base)
+          : 0
+    markupLine = 0
+  } else {
+    if (Number.isFinite(markupAmount)) {
+      markupLine = markupAmount
+    } else if (Number.isFinite(markupPct)) {
+      markupLine = Number(((base * markupPct) / 100).toFixed(2))
+    } else if (Number.isFinite(sellValue)) {
+      markupLine = Math.max(0, sellValue - base)
+    } else {
+      markupLine = 0
+    }
+    serviceChargeLine = 0
+  }
+
+  if (!Number.isFinite(sellValue)) {
+    sellValue = base + markupLine + serviceChargeLine
+  }
+
+  const combined = markupLine + serviceChargeLine
+  const serviceCharge =
+    combined > 0 ? combined : Math.max(0, sellValue - base)
+
+  return {
+    id: String(raw.id ?? `${key ?? index}`),
+    itemType,
+    description: String(
+      raw.description ??
+        `${raw.label ?? key ?? 'Service'} - ${tripDestination}`
+    ),
+    cost: base,
+    sellValue,
+    serviceCharge,
+    markupLine,
+    serviceChargeLine
+  }
+}
+
 const QuotationDetailPage: React.FC = () => {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -219,34 +312,54 @@ const QuotationDetailPage: React.FC = () => {
       setQuotation(quoteData)
       setStatus(mapStatus(quoteData.status))
 
-      const snapshotServiceRows = Array.isArray(
-        quoteData.templateSnapshot?.serviceRows
-      )
-        ? quoteData.templateSnapshot.serviceRows
-        : Array.isArray(quoteData.templateSnapshot?.builderSnapshot?.serviceRows)
-          ? quoteData.templateSnapshot.builderSnapshot.serviceRows
-          : []
+      const templateSnap =
+        quoteData.templateSnapshot ?? quoteData.template_snapshot ?? null
+      const builderSnap =
+        templateSnap?.builderSnapshot ?? templateSnap?.builder_snapshot ?? null
+      const snapshotServiceRowsRaw = Array.isArray(templateSnap?.serviceRows)
+        ? templateSnap.serviceRows
+        : Array.isArray(builderSnap?.serviceRows)
+          ? builderSnap.serviceRows
+          : Array.isArray(builderSnap?.service_rows)
+            ? builderSnap.service_rows
+            : []
 
-      const itemRows = Array.isArray(quoteData.items) && quoteData.items.length
-        ? quoteData.items.map((item: any) => ({
-            id: String(item.id ?? `${item.itemType}-${item.description}`),
-            itemType: (item.itemType || 'OTHER') as ComponentRow['itemType'],
-            description: String(item.description || 'N/A'),
-            cost: toNumber(item.cost, 0)
-          }))
-        : snapshotServiceRows.map((item: any, index: number) => ({
-            id: String(item.id ?? `${item.key ?? index}`),
-            itemType: (item.itemType || 'OTHER') as ComponentRow['itemType'],
-            description: String(
-              item.description ??
-                `${item.label ?? item.key ?? 'Service'} - ${
-                  quoteData.tripDestination ??
-                  quoteData.templateSnapshot?.destination ??
-                  'N/A'
-                }`
-            ),
-            cost: toNumber(item.baseCost ?? item.cost, 0)
-          }))
+      const tripDestination =
+        quoteData.tripDestination ??
+        quoteData.trip_destination ??
+        templateSnap?.destination ??
+        'N/A'
+
+      /** Prefer builder snapshot rows: DB quotation_items only store base cost. */
+      const itemRows =
+        snapshotServiceRowsRaw.length > 0
+          ? snapshotServiceRowsRaw.map((item: Record<string, unknown>, index: number) =>
+            mapSnapshotServiceRowToComponent(item, index, tripDestination)
+            )
+          : Array.isArray(quoteData.items) && quoteData.items.length
+            ? quoteData.items.map((item: any) => {
+                const base = toNumber(item.cost, 0)
+                const sell = toNumber(item.sellValue, NaN)
+                const charge = toNumber(item.serviceCharge ?? item.markupAmount, NaN)
+                const margin = Number.isFinite(charge)
+                  ? charge
+                  : Number.isFinite(sell)
+                    ? Math.max(0, sell - base)
+                    : 0
+                const it = (item.itemType || 'OTHER') as ComponentRow['itemType']
+                const fixedRow = it === 'VISA' || it === 'FLIGHT'
+                return {
+                  id: String(item.id ?? `${item.itemType}-${item.description}`),
+                  itemType: it,
+                  description: String(item.description || 'N/A'),
+                  cost: base,
+                  sellValue: Number.isFinite(sell) ? sell : undefined,
+                  serviceCharge: margin > 0 ? margin : undefined,
+                  markupLine: fixedRow ? 0 : margin,
+                  serviceChargeLine: fixedRow ? margin : 0
+                }
+              })
+            : []
       setRows(itemRows)
 
       const versionRowsRaw =
@@ -331,6 +444,24 @@ const QuotationDetailPage: React.FC = () => {
   const snapshotBuilder = snapshot?.builderSnapshot ?? null
   const snapshotLead = snapshot?.lead ?? snapshot?.builderSnapshot?.lead ?? null
   const snapshotPricing = snapshot?.pricing ?? snapshotBuilder?.pricing ?? null
+
+  const isVisaLeadQuotation = useMemo(() => {
+    if (!quotation) return false
+    const leadType = String(
+      (quotation as any).leadType ??
+        (quotation as any).lead_type ??
+        (lead as any)?.leadType ??
+        (lead as any)?.lead_type ??
+        (snapshotLead as any)?.leadType ??
+        (snapshotLead as any)?.lead_type ??
+        (snapshotBuilder as any)?.lead?.leadType ??
+        (snapshotBuilder as any)?.lead?.lead_type ??
+        ''
+    )
+      .trim()
+      .toUpperCase()
+    return leadType === 'VISA'
+  }, [quotation, lead, snapshotLead, snapshotBuilder])
   const packageSnapshot =
     snapshot?.package ?? snapshot?.builderSnapshot?.package ?? null
   const destination =
@@ -347,36 +478,59 @@ const QuotationDetailPage: React.FC = () => {
     quotation?.approvedByUser ?? quotation?.relations?.approvedByUser ?? null
   const sentByUser =
     quotation?.sentByUser ?? quotation?.relations?.sentByUser ?? null
+
+  const builderContent =
+    snapshotBuilder &&
+    typeof (snapshotBuilder as { content?: unknown }).content === 'object' &&
+    (snapshotBuilder as { content: object }).content
+      ? (snapshotBuilder as { content: Record<string, unknown> }).content
+      : null
+
   const contentTemplate = {
     ...(template ?? {}),
     ...(quotation?.templateSnapshot ?? {}),
+    ...(builderContent ?? {}),
     inclusions:
       quotation?.inclusions ??
+      (builderContent?.inclusions as string | undefined) ??
       quotation?.templateSnapshot?.inclusions ??
-      template?.inclusions ??
+      (template as { inclusions?: string } | null)?.inclusions ??
       null,
     exclusions:
       quotation?.exclusions ??
+      (builderContent?.exclusions as string | undefined) ??
       quotation?.templateSnapshot?.exclusions ??
-      template?.exclusions ??
+      (template as { exclusions?: string } | null)?.exclusions ??
       null,
     hotelDetails:
       quotation?.hotelDetails ??
+      (builderContent?.hotelDetails as string | undefined) ??
       quotation?.templateSnapshot?.hotelDetails ??
       null,
     visaDetails:
       quotation?.visaDetails ??
+      (builderContent?.visaDetails as string | undefined) ??
       quotation?.templateSnapshot?.visaDetails ??
+      null,
+    headerBranding:
+      (builderContent?.headerBranding as string | undefined) ??
+      quotation?.templateSnapshot?.headerBranding ??
       null,
     paymentTerms:
       quotation?.paymentTerms ??
+      (builderContent?.paymentTerms as string | undefined) ??
       quotation?.templateSnapshot?.paymentTerms ??
-      template?.paymentTerms ??
+      (template as { paymentTerms?: string } | null)?.paymentTerms ??
       null,
     cancellationPolicy:
       quotation?.cancellationPolicy ??
+      (builderContent?.cancellationPolicy as string | undefined) ??
       quotation?.templateSnapshot?.cancellationPolicy ??
-      template?.cancellationPolicy ??
+      (template as { cancellationPolicy?: string } | null)?.cancellationPolicy ??
+      null,
+    footerDisclaimer:
+      (builderContent?.footerDisclaimer as string | undefined) ??
+      quotation?.templateSnapshot?.footerDisclaimer ??
       null
   }
   const displayCustomerName =
@@ -538,6 +692,63 @@ const QuotationDetailPage: React.FC = () => {
       })
   }, [quotation?.importantNotes])
 
+  const showQuotationContentSection = useMemo(() => {
+    const paymentTerms = String(contentTemplate?.paymentTerms ?? '').trim()
+    const cancellationPolicy = String(
+      contentTemplate?.cancellationPolicy ?? ''
+    ).trim()
+    if (isVisaLeadQuotation) {
+      const inc = String(contentTemplate?.inclusions ?? '').trim()
+      const exc = String(contentTemplate?.exclusions ?? '').trim()
+      return Boolean(paymentTerms || cancellationPolicy || inc || exc)
+    }
+    return Boolean(
+      itineraryItems.length ||
+        noteSections.length ||
+        contentTemplate?.headerBranding ||
+        contentTemplate?.hotelDetails ||
+        contentTemplate?.visaDetails ||
+        contentTemplate?.inclusions ||
+        contentTemplate?.exclusions ||
+        paymentTerms ||
+        cancellationPolicy ||
+        contentTemplate?.footerDisclaimer
+    )
+  }, [
+    isVisaLeadQuotation,
+    itineraryItems.length,
+    noteSections.length,
+    contentTemplate?.headerBranding,
+    contentTemplate?.hotelDetails,
+    contentTemplate?.visaDetails,
+    contentTemplate?.inclusions,
+    contentTemplate?.exclusions,
+    contentTemplate?.paymentTerms,
+    contentTemplate?.cancellationPolicy,
+    contentTemplate?.footerDisclaimer
+  ])
+
+  const pdfEnabledServicesText = useMemo(() => {
+    if (isVisaLeadQuotation) {
+      const enabled = (snapshotBuilder as { enabledServices?: Array<{ label?: string }> })
+        ?.enabledServices
+      if (Array.isArray(enabled) && enabled.length) {
+        return enabled
+          .map(s => String(s?.label ?? '').trim())
+          .filter(Boolean)
+          .join('\n')
+      }
+      return rows
+        .map(r => r.description)
+        .filter(Boolean)
+        .join('\n')
+    }
+    return String(
+      noteSections.find(s => s.title.toLowerCase() === 'enabled services')
+        ?.content ?? ''
+    )
+  }, [isVisaLeadQuotation, snapshotBuilder, rows, noteSections])
+
   const displayCurrency = useMemo(() => {
     const value =
       quotation?.clientCurrency ??
@@ -677,6 +888,100 @@ const QuotationDetailPage: React.FC = () => {
           : derivedMarginPercent
     }
   }, [quotation, rows, snapshotPricing])
+
+  const pdfTemplatePayload = useMemo(
+    () => ({
+      packageName: displayPackageName || displayQuotationTitle || 'Package',
+      email: displayCustomerEmail,
+      leadId:
+        (lead as { leadCode?: string; leadId?: string } | null)?.leadCode ??
+        (lead as { leadCode?: string; leadId?: string } | null)?.leadId ??
+        (snapshotLead as { leadCode?: string; leadId?: string } | null)
+          ?.leadCode ??
+        (snapshotLead as { leadCode?: string; leadId?: string } | null)
+          ?.leadId ??
+        (quotation as { lead?: { leadCode?: string; leadId?: string } } | null)
+          ?.lead?.leadCode ??
+        (quotation as { lead?: { leadCode?: string; leadId?: string } } | null)
+          ?.lead?.leadId ??
+        (quotation?.id ?? 'N/A'),
+      guestName: displayCustomerName,
+      guestEmail: displayCustomerEmail,
+      nights: toNumber(
+        quotation?.durationNights ?? snapshot?.durationNights ?? snapshot?.nights,
+        1
+      ),
+      adults: displayAdultsCount,
+      children: displayChildrenCount,
+      travelDate: formatDateOnly(displayTravelStartDate),
+      validUntil: formatDateOnly(displayValidUntil),
+      total: String(snapshotPricing?.total ?? quotation?.total ?? '0'),
+      totalSellValue: String(commercial.finalAmount),
+      currency: displayCurrency,
+      itinerary: isVisaLeadQuotation
+        ? []
+        : itineraryItems.map((item: { day?: string; title?: string; description?: string }) => ({
+            title:
+              item.day && item.title
+                ? `${item.day}: ${item.title}`
+                : item.title || item.day || 'Day',
+            points: item.description ? [item.description] : []
+          })),
+      destination: displayDestinationName,
+      quotationTitle: displayQuotationTitle,
+      templateName: displayTemplateName,
+      packageType: isVisaLeadQuotation
+        ? 'Visa quotation'
+        : displayPackageKind || 'Standard Package',
+      inclusions: String(contentTemplate?.inclusions ?? ''),
+      exclusions: String(contentTemplate?.exclusions ?? ''),
+      headerBranding: isVisaLeadQuotation
+        ? ''
+        : String(contentTemplate?.headerBranding ?? ''),
+      paymentTerms: String(contentTemplate?.paymentTerms ?? ''),
+      cancellationPolicy: String(contentTemplate?.cancellationPolicy ?? ''),
+      footerDisclaimer: isVisaLeadQuotation
+        ? ''
+        : String(contentTemplate?.footerDisclaimer ?? ''),
+      hotelDetails: isVisaLeadQuotation
+        ? ''
+        : String(contentTemplate?.hotelDetails ?? ''),
+      quoteReference: String(quotation?.quoteNumber ?? quotation?.id ?? ''),
+      quotationStatus: String(status ?? ''),
+      supplierName: String(createdByUser?.fullName ?? createdByUser?.name ?? ''),
+      enabledServices: pdfEnabledServicesText,
+      visaLeadQuotation: isVisaLeadQuotation
+    }),
+    [
+      displayPackageName,
+      displayQuotationTitle,
+      displayCustomerEmail,
+      lead,
+      snapshotLead,
+      quotation,
+      displayCustomerName,
+      displayAdultsCount,
+      displayChildrenCount,
+      displayTravelStartDate,
+      displayValidUntil,
+      snapshotPricing,
+      snapshot?.durationNights,
+      snapshot?.nights,
+      quotation?.durationNights,
+      quotation?.total,
+      commercial.finalAmount,
+      displayCurrency,
+      itineraryItems,
+      isVisaLeadQuotation,
+      displayDestinationName,
+      displayTemplateName,
+      displayPackageKind,
+      contentTemplate,
+      status,
+      createdByUser,
+      pdfEnabledServicesText
+    ]
+  )
 
   const handleApprove = async () => {
     if (!id) return
@@ -822,24 +1127,8 @@ const QuotationDetailPage: React.FC = () => {
       formData.append('quotationId', id)
       formData.append('pdf', pdfBlob, `quotation-${quotation?.quoteNumber || id}.pdf`)
 
-      // Get auth token from localStorage
-      const token = localStorage.getItem('auth_token')
-
-      // Upload PDF to backend via proxy
-      const uploadRes = await fetch(`/api/quotations/${id}/upload-pdf`, {
-        method: 'POST',
-        body: formData,
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-
-      if (!uploadRes.ok) {
-        throw new Error('Failed to upload PDF')
-      }
-
-      const uploadData = await uploadRes.json()
-      const pdfUrl = uploadData.pdfUrl
+      const uploadData: any = await quotationsApi.uploadPdf(id, formData)
+      const pdfUrl = uploadData?.data?.pdfUrl ?? uploadData?.pdfUrl
 
       // Send quotation with PDF link
       await quotationsApi.send(id, {
@@ -981,15 +1270,22 @@ const QuotationDetailPage: React.FC = () => {
       />
     )
   }
+  const handleBack = () => {
+  if (window.history.length > 1) {
+    navigate(-1);
+  } else {
+    navigate("/leads"); // fallback route
+  }
+};
 
   return (
     <div className='space-y-4 sm:space-y-6 px-0 sm:px-0'>
       <div className='flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4'>
         <div>
           <div className='flex items-center justify-between gap-2'>
-            <div className='flex items-center gap-3'>
+            <div className='flex items-center gap-3'> 
               <button
-                onClick={() => navigate('/quotations')}
+                onClick={handleBack}
                 className='inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
                 aria-label='Back to quotations'
                 title='Back to Quotations'
@@ -1146,6 +1442,12 @@ const QuotationDetailPage: React.FC = () => {
                 </p>
                 <p className='text-xs text-gray-500'>{displayCustomerEmail}</p>
                 <p className='text-xs text-gray-500'>{displayCustomerPhone}</p>
+                <p className='mt-2 text-xs'>
+                  <span className='rounded-full bg-gray-100 px-2 py-0.5 font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300'>
+                    Lead type:{' '}
+                    {isVisaLeadQuotation ? 'VISA' : 'HOLIDAY / OTHER'}
+                  </span>
+                </p>
               </div>
 
               <div>
@@ -1183,8 +1485,11 @@ const QuotationDetailPage: React.FC = () => {
 
           <SurfaceCard className='p-4 sm:p-5'>
             <h2 className='text-sm font-semibold uppercase tracking-wide text-gray-500 mb-4'>
-              Package & Template Details
+              {isVisaLeadQuotation
+                ? 'Quotation source (Visa lead)'
+                : 'Package & Template Details'}
             </h2>
+           
             <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>
             <div>
               <p className='text-xs uppercase tracking-wide text-gray-500'>
@@ -1194,12 +1499,16 @@ const QuotationDetailPage: React.FC = () => {
                 {displayQuotationTitle}
               </p>
               <p className='text-xs text-gray-500'>
-                {displayPackageName
-                  ? `Source Package: ${displayPackageName}`
-                  : 'Manually authored in quotation'}
+                {isVisaLeadQuotation
+                  ? 'No catalog package'
+                  : displayPackageName
+                    ? `Source Package: ${displayPackageName}`
+                    : 'Manually authored in quotation'}
               </p>
               <p className='text-xs text-gray-500'>
-                {displayPackageKind || 'Quotation-owned trip content'}
+                {isVisaLeadQuotation
+                  ? 'Visa & insurance pricing only'
+                  : displayPackageKind || 'Quotation-owned trip content'}
               </p>
             </div>
 
@@ -1208,10 +1517,12 @@ const QuotationDetailPage: React.FC = () => {
                 Template
               </p>
               <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
-                {displayTemplateName}
+                {isVisaLeadQuotation
+                  ? 'Not used (visa quotation)'
+                  : displayTemplateName}
               </p>
               <p className='text-xs text-gray-500'>
-                {displayTemplateCode}
+                {isVisaLeadQuotation ? '—' : displayTemplateCode}
               </p>
             </div>
 
@@ -1353,22 +1664,15 @@ const QuotationDetailPage: React.FC = () => {
           </div>
           </SurfaceCard>
 
-          {itineraryItems.length ||
-        noteSections.length ||
-        contentTemplate?.headerBranding ||
-        contentTemplate?.hotelDetails ||
-        contentTemplate?.visaDetails ||
-        contentTemplate?.inclusions ||
-        contentTemplate?.exclusions ||
-        contentTemplate?.paymentTerms ||
-        contentTemplate?.cancellationPolicy ||
-        contentTemplate?.footerDisclaimer ? (
+          {showQuotationContentSection ? (
           <SurfaceCard className='p-4 sm:p-5'>
             <h2 className='text-sm font-semibold uppercase tracking-wide text-gray-500'>
-              Quotation Content
+              {isVisaLeadQuotation
+                ? 'Quotation Content (Visa)'
+                : 'Quotation Content'}
             </h2>
             <div className='mt-3 grid grid-cols-1 gap-4 lg:grid-cols-2'>
-              {itineraryItems.length ? (
+              {!isVisaLeadQuotation && itineraryItems.length ? (
                 <div className='rounded-lg border border-blue-200 bg-blue-50 p-3 lg:col-span-2'>
                   <p className='text-xs font-semibold uppercase tracking-wide text-blue-700'>
                     Itinerary Snapshot
@@ -1389,7 +1693,7 @@ const QuotationDetailPage: React.FC = () => {
                   </div>
                 </div>
               ) : null}
-              {contentTemplate?.headerBranding ? (
+              {!isVisaLeadQuotation && contentTemplate?.headerBranding ? (
                 <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
                   <p className='text-xs font-semibold uppercase tracking-wide text-gray-500'>
                     Header Branding
@@ -1419,7 +1723,7 @@ const QuotationDetailPage: React.FC = () => {
                   </p>
                 </div>
               ) : null}
-              {contentTemplate?.footerDisclaimer ? (
+              {!isVisaLeadQuotation && contentTemplate?.footerDisclaimer ? (
                 <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
                   <p className='text-xs font-semibold uppercase tracking-wide text-gray-500'>
                     Footer Disclaimer
@@ -1429,7 +1733,7 @@ const QuotationDetailPage: React.FC = () => {
                   </p>
                 </div>
               ) : null}
-              {contentTemplate?.hotelDetails ? (
+              {!isVisaLeadQuotation && contentTemplate?.hotelDetails ? (
                 <div className='rounded-lg border border-sky-200 bg-sky-50 p-3'>
                   <p className='text-xs font-semibold uppercase tracking-wide text-sky-700'>
                     Hotel Details
@@ -1439,7 +1743,7 @@ const QuotationDetailPage: React.FC = () => {
                   </p>
                 </div>
               ) : null}
-              {contentTemplate?.visaDetails ? (
+              {!isVisaLeadQuotation && contentTemplate?.visaDetails ? (
                 <div className='rounded-lg border border-violet-200 bg-violet-50 p-3'>
                   <p className='text-xs font-semibold uppercase tracking-wide text-violet-700'>
                     Visa Details
@@ -1471,7 +1775,7 @@ const QuotationDetailPage: React.FC = () => {
               ) : null}
             </div>
 
-            {noteSections.length ? (
+            {!isVisaLeadQuotation && noteSections.length ? (
               <div className='mt-4 space-y-3'>
                 {noteSections.map(section => (
                   <div
@@ -1539,8 +1843,21 @@ const QuotationDetailPage: React.FC = () => {
                             Description
                           </th>
                           <th className='pb-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider'>
-                            Cost
+                            {isVisaLeadQuotation ? 'Base cost' : 'Cost'}
                           </th>
+                          {isVisaLeadQuotation ? (
+                            <>
+                              <th className='pb-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider'>
+                                Markup
+                              </th>
+                              <th className='pb-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider'>
+                                Service charge
+                              </th>
+                              <th className='pb-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider'>
+                                Total
+                              </th>
+                            </>
+                          ) : null}
                         </tr>
                       </thead>
                       <tbody className='divide-y divide-gray-100 dark:divide-gray-800'>
@@ -1558,6 +1875,34 @@ const QuotationDetailPage: React.FC = () => {
                             <td className='py-3 text-right text-sm font-medium text-gray-900 dark:text-gray-100'>
                               {formatMoney(row.cost, displayCurrency)}
                             </td>
+                            {isVisaLeadQuotation ? (
+                              <>
+                                <td className='py-3 text-right text-sm text-gray-900 dark:text-gray-100'>
+                                  {row.markupLine != null &&
+                                  Math.abs(row.markupLine) > 0.005
+                                    ? formatMoney(
+                                      row.markupLine,
+                                      displayCurrency
+                                    )
+                                    : '—'}
+                                </td>
+                                <td className='py-3 text-right text-sm text-gray-900 dark:text-gray-100'>
+                                  {row.serviceChargeLine != null &&
+                                  Math.abs(row.serviceChargeLine) > 0.005
+                                    ? formatMoney(
+                                      row.serviceChargeLine,
+                                      displayCurrency
+                                    )
+                                    : '—'}
+                                </td>
+                                <td className='py-3 text-right text-sm font-semibold text-blue-700 dark:text-blue-300'>
+                                  {formatMoney(
+                                    row.sellValue ?? row.cost,
+                                    displayCurrency
+                                  )}
+                                </td>
+                              </>
+                            ) : null}
                           </tr>
                         ))}
                       </tbody>
@@ -1847,57 +2192,7 @@ const QuotationDetailPage: React.FC = () => {
             <div className='overflow-y-auto' style={{ maxHeight: 'calc(90vh - 120px)' }}>
               <div className='bg-gray-50 dark:bg-gray-800 p-4 sm:p-6'>
                 <div className='rounded-lg bg-white dark:bg-gray-900 p-4 sm:p-6'>
-                  <PdfTemplate
-                    data={{
-                      packageName: displayPackageName || displayQuotationTitle || 'Package',
-                      email: displayCustomerEmail,
-                      leadId:
-                        (lead as any)?.leadCode ??
-                        (lead as any)?.leadId ??
-                        (snapshotLead as any)?.leadCode ??
-                        (snapshotLead as any)?.leadId ??
-                        quotation?.lead?.leadCode ??
-                        quotation?.lead?.leadId ??
-                        (quotation?.id ?? 'N/A'),
-                      guestName: displayCustomerName,
-                      guestEmail: displayCustomerEmail,
-                      nights: toNumber(
-                        quotation?.durationNights ??
-                          snapshot?.durationNights ??
-                          snapshot?.nights,
-                        1
-                      ),
-                      adults: displayAdultsCount,
-                      children: displayChildrenCount,
-                      travelDate: formatDateOnly(displayTravelStartDate),
-                      validUntil: formatDateOnly(displayValidUntil),
-                      total: String(snapshotPricing?.total ?? quotation?.total ?? '0'),
-                      totalSellValue: String(commercial.finalAmount),
-                      currency: displayCurrency,
-                      itinerary: itineraryItems.map((item: any) => ({
-                        title: item.day && item.title ? `${item.day}: ${item.title}` : item.title || item.day || 'Day',
-                        points: item.description ? [item.description] : []
-                      })),
-                      destination: displayDestinationName,
-                      quotationTitle: displayQuotationTitle,
-                      templateName: displayTemplateName,
-                      packageType: displayPackageKind || 'Standard Package',
-                      inclusions: String(contentTemplate?.inclusions ?? ''),
-                      exclusions: String(contentTemplate?.exclusions ?? ''),
-                      headerBranding: String(contentTemplate?.headerBranding ?? ''),
-                      paymentTerms: String(contentTemplate?.paymentTerms ?? ''),
-                      cancellationPolicy: String(contentTemplate?.cancellationPolicy ?? ''),
-                      footerDisclaimer: String(contentTemplate?.footerDisclaimer ?? ''),
-                      hotelDetails: String(contentTemplate?.hotelDetails ?? ''),
-                      quoteReference: String(quotation?.quoteNumber ?? quotation?.id ?? ''),
-                      quotationStatus: String(status ?? ''),
-                      supplierName: String(createdByUser?.fullName ?? createdByUser?.name ?? ''),
-                      enabledServices: String(
-                        noteSections.find(s => s.title.toLowerCase() === 'enabled services')
-                          ?.content ?? ''
-                      )
-                    }}
-                  />
+                  <PdfTemplate data={pdfTemplatePayload} />
                 </div>
               </div>
             </div>
@@ -1930,57 +2225,7 @@ const QuotationDetailPage: React.FC = () => {
         ref={pdfTemplateRef}
         style={{ display: 'none', position: 'absolute', top: '-9999px' }}
       >
-        <PdfTemplate
-          data={{
-            packageName: displayPackageName || displayQuotationTitle || 'Package',
-            email: displayCustomerEmail,
-            leadId:
-              (lead as any)?.leadCode ??
-              (lead as any)?.leadId ??
-              (snapshotLead as any)?.leadCode ??
-              (snapshotLead as any)?.leadId ??
-              quotation?.lead?.leadCode ??
-              quotation?.lead?.leadId ??
-              (quotation?.id ?? 'N/A'),
-            guestName: displayCustomerName,
-            guestEmail: displayCustomerEmail,
-            nights: toNumber(
-              quotation?.durationNights ??
-                snapshot?.durationNights ??
-                snapshot?.nights,
-              1
-            ),
-            adults: displayAdultsCount,
-            children: displayChildrenCount,
-            travelDate: formatDateOnly(displayTravelStartDate),
-            validUntil: formatDateOnly(displayValidUntil),
-            total: String(snapshotPricing?.total ?? quotation?.total ?? '0'),
-            totalSellValue: String(commercial.finalAmount),
-            currency: displayCurrency,
-            itinerary: itineraryItems.map((item: any) => ({
-              title: item.day && item.title ? `${item.day}: ${item.title}` : item.title || item.day || 'Day',
-              points: item.description ? [item.description] : []
-            })),
-            destination: displayDestinationName,
-            quotationTitle: displayQuotationTitle,
-            templateName: displayTemplateName,
-            packageType: displayPackageKind || 'Standard Package',
-            inclusions: String(contentTemplate?.inclusions ?? ''),
-            exclusions: String(contentTemplate?.exclusions ?? ''),
-            headerBranding: String(contentTemplate?.headerBranding ?? ''),
-            paymentTerms: String(contentTemplate?.paymentTerms ?? ''),
-            cancellationPolicy: String(contentTemplate?.cancellationPolicy ?? ''),
-            footerDisclaimer: String(contentTemplate?.footerDisclaimer ?? ''),
-            hotelDetails: String(contentTemplate?.hotelDetails ?? ''),
-            quoteReference: String(quotation?.quoteNumber ?? quotation?.id ?? ''),
-            quotationStatus: String(status ?? ''),
-            supplierName: String(createdByUser?.fullName ?? createdByUser?.name ?? ''),
-            enabledServices: String(
-              noteSections.find(s => s.title.toLowerCase() === 'enabled services')
-                ?.content ?? ''
-            )
-          }}
-        />
+        <PdfTemplate data={pdfTemplatePayload} />
       </div>
     </div>
   )

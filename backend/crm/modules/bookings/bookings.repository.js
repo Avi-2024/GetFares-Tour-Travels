@@ -369,6 +369,9 @@ function createBookingsRepository({ db, logger, schema }) {
     if (filters.limit) {
       mapped.limit = filters.limit;
     }
+    if (filters.search) {
+      mapped.search = filters.search;
+    }
 
     return mapped;
   }
@@ -763,6 +766,15 @@ function createBookingsRepository({ db, logger, schema }) {
         list = list.filter((item) => !item.isDeleted);
       }
 
+      if (filters.search) {
+        const searchTerm = String(filters.search).toLowerCase().trim();
+        list = list.filter((item) => {
+          const bookingNumber = String(item.bookingNumber || '').toLowerCase();
+          const bookingId = String(item.id || '').toLowerCase();
+          return bookingNumber.includes(searchTerm) || bookingId.includes(searchTerm);
+        });
+      }
+
       return list.sort((a, b) => {
         const left = new Date(a.createdAt || 0).getTime();
         const right = new Date(b.createdAt || 0).getTime();
@@ -788,6 +800,7 @@ function createBookingsRepository({ db, logger, schema }) {
       });
       return mapRowToDomain(row);
     },
+
     findTravelReminderCandidates,
     createReminderLog,
     findDeadlineCandidates,

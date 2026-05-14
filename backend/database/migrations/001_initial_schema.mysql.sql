@@ -87,6 +87,7 @@ CREATE TABLE IF NOT EXISTS destination_pricing (
 CREATE TABLE IF NOT EXISTS campaigns (
     id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
     name VARCHAR(150),
+    country VARCHAR(100),
     source VARCHAR(100),
     budget DECIMAL(12,2),
     actual_spend DECIMAL(12,2) DEFAULT 0,
@@ -282,6 +283,8 @@ CREATE TABLE IF NOT EXISTS refunds (
     payment_id CHAR(36),
     refund_amount DECIMAL(12,2) NOT NULL CHECK (refund_amount > 0),
     gateway_refund_id VARCHAR(150),
+    proof_url TEXT,
+    notes TEXT,
     supplier_penalty DECIMAL(12,2) DEFAULT 0 CHECK (supplier_penalty >= 0),
     service_charge DECIMAL(12,2) DEFAULT 0 CHECK (service_charge >= 0),
     status ENUM('INITIATED', 'APPROVED', 'REJECTED', 'PROCESSED') DEFAULT 'INITIATED',

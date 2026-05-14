@@ -43,6 +43,7 @@ const TopbarComponent = ({
   const handleLogoutClick = async (): Promise<void> => {
     setIsProfileMenuOpen(false);
     await authService.logout();
+    localStorage.removeItem("theme");
     window.location.replace("/login");
   };
 

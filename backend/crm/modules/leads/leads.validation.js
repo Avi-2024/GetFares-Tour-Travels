@@ -66,6 +66,7 @@ const basePayload = z.object({
   leadCountry: z.string().min(2).max(100).optional(),
   country: z.string().min(2).max(100).optional(),
   countryId: z.string().uuid().optional(),
+  city: z.string().trim().max(150).optional(),
   phone: z.string().min(6).max(20).optional(),
   email: z.string().email().optional(),
   panNumber: z.string().min(8).max(20).optional(),
@@ -81,6 +82,9 @@ const basePayload = z.object({
   budget: z.coerce.number().nonnegative().optional(),
   salary: z.coerce.number().nonnegative().optional(),
   source: z.string().min(2).max(100).optional(),
+  platform: z.string().trim().max(40).optional(),
+  campaignName: z.string().trim().max(150).optional(),
+  adName: z.string().trim().max(150).optional(),
   campaignId: z.string().uuid().optional(),
   utmSource: z.string().max(100).optional(),
   utmMedium: z.string().max(100).optional(),
@@ -106,11 +110,15 @@ const basePayload = z.object({
   qualificationCompleted: z.boolean().optional(),
   closedReason: z.string().max(1000).optional(),
   nextFollowupDate: z.string().date().optional(),
+  statusTransitionCustom: z.union([z.string().max(4000), z.null()]).optional(),
+  customStatusLabel: z.union([z.string().max(191), z.null()]).optional(),
   notes: z.string().max(2000).optional(),
   clientCreatedAt: optionalWallClock,
   clientTimezone: optionalClientTimezone,
   activityCreatedAt: optionalWallClock,
   activityTimezone: optionalClientTimezone,
+  dynamicFields: z.record(z.string().max(2000)).optional(),
+  dynamicFieldLabels: z.record(z.string().max(255)).optional(),
 });
 
 const create = z.object({
@@ -158,13 +166,21 @@ const list = z.object({
   query: z
     .object({
       page: z.coerce.number().int().positive().optional(),
-      limit: z.coerce.number().int().positive().optional(),
+      limit: z.coerce.number().int().positive().max(50).optional(),
       search: z.string().trim().max(150).optional(),
       quickFilter: z
-        .enum(["ALL", "ACTIVE", "FOLLOW_UP", "CLOSED", "LATE_RESPONSE"])
+        .enum([
+          "ALL",
+          "ACTIVE",
+          "FOLLOW_UP",
+          "CLOSED",
+          "LATE_RESPONSE",
+          "LOST",
+        ])
         .optional(),
       status: leadStatus.optional(),
-      source: z.string().optional(),
+      source: z.string().trim().max(120).optional(),
+      platform: z.string().trim().max(40).optional(),
       temperature: z.enum(["HOT", "WARM", "COLD"]).optional(),
       subStatus: z.string().max(60).optional(),
       leadType: leadType.optional(),
@@ -181,11 +197,59 @@ const list = z.object({
       toDate: optionalDateOnly,
       sla: z.enum(["WITHIN_SLA", "OVERDUE", "PENDING"]).optional(),
       sortBy: z
-        .enum(["NEWEST_FIRST", "OLDEST_FIRST", "NAME_A_Z", "STATUS"])
+        .enum([
+          "NEWEST_FIRST",
+          "OLDEST_FIRST",
+          "NAME_A_Z",
+          "STATUS",
+          "CREATED_AT_DESC",
+          "CREATED_AT_ASC",
+          "NAME_ASC",
+          "STATUS_ASC",
+          "COUNTRY_ASC",
+        ])
         .optional(),
     })
     .optional(),
 });
+
+const listDestinations = z.object({
+  body: z.object({}).optional(),
+  params: z.object({}).optional(),
+  query: z
+    .object({
+      search: z.string().trim().max(150).optional(),
+      country: z.string().trim().max(100).optional(),
+      limit: z.coerce.number().int().positive().max(500).optional(),
+    })
+    .optional(),
+});
+
+const listLeadSources = z.object({
+  body: z.object({}).optional(),
+  params: z.object({}).optional(),
+  query: z
+    .object({
+      search: z.string().trim().max(150).optional(),
+      country: z.string().trim().max(100).optional(),
+      limit: z.coerce.number().int().positive().max(200).optional(),
+    })
+    .optional(),
+});
+
+const listPlatforms = z.object({
+  body: z.object({}).optional(),
+  params: z.object({}).optional(),
+  query: z
+    .object({
+      search: z.string().trim().max(150).optional(),
+      country: z.string().trim().max(100).optional(),
+      limit: z.coerce.number().int().positive().max(200).optional(),
+    })
+    .optional(),
+});
+
+const stats = list;
 
 const assign = z.object({
   body: z
@@ -343,11 +407,29 @@ const listLeadActivities = z.object({
   }),
 });
 
+const listCustomStatusPresets = z.object({
+  body: z.object({}).optional(),
+  params: z.object({}).optional(),
+  query: z.object({}).optional(),
+});
+
+const addCustomStatusPreset = z.object({
+  body: z.object({
+    label: z.string().trim().min(1).max(191),
+  }),
+  params: z.object({}).optional(),
+  query: z.object({}).optional(),
+});
+
 const LeadsValidation = {
   create,
   update,
   byId,
   list,
+  stats,
+  listDestinations,
+  listLeadSources,
+  listPlatforms,
   assign,
   distribute,
   reassignInactive,
@@ -361,6 +443,8 @@ const LeadsValidation = {
   disableCalls,
   createLeadActivity,
   listLeadActivities,
+  listCustomStatusPresets,
+  addCustomStatusPreset,
 };
 
 export { LeadsValidation };
