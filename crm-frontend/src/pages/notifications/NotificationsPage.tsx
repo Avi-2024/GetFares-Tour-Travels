@@ -555,9 +555,7 @@ const NotificationsPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-200">
-          Notifications are stored as history. Marking them as read removes them from unread count, but old rows are not deleted automatically. A very high count usually means scheduler events have been accumulating over time.
-        </div>
+       
 
         <div className="mb-6 rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
           {loading ? (

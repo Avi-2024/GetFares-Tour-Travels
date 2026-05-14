@@ -5,6 +5,13 @@ function registerPushSubscribers({ eventBus, service, logger }) {
         assigneeId: payload?.assigneeId,
         leadId: payload?.leadId,
         leadName: payload?.leadName || payload?.fullName || payload?.name,
+        fullName: payload?.fullName,
+        phone: payload?.phone,
+        email: payload?.email,
+        city: payload?.city,
+        travelTo: payload?.travelTo,
+        destinationName: payload?.destinationName,
+        leadCode: payload?.leadCode,
       }),
     ).catch((error) => {
       logger.error(

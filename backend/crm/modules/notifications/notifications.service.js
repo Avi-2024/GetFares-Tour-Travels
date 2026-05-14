@@ -1,6 +1,7 @@
 import { AppError } from "../../core/errors/index.js";
 import { toPagination } from "../../core/utils/index.js";
 import { NotificationStatus } from "./notifications.schema.js";
+import { buildLeadAssignmentSummary } from "../leads/leadNotificationText.utils.js";
 
 const ROLE_BY_DOMAIN = Object.freeze({
   leads: ["manager", "department_head", "team_lead"],
@@ -147,6 +148,16 @@ function createNotificationsService({
         extractEntityId(payload) ||
         "Lead";
       return `No first contact within 15 minutes — ${label}. Review or reassign.`;
+    }
+
+    if (eventName === "leads.assigned") {
+      const summary = buildLeadAssignmentSummary(payload, { maxLen: 240 });
+      if (summary) return `Assigned to you — ${summary}`;
+    }
+
+    if (eventName === "leads.reassigned") {
+      const summary = buildLeadAssignmentSummary(payload, { maxLen: 240 });
+      if (summary) return `Reassigned to you — ${summary}`;
     }
 
     if (eventName === "refunds.created") {

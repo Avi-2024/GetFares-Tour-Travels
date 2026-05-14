@@ -1770,6 +1770,14 @@ function createLeadsService({ repository, logger, events }) {
         mode: payload.mode || "AUTO",
         reason: payload.reason || null,
         role: roleName,
+        leadName: lead.fullName || null,
+        fullName: lead.fullName || null,
+        phone: lead.phone || null,
+        email: lead.email || null,
+        city: lead.city || null,
+        travelTo: lead.travelTo || null,
+        destinationName: lead.destinationName || null,
+        leadCode: lead.leadCode || null,
       });
     } else {
       events.emitAssigned({
@@ -1778,6 +1786,14 @@ function createLeadsService({ repository, logger, events }) {
         mode: payload.mode || "AUTO",
         reason: payload.reason || null,
         role: roleName,
+        leadName: lead.fullName || null,
+        fullName: lead.fullName || null,
+        phone: lead.phone || null,
+        email: lead.email || null,
+        city: lead.city || null,
+        travelTo: lead.travelTo || null,
+        destinationName: lead.destinationName || null,
+        leadCode: lead.leadCode || null,
       });
     }
 

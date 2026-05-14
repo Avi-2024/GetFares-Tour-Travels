@@ -657,10 +657,15 @@ const QuotationDetailPage: React.FC = () => {
       .map((item: any, index: number) => ({
         id: String(item?.id ?? index),
         day: String(item?.day ?? `Day ${index + 1}`),
-        title: String(item?.title ?? ''),
-        description: String(item?.description ?? '')
+        title: String(item?.title ?? '').trim(),
+        description: String(item?.description ?? '').trim()
       }))
-      .filter(item => item.day || item.title || item.description)
+      .filter(item => {
+        const dayNorm = item.day.trim().toLowerCase()
+        const titleNorm = item.title.trim().toLowerCase()
+        const titleIsPlaceholder = !titleNorm || titleNorm === dayNorm
+        return !titleIsPlaceholder || Boolean(item.description)
+      })
   }, [quotation?.itinerary, snapshot?.itineraryItems])
 
   const noteSections = useMemo(() => {
