@@ -1,4 +1,5 @@
 import express from "express";
+import { asyncHandler } from "../../core/utils/index.js";
 
 function createPushRoutes({
   controller,
@@ -12,7 +13,7 @@ function createPushRoutes({
   router.get(
     "/public-key",
     validateRequest(validation.publicKey),
-    controller.publicKey,
+    asyncHandler(controller.publicKey),
   );
 
   router.get(
@@ -20,7 +21,7 @@ function createPushRoutes({
     requireAuth,
     authorize("notifications:read"),
     validateRequest(validation.listMine),
-    controller.listMine,
+    asyncHandler(controller.listMine),
   );
 
   router.post(
@@ -28,7 +29,7 @@ function createPushRoutes({
     requireAuth,
     authorize("notifications:update"),
     validateRequest(validation.subscribe),
-    controller.subscribe,
+    asyncHandler(controller.subscribe),
   );
 
   router.post(
@@ -36,7 +37,7 @@ function createPushRoutes({
     requireAuth,
     authorize("notifications:update"),
     validateRequest(validation.unsubscribe),
-    controller.unsubscribe,
+    asyncHandler(controller.unsubscribe),
   );
 
   return router;
