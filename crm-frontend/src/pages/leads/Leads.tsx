@@ -48,7 +48,7 @@ const quickFilters = [
   { key: "LOST", label: "Lost" },
 ] as const;
 type QuickFilter = (typeof quickFilters)[number]["key"];
-type LeadSourceFilter = "ALL" | "META_INDIA" | "META_UAE";
+type LeadSourceFilter = "ALL" | "META_INDIA" | "META_UAE" | "WALKIN";
 
 type LeadFilterState = {
   fromDate: string;
@@ -238,6 +238,8 @@ const Leads: React.FC = () => {
         ? "meta_india"
         : leadSourceFilter === "META_UAE"
           ? "meta_uae"
+          : leadSourceFilter === "WALKIN"
+            ? "walkin"
           : "";
     const dropdownSource = appliedFilters.leadSource.trim();
     const effectiveSource =
@@ -822,6 +824,21 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
                   >
                     Meta UAE
                   </button>
+                  <button
+                    onClick={() => {
+                      setLeadSourceFilter("WALKIN");
+                      setDraftFilters((p) => ({ ...p, leadSource: "" }));
+                      setAppliedFilters((p) => ({ ...p, leadSource: "" }));
+                      setPage(1);
+                    }}
+                    className={`whitespace-nowrap rounded-md px-3 py-1.5 transition-all duration-300 hover:bg-white hover:shadow-md ${
+                      leadSourceFilter === "WALKIN"
+                        ? "bg-[#6366F1] text-white"
+                        : "bg-white text-[#6366F1]"
+                    }`}
+                  >
+                    WalkIn
+                  </button>
                 </div>
               </div>
             </div>
@@ -921,7 +938,7 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
                 <div>
                   <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
-                    Country
+                   Lead Country
                   </label>
                   <SearchableDropdown
                     className="w-full"

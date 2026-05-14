@@ -1,5 +1,6 @@
 import webpush from "web-push";
 import { AppError } from "../../core/errors/index.js";
+import { buildLeadAssignmentSummary } from "../leads/leadNotificationText.utils.js";
 
 function createPushService({ repository, logger, config }) {
   function ensureUser(context) {
@@ -89,7 +90,8 @@ function createPushService({ repository, logger, config }) {
     return { unsubscribed: true, deleted };
   }
 
-  async function sendLeadAssignedPush({ assigneeId, leadId, leadName } = {}) {
+  async function sendLeadAssignedPush(payload = {}) {
+    const { assigneeId, leadId, ...summaryFields } = payload;
     if (!isPushConfigured()) {
       return { sent: 0, skipped: true, reason: "NOT_CONFIGURED" };
     }
@@ -104,7 +106,14 @@ function createPushService({ repository, logger, config }) {
     }
 
     const title = "New lead assigned";
-    const body = leadName ? `Lead: ${leadName}` : `Lead ID: ${leadId}`;
+    const body =
+      buildLeadAssignmentSummary(
+        {
+          ...summaryFields,
+          leadName: summaryFields.leadName || summaryFields.fullName || summaryFields.name,
+        },
+        { maxLen: 220 },
+      ) || "New lead — open in CRM";
     const url = leadId ? `/leads/${leadId}` : "/leads";
 
     let sent = 0;

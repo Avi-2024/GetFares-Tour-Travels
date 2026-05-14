@@ -69,7 +69,7 @@ const initialForm: FormState = {
   visaRequired: '',
   preferredHotelCategory: '',
   travelPurpose: '',
-  leadSource: 'Website',
+  leadSource: 'WalkIn',
   campaignId: '',
   notes: ''
 }
@@ -720,7 +720,7 @@ const CreateLead: React.FC = () => {
           : undefined,
         preferredHotelCategory: form.preferredHotelCategory,
         travelPurpose: form.travelPurpose.trim(),
-        source: form.leadSource.trim() || 'Website',
+        source: 'WalkIn',
         campaignId: form.campaignId || undefined,
         notes: mergedNotes || undefined,
         leadType,

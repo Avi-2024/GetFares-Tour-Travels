@@ -960,11 +960,39 @@ const LeadDetails: React.FC = () => {
   )
 
   const customFieldEntries = useMemo(() => {
-    const raw = lead?.dynamicFields ?? lead?.dynamic_fields ?? null
-    if (!raw) return []
-    if (typeof raw !== 'object' || Array.isArray(raw)) return []
-    const obj = raw as Record<string, unknown>
+    type CustomFieldRow = {
+      key: string
+      label: string
+      value: string
+      displayLabel: string
+      displayValue: string
+    }
 
+    const rows: CustomFieldRow[] = []
+
+    const pushRow = (key: string, displayLabel: string, val: unknown) => {
+      const rawValue =
+        val === null || val === undefined ? '' : String(val).trim()
+      if (!rawValue) return
+      const displayValue =
+        rawValue && looksLikeSnakeCaseToken(rawValue)
+          ? humanizeSnakeCase(rawValue)
+          : rawValue
+      rows.push({
+        key,
+        label: displayLabel,
+        value: rawValue,
+        displayLabel,
+        displayValue,
+      })
+    }
+
+    if (lead) {
+      const l = lead as Record<string, unknown>
+      pushRow('__crm_city', 'City', l.city ?? l.city_name)
+    }
+
+    const raw = lead?.dynamicFields ?? lead?.dynamic_fields ?? null
     const labelsRaw =
       lead?.dynamicFieldLabels ?? lead?.dynamic_field_labels ?? null
     const labels =
@@ -972,9 +1000,9 @@ const LeadDetails: React.FC = () => {
         ? (labelsRaw as Record<string, unknown>)
         : {}
 
-    return Object.keys(obj)
-      .sort((a, b) => a.localeCompare(b))
-      .map(key => {
+    if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+      const obj = raw as Record<string, unknown>
+      for (const key of Object.keys(obj).sort((a, b) => a.localeCompare(b))) {
         const labelValue = labels[key]
         const rawLabel =
           typeof labelValue === 'string' && labelValue.trim()
@@ -989,20 +1017,23 @@ const LeadDetails: React.FC = () => {
         const value = obj[key]
         const rawValue =
           value === null || value === undefined ? '' : String(value).trim()
+        if (!rawValue) continue
         const displayValue =
           rawValue && looksLikeSnakeCaseToken(rawValue)
             ? humanizeSnakeCase(rawValue)
             : rawValue
 
-        return {
+        rows.push({
           key,
           label: displayLabel,
           value: rawValue,
           displayLabel,
           displayValue,
-        }
-      })
-      .filter(item => item.value)
+        })
+      }
+    }
+
+    return rows
   }, [lead])
 
   const countryOptions = useMemo(

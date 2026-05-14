@@ -23,6 +23,7 @@ import {
 import type { IconType } from 'react-icons'
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import SearchableDropdown from '../../components/ui/SearchableDropdown'
+import PdfTemplate from './PdfTemplate'
 import { suppliersApi } from '../../api/suppliers'
 import { quotationsApi } from '../../api/quotations'
 import { reportApiError } from '../../lib/notify'
@@ -602,6 +603,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
 }, [form.startDate, form.endDate]) // Recalculate whenever dates change
 
   const [downloading, setDownloading] = useState(false)
+  const [showPdfModal, setShowPdfModal] = useState(false)
   const [showSaved, setShowSaved] = useState(false)
   const [itineraryItems, setItineraryItems] = useState<Item[]>(
     buildItineraryRows(2, initialItinerary)
@@ -674,6 +676,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     Record<string, boolean>
   >({})
   const previewRef = useRef<HTMLDivElement | null>(null)
+  const pdfTemplateDownloadRef = useRef<HTMLDivElement | null>(null)
   const skipLeadAutofillRef = useRef(false)
 
   const preselectedLeadId = useMemo(() => {
@@ -2808,6 +2811,83 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     () => toBulletList(form.exclusions),
     [form.exclusions]
   )
+  const enabledServicesText = useMemo(
+    () => selectedServiceDefinitions.map(definition => definition.label).join('\n'),
+    [selectedServiceDefinitions]
+  )
+  const formatPdfDateValue = (value?: string) => {
+    if (!value) return 'N/A'
+    try {
+      return new Date(value).toLocaleDateString('en-US', {
+        month: 'short',
+        day: '2-digit',
+        year: 'numeric'
+      })
+    } catch {
+      return value
+    }
+  }
+  const pdfTemplatePayload = useMemo(
+    () => ({
+      packageName: quotationTitleDisplay || form.quote || 'Quotation',
+      email: form.email || '',
+      leadId: selectedLeadDisplayId || 'N/A',
+      guestName: form.customer || 'N/A',
+      guestEmail: form.email || 'N/A',
+      nights: Number(form.nights || 0),
+      adults: Number(form.adults || 0),
+      children: Number(form.children || 0),
+      travelDate: formatPdfDateValue(form.startDate),
+      validUntil: formatPdfDateValue(form.validUntil),
+      total: String(total || 0),
+      totalSellValue: String(total || 0),
+      currency,
+      itinerary: isVisaLeadQuotation
+        ? []
+        : itineraryItems.map(item => ({
+            title: item.day && item.title ? `${item.day}: ${item.title}` : item.title || item.day,
+            points: item.description ? [item.description] : []
+          })),
+      destination: form.destination || 'N/A',
+      packageType: selectedPackageKindLabel || packageType,
+      inclusions: form.inclusions || '',
+      exclusions: form.exclusions || '',
+      headerBranding: form.headerBranding || '',
+      paymentTerms: form.paymentTerms || '',
+      cancellationPolicy: form.cancellationPolicy || '',
+      footerDisclaimer: form.footerDisclaimer || '',
+      hotelDetails: form.hotelDetails || '',
+      enabledServices: enabledServicesText,
+      visaLeadQuotation: isVisaLeadQuotation
+    }),
+    [
+      currency,
+      enabledServicesText,
+      form.adults,
+      form.cancellationPolicy,
+      form.children,
+      form.customer,
+      form.destination,
+      form.email,
+      form.exclusions,
+      form.headerBranding,
+      form.hotelDetails,
+      form.inclusions,
+      form.nights,
+      form.paymentTerms,
+      form.quote,
+      form.startDate,
+      form.validUntil,
+      form.footerDisclaimer,
+      isVisaLeadQuotation,
+      itineraryItems,
+      packageType,
+      quotationTitleDisplay,
+      selectedLeadDisplayId,
+      selectedPackageKindLabel,
+      total
+    ]
+  )
 
   const toggleInclusionShortcut = useCallback((line: string) => {
     setForm(prev => {
@@ -2937,91 +3017,38 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
   }
 
   const handleDownload = async () => {
-    if (!previewRef.current || downloading) return
+    if (!pdfTemplateDownloadRef.current || downloading) return
     setDownloading(true)
-    const previewEl = previewRef.current
-    const exportStyle = document.createElement('style')
-    exportStyle.setAttribute('data-quotation-pdf', 'true')
-    exportStyle.innerHTML = `
-      .pdf-exporting .included-service-chip {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        line-height: 1;
-        padding-top: 2px;
-        padding-bottom: 2px;
-        background-color: transparent;
-        border-color: transparent;
-        border-width: 0;
-        font-weight: 600;
-      }
-      .pdf-exporting .preview-validation {
-        display: flex;
-        align-items: center;
-        gap: 4px;
-        line-height: 1.2;
-        background-color: transparent;
-        border: 0;
-        padding: 0;
-        font-weight: 600;
-      }
-      .pdf-exporting .preview-validation-icon {
-        display: none;
-      }
-    `
-    document.head.appendChild(exportStyle)
-    previewEl.classList.add('pdf-exporting')
     try {
-      // Lazy-load only when needed to keep bundle light and avoid install.
-      const html2canvasModule = (await import(
-        /* @vite-ignore */ 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/+esm'
-      )) as any
-      const html2canvas = html2canvasModule.default || html2canvasModule
-      const jsPdfModule = (await import(
-        /* @vite-ignore */ 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/+esm'
-      )) as any
-      const JsPDF = jsPdfModule.default || jsPdfModule
+      const root = pdfTemplateDownloadRef.current
+      const pageNodes = Array.from(root.querySelectorAll('.pdf-page')) as HTMLDivElement[]
+      if (!pageNodes.length) return
 
-      const canvas = await html2canvas(previewRef.current, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff'
-      })
-      const imgData = canvas.toDataURL('image/png')
+      const html2canvasModule = await import(
+        /* @vite-ignore */ 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/+esm'
+      )
+      const html2canvas = (html2canvasModule as any).default
+      const jsPdfModule = await import(
+        /* @vite-ignore */ 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/+esm'
+      )
+      const JsPDF = (jsPdfModule as any).default
 
       const pdf = new JsPDF('p', 'mm', 'a4')
       const pageWidth = pdf.internal.pageSize.getWidth()
       const pageHeight = pdf.internal.pageSize.getHeight()
-      const imgHeight = (canvas.height * pageWidth) / canvas.width
-      let heightLeft = imgHeight
-      let position = 0
 
-      pdf.addImage(
-        imgData,
-        'PNG',
-        0,
-        position,
-        pageWidth,
-        imgHeight,
-        '',
-        'FAST'
-      )
-      heightLeft -= pageHeight
-
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight
-        pdf.addPage()
-        pdf.addImage(
-          imgData,
-          'PNG',
-          0,
-          position,
-          pageWidth,
-          imgHeight,
-          '',
-          'FAST'
-        )
-        heightLeft -= pageHeight
+      for (let index = 0; index < pageNodes.length; index += 1) {
+        const node = pageNodes[index]
+        const canvas = await html2canvas(node, {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: '#ffffff',
+          scrollX: 0,
+          scrollY: 0
+        })
+        const imgData = canvas.toDataURL('image/png')
+        if (index > 0) pdf.addPage()
+        pdf.addImage(imgData, 'PNG', 0, 0, pageWidth, pageHeight, '', 'FAST')
       }
 
       pdf.save(`${form.quote || 'quotation'}.pdf`)
@@ -3029,8 +3056,6 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
       console.error('PDF export failed', err)
       alert('Download nahi ho paya, please try again.')
     } finally {
-      previewEl.classList.remove('pdf-exporting')
-      exportStyle.remove()
       setDownloading(false)
     }
   }
@@ -3621,21 +3646,29 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
               <p className='mt-2 text-sm text-red-600'>{saveError}</p>
             ) : null}
           </div>
-          <div className='grid w-full grid-cols-3 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center'>
-            <span className='inline-flex w-full items-center justify-center rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 sm:w-auto'>
-              {form.version}
-            </span>
-            <button
-              onClick={handleDownload}
-              className='inline-flex w-full items-center justify-center gap-1 rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 sm:w-auto'
-              disabled={downloading}
-            >
-              <FaDownload className='shrink-0' />
-              {downloading ? 'Preparing...' : 'Download'}
-            </button>
-            <button className='inline-flex w-full items-center justify-center gap-1 rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 sm:w-auto'>
-              <FaEnvelope className='shrink-0' /> Send
-            </button>
+	          <div className='grid w-full grid-cols-3 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center'>
+	            <span className='inline-flex w-full items-center justify-center rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 sm:w-auto'>
+	              {form.version}
+	            </span>
+	            <button
+	              onClick={() => setShowPdfModal(true)}
+	              className='inline-flex w-full items-center justify-center gap-1 rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 sm:w-auto'
+	            >
+	              Preview PDF
+	            </button>
+	            <button
+	              onClick={handleDownload}
+	              className='inline-flex w-full items-center justify-center gap-1 rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 sm:w-auto'
+	              disabled={downloading}
+	            >
+	              <FaDownload className='shrink-0' />
+	              {downloading ? 'Preparing...' : 'Download PDF'}
+	            </button>
+	            {!isEditMode ? (
+	              <button className='inline-flex w-full items-center justify-center gap-1 rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 sm:w-auto'>
+	                <FaEnvelope className='shrink-0' /> Send
+	              </button>
+	            ) : null}
             <button
               onClick={handleSave}
               disabled={saving || hasPricingErrors || isEditLocked}
@@ -4393,8 +4426,51 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                             <span className='truncate max-w-[150px]'>{money(Math.min(serviceChargesTotal, 999999999999))}</span>
                           </div>
                         </div>
-                      )}
-                    </div>
+	        )}
+
+        {showPdfModal ? (
+          <div className='fixed inset-0 z-[100] bg-black/45 p-2 sm:p-6'>
+            <div className='mx-auto flex h-full w-full max-w-5xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl dark:bg-gray-900'>
+              <div className='flex items-center justify-between border-b border-gray-200 p-4 sm:p-6 dark:border-gray-700'>
+                <h2 className='text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-100'>
+                  Quotation Preview
+                </h2>
+                <button
+                  onClick={() => setShowPdfModal(false)}
+                  className='inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
+                >
+                  ×
+                </button>
+              </div>
+              <div className='flex-1 overflow-y-auto p-4 sm:p-6 bg-gray-100 dark:bg-gray-800'>
+                <PdfTemplate data={pdfTemplatePayload} />
+              </div>
+              <div className='flex justify-end gap-2 border-t border-gray-200 p-4 dark:border-gray-700'>
+                <button
+                  onClick={() => setShowPdfModal(false)}
+                  className='rounded-xl border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800'
+                >
+                  Close
+                </button>
+                <button
+                  onClick={handleDownload}
+                  disabled={downloading}
+                  className='inline-flex items-center rounded-xl bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-60'
+                >
+                  <FaDownload className='mr-2' />
+                  {downloading ? 'Preparing...' : 'Download PDF'}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        <div className='pointer-events-none fixed left-[-99999px] top-0 opacity-0' aria-hidden='true'>
+          <div ref={pdfTemplateDownloadRef}>
+            <PdfTemplate data={pdfTemplatePayload} />
+          </div>
+        </div>
+	      </div>
                   ) : (
                     <div className='rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-900/20 dark:text-gray-400'>
                       <span className='font-medium text-gray-800 dark:text-gray-200'>Services total: </span>

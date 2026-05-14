@@ -17,6 +17,11 @@ const {
   deriveFullName,
   splitFixedAndDynamicFields,
   FIXED_FIELD_ALIASES,
+  META_DESTINATION_INTEREST_KEY_PREFIX,
+  pickMetaDestinationInterestText,
+  pickMetaTravelDestinationText,
+  truncateTravelToDb,
+  stripDynamicEntriesByKeyPrefixes,
 } = LeadFieldsUtils;
 
 function normalizeCampaignCountry(value) {
@@ -43,6 +48,24 @@ function normalizeLeadgenId(value) {
   }
 
   return normalized.replace(/^l:/i, "");
+}
+
+function toMysqlWallClock(value) {
+  const normalized = normalizeValue(value);
+  if (!normalized) {
+    return null;
+  }
+  const date = new Date(normalized);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+  const year = String(date.getFullYear());
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  const seconds = String(date.getSeconds()).padStart(2, "0");
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 }
 
 // flattenMetaFieldData, pickFirst, deriveFullName moved to shared utilities.
@@ -119,10 +142,24 @@ function buildLeadPayload(metaLead = {}, event = {}, pageConfig = {}, campaign =
   const firstName = pickFirst(fields, FIXED_FIELD_ALIASES.firstName);
   const lastName = pickFirst(fields, FIXED_FIELD_ALIASES.lastName);
   const city = pickFirst(fields, FIXED_FIELD_ALIASES.city);
-  const { dynamic, dynamicLabels } = splitFixedAndDynamicFields({ fields, labels });
+  let { dynamic, dynamicLabels } = splitFixedAndDynamicFields({ fields, labels });
+  const interestDestination = pickMetaDestinationInterestText(fields);
+  const interestUsable =
+    interestDestination && String(interestDestination).trim().length >= 2
+      ? interestDestination
+      : null;
+  const travelToRaw = pickMetaTravelDestinationText(fields);
+  const travelTo = truncateTravelToDb(travelToRaw, 150);
+  if (interestUsable) {
+    ({ dynamic, dynamicLabels } = stripDynamicEntriesByKeyPrefixes(
+      { dynamic, dynamicLabels },
+      [META_DESTINATION_INTEREST_KEY_PREFIX],
+    ));
+  }
   const metaCampaignId = String(
     metaLead.campaign_id || event.campaignId || "",
   ).trim() || null;
+  const clientCreatedAt = toMysqlWallClock(metaLead.created_time);
 
   return {
     fullName: deriveFullName({
@@ -136,9 +173,11 @@ function buildLeadPayload(metaLead = {}, event = {}, pageConfig = {}, campaign =
     email,
     phone,
     city,
+    travelTo,
+    destinationName: travelTo,
     platform: "meta",
     campaignName: campaign?.name || null,
-    adName: null,
+    adName: normalizeValue(metaLead.ad_name ?? metaLead.adName ?? null),
     source: pageConfig.sourceLabel || META_SOURCE,
     leadCountry: pageConfig.countryName || null,
     country: pageConfig.countryName || null,
@@ -150,6 +189,7 @@ function buildLeadPayload(metaLead = {}, event = {}, pageConfig = {}, campaign =
     metaAdId: metaLead.ad_id || event.adId || null,
     metaAdsetId: metaLead.adset_id || event.adsetId || null,
     metaCampaignId,
+    clientCreatedAt,
     allowDuplicate: true,
     utmSource: META_UTM_SOURCE,
     utmMedium: META_UTM_MEDIUM,
