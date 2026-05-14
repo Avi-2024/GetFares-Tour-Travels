@@ -921,7 +921,7 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
                 <div>
                   <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
-                    Country
+                   Lead Country
                   </label>
                   <SearchableDropdown
                     className="w-full"

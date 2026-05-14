@@ -246,6 +246,7 @@ function createQuotationsService({ repository, leadsRepository, logger, events, 
   async function canViewQuotation(quotation, lead, context = {}) {
     const userId = context.user?.id || null;
     const userRole = normalizeRoleToken(context.user?.role);
+    const leadAssigneeId = lead?.assignedTo || lead?.assigned_to || null;
 
     if (!userId) {
       return false;
@@ -256,7 +257,7 @@ function createQuotationsService({ repository, leadsRepository, logger, events, 
     }
 
     if (isAgentRole(userRole)) {
-      return Boolean(lead?.assignedTo && lead.assignedTo === userId);
+      return Boolean(leadAssigneeId && leadAssigneeId === userId);
     }
 
     if (isManagerRole(userRole)) {
@@ -264,10 +265,10 @@ function createQuotationsService({ repository, leadsRepository, logger, events, 
         ? await leadsRepository.findManagedAgentIds(userId)
         : [];
       const visibleAssigneeIds = new Set([userId, ...managedAgentIds].filter(Boolean));
-      if (!lead?.assignedTo) {
+      if (!leadAssigneeId) {
         return true;
       }
-      return visibleAssigneeIds.has(lead.assignedTo);
+      return visibleAssigneeIds.has(leadAssigneeId);
     }
 
     return true;

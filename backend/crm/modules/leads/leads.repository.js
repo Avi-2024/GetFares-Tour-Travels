@@ -41,6 +41,34 @@ function createLeadsRepository({ db, logger, schema }) {
     );
   }
 
+  /** Avoid ER_CANT_AGGREGATE_2COLLATIONS when CHAR UUID columns use mixed utf8mb4 collations. */
+  const MYSQL_UUID_JOIN_COLLATE = "utf8mb4_unicode_ci";
+
+  async function queryLeadDynamicFieldsByLeadId(leadId) {
+    if (db.adapter === "mysql" && typeof db.query === "function") {
+      const result = await db.query(
+        "SELECT * FROM `lead_dynamic_fields` WHERE BINARY `lead_id` = BINARY ?",
+        [leadId],
+      );
+      return result.rows || [];
+    }
+    return db.findMany("lead_dynamic_fields", { lead_id: leadId });
+  }
+
+  async function queryOneLeadDynamicField(leadId, fieldKey) {
+    if (db.adapter === "mysql" && typeof db.query === "function") {
+      const result = await db.query(
+        "SELECT * FROM `lead_dynamic_fields` WHERE BINARY `lead_id` = BINARY ? AND BINARY `field_key` = BINARY ? LIMIT 1",
+        [leadId, fieldKey],
+      );
+      return result.rows?.[0] || null;
+    }
+    return db.findOne("lead_dynamic_fields", {
+      lead_id: leadId,
+      field_key: fieldKey,
+    });
+  }
+
   function canIntrospect() {
     return (
       typeof db.query === "function" &&
@@ -1064,9 +1092,9 @@ function createLeadsRepository({ db, logger, schema }) {
     const baseSql = [
       `FROM ${schema.tableName} l`,
       hasLeadCustomerId ?
-        `LEFT JOIN ${schema.customersTable} c ON c.id = l.customer_id`
+        `LEFT JOIN ${schema.customersTable} c ON c.id COLLATE ${MYSQL_UUID_JOIN_COLLATE} = l.customer_id COLLATE ${MYSQL_UUID_JOIN_COLLATE}`
       : null,
-      `LEFT JOIN ${schema.destinationsTable} d ON d.id = l.destination_id`,
+      `LEFT JOIN ${schema.destinationsTable} d ON d.id COLLATE ${MYSQL_UUID_JOIN_COLLATE} = l.destination_id COLLATE ${MYSQL_UUID_JOIN_COLLATE}`,
       `WHERE ${where.join(" AND ")}`,
     ]
       .filter(Boolean)
@@ -1557,7 +1585,7 @@ function createLeadsRepository({ db, logger, schema }) {
           tableName,
           // db.update requires primary key for some adapters; fallback to query.
           // If adapter cannot update by filter, we skip silently.
-          (await db.findOne(tableName, { lead_id: leadId, field_key: item.field_key }))?.id,
+          (await queryOneLeadDynamicField(leadId, item.field_key))?.id,
           {
             field_label: item.field_label,
             field_value: item.field_value,
@@ -1578,7 +1606,7 @@ function createLeadsRepository({ db, logger, schema }) {
       return lead;
     }
     try {
-      const rows = await db.findMany(tableName, { lead_id: leadId });
+      const rows = await queryLeadDynamicFieldsByLeadId(leadId);
       if (!Array.isArray(rows) || rows.length === 0) {
         return lead;
       }
@@ -1797,7 +1825,7 @@ function createLeadsRepository({ db, logger, schema }) {
         const sql = [
           `SELECT DISTINCT TRIM(COALESCE(d.name, l.travel_to, '')) AS destination_name`,
           `FROM ${schema.tableName} l`,
-          `LEFT JOIN ${schema.destinationsTable} d ON d.id = l.destination_id`,
+          `LEFT JOIN ${schema.destinationsTable} d ON d.id COLLATE ${MYSQL_UUID_JOIN_COLLATE} = l.destination_id COLLATE ${MYSQL_UUID_JOIN_COLLATE}`,
           `WHERE ${where.join(" AND ")}`,
           `ORDER BY destination_name ASC`,
           `LIMIT ?`,

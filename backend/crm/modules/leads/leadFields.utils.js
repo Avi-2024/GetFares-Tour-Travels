@@ -119,6 +119,53 @@ function splitFixedAndDynamicFields(
   return { dynamic, dynamicLabels };
 }
 
+/** Meta "which destinations are you interested in (multiple)" — normalized keys share this prefix. */
+const META_DESTINATION_INTEREST_KEY_PREFIX = "which_destinations_are_you_interested";
+
+function pickMetaDestinationInterestText(fields = {}) {
+  const keys = Object.keys(fields).sort();
+  for (const key of keys) {
+    if (!key.startsWith(META_DESTINATION_INTEREST_KEY_PREFIX)) continue;
+    const value = normalizeFieldValue(fields[key]);
+    if (value) return value;
+  }
+  return null;
+}
+
+function pickMetaTravelDestinationText(fields = {}) {
+  const interest = pickMetaDestinationInterestText(fields);
+  if (interest && String(interest).trim().length >= 2) return interest;
+  return pickFirst(fields, [
+    "which_destination_would_you_like_to_visit",
+    "destination",
+    "travel_to",
+    "travel_destination",
+  ]);
+}
+
+/** Align with leads.travel_to VARCHAR(150) and API validation. */
+function truncateTravelToDb(value, maxLen = 150) {
+  const s = normalizeFieldValue(value);
+  if (!s) return null;
+  if (s.length <= maxLen) return s;
+  return `${s.slice(0, Math.max(0, maxLen - 1))}…`;
+}
+
+function stripDynamicEntriesByKeyPrefixes({ dynamic = {}, dynamicLabels = {} } = {}, prefixes = []) {
+  if (!prefixes.length) {
+    return { dynamic: { ...dynamic }, dynamicLabels: { ...dynamicLabels } };
+  }
+  const next = { ...dynamic };
+  const nextLabels = { ...dynamicLabels };
+  for (const key of Object.keys(next)) {
+    if (prefixes.some((p) => key.startsWith(p))) {
+      delete next[key];
+      delete nextLabels[key];
+    }
+  }
+  return { dynamic: next, dynamicLabels: nextLabels };
+}
+
 export const LeadFieldsUtils = {
   normalizeFieldKey,
   normalizeFieldValue,
@@ -127,5 +174,10 @@ export const LeadFieldsUtils = {
   deriveFullName,
   splitFixedAndDynamicFields,
   FIXED_FIELD_ALIASES,
+  META_DESTINATION_INTEREST_KEY_PREFIX,
+  pickMetaDestinationInterestText,
+  pickMetaTravelDestinationText,
+  truncateTravelToDb,
+  stripDynamicEntriesByKeyPrefixes,
 };
 
