@@ -55,7 +55,12 @@ function createPushService({ repository, logger, config }) {
     requirePushConfigured();
     const user = ensureUser(context);
 
-    const subscription = payload.subscription;
+    const subscription =
+      payload?.subscription &&
+      typeof payload.subscription === "object" &&
+      !Array.isArray(payload.subscription)
+        ? payload.subscription
+        : payload;
     const endpoint = subscription?.endpoint;
     if (!endpoint) {
       throw new AppError(400, "Missing subscription endpoint", "BAD_REQUEST");
