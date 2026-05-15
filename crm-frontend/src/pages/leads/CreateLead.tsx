@@ -512,7 +512,6 @@ const CreateLead: React.FC = () => {
       { value: 'Website', label: 'Website' },
       { value: 'Phone', label: 'Phone' },
       { value: 'Referral', label: 'Referral' },
-      { value: 'Social', label: 'Social' },
       { value: 'WalkIn', label: 'WalkIn' }
     ],
     []

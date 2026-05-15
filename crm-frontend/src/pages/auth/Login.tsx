@@ -9,7 +9,7 @@ import {
   FaLock
 } from 'react-icons/fa'
 import { authApi } from '../../api'
-import { reportApiError } from '../../lib/notify'
+import { notify, reportApiError } from '../../lib/notify'
 import { useAuth } from '../../context/AuthContext'
 
 const DEMO_EMAIL = ''
@@ -122,12 +122,18 @@ const Login = () => {
 
     if (!password.trim()) {
       newErrors.password = 'Password is required'
-    } else if (password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters'
+    } else if (password.length < 8) {
+      newErrors.password = 'Password must be at least 8 characters'
     }
 
     setErrors(newErrors)
-    return !newErrors.email && !newErrors.password
+    const isValid = !newErrors.email && !newErrors.password
+    if (!isValid) {
+      const ackMessage = 'Credential validation failed. Check highlighted fields.'
+      setApiError(ackMessage)
+      notify.error(ackMessage)
+    }
+    return isValid
   }
 
   const normalizeBooleanFlag = (value: unknown): boolean | null => {
@@ -174,7 +180,13 @@ const Login = () => {
           normalizeBooleanFlag(data.user.isActive ?? data.user.active) ??
           undefined
       })
-      const isAdmin = String(userRole || '').toLowerCase() === 'admin'
+      const normalizedRole = String(userRole || '')
+        .trim()
+        .toLowerCase()
+      const isAdmin =
+        normalizedRole === 'admin' ||
+        normalizedRole === 'super_admin' ||
+        normalizedRole === 'super-admin'
       if (isAdmin) {
         logLoginPerf({
           route: '/dashboard',

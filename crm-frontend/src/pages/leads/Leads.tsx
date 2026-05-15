@@ -48,7 +48,7 @@ const quickFilters = [
   { key: "LOST", label: "Lost" },
 ] as const;
 type QuickFilter = (typeof quickFilters)[number]["key"];
-type LeadSourceFilter = "ALL" | "META_INDIA" | "META_UAE" | "WALKIN";
+type LeadSourceFilter = "ALL" | "INDIA" | "UAE" | "WALKIN";
 
 type LeadFilterState = {
   fromDate: string;
@@ -234,12 +234,12 @@ const Leads: React.FC = () => {
 
   const buildLeadQuery = (queryPage: number, queryLimit: number) => {
     const chipSourceValue =
-      leadSourceFilter === "META_INDIA"
-        ? "meta_india"
-        : leadSourceFilter === "META_UAE"
-          ? "meta_uae"
-          : leadSourceFilter === "WALKIN"
-            ? "walkin"
+      leadSourceFilter === "WALKIN" ? "walkin" : "";
+    const chipCountryValue =
+      leadSourceFilter === "INDIA"
+        ? "India"
+        : leadSourceFilter === "UAE"
+          ? "UAE"
           : "";
     const dropdownSource = appliedFilters.leadSource.trim();
     const effectiveSource =
@@ -260,7 +260,9 @@ const Leads: React.FC = () => {
     const commonFilters = {
       ...(quickFilter !== "ALL" ? { quickFilter } : {}),
       ...(effectiveSource ? { source: effectiveSource } : {}),
-      ...(appliedFilters.country ? { country: appliedFilters.country } : {}),
+      ...(chipCountryValue || appliedFilters.country
+        ? { country: chipCountryValue || appliedFilters.country }
+        : {}),
       ...(canonicalStatus ? { status: canonicalStatus } : {}),
       ...(subStatus ? { subStatus } : {}),
       ...(appliedFilters.fromDate ? { fromDate: appliedFilters.fromDate } : {}),
@@ -795,34 +797,34 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
 
                   <button
                     onClick={() => {
-                      setLeadSourceFilter("META_INDIA");
+                      setLeadSourceFilter("INDIA");
                       setDraftFilters((p) => ({ ...p, leadSource: "" }));
                       setAppliedFilters((p) => ({ ...p, leadSource: "" }));
                       setPage(1);
                     }}
                     className={`whitespace-nowrap rounded-md px-3 py-1.5 transition-all duration-300 hover:bg-white hover:shadow-md ${
-                      leadSourceFilter === "META_INDIA"
+                      leadSourceFilter === "INDIA"
                         ? "bg-[#F97316] text-white"
                         : "bg-white text-[#F97316]"
                     }`}
                   >
-                    Meta India
+                    India
                   </button>
 
                   <button
                     onClick={() => {
-                      setLeadSourceFilter("META_UAE");
+                      setLeadSourceFilter("UAE");
                       setDraftFilters((p) => ({ ...p, leadSource: "" }));
                       setAppliedFilters((p) => ({ ...p, leadSource: "" }));
                       setPage(1);
                     }}
                     className={`whitespace-nowrap rounded-md px-3 py-1.5 transition-all duration-300 hover:bg-white hover:shadow-md ${
-                      leadSourceFilter === "META_UAE"
+                      leadSourceFilter === "UAE"
                         ? "bg-[#10B981] text-white"
                         : "bg-white text-[#10B981]"
                     }`}
                   >
-                    Meta UAE
+                    UAE
                   </button>
                   <button
                     onClick={() => {
@@ -1111,7 +1113,7 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
               </div>
 
               <div
-                className="hidden leads-table-scroll max-w-full min-w-0 overflow-x-scroll overscroll-x-contain"
+                className="block lg:hidden leads-table-scroll max-w-full min-w-0 overflow-x-scroll overscroll-x-contain"
                 style={{ WebkitOverflowScrolling: "touch" }}
               >
                 <table

@@ -1,7 +1,13 @@
 import React from 'react';
 import './PdfTemplate.css';
-import { GiPalmTree } from 'react-icons/gi';
-import { FaHotel, FaPlane, FaCar, FaShieldVirus } from 'react-icons/fa6';
+import {
+    FaPlaneDeparture,
+    FaHotel,
+    FaCarSide,
+    FaShieldAlt,
+    FaMapMarkedAlt,
+    FaTag,
+} from 'react-icons/fa';
 
 
 interface ItineraryDay {
@@ -76,15 +82,29 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
     // Parse inclusions from string
     const parseInclusions = (inclusionsText: string | undefined): string[] => {
         if (!inclusionsText) return [];
-        return inclusionsText
+        const items = inclusionsText
             .split('\n')
             .map((item) => item.trim())
             .filter((item) => item.length > 0);
+        const seen = new Set<string>();
+        return items.filter((item) => {
+            const key = item.toLowerCase();
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
     };
+
+    const normalizeServiceLabel = (service: string) =>
+        String(service || '')
+            .replace(/^[\s.\-•]+/, '')
+            .replace(/[:;,.\s]+$/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
 
     // Get icon based on service name
     const getServiceIcon = (service: string) => {
-        const lowerService = service.toLowerCase();
+        const lowerService = normalizeServiceLabel(service).toLowerCase();
 
         // Check for Transfer/Land Arrangement/Local Transfer/Airport (BEFORE flights check)
         if (
@@ -93,7 +113,7 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
             lowerService.includes('land arrangement') ||
             lowerService.includes('local transfer')
         ) {
-            return <FaCar className="icon" />;
+            return <FaCarSide className="icon" />;
         }
 
         // Check for Flights
@@ -102,7 +122,7 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
             lowerService.includes('air ticket') ||
             lowerService.includes('air')
         ) {
-            return <FaPlane className="icon" />;
+            return <FaPlaneDeparture className="icon" />;
         }
 
         // Check for Hotel/Accommodation
@@ -119,20 +139,19 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
         if (
             lowerService.includes('tour') ||
             lowerService.includes('activity') ||
-            lowerService.includes('excursion')
+            lowerService.includes('excursion') ||
+            lowerService.includes('sightseeing')
         ) {
-            return <GiPalmTree className="icon" />;
+            return <FaMapMarkedAlt className="icon" />;
         }
 
-        // Check for Insurance (but not Land Arrangement)
         if (
             lowerService.includes('insurance') &&
             !lowerService.includes('land arrangement')
         ) {
-            return <FaShieldVirus className="icon" />;
+            return <FaShieldAlt className="icon" />;
         }
-
-        return <GiPalmTree className="icon" />;
+        return <FaTag className="icon" />;
     };
 
     const inclusionsList = parseInclusions(data.inclusions);
@@ -186,98 +205,59 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
     const hasOverflowItinerary = extraItineraryPages.length > 0;
 
     const renderPostItinerarySections = () => (
-        <div className="pdf-page-grid">
-            <div className="pdf-col">
-                {!visaMode ? (
-                    <>
-                        <div className="pdf-block">
-                            <div className="pdf-block-title">Inclusions</div>
-                            <div className="pdf-block-body">
-                                {inclusionsList.length ? (
-                                    <ul className="pdf-list">
-                                        {inclusionsList.map((item, idx) => (
-                                            <li key={idx}>{item}</li>
-                                        ))}
-                                    </ul>
-                                ) : (
-                                    <div className="pdf-muted">-</div>
-                                )}
-                            </div>
-                        </div>
-
-                        <div className="pdf-block">
-                            <div className="pdf-block-title">Exclusions</div>
-                            <div className="pdf-block-body">
-                                {exclusionsList.length ? (
-                                    <ul className="pdf-list">
-                                        {exclusionsList.map((item, idx) => (
-                                            <li key={idx}>{item}</li>
-                                        ))}
-                                    </ul>
-                                ) : (
-                                    <div className="pdf-muted">-</div>
-                                )}
-                            </div>
-                        </div>
-                    </>
-                ) : (
-                    <>
-                        <div className="pdf-block">
-                            <div className="pdf-block-title">Inclusions</div>
-                            <div className="pdf-block-body">
-                                {inclusionsList.length ? (
-                                    <ul className="pdf-list">
-                                        {inclusionsList.map((item, idx) => (
-                                            <li key={idx}>{item}</li>
-                                        ))}
-                                    </ul>
-                                ) : (
-                                    <div className="pdf-muted">-</div>
-                                )}
-                            </div>
-                        </div>
-                        <div className="pdf-block">
-                            <div className="pdf-block-title">Exclusions</div>
-                            <div className="pdf-block-body">
-                                {exclusionsList.length ? (
-                                    <ul className="pdf-list">
-                                        {exclusionsList.map((item, idx) => (
-                                            <li key={idx}>{item}</li>
-                                        ))}
-                                    </ul>
-                                ) : (
-                                    <div className="pdf-muted">-</div>
-                                )}
-                            </div>
-                        </div>
-                    </>
-                )}
+        <div className="pdf-page-stack">
+            <div className="pdf-block">
+                <div className="pdf-block-title">Inclusions</div>
+                <div className="pdf-block-body">
+                    {inclusionsList.length ? (
+                        <ul className="pdf-list">
+                            {inclusionsList.map((item, idx) => (
+                                <li key={idx}>{item}</li>
+                            ))}
+                        </ul>
+                    ) : (
+                        <div className="pdf-muted">-</div>
+                    )}
+                </div>
             </div>
 
-            <div className="pdf-col">
-                {!visaMode ? section('Header Branding', data.headerBranding) : null}
-                {section('Payment Terms', data.paymentTerms)}
-                {section('Cancellation Policy', data.cancellationPolicy)}
-                {!visaMode ? section('Footer Disclaimer', data.footerDisclaimer) : null}
-                {!visaMode ? section('Hotel Details', data.hotelDetails) : null}
+            <div className="pdf-block">
+                <div className="pdf-block-title">Exclusions</div>
+                <div className="pdf-block-body">
+                    {exclusionsList.length ? (
+                        <ul className="pdf-list">
+                            {exclusionsList.map((item, idx) => (
+                                <li key={idx}>{item}</li>
+                            ))}
+                        </ul>
+                    ) : (
+                        <div className="pdf-muted">-</div>
+                    )}
+                </div>
+            </div>
 
-                {!visaMode ? (
-                    <div className="pdf-block">
-                        <div className="pdf-block-title">Enabled Services</div>
-                        <div className="pdf-block-body">
-                            {enabledServicesList.length ? (
-                                <ul className="pdf-list">
-                                    {enabledServicesList.map((item, idx) => (
-                                        <li key={idx}>{item}</li>
-                                    ))}
-                                </ul>
-                            ) : (
-                                <div className="pdf-muted">-</div>
-                            )}
-                        </div>
+            {!visaMode ? (
+                <div className="pdf-block">
+                    <div className="pdf-block-title">Enabled Services</div>
+                    <div className="pdf-block-body">
+                        {enabledServicesList.length ? (
+                            <ul className="pdf-list">
+                                {enabledServicesList.map((item, idx) => (
+                                    <li key={idx}>{item}</li>
+                                ))}
+                            </ul>
+                        ) : (
+                            <div className="pdf-muted">-</div>
+                        )}
                     </div>
-                ) : null}
-            </div>
+                </div>
+            ) : null}
+
+            {!visaMode ? section('Header Branding', data.headerBranding) : null}
+            {section('Payment Terms', data.paymentTerms)}
+            {section('Cancellation Policy', data.cancellationPolicy)}
+            {!visaMode ? section('Footer Disclaimer', data.footerDisclaimer) : null}
+            {!visaMode ? section('Hotel Details', data.hotelDetails) : null}
         </div>
     );
 
@@ -347,7 +327,7 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
                                         {enabledServicesList.map((service, index) => (
                                             <div key={index} className="pdf-service">
                                                 <span className="pdf-service-icon">{getServiceIcon(service)}</span>
-                                                <span className="pdf-service-text">{service}</span>
+                                                <span className="pdf-service-text">{normalizeServiceLabel(service)}</span>
                                             </div>
                                         ))}
                                     </div>
@@ -359,7 +339,7 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
                                     {inclusionsList.map((service, index) => (
                                         <div key={index} className="pdf-service">
                                             <span className="pdf-service-icon">{getServiceIcon(service)}</span>
-                                            <span className="pdf-service-text">{service}</span>
+                                            <span className="pdf-service-text">{normalizeServiceLabel(service)}</span>
                                         </div>
                                     ))}
                                 </div>
@@ -371,14 +351,8 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
 
                     {/* PRICE */}
                     <div className="price-box">
-                        <p>Package</p>
-                        <div className='price-header'>
-                            <p>Service Charge</p>
-                            <span>{formatMoney(data.totalSellValue ?? data.total, currency)}</span>
-                        </div>
-
                         <div className="price-row">
-                            <b>Total Value</b>
+                            <b>Package Cost</b>
                             <span>{formatMoney(data.totalSellValue ?? data.total, currency)}</span>
                         </div>
                     </div>

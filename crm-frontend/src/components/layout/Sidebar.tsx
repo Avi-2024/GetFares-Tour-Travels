@@ -1,5 +1,5 @@
 import React from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import {
   FaChartPie,
   FaChevronLeft,
@@ -176,6 +176,7 @@ const Sidebar: React.FC<{
   onToggleCollapse: () => void;
   onClose?: () => void;
 }> = ({ collapsed, onToggleCollapse, onClose }) => {
+  const navigate = useNavigate();
   const { hasPermission } = useAuth();
 
   return (
@@ -185,13 +186,27 @@ const Sidebar: React.FC<{
       }`}
     >
       <div className="flex h-16 items-center border-b border-gray-100 px-4 dark:border-gray-800">
-        <div className="mr-3 flex h-8 w-8 items-center justify-center rounded-lg">
+        <button
+          type="button"
+          onClick={() => {
+            navigate("/dashboard");
+            onClose?.();
+          }}
+          className="mr-3 flex h-8 w-8 items-center justify-center rounded-lg"
+        >
           <img src="/logo1.png" alt="Get2Vacations" className="h-8 w-6" />
-        </div>
+        </button>
         {!collapsed ?
-          <span className="text-lg font-bold text-gray-900 dark:text-gray-100">
+          <button
+            type="button"
+            onClick={() => {
+              navigate("/dashboard");
+              onClose?.();
+            }}
+            className="text-lg font-bold text-gray-900 dark:text-gray-100"
+          >
             Get2Vacations CRM
-          </span>
+          </button>
         : null}
         <button
           onClick={onClose}
