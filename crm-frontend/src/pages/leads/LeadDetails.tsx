@@ -432,6 +432,18 @@ const LeadDetails: React.FC = () => {
   )
 
   const hydrateQualification = useCallback((item: any) => {
+    const toInputDateLocal = (raw: unknown): string => {
+      const value = String(raw ?? '').trim()
+      if (!value) return ''
+      if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value
+      const d = new Date(value)
+      if (Number.isNaN(d.getTime())) return value.slice(0, 10)
+      const y = d.getFullYear()
+      const m = String(d.getMonth() + 1).padStart(2, '0')
+      const day = String(d.getDate()).padStart(2, '0')
+      return `${y}-${m}-${day}`
+    }
+
     const rawChildrenCount = Number(
       item?.childrenCount ?? item?.children_count ?? 0
     )
@@ -458,14 +470,8 @@ const LeadDetails: React.FC = () => {
         item?.travel_to ??
         item?.destinationName ??
         '',
-      travelDate:
-        item?.travelDate?.slice?.(0, 10) ||
-        item?.travel_date?.slice?.(0, 10) ||
-        '',
-      travelEndDate:
-        item?.travelEndDate?.slice?.(0, 10) ||
-        item?.travel_end_date?.slice?.(0, 10) ||
-        '',
+      travelDate: toInputDateLocal(item?.travelDate ?? item?.travel_date ?? ''),
+      travelEndDate: toInputDateLocal(item?.travelEndDate ?? item?.travel_end_date ?? ''),
       adultsCount: String(item?.adultsCount ?? 2),
       childrenCount: String(nextChildrenCount),
       budget:

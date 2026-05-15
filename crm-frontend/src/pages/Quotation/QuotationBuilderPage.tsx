@@ -380,7 +380,10 @@ function toDateInputValue(
   const parsed = new Date(`${value}T00:00:00`)
   if (Number.isNaN(parsed.getTime())) return null
   parsed.setDate(parsed.getDate() + Math.max(0, Number(fallbackNights) || 0))
-  return parsed.toISOString().slice(0, 10)
+  const y = parsed.getFullYear()
+  const m = String(parsed.getMonth() + 1).padStart(2, '0')
+  const d = String(parsed.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
 }
 
 function formatDurationLabel(
@@ -4745,7 +4748,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                           Get2Vacations
                         </p>
                         <p className='text-xs text-gray-500'>
-                          support@Get2Vacations.com
+                          support@get2vacations.com
                         </p>
                       </div>
                     </div>

@@ -56,6 +56,12 @@ interface PdfTemplateProps {
     };
 }
 
+interface PostSectionItem {
+    key: string;
+    units: number;
+    node: React.ReactNode;
+}
+
 const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
     const visaMode = Boolean(data.visaLeadQuotation);
     const currency = String(data.currency || 'INR').toUpperCase();
@@ -198,66 +204,105 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
         return pages;
     };
 
+    const chunkByUnits = <T,>(items: T[], getUnits: (item: T) => number, maxUnitsPerPage: number): T[][] => {
+        const pages: T[][] = [];
+        let current: T[] = [];
+        let used = 0;
+        items.forEach((item) => {
+            const weight = Math.max(1, getUnits(item));
+            if (current.length > 0 && used + weight > maxUnitsPerPage) {
+                pages.push(current);
+                current = [];
+                used = 0;
+            }
+            current.push(item);
+            used += weight;
+        });
+        if (current.length > 0) pages.push(current);
+        return pages;
+    };
+
     // First continuation page can hold more than initial page because it contains only itinerary.
     const itineraryPages = !visaMode ? paginateItinerary(data.itinerary || [], 22) : [];
     const primaryItinerary = itineraryPages[0] || [];
     const extraItineraryPages = itineraryPages.slice(1);
     const hasOverflowItinerary = extraItineraryPages.length > 0;
 
-    const renderPostItinerarySections = () => (
+    const getListUnits = (items: string[]) =>
+        Math.max(
+            2,
+            1 +
+                items.length +
+                items.reduce((sum, item) => sum + Math.ceil(String(item || '').length / 260), 0),
+        );
+
+    const createListBlock = (key: string, title: string, items: string[]): PostSectionItem => ({
+        key,
+        units: getListUnits(items),
+        node: (
+            <div className="pdf-block" key={key}>
+                <div className="pdf-block-title">{title}</div>
+                <div className="pdf-block-body">
+                    {items.length ? (
+                        <ul className="pdf-list">
+                            {items.map((item, idx) => (
+                                <li key={idx}>{item}</li>
+                            ))}
+                        </ul>
+                    ) : (
+                        <div className="pdf-muted">-</div>
+                    )}
+                </div>
+            </div>
+        ),
+    });
+
+    const createTextBlock = (key: string, title: string, value?: string, enabled = true): PostSectionItem | null => {
+        if (!enabled) return null;
+        const text = String(value ?? '').trim();
+        if (!text) return null;
+        return {
+            key,
+            units: Math.max(2, 2 + Math.ceil(text.length / 300)),
+            node: section(title, value),
+        };
+    };
+
+    const serviceGroupNode = !visaMode ? (
+        <>
+            {createListBlock('inclusions', 'Inclusions', inclusionsList).node}
+            {createListBlock('exclusions', 'Exclusions', exclusionsList).node}
+            {createListBlock('enabled-services', 'Enabled Services', enabledServicesList).node}
+        </>
+    ) : (
+        <>
+            {createListBlock('inclusions', 'Inclusions', inclusionsList).node}
+            {createListBlock('exclusions', 'Exclusions', exclusionsList).node}
+        </>
+    );
+
+    const serviceGroupUnits = !visaMode
+        ? getListUnits(inclusionsList) + getListUnits(exclusionsList) + getListUnits(enabledServicesList)
+        : getListUnits(inclusionsList) + getListUnits(exclusionsList);
+
+    const postSectionItems: PostSectionItem[] = [
+        {
+            key: 'service-group',
+            units: serviceGroupUnits,
+            node: <div key="service-group">{serviceGroupNode}</div>,
+        },
+        createTextBlock('header-branding', 'Header Branding', data.headerBranding, !visaMode),
+        createTextBlock('payment-terms', 'Payment Terms', data.paymentTerms),
+        createTextBlock('cancellation-policy', 'Cancellation Policy', data.cancellationPolicy),
+        createTextBlock('footer-disclaimer', 'Footer Disclaimer', data.footerDisclaimer, !visaMode),
+        createTextBlock('hotel-details', 'Hotel Details', data.hotelDetails, !visaMode),
+    ].filter((item): item is PostSectionItem => Boolean(item && item.node));
+
+    const postSectionPages = chunkByUnits(postSectionItems, (item) => item.units, hasOverflowItinerary ? 22 : 20);
+
+    const renderPostItinerarySections = (pageItems: PostSectionItem[] = postSectionItems) => (
         <div className="pdf-page-stack">
-            <div className="pdf-block">
-                <div className="pdf-block-title">Inclusions</div>
-                <div className="pdf-block-body">
-                    {inclusionsList.length ? (
-                        <ul className="pdf-list">
-                            {inclusionsList.map((item, idx) => (
-                                <li key={idx}>{item}</li>
-                            ))}
-                        </ul>
-                    ) : (
-                        <div className="pdf-muted">-</div>
-                    )}
-                </div>
-            </div>
-
-            <div className="pdf-block">
-                <div className="pdf-block-title">Exclusions</div>
-                <div className="pdf-block-body">
-                    {exclusionsList.length ? (
-                        <ul className="pdf-list">
-                            {exclusionsList.map((item, idx) => (
-                                <li key={idx}>{item}</li>
-                            ))}
-                        </ul>
-                    ) : (
-                        <div className="pdf-muted">-</div>
-                    )}
-                </div>
-            </div>
-
-            {!visaMode ? (
-                <div className="pdf-block">
-                    <div className="pdf-block-title">Enabled Services</div>
-                    <div className="pdf-block-body">
-                        {enabledServicesList.length ? (
-                            <ul className="pdf-list">
-                                {enabledServicesList.map((item, idx) => (
-                                    <li key={idx}>{item}</li>
-                                ))}
-                            </ul>
-                        ) : (
-                            <div className="pdf-muted">-</div>
-                        )}
-                    </div>
-                </div>
-            ) : null}
-
-            {!visaMode ? section('Header Branding', data.headerBranding) : null}
-            {section('Payment Terms', data.paymentTerms)}
-            {section('Cancellation Policy', data.cancellationPolicy)}
-            {!visaMode ? section('Footer Disclaimer', data.footerDisclaimer) : null}
-            {!visaMode ? section('Hotel Details', data.hotelDetails) : null}
+            {pageItems.map((item) => item.node)}
         </div>
     );
 
@@ -389,7 +434,7 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
                         </div>
                     ) : null}
 
-                    {!hasOverflowItinerary ? renderPostItinerarySections() : null}
+                    {!hasOverflowItinerary ? renderPostItinerarySections(postSectionPages[0] || []) : null}
                 </div>
             </div>
 
@@ -416,14 +461,23 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
                 </div>
             ))}
 
-            {hasOverflowItinerary ? (
-                <div className="pdf-page pdf-page-continued">
-                    <div className="pdf-content">
-                        <div className="pdf-page-title">Quotation Content</div>
-                        {renderPostItinerarySections()}
+            {hasOverflowItinerary
+                ? postSectionPages.map((pageItems, index) => (
+                    <div className="pdf-page pdf-page-continued" key={`post-itinerary-page-${index + 1}`}>
+                        <div className="pdf-content">
+                            <div className="pdf-page-title">Quotation Content</div>
+                            {renderPostItinerarySections(pageItems)}
+                        </div>
                     </div>
-                </div>
-            ) : null}
+                ))
+                : postSectionPages.slice(1).map((pageItems, index) => (
+                    <div className="pdf-page pdf-page-continued" key={`post-itinerary-overflow-page-${index + 1}`}>
+                        <div className="pdf-content">
+                            <div className="pdf-page-title">Quotation Content (Continued)</div>
+                            {renderPostItinerarySections(pageItems)}
+                        </div>
+                    </div>
+                ))}
         </div>
     );
 };
