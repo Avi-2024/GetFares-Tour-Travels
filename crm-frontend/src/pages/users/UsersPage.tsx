@@ -215,6 +215,7 @@ const UserFormModal = ({
             managerId: user.managerId || '',
             role: user.roleId || '',
             password: '',
+            confirmPassword: '',
             isActive: user.isActive
           }
         : {
@@ -226,6 +227,7 @@ const UserFormModal = ({
             managerId: '',
             role: '',
             password: '',
+            confirmPassword: '',
             isActive: true
           },
     [mode, user]
@@ -590,6 +592,44 @@ const UserFormModal = ({
               />
               <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
                 Must be at least 8 characters long
+              </p>
+            </div>
+          )}
+
+          {mode === 'edit' && (
+            <div className='space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/50'>
+              <div>
+                <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
+                  New Password
+                </label>
+                <input
+                  type='password'
+                  value={formData.password}
+                  onChange={e =>
+                    setFormData({ ...formData, password: e.target.value })
+                  }
+                  className='w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100'
+                  placeholder='Leave blank to keep current password'
+                  minLength={8}
+                />
+              </div>
+              <div>
+                <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
+                  Confirm New Password
+                </label>
+                <input
+                  type='password'
+                  value={formData.confirmPassword}
+                  onChange={e =>
+                    setFormData({ ...formData, confirmPassword: e.target.value })
+                  }
+                  className='w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100'
+                  placeholder='Re-enter new password'
+                  minLength={8}
+                />
+              </div>
+              <p className='text-xs text-gray-500 dark:text-gray-400'>
+                Password must be at least 8 characters.
               </p>
             </div>
           )}
@@ -993,6 +1033,18 @@ const UsersPage: React.FC<UsersPageProps> = ({ embedded = false }) => {
       showToast('Phone number must be 6-20 digits.', 'error')
       return
     }
+    const nextPassword = String(formData.password || '').trim()
+    const nextConfirmPassword = String(formData.confirmPassword || '').trim()
+    if (nextPassword || nextConfirmPassword) {
+      if (nextPassword.length < 8) {
+        showToast('Password must be at least 8 characters.', 'error')
+        return
+      }
+      if (nextPassword !== nextConfirmPassword) {
+        showToast('Password and confirm password must match.', 'error')
+        return
+      }
+    }
 
     try {
       const roleName = formData.roleName?.trim() || undefined
@@ -1027,6 +1079,9 @@ const UsersPage: React.FC<UsersPageProps> = ({ embedded = false }) => {
       }
       if (Boolean(formData.isActive) !== Boolean(selectedUser.isActive)) {
         updatePayload.isActive = Boolean(formData.isActive)
+      }
+      if (nextPassword) {
+        updatePayload.password = nextPassword
       }
 
       if (!Object.keys(updatePayload).length) {

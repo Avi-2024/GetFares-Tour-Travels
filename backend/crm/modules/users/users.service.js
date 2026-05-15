@@ -65,6 +65,7 @@ function mapUpdatePayload(payload) {
     incentive_percent: payload.incentivePercent,
     manager_id: parentId,
     parent_id: parentId,
+    password_hash: payload.passwordHash,
   };
 
   if (
@@ -531,6 +532,11 @@ function createUsersService({
     const existing = await getById(id, context);
 
     try {
+      const passwordHash =
+        payload.passwordHash ||
+        (payload.password ?
+          await bcryptjs.hash(payload.password, bcryptRounds)
+        : undefined);
       const roleId = getRoleIdFromPayload(payload);
       const parentId = getParentIdFromPayload(payload);
       const roleLookup = await getRoleLookup();
@@ -580,6 +586,7 @@ function createUsersService({
 
       const enriched = {
         ...payload,
+        passwordHash,
         roleId,
         parentId: effectiveParentId,
         managerId: effectiveParentId,

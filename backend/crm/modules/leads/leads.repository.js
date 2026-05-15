@@ -781,6 +781,18 @@ function createLeadsRepository({ db, logger, schema }) {
     return [String(value).trim()];
   }
 
+  function resolveCountryAliases(value) {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (!normalized) return [];
+    if (normalized === "uae" || normalized === "united arab emirates") {
+      return ["UAE", "United Arab Emirates"];
+    }
+    if (normalized === "india") {
+      return ["India"];
+    }
+    return [String(value).trim()];
+  }
+
   function isUuidLike(value) {
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
       String(value || "").trim(),
@@ -905,8 +917,17 @@ function createLeadsRepository({ db, logger, schema }) {
     }
 
     if (filters.leadCountry || filters.country) {
-      params.push(filters.leadCountry ?? filters.country);
-      where.push(`LOWER(COALESCE(l.lead_country, '')) = LOWER(?)`);
+      const countryAliases = resolveCountryAliases(
+        filters.leadCountry ?? filters.country,
+      );
+      if (countryAliases.length > 1) {
+        const countryPh = countryAliases.map(() => "?").join(", ");
+        params.push(...countryAliases);
+        where.push(`LOWER(COALESCE(l.lead_country, '')) IN (${countryPh})`);
+      } else if (countryAliases.length === 1) {
+        params.push(countryAliases[0]);
+        where.push(`LOWER(COALESCE(l.lead_country, '')) = LOWER(?)`);
+      }
     }
 
     if (Array.isArray(filters.allowedCountries)) {
@@ -1192,6 +1213,18 @@ function createLeadsRepository({ db, logger, schema }) {
         const sourceSet = new Set(sourceAliases);
         items = items.filter((item) =>
           sourceSet.has(String(item.source || "").trim().toLowerCase()),
+        );
+      }
+    }
+
+    if (filters.leadCountry || filters.country) {
+      const countryAliases = resolveCountryAliases(
+        filters.leadCountry ?? filters.country,
+      ).map((v) => String(v).trim().toLowerCase());
+      if (countryAliases.length > 0) {
+        const countrySet = new Set(countryAliases);
+        items = items.filter((item) =>
+          countrySet.has(String(item.leadCountry || item.country || "").trim().toLowerCase()),
         );
       }
     }

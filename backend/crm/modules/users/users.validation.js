@@ -57,6 +57,8 @@ const updatePayload = z
     parent_id: z.string().uuid().nullable().optional(),
     countryIds: z.array(z.string().uuid()).max(20).optional(),
     primaryCountryId: z.string().uuid().nullable().optional(),
+    password: z.string().trim().min(8).optional(),
+    passwordHash: z.string().trim().min(8).max(400).optional(),
     isActive: z.boolean().optional(),
     isOnLeave: z.boolean().optional(),
     active: z.boolean().optional(),

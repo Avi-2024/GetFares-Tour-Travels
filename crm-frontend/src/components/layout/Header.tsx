@@ -11,6 +11,9 @@ import {
 import { authApi } from "../../api/auth";
 import { useAuth } from "../../context/AuthContext";
 import { useNotifications } from "../../context/NotificationsContext";
+import { leadsApi } from "../../api/leads";
+import { bookingsApi } from "../../api/bookings";
+import { customersApi } from "../../api/customers";
 
 const getDisplayName = (name?: string, email?: string) => {
   const value = name?.trim() || email?.split("@")[0] || "User";
@@ -44,6 +47,13 @@ type PresencePayload = {
   isActive?: boolean;
 };
 
+type GlobalSearchItem = {
+  key: string;
+  label: string;
+  subLabel: string;
+  path: string;
+};
+
 const Header: React.FC<{
   onMenuClick: () => void;
 }> = ({ onMenuClick }) => {
@@ -56,6 +66,10 @@ const Header: React.FC<{
     return localStorage.getItem("theme") === "dark";
   });
   const [menuOpen, setMenuOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchResults, setSearchResults] = useState<GlobalSearchItem[]>([]);
   const [workingMode, setWorkingMode] = useState<boolean | null>(() => {
     if (typeof user?.active === "boolean") return user.active;
     if (typeof user?.isActive === "boolean") return user.isActive;
@@ -63,6 +77,7 @@ const Header: React.FC<{
   });
   const [togglingWorkingMode, setTogglingWorkingMode] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
+  const searchRef = useRef<HTMLDivElement | null>(null);
 
   const displayName = getDisplayName(user?.name, user?.email);
   const roleLabel = formatRoleLabel(user?.role);
@@ -87,10 +102,111 @@ const Header: React.FC<{
       if (ref.current && !ref.current.contains(e.target as Node)) {
         setMenuOpen(false);
       }
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setSearchOpen(false);
+      }
     };
     document.addEventListener("mousedown", fn);
     return () => document.removeEventListener("mousedown", fn);
   }, []);
+
+  useEffect(() => {
+    const q = searchTerm.trim();
+    if (q.length < 2) {
+      setSearchResults([]);
+      setSearchLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    const timerId = window.setTimeout(async () => {
+      try {
+        setSearchLoading(true);
+        const [leadsResponse, bookingsResponse, customersResponse] =
+          await Promise.allSettled([
+            leadsApi.list({ page: 1, limit: 5, search: q }),
+            bookingsApi.list({ page: 1, limit: 5, search: q }),
+            customersApi.list({ page: 1, limit: 5, search: q }),
+          ]);
+
+        if (cancelled) return;
+
+        const items: GlobalSearchItem[] = [];
+        const toRows = (payload: any) =>
+          payload?.data?.data ?? payload?.data?.items ?? payload?.data ?? payload ?? [];
+
+        if (leadsResponse.status === "fulfilled") {
+          const rows = Array.isArray(toRows(leadsResponse.value))
+            ? toRows(leadsResponse.value)
+            : [];
+          rows.slice(0, 5).forEach((row: any) => {
+            const id = String(row?.id ?? "").trim();
+            if (!id) return;
+            const name = String(
+              row?.fullName ?? row?.name ?? row?.customerName ?? row?.email ?? "Lead",
+            ).trim();
+            items.push({
+              key: `lead:${id}`,
+              label: name || "Lead",
+              subLabel: `Lead ${row?.leadCode ?? row?.leadId ?? id}`,
+              path: `/leads/${id}`,
+            });
+          });
+        }
+
+        if (bookingsResponse.status === "fulfilled") {
+          const rows = Array.isArray(toRows(bookingsResponse.value))
+            ? toRows(bookingsResponse.value)
+            : [];
+          rows.slice(0, 5).forEach((row: any) => {
+            const id = String(row?.id ?? "").trim();
+            if (!id) return;
+            const bookingCode = String(row?.bookingNumber ?? id).trim();
+            items.push({
+              key: `booking:${id}`,
+              label: bookingCode,
+              subLabel: "Booking",
+              path: `/bookings/${id}`,
+            });
+          });
+        }
+
+        if (customersResponse.status === "fulfilled") {
+          const rows = Array.isArray(toRows(customersResponse.value))
+            ? toRows(customersResponse.value)
+            : [];
+          rows.slice(0, 5).forEach((row: any) => {
+            const id = String(row?.id ?? "").trim();
+            if (!id) return;
+            const name = String(
+              row?.fullName ?? row?.name ?? row?.email ?? "Customer",
+            ).trim();
+            items.push({
+              key: `customer:${id}`,
+              label: name || "Customer",
+              subLabel: "Customer",
+              path: `/customers/${id}`,
+            });
+          });
+        }
+
+        setSearchResults(items.slice(0, 12));
+      } catch {
+        if (!cancelled) {
+          setSearchResults([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setSearchLoading(false);
+        }
+      }
+    }, 280);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timerId);
+    };
+  }, [searchTerm]);
 
   const toggleTheme = () => {
     const next = !dark;
@@ -186,12 +302,59 @@ const Header: React.FC<{
         >
           <FaBars />
         </button>
-        <div className="relative hidden w-full max-w-[22rem] md:block lg:max-w-[26rem]">
+        <div
+          ref={searchRef}
+          className="relative hidden w-full max-w-[22rem] md:block lg:max-w-[26rem]"
+        >
           <input
             className="field-input pl-9"
             placeholder="Search leads, bookings, customers..."
+            value={searchTerm}
+            onFocus={() => setSearchOpen(true)}
+            onChange={(event) => {
+              setSearchTerm(event.target.value);
+              setSearchOpen(true);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                setSearchOpen(false);
+              }
+            }}
           />
           <FaMagnifyingGlass className="pointer-events-none absolute left-3 top-3 text-xs text-gray-400" />
+          {searchOpen && (
+            <div className="absolute z-40 mt-2 w-full rounded-xl border border-gray-200 bg-white p-2 shadow-lg dark:border-gray-700 dark:bg-gray-900">
+              {searchLoading ? (
+                <p className="px-2 py-2 text-xs text-gray-500">Searching...</p>
+              ) : searchTerm.trim().length < 2 ? (
+                <p className="px-2 py-2 text-xs text-gray-500">Type at least 2 characters.</p>
+              ) : searchResults.length === 0 ? (
+                <p className="px-2 py-2 text-xs text-gray-500">No matching records.</p>
+              ) : (
+                <div className="max-h-72 overflow-auto">
+                  {searchResults.map((item) => (
+                    <button
+                      key={item.key}
+                      type="button"
+                      onClick={() => {
+                        setSearchOpen(false);
+                        setSearchTerm("");
+                        navigate(item.path);
+                      }}
+                      className="w-full rounded-lg px-2 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-800"
+                    >
+                      <p className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">
+                        {item.label}
+                      </p>
+                      <p className="truncate text-xs text-gray-500 dark:text-gray-400">
+                        {item.subLabel}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
       <div className="hidden lg:flex items-center gap-3 m-5">

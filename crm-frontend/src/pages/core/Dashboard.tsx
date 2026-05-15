@@ -60,6 +60,12 @@ const EMPTY_REVENUE_DATA: Record<Range, RevenueData[]> = {
   Month: [],
   Year: []
 }
+const REVENUE_RANGE_FALLBACK: Record<Range, Range> = {
+  Today: 'Week',
+  Week: 'Month',
+  Month: 'Year',
+  Year: 'Month'
+}
 const EMPTY_STATS: DashboardStats = {
   totalLeads: 0,
   totalLeadsChange: 0,
@@ -103,6 +109,30 @@ const Dashboard: React.FC = () => {
   const hasRevenueChartData = useMemo(
     () => rev.some(point => point.revenue > 0 || point.last > 0),
     [rev]
+  )
+  const effectiveRevenueRange = useMemo(() => {
+    if (hasRevenueChartData) return range
+    const fallbackRange = REVENUE_RANGE_FALLBACK[range]
+    const fallback = revenueData[fallbackRange] ?? []
+    const fallbackHasData = fallback.some(
+      point => Number(point?.revenue ?? 0) > 0 || Number(point?.last ?? 0) > 0
+    )
+    return fallbackHasData ? fallbackRange : range
+  }, [hasRevenueChartData, range, revenueData])
+  const chartRevenueData = useMemo(() => {
+    const selected = revenueData[effectiveRevenueRange] ?? []
+    return selected.map(point => ({
+      name: String(point?.name ?? ''),
+      revenue: Number(point?.revenue ?? 0),
+      last: Number(point?.last ?? 0)
+    }))
+  }, [effectiveRevenueRange, revenueData])
+  const hasRenderableRevenueData = useMemo(
+    () =>
+      chartRevenueData.some(
+        point => point.revenue > 0 || point.last > 0
+      ),
+    [chartRevenueData]
   )
   const leadSourceTotal = useMemo(
     () => leadSources.reduce((sum, source) => sum + Number(source.value || 0), 0),
@@ -477,7 +507,9 @@ const Dashboard: React.FC = () => {
                 Revenue Performance
               </h2>
               <p className='text-sm text-gray-500'>
-                Current period vs previous period.
+                {effectiveRevenueRange === range
+                  ? 'Current period vs previous period.'
+                  : `Showing ${effectiveRevenueRange} data (fallback for ${range}).`}
               </p>
             </div>
             <div className='inline-flex rounded-xl border border-gray-200 bg-gray-50 p-1 dark:border-gray-700 dark:bg-gray-800'>
@@ -498,7 +530,7 @@ const Dashboard: React.FC = () => {
             <div className='flex h-[320px] items-center justify-center text-sm text-gray-500'>
               Loading revenue trend...
             </div>
-          ) : !hasRevenueChartData ? (
+          ) : !hasRenderableRevenueData ? (
             <div className='flex h-[320px] flex-col items-center justify-center rounded-2xl border border-dashed border-gray-200 bg-gray-50/70 px-6 text-center dark:border-gray-700 dark:bg-gray-800/40'>
               <p className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
                 No booked revenue found for this range
@@ -511,7 +543,7 @@ const Dashboard: React.FC = () => {
             </div>
           ) : (
             <ResponsiveContainer width='100%' height={320}>
-              <ComposedChart data={rev}>
+              <ComposedChart data={chartRevenueData}>
                 <defs>
                   <linearGradient id='g' x1='0' y1='0' x2='0' y2='1'>
                     <stop offset='5%' stopColor='#2563eb' stopOpacity={0.25} />
