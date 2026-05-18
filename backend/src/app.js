@@ -22,8 +22,38 @@ function createApp(overrides = {}) {
   app.locals.logger = container.logger;
 
   app.use(helmet());
+  const configuredCorsOrigin = String(container.config.app.corsOrigin || "*")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  const corsOriginResolver = (requestOrigin, callback) => {
+    // Allow non-browser or same-origin server calls.
+    if (!requestOrigin) {
+      callback(null, true);
+      return;
+    }
+
+    // Credentials + wildcard is invalid. Reflect request origin only when wildcard configured.
+    if (
+      configuredCorsOrigin.length === 0 ||
+      configuredCorsOrigin.includes("*")
+    ) {
+      callback(null, requestOrigin);
+      return;
+    }
+
+    if (configuredCorsOrigin.includes(requestOrigin)) {
+      callback(null, requestOrigin);
+      return;
+    }
+
+    callback(new Error("CORS origin not allowed"));
+  };
+
   const corsOptions = {
-    origin: container.config.app.corsOrigin,
+    origin: corsOriginResolver,
+    credentials: true,
     methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
     exposedHeaders: ["Authorization"],

@@ -163,6 +163,10 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
     const inclusionsList = parseInclusions(data.inclusions);
     const exclusionsList = parseInclusions(data.exclusions);
     const enabledServicesList = parseInclusions(data.enabledServices);
+    const pageOneServiceSource = visaMode ? enabledServicesList : inclusionsList;
+    const PAGE_ONE_SERVICE_LIMIT = 10;
+    const pageOneServices = pageOneServiceSource.slice(0, PAGE_ONE_SERVICE_LIMIT);
+    const overflowServices = pageOneServiceSource.slice(PAGE_ONE_SERVICE_LIMIT);
 
     const section = (title: string, value?: string) => {
         const text = String(value ?? '').trim();
@@ -175,13 +179,21 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
         );
     };
 
+    const estimateLineCount = (text: string, charsPerLine: number) => {
+        const raw = String(text || '').trim();
+        if (!raw) return 1;
+        return raw
+            .split('\n')
+            .reduce((sum, line) => sum + Math.max(1, Math.ceil(line.trim().length / charsPerLine)), 0);
+      };
+
     const estimateItineraryWeight = (day: ItineraryDay) => {
-        const titleWeight = 1;
+        const titleWeight = 2;
         const pointsWeight = (day.points || []).reduce((sum, point) => {
-            const len = String(point || '').trim().length;
-            return sum + Math.max(1, Math.ceil(len / 230));
+            return sum + estimateLineCount(String(point || ''), 95);
         }, 0);
-        return titleWeight + pointsWeight;
+        const spacingWeight = 2;
+        return titleWeight + pointsWeight + spacingWeight;
     };
 
     const paginateItinerary = (days: ItineraryDay[], maxUnitsPerPage: number) => {
@@ -223,7 +235,8 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
     };
 
     // First continuation page can hold more than initial page because it contains only itinerary.
-    const itineraryPages = !visaMode ? paginateItinerary(data.itinerary || [], 22) : [];
+    const ITINERARY_PAGE_UNITS = 34;
+    const itineraryPages = !visaMode ? paginateItinerary(data.itinerary || [], ITINERARY_PAGE_UNITS) : [];
     const primaryItinerary = itineraryPages[0] || [];
     const extraItineraryPages = itineraryPages.slice(1);
     const hasOverflowItinerary = extraItineraryPages.length > 0;
@@ -231,9 +244,8 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
     const getListUnits = (items: string[]) =>
         Math.max(
             2,
-            1 +
-                items.length +
-                items.reduce((sum, item) => sum + Math.ceil(String(item || '').length / 260), 0),
+            2 +
+                items.reduce((sum, item) => sum + estimateLineCount(String(item || ''), 62) + 1, 0),
         );
 
     const createListBlock = (key: string, title: string, items: string[]): PostSectionItem => ({
@@ -263,14 +275,17 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
         if (!text) return null;
         return {
             key,
-            units: Math.max(2, 2 + Math.ceil(text.length / 300)),
+            units: Math.max(3, 2 + estimateLineCount(text, 95)),
             node: section(title, value),
         };
     };
 
+    const postInclusionsList = overflowServices.length > 0 ? overflowServices : inclusionsList;
+    const postInclusionsTitle = overflowServices.length > 0 ? 'Inclusions (Continued)' : 'Inclusions';
+
     const serviceGroupNode = !visaMode ? (
         <>
-            {createListBlock('inclusions', 'Inclusions', inclusionsList).node}
+            {createListBlock('inclusions', postInclusionsTitle, postInclusionsList).node}
             {createListBlock('exclusions', 'Exclusions', exclusionsList).node}
             {createListBlock('enabled-services', 'Enabled Services', enabledServicesList).node}
         </>
@@ -282,7 +297,7 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
     );
 
     const serviceGroupUnits = !visaMode
-        ? getListUnits(inclusionsList) + getListUnits(exclusionsList) + getListUnits(enabledServicesList)
+        ? getListUnits(postInclusionsList) + getListUnits(exclusionsList) + getListUnits(enabledServicesList)
         : getListUnits(inclusionsList) + getListUnits(exclusionsList);
 
     const postSectionItems: PostSectionItem[] = [
@@ -298,7 +313,8 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
         createTextBlock('hotel-details', 'Hotel Details', data.hotelDetails, !visaMode),
     ].filter((item): item is PostSectionItem => Boolean(item && item.node));
 
-    const postSectionPages = chunkByUnits(postSectionItems, (item) => item.units, hasOverflowItinerary ? 22 : 20);
+    const POST_PAGE_UNITS = hasOverflowItinerary ? 30 : 28;
+    const postSectionPages = chunkByUnits(postSectionItems, (item) => item.units, POST_PAGE_UNITS);
 
     const renderPostItinerarySections = (pageItems: PostSectionItem[] = postSectionItems) => (
         <div className="pdf-page-stack">
@@ -367,9 +383,9 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
                         <div className="pdf-block-title">{visaMode ? 'Services' : 'Included Services'}</div>
                         <div className="pdf-block-body">
                             {visaMode ? (
-                                enabledServicesList.length > 0 ? (
+                                pageOneServices.length > 0 ? (
                                     <div className="pdf-services-grid">
-                                        {enabledServicesList.map((service, index) => (
+                                        {pageOneServices.map((service, index) => (
                                             <div key={index} className="pdf-service">
                                                 <span className="pdf-service-icon">{getServiceIcon(service)}</span>
                                                 <span className="pdf-service-text">{normalizeServiceLabel(service)}</span>
@@ -379,9 +395,9 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
                                 ) : (
                                     <div className="pdf-muted">Insurance and visa service lines</div>
                                 )
-                            ) : inclusionsList.length > 0 ? (
+                            ) : pageOneServices.length > 0 ? (
                                 <div className="pdf-services-grid">
-                                    {inclusionsList.map((service, index) => (
+                                    {pageOneServices.map((service, index) => (
                                         <div key={index} className="pdf-service">
                                             <span className="pdf-service-icon">{getServiceIcon(service)}</span>
                                             <span className="pdf-service-text">{normalizeServiceLabel(service)}</span>
@@ -391,6 +407,11 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
                             ) : (
                                 <div className="pdf-muted">No services included</div>
                             )}
+                            {overflowServices.length > 0 ? (
+                                <div className="pdf-muted" style={{ marginTop: 8 }}>
+                                    +{overflowServices.length} more service item(s) moved to next page
+                                </div>
+                            ) : null}
                         </div>
                     </div>
 
@@ -439,7 +460,7 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
             </div>
 
             {!visaMode && extraItineraryPages.map((pageItems, pageIndex) => (
-                <div className="pdf-page pdf-page-continued" key={`itinerary-page-${pageIndex + 2}`}>
+                <div className="pdf-page pdf-page-continued pdf-page-itinerary" key={`itinerary-page-${pageIndex + 2}`}>
                     <div className="pdf-content">
                         <div className="pdf-page-title">Quotation Content (Continued)</div>
                         <div className="pdf-block itinerary-block-full">
@@ -463,7 +484,7 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
 
             {hasOverflowItinerary
                 ? postSectionPages.map((pageItems, index) => (
-                    <div className="pdf-page pdf-page-continued" key={`post-itinerary-page-${index + 1}`}>
+                    <div className="pdf-page pdf-page-continued pdf-page-post" key={`post-itinerary-page-${index + 1}`}>
                         <div className="pdf-content">
                             <div className="pdf-page-title">Quotation Content</div>
                             {renderPostItinerarySections(pageItems)}
@@ -471,7 +492,7 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
                     </div>
                 ))
                 : postSectionPages.slice(1).map((pageItems, index) => (
-                    <div className="pdf-page pdf-page-continued" key={`post-itinerary-overflow-page-${index + 1}`}>
+                    <div className="pdf-page pdf-page-continued pdf-page-post" key={`post-itinerary-overflow-page-${index + 1}`}>
                         <div className="pdf-content">
                             <div className="pdf-page-title">Quotation Content (Continued)</div>
                             {renderPostItinerarySections(pageItems)}

@@ -141,6 +141,10 @@ const config = Object.freeze({
   auth: {
     jwtAccessSecret: env.JWT_ACCESS_SECRET,
     jwtAccessExpiresIn: env.JWT_ACCESS_EXPIRES_IN,
+    cookieName: env.AUTH_COOKIE_NAME,
+    cookieSecure: env.AUTH_COOKIE_SECURE,
+    cookieSameSite: env.AUTH_COOKIE_SAME_SITE,
+    cookieDomain: env.AUTH_COOKIE_DOMAIN,
     defaultRole: env.AUTH_DEFAULT_ROLE,
     bcryptRounds: env.AUTH_BCRYPT_ROUNDS,
     dbSlowQueryMs: env.AUTH_DB_SLOW_QUERY_MS,

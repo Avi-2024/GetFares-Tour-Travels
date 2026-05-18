@@ -8,7 +8,14 @@ const PermissionRoute = ({
   permission?: string;
   roles?: string[];
 }) => {
-  const { token, user, permissions, loadingPermissions, hasPermission } = useAuth();
+  const {
+    token,
+    user,
+    permissions,
+    loadingPermissions,
+    bootstrappingSession,
+    hasPermission,
+  } = useAuth();
   const location = useLocation();
   const normalizedRole = String(user?.role ?? "").toLowerCase();
   const isAdmin =
@@ -20,6 +27,14 @@ const PermissionRoute = ({
     if (hasPermission("quotations:read")) return "/quotations";
     return "/profile";
   };
+
+  if (bootstrappingSession) {
+    return (
+      <div className="flex min-h-[200px] items-center justify-center text-sm text-gray-500">
+        Restoring session...
+      </div>
+    );
+  }
 
   if (!token) return <Navigate to="/login" replace />;
 

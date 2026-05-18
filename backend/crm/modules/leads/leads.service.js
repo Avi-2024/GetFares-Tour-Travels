@@ -293,6 +293,51 @@ function createLeadsService({ repository, logger, events }) {
     return String(value).trim().toLowerCase();
   }
 
+  function normalizeCountryAlias(value) {
+    const raw = normalizeCategory(value);
+    if (!raw) return null;
+    if (
+      raw === "uae" ||
+      raw === "u.a.e" ||
+      raw === "u.a.e." ||
+      raw === "united arab emirates"
+    ) {
+      return "uae";
+    }
+    if (raw === "india" || raw === "ind") {
+      return "india";
+    }
+    return raw;
+  }
+
+  function countryAliases(value) {
+    const normalized = normalizeCountryAlias(value);
+    if (!normalized) {
+      return new Set();
+    }
+    if (normalized === "uae") {
+      return new Set(["uae", "united arab emirates"]);
+    }
+    if (normalized === "india") {
+      return new Set(["india", "ind"]);
+    }
+    return new Set([normalized]);
+  }
+
+  function countriesMatch(left, right) {
+    const leftSet = countryAliases(left);
+    const rightSet = countryAliases(right);
+    if (!leftSet.size || !rightSet.size) {
+      return false;
+    }
+    for (const token of leftSet) {
+      if (rightSet.has(token)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   function normalizeAgentType(value) {
     if (!value) return null;
     const normalized = String(value).trim().toUpperCase();
@@ -669,12 +714,6 @@ function createLeadsService({ repository, logger, events }) {
     const missing = [];
     if (!input.leadCountry && !input.country) {
       missing.push("leadCountry");
-    }
-    if (!input.travelDate) {
-      missing.push("travelDate");
-    }
-    if (!input.travelEndDate) {
-      missing.push("travelEndDate");
     }
     if (input.travelDate && input.travelEndDate) {
       const start = new Date(input.travelDate);
@@ -1360,7 +1399,7 @@ function createLeadsService({ repository, logger, events }) {
       roleName === ASSIGNMENT_ROLES.AGENT ||
       roleName === ASSIGNMENT_ROLES.MANAGER;
     
-    const leadCountry = normalizeCategory(
+    const leadCountry = normalizeCountryAlias(
       lead.leadCountry ?? lead.country ?? null,
     );
     const leadType = normalizeAgentType(lead.leadType ?? lead.type ?? null);
@@ -1389,7 +1428,7 @@ function createLeadsService({ repository, logger, events }) {
         const typeAnyCountryMatch = [];
         
         for (const candidate of candidates) {
-          const agentCountry = normalizeCategory(candidate.country);
+          const agentCountry = normalizeCountryAlias(candidate.country);
           const agentType = normalizeAgentType(candidate.agentType);
           
           // Check if agent type matches
@@ -1400,7 +1439,7 @@ function createLeadsService({ repository, logger, events }) {
           }
           
           // Priority 1: Country + Type match
-          if (leadCountry && agentCountry && agentCountry === leadCountry) {
+          if (leadCountry && agentCountry && countriesMatch(agentCountry, leadCountry)) {
             perfectMatch.push(candidate);
           }
           // Priority 2: Type match + Agent has no country restriction
@@ -1421,7 +1460,7 @@ function createLeadsService({ repository, logger, events }) {
         } else if (typeOnlyMatch.length > 0) {
           selectedPool = typeOnlyMatch;
           tier = 'TYPE_ONLY';
-        } else if (typeAnyCountryMatch.length > 0) {
+        } else if (!leadCountry && typeAnyCountryMatch.length > 0) {
           selectedPool = typeAnyCountryMatch;
           tier = 'TYPE_ANY_COUNTRY';
         }
@@ -1633,6 +1672,36 @@ function createLeadsService({ repository, logger, events }) {
         ? context.user?.id || null
         : null;
 
+    const leadCountry = normalizeCountryAlias(
+      existing.leadCountry ?? existing.country ?? null,
+    );
+
+    async function resolveAssigneeCountrySet(user) {
+      if (!user?.id) {
+        return new Set();
+      }
+      const [assigneeCountries, assigneePrimaryCountry] = await Promise.all([
+        repository.findUserCountryNames(user.id),
+        Promise.resolve(normalizeCountryAlias(user.country)),
+      ]);
+      const countrySet = new Set(
+        assigneeCountries
+          .map((country) => normalizeCountryAlias(country))
+          .filter(Boolean),
+      );
+      if (assigneePrimaryCountry) {
+        countrySet.add(assigneePrimaryCountry);
+      }
+      return countrySet;
+    }
+
+    function assigneeCountryMatches(countrySet) {
+      if (!leadCountry || countrySet.size === 0) {
+        return true;
+      }
+      return [...countrySet].some((country) => countriesMatch(country, leadCountry));
+    }
+
     let assignee = null;
     if (payload.assignedTo) {
       assignee = await repository.findAssignableUserById(payload.assignedTo);
@@ -1644,31 +1713,6 @@ function createLeadsService({ repository, logger, events }) {
           400,
           "Leads can only be assigned to lead agents.",
           "ASSIGNEE_ROLE_NOT_ALLOWED",
-        );
-      }
-      const leadCountry = normalizeCategory(
-        existing.leadCountry ?? existing.country ?? null,
-      );
-      const [assigneeCountries, assigneePrimaryCountry] = await Promise.all([
-        repository.findUserCountryNames(assignee.id),
-        Promise.resolve(normalizeCategory(assignee.country)),
-      ]);
-      const normalizedAssigneeCountries = new Set(
-        assigneeCountries.map((country) => normalizeCategory(country)).filter(Boolean),
-      );
-      if (assigneePrimaryCountry) {
-        normalizedAssigneeCountries.add(assigneePrimaryCountry);
-      }
-
-      if (
-        leadCountry &&
-        normalizedAssigneeCountries.size > 0 &&
-        !normalizedAssigneeCountries.has(leadCountry)
-      ) {
-        throw new AppError(
-          400,
-          "Assignee country does not match lead country",
-          "ASSIGNEE_COUNTRY_MISMATCH",
         );
       }
       if (
@@ -1688,6 +1732,12 @@ function createLeadsService({ repository, logger, events }) {
         roleName,
         managerId,
       });
+      if (assignee) {
+        const normalizedAssigneeCountries = await resolveAssigneeCountrySet(assignee);
+        if (!assigneeCountryMatches(normalizedAssigneeCountries)) {
+          assignee = null;
+        }
+      }
     }
 
     if (!assignee) {
@@ -1758,6 +1808,50 @@ function createLeadsService({ repository, logger, events }) {
       mode: payload.mode || "AUTO",
       reason: payload.reason || null,
     });
+
+    const assignmentWallClock = followupInstantToWallClock(nowIso);
+    if (assignmentWallClock) {
+      const assignedByResolvedName = context.user?.id
+        ? await repository.findUserDisplayNameById?.(context.user.id)
+        : null;
+      const assignedByName = String(
+        assignedByResolvedName ??
+          context.user?.fullName ??
+          context.user?.name ??
+          context.user?.email ??
+          context.user?.id ??
+          "System",
+      ).trim();
+      const newAssigneeName = String(
+        assignee.fullName ?? assignee.email ?? assignee.id ?? "Unknown",
+      ).trim();
+      const previousAssigneeName = String(
+        existing.assignedUser?.fullName ??
+          existing.assignedUser?.email ??
+          previousAssigneeId ??
+          "Unassigned",
+      ).trim();
+      const assignmentNote = isReassign
+        ? `Reassigned by ${assignedByName} from ${previousAssigneeName} to ${newAssigneeName}`
+        : `Assigned by ${assignedByName} to ${newAssigneeName}`;
+
+      await repository.createFollowup({
+        leadId: existing.id,
+        userId: context.user?.id || assignee.id || null,
+        followupType: "EMAIL",
+        followupDate: assignmentWallClock,
+        followupLocalAt: assignmentWallClock,
+        clientTimezone:
+          payload.activityTimezone ||
+          payload.clientTimezone ||
+          DEFAULT_SYSTEM_DATE_TIME_PREFERENCES.timezone,
+        statusSnapshot: "ASSIGNMENT",
+        notes: assignmentNote,
+        isCompleted: true,
+        isScheduleOnly: false,
+        countsTowardCompliance: false,
+      });
+    }
 
     const lead = withTemperature(updated);
     events.emitUpdated(lead);

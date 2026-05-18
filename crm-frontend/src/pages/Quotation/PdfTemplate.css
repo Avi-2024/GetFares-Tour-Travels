@@ -25,7 +25,7 @@
 }
 
 .pdf-page-2 {
-  padding-bottom: 190px;
+  padding-bottom: 280px;
 }
 
 .pdf-page + .pdf-page {
@@ -34,7 +34,14 @@
 
 .pdf-page-continued .pdf-content {
   padding-top: 4px;
-  padding-bottom: 130px;
+}
+
+.pdf-page-itinerary .pdf-content {
+  padding-bottom: 280px;
+}
+
+.pdf-page-post .pdf-content {
+  padding-bottom: 240px;
 }
 
 /* HEADER */

@@ -227,7 +227,7 @@ const Header: React.FC<{
 
   const syncPresenceUser = (payload: PresencePayload) => {
     if (!token) return;
-    setAuthState(token, {
+    setAuthState({
       id: payload.id || user?.id || "",
       name:
         payload.fullName?.trim() ||

@@ -2,7 +2,6 @@ import { apiRequest } from "./apiClient";
 
 type LoginResponse = {
   data: {
-    accessToken: string;
     user: {
       id: string;
       email: string;
@@ -39,6 +38,10 @@ export const authApi = {
       method: "POST",
       body: payload,
       skipAuth: true,
+    }),
+  logout: () =>
+    apiRequest<{ data: { success: boolean } }>("/api/auth/logout", {
+      method: "POST",
     }),
   profile: () =>
     apiRequest<ProfileResponse>(`/api/auth/me?ts=${Date.now()}`),

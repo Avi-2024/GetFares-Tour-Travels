@@ -8,10 +8,9 @@ export const apiClient = new HttpClient({
   timeout: 20000,
 });
 
-apiClient.setTokenProvider(() => localStorage.getItem("auth_token"));
+apiClient.setTokenProvider(() => null);
 
 apiClient.setUnauthorizedHandler(() => {
-  localStorage.removeItem("auth_token");
   localStorage.removeItem("auth_user");
   localStorage.removeItem("auth_permissions");
   if (window.location.pathname !== "/login") window.location.replace("/login");

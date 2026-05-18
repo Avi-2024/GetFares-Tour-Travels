@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { AppError } from "../../core/errors/index.js";
 import { getWebhookFileLogger } from "./webhookFileLogger.js";
 import { LeadFieldsUtils } from "../leads/leadFields.utils.js";
+import { resolveMetaLeadRoutingRule, normalizeMetaId } from "./metaLeadRouting.rules.js";
 
 const META_SOURCE = "Meta Lead Ads";
 const META_UTM_SOURCE = "meta";
@@ -159,6 +160,14 @@ function buildLeadPayload(metaLead = {}, event = {}, pageConfig = {}, campaign =
   const metaCampaignId = String(
     metaLead.campaign_id || event.campaignId || "",
   ).trim() || null;
+  const metaPageId = normalizeMetaId(event.pageId || metaLead.page_id || null);
+  const metaFormId = normalizeMetaId(metaLead.form_id || event.formId || null);
+  const metaAdId = normalizeMetaId(metaLead.ad_id || event.adId || null);
+  const routingRule = resolveMetaLeadRoutingRule({
+    metaPageId,
+    metaFormId,
+    metaAdId,
+  });
   const clientCreatedAt = toMysqlWallClock(metaLead.created_time);
 
   return {
@@ -178,15 +187,16 @@ function buildLeadPayload(metaLead = {}, event = {}, pageConfig = {}, campaign =
     platform: "meta",
     campaignName: campaign?.name || null,
     adName: normalizeValue(metaLead.ad_name ?? metaLead.adName ?? null),
-    source: pageConfig.sourceLabel || META_SOURCE,
+    source: routingRule?.assign?.source || pageConfig.sourceLabel || META_SOURCE,
+    leadType: routingRule?.assign?.leadType || null,
     leadCountry: pageConfig.countryName || null,
     country: pageConfig.countryName || null,
     countryId: pageConfig.countryId || null,
     campaignId: campaign?.id || null,
     metaLeadId: event.leadgenId,
-    metaPageId: event.pageId || metaLead.page_id || null,
-    metaFormId: metaLead.form_id || event.formId || null,
-    metaAdId: metaLead.ad_id || event.adId || null,
+    metaPageId,
+    metaFormId,
+    metaAdId,
     metaAdsetId: metaLead.adset_id || event.adsetId || null,
     metaCampaignId,
     clientCreatedAt,
