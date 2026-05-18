@@ -179,13 +179,21 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
         );
     };
 
+    const estimateLineCount = (text: string, charsPerLine: number) => {
+        const raw = String(text || '').trim();
+        if (!raw) return 1;
+        return raw
+            .split('\n')
+            .reduce((sum, line) => sum + Math.max(1, Math.ceil(line.trim().length / charsPerLine)), 0);
+      };
+
     const estimateItineraryWeight = (day: ItineraryDay) => {
-        const titleWeight = 1;
+        const titleWeight = 2;
         const pointsWeight = (day.points || []).reduce((sum, point) => {
-            const len = String(point || '').trim().length;
-            return sum + Math.max(1, Math.ceil(len / 150));
+            return sum + estimateLineCount(String(point || ''), 95);
         }, 0);
-        return titleWeight + pointsWeight;
+        const spacingWeight = 2;
+        return titleWeight + pointsWeight + spacingWeight;
     };
 
     const paginateItinerary = (days: ItineraryDay[], maxUnitsPerPage: number) => {
@@ -227,7 +235,8 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
     };
 
     // First continuation page can hold more than initial page because it contains only itinerary.
-    const itineraryPages = !visaMode ? paginateItinerary(data.itinerary || [], 13) : [];
+    const ITINERARY_PAGE_UNITS = 34;
+    const itineraryPages = !visaMode ? paginateItinerary(data.itinerary || [], ITINERARY_PAGE_UNITS) : [];
     const primaryItinerary = itineraryPages[0] || [];
     const extraItineraryPages = itineraryPages.slice(1);
     const hasOverflowItinerary = extraItineraryPages.length > 0;
@@ -235,9 +244,8 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
     const getListUnits = (items: string[]) =>
         Math.max(
             2,
-            1 +
-                items.length +
-                items.reduce((sum, item) => sum + Math.ceil(String(item || '').length / 260), 0),
+            2 +
+                items.reduce((sum, item) => sum + estimateLineCount(String(item || ''), 62) + 1, 0),
         );
 
     const createListBlock = (key: string, title: string, items: string[]): PostSectionItem => ({
@@ -267,14 +275,17 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
         if (!text) return null;
         return {
             key,
-            units: Math.max(2, 2 + Math.ceil(text.length / 300)),
+            units: Math.max(3, 2 + estimateLineCount(text, 95)),
             node: section(title, value),
         };
     };
 
+    const postInclusionsList = overflowServices.length > 0 ? overflowServices : inclusionsList;
+    const postInclusionsTitle = overflowServices.length > 0 ? 'Inclusions (Continued)' : 'Inclusions';
+
     const serviceGroupNode = !visaMode ? (
         <>
-            {createListBlock('inclusions', 'Inclusions', inclusionsList).node}
+            {createListBlock('inclusions', postInclusionsTitle, postInclusionsList).node}
             {createListBlock('exclusions', 'Exclusions', exclusionsList).node}
             {createListBlock('enabled-services', 'Enabled Services', enabledServicesList).node}
         </>
@@ -286,7 +297,7 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
     );
 
     const serviceGroupUnits = !visaMode
-        ? getListUnits(inclusionsList) + getListUnits(exclusionsList) + getListUnits(enabledServicesList)
+        ? getListUnits(postInclusionsList) + getListUnits(exclusionsList) + getListUnits(enabledServicesList)
         : getListUnits(inclusionsList) + getListUnits(exclusionsList);
 
     const postSectionItems: PostSectionItem[] = [
@@ -295,13 +306,6 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
             units: serviceGroupUnits,
             node: <div key="service-group">{serviceGroupNode}</div>,
         },
-        overflowServices.length > 0
-            ? createListBlock(
-                'services-overflow',
-                visaMode ? 'Services (Continued)' : 'Included Services (Continued)',
-                overflowServices,
-            )
-            : null,
         createTextBlock('header-branding', 'Header Branding', data.headerBranding, !visaMode),
         createTextBlock('payment-terms', 'Payment Terms', data.paymentTerms),
         createTextBlock('cancellation-policy', 'Cancellation Policy', data.cancellationPolicy),
@@ -309,7 +313,8 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
         createTextBlock('hotel-details', 'Hotel Details', data.hotelDetails, !visaMode),
     ].filter((item): item is PostSectionItem => Boolean(item && item.node));
 
-    const postSectionPages = chunkByUnits(postSectionItems, (item) => item.units, hasOverflowItinerary ? 22 : 20);
+    const POST_PAGE_UNITS = hasOverflowItinerary ? 30 : 28;
+    const postSectionPages = chunkByUnits(postSectionItems, (item) => item.units, POST_PAGE_UNITS);
 
     const renderPostItinerarySections = (pageItems: PostSectionItem[] = postSectionItems) => (
         <div className="pdf-page-stack">
