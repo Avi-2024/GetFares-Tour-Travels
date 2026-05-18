@@ -227,7 +227,7 @@ const ProfilePage = () => {
         name: updatedProfile.name,
         email: updatedProfile.email
       })
-      setAuthState(token, {
+      setAuthState({
         id: updatedProfile.id,
         name: updatedProfile.name,
         email: updatedProfile.email,

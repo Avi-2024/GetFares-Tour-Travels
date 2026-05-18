@@ -8,10 +8,10 @@ import { reportApiError } from '../../lib/notify'
 import { toast } from 'sonner'
 import { bookingsApi } from '../../api/bookings'
 import { quotationsApi } from '../../api/quotations'
-import { usersApi } from '../../api/users'
 import PdfTemplate from '../Quotation/PdfTemplate'
 import { useLeadsService } from '../../hooks/useLeadsService'
 import { useCampaignsService } from '../../hooks/useCampaignsService'
+import { useUsersService } from '../../hooks/useUsersService'
 import {
   buildBookingCreatePayloadFromQuotation,
   quotationWasSentToLead
@@ -193,6 +193,7 @@ const LeadDetails: React.FC = () => {
   const { id } = useParams()
   const leadsService = useLeadsService()
   const campaignsService = useCampaignsService()
+  const usersService = useUsersService()
   const { hasPermission, user } = useAuth()
   const { formatDate, formatDateTime } =
     useDateTimePreferences()
@@ -662,7 +663,7 @@ const LeadDetails: React.FC = () => {
       return
     }
     try {
-      const res = await usersApi.list({ isActive: true, limit: 500 })
+      const res = await usersService.list({ isActive: true, limit: 500 })
       const rows = unwrapApiArray(res) as Array<Record<string, unknown>>
       const assignableRows = rows.filter(row => {
         const roleToken = String(row.role ?? row.role_name ?? '')
@@ -684,7 +685,7 @@ const LeadDetails: React.FC = () => {
     } catch {
       setAssigneeOptions([{ value: '', label: 'Select assignee' }])
     }
-  }, [lead, hasPermission, user?.role])
+  }, [lead, hasPermission, user?.role, usersService])
 
   React.useEffect(() => {
     void loadLead()
@@ -1777,7 +1778,7 @@ const LeadDetails: React.FC = () => {
         activityCreatedAt: nowWallClockString(),
         activityTimezone: getBrowserTimeZone()
       })
-      await loadLead()
+      await Promise.all([loadLead(), loadFollowups()])
       setSelectedAssigneeId('')
       const assignedName = assigneeOptions.find(o => o.value === selectedAssigneeId)?.label ?? 'Agent'
       toast.success(`Lead assigned to ${assignedName}`)

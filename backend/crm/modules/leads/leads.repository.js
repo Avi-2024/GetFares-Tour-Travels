@@ -2585,6 +2585,19 @@ function createLeadsRepository({ db, logger, schema }) {
       return toAssignableUser(row, roleName);
     },
 
+    async findUserDisplayNameById(userId) {
+      if (!userId) return null;
+      const row = await db.findById(schema.usersTable, userId);
+      if (!row) return null;
+      return (
+        row.full_name ??
+        row.fullName ??
+        row.name ??
+        row.email ??
+        null
+      );
+    },
+
     async getOpenLeadLoadByUserIds(userIds = []) {
       const idSet = new Set(userIds);
       const load = {};

@@ -1,20 +1,37 @@
 import { AppError } from "../../core/errors/index.js";
 
-function extractToken(req) {
+function extractToken(req, cookieName = "crm_access_token") {
   const authHeader = req.headers.authorization;
-  if (!authHeader) {
-    return null;
+  if (authHeader) {
+    const [scheme, token] = authHeader.split(" ");
+    if (scheme === "Bearer" && token) {
+      return token;
+    }
   }
 
-  const [scheme, token] = authHeader.split(" ");
-  if (scheme !== "Bearer" || !token) {
+  const rawCookieHeader = req.headers.cookie;
+  if (!rawCookieHeader) {
     return null;
   }
-
-  return token;
+  const cookieHeader = String(rawCookieHeader);
+  const segments = cookieHeader.split(";").map((part) => part.trim());
+  for (const segment of segments) {
+    if (!segment) continue;
+    const [name, ...valueParts] = segment.split("=");
+    if (name !== cookieName) continue;
+    const value = valueParts.join("=").trim();
+    if (!value) return null;
+    try {
+      return decodeURIComponent(value);
+    } catch {
+      return value;
+    }
+  }
+  return null;
 }
 
-function createAuthMiddleware({ authService, logger }) {
+function createAuthMiddleware({ authService, logger, authConfig }) {
+  const cookieName = String(authConfig?.cookieName || "crm_access_token");
   function logAuthWarning(req, message, metadata = {}) {
     logger?.warn(
       {
@@ -34,7 +51,7 @@ function createAuthMiddleware({ authService, logger }) {
 
   function optionalAuth(req, res, next) {
     try {
-      const token = extractToken(req);
+      const token = extractToken(req, cookieName);
       if (!token) {
         return next();
       }
@@ -54,7 +71,7 @@ function createAuthMiddleware({ authService, logger }) {
   }
 
   async function requireAuth(req, res, next) {
-    const token = extractToken(req);
+    const token = extractToken(req, cookieName);
     if (!token) {
       logAuthWarning(req, "Authentication failure", { reason: "AUTH_TOKEN_REQUIRED" });
       return next(

@@ -25,7 +25,8 @@ type AuthContextValue = {
   user: AuthUser | null;
   permissions: string[];
   loadingPermissions: boolean;
-  setAuthState: (token: string, user: AuthUser) => void;
+  bootstrappingSession: boolean;
+  setAuthState: (user: AuthUser) => void;
   logout: () => void;
   refreshPermissions: (customToken?: string) => Promise<string[]>;
   hasPermission: (permission: string) => boolean;
@@ -33,9 +34,10 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const STORAGE_TOKEN = "auth_token";
 const STORAGE_USER = "auth_user";
 const STORAGE_PERMISSIONS = "auth_permissions";
+const STORAGE_TOKEN = "auth_token";
+const SESSION_MARKER = "cookie_session";
 
 type ProfileApiUser = {
   id?: string;
@@ -53,26 +55,6 @@ const normalizePermissionKey = (permission: string) =>
     .trim()
     .toLowerCase()
     .replace(/\./g, ":");
-
-const parseTokenExpiryMs = (token: string): number | null => {
-  if (typeof window === "undefined" || !token) return null;
-
-  const parts = token.split(".");
-  if (parts.length < 2) return null;
-
-  try {
-    const normalized = parts[1].replace(/-/g, "+").replace(/_/g, "/");
-    const padded = normalized.padEnd(
-      normalized.length + ((4 - (normalized.length % 4)) % 4),
-      "=",
-    );
-    const payload = JSON.parse(window.atob(padded)) as { exp?: unknown };
-    if (typeof payload.exp !== "number") return null;
-    return payload.exp * 1000;
-  } catch {
-    return null;
-  }
-};
 
 const normalizeBooleanFlag = (value: unknown): boolean | null => {
   if (value === true || value === 1 || value === "1" || value === "true") {
@@ -102,9 +84,9 @@ const normalizeAuthUser = (payload?: ProfileApiUser | null): AuthUser | null => 
 };
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [token, setToken] = useState<string>(
-    () => localStorage.getItem(STORAGE_TOKEN) ?? "",
-  );
+  const [token, setToken] = useState<string>(() => {
+    return localStorage.getItem(STORAGE_TOKEN) || "";
+  });
   const [user, setUser] = useState<AuthUser | null>(() => {
     const raw = localStorage.getItem(STORAGE_USER);
     return raw ? (JSON.parse(raw) as AuthUser) : null;
@@ -114,6 +96,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return raw ? (JSON.parse(raw) as string[]) : [];
   });
   const [loadingPermissions, setLoadingPermissions] = useState(false);
+  const [bootstrappingSession, setBootstrappingSession] = useState(true);
   const permissionsRequestRef = useRef<{
     token: string;
     promise: Promise<string[]>;
@@ -129,9 +112,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const refreshPermissions = useCallback(
     async (customToken?: string) => {
       const activeToken = customToken || token;
-      if (!activeToken) return [];
+      const tokenKey = activeToken || "__cookie_session__";
 
-      if (permissionsRequestRef.current?.token === activeToken) {
+      if (permissionsRequestRef.current?.token === tokenKey) {
         return permissionsRequestRef.current.promise;
       }
 
@@ -172,7 +155,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       });
 
       permissionsRequestRef.current = {
-        token: activeToken,
+        token: tokenKey,
         promise: requestPromise,
       };
 
@@ -182,14 +165,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   );
 
   useEffect(() => {
-    if (token && permissions.length === 0) {
+    if (permissions.length === 0) {
       void refreshPermissions();
     }
-  }, [token, permissions.length, refreshPermissions]);
+  }, [permissions.length, refreshPermissions]);
 
   useEffect(() => {
-    if (!token) return;
-
     let cancelled = false;
 
     const syncProfile = async () => {
@@ -198,9 +179,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const nextUser = normalizeAuthUser(response?.data);
         if (!nextUser || cancelled) return;
         localStorage.setItem(STORAGE_USER, JSON.stringify(nextUser));
+        localStorage.setItem(STORAGE_TOKEN, SESSION_MARKER);
         setUser(nextUser);
+        setToken(SESSION_MARKER);
       } catch {
-        // Keep the last stored session user if profile bootstrap fails.
+        if (cancelled) return;
+        setToken("");
+      } finally {
+        if (cancelled) return;
+        setBootstrappingSession(false);
       }
     };
 
@@ -209,49 +196,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, []);
 
-  const setAuthState = (nextToken: string, nextUser: AuthUser) => {
-    localStorage.setItem(STORAGE_TOKEN, nextToken);
+  const setAuthState = (nextUser: AuthUser) => {
     localStorage.setItem(STORAGE_USER, JSON.stringify(nextUser));
-    setToken(nextToken);
+    localStorage.setItem(STORAGE_TOKEN, SESSION_MARKER);
+    setToken(SESSION_MARKER);
     setUser(nextUser);
   };
 
   const logout = useCallback(() => {
+    void authApi.logout().catch(() => {
+      // ignore logout API failures during local cleanup
+    });
     localStorage.removeItem(STORAGE_TOKEN);
     localStorage.removeItem(STORAGE_USER);
     localStorage.removeItem(STORAGE_PERMISSIONS);
     setToken("");
     setUser(null);
     setPermissions([]);
+    setBootstrappingSession(false);
   }, []);
-
-  useEffect(() => {
-    if (!token) return;
-
-    const expiryMs = parseTokenExpiryMs(token);
-    if (!expiryMs) return;
-
-    const redirectToLogin = () => {
-      logout();
-      if (
-        typeof window !== "undefined" &&
-        window.location.pathname !== "/login"
-      ) {
-        window.location.replace("/login");
-      }
-    };
-
-    const remainingMs = expiryMs - Date.now();
-    if (remainingMs <= 0) {
-      redirectToLogin();
-      return;
-    }
-
-    const timerId = window.setTimeout(redirectToLogin, remainingMs);
-    return () => window.clearTimeout(timerId);
-  }, [token, logout]);
 
   const hasPermission = useCallback(
     (permission: string) => {
@@ -295,6 +260,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       user,
       permissions,
       loadingPermissions,
+      bootstrappingSession,
       setAuthState,
       logout,
       refreshPermissions,
@@ -305,6 +271,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       user,
       permissions,
       loadingPermissions,
+      bootstrappingSession,
       refreshPermissions,
       hasPermission,
     ],

@@ -75,6 +75,7 @@ const ServiceContext = createContext<ServiceContextValue | null>(null);
 export const ServiceProvider = ({ children }: { children: ReactNode }) => {
   const { token, logout } = useAuth();
   const apiClientRef = useRef<ApiClient | null>(null);
+  const isCookieSessionMarker = token === "cookie_session";
 
   if (!apiClientRef.current) {
     apiClientRef.current = createApiClient({
@@ -86,11 +87,11 @@ export const ServiceProvider = ({ children }: { children: ReactNode }) => {
   if (!apiClient) return null;
 
   useEffect(() => {
-    apiClient.setAuthTokenProvider(
-      () => token || localStorage.getItem("auth_token"),
+    apiClient.setAuthTokenProvider(() =>
+      token && !isCookieSessionMarker ? token : null,
     );
     apiClient.setOnUnauthorized(() => logout());
-  }, [apiClient, token, logout]);
+  }, [apiClient, token, isCookieSessionMarker, logout]);
 
   useEffect(() => {
     if (!token) return;

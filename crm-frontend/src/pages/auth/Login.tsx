@@ -169,7 +169,7 @@ const Login = () => {
         data.user.fullName || data.user.name || email.split('@')[0]
       const userEmail = data.user.email || email
       const userRole = data.user.role
-      setAuthState(data.accessToken, {
+      setAuthState({
         id: data.user.id,
         name: userName,
         email: userEmail,
@@ -199,7 +199,7 @@ const Login = () => {
         navigate('/dashboard')
         return
       }
-      const permissionsPromise = refreshPermissions(data.accessToken)
+      const permissionsPromise = refreshPermissions()
       const permissionWaitStartMs = getNowMs()
       const permissions = await new Promise<string[] | null>(resolve => {
         const timeoutId = window.setTimeout(

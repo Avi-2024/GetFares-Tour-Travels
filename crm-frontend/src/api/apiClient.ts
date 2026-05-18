@@ -224,13 +224,13 @@ export const createApiClient = (config: ApiClientConfig = {}): ApiClient => {
   const axiosInstance = axios.create({
     baseURL,
     timeout: timeoutMs,
+    withCredentials: true,
     headers: {
       ...defaultHeaders,
     },
   });
 
-  let tokenProvider =
-    getAuthToken ?? (() => localStorage.getItem(STORAGE_TOKEN));
+  let tokenProvider = getAuthToken ?? (() => null);
   let unauthorizedHandler = onUnauthorized;
 
   attachInterceptors(
@@ -292,11 +292,13 @@ const clearAuthStorage = () => {
 
 const handleLegacyUnauthorized = () => {
   if (typeof localStorage === "undefined") return;
-  const hadToken = Boolean(localStorage.getItem(STORAGE_TOKEN));
+  const hadSession =
+    Boolean(localStorage.getItem(STORAGE_TOKEN)) ||
+    Boolean(localStorage.getItem(STORAGE_USER));
   clearAuthStorage();
 
   if (
-    hadToken &&
+    hadSession &&
     typeof window !== "undefined" &&
     window.location.pathname !== "/login"
   ) {
@@ -305,7 +307,7 @@ const handleLegacyUnauthorized = () => {
 };
 
 const legacyClient = createApiClient({
-  getAuthToken: () => localStorage.getItem(STORAGE_TOKEN),
+  getAuthToken: () => null,
   onUnauthorized: handleLegacyUnauthorized,
 });
 

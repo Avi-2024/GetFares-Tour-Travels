@@ -32,6 +32,7 @@ function createAuthModule({ dependencies }) {
   const middleware = createAuthMiddleware({
     authService: service,
     logger: dependencies.logger,
+    authConfig: dependencies.config?.auth,
   });
 
   const controller = createAuthController({ service });

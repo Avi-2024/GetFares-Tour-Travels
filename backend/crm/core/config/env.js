@@ -35,6 +35,10 @@ const envSchema = z.object({
       { message: "Must change default JWT secret in production environment" }
     ),
   JWT_ACCESS_EXPIRES_IN: z.string().default("7d"),
+  AUTH_COOKIE_NAME: z.string().default("crm_access_token"),
+  AUTH_COOKIE_SECURE: z.coerce.boolean().default(false),
+  AUTH_COOKIE_SAME_SITE: z.enum(["lax", "strict", "none"]).default("lax"),
+  AUTH_COOKIE_DOMAIN: z.string().optional(),
   AUTH_DEFAULT_ROLE: z.string().default("sales_consultant"),
   AUTH_BCRYPT_ROUNDS: z.coerce.number().int().min(6).max(12).default(8),
   AUTH_DB_SLOW_QUERY_MS: z.coerce.number().int().positive().default(150),

@@ -292,7 +292,6 @@ const normalizePriority = (lead: LeadApiRecord): LeadPriority => {
 const normalizeDestination = (
   destination: LeadDestinationRecord | undefined,
   fallbackName?: string | null,
-  country?: string | null,
 ) => {
   if (typeof destination === "string" && destination.trim()) {
     return destination.trim();
@@ -307,9 +306,6 @@ const normalizeDestination = (
   }
   if (fallbackName && String(fallbackName).trim()) {
     return String(fallbackName).trim();
-  }
-  if (country && String(country).trim()) {
-    return String(country).trim();
   }
   return "N/A";
 };
@@ -383,8 +379,7 @@ const toListItem = (lead: LeadApiRecord, index: number): LeadListItem => {
     leadCountry: toPlainText(lead.leadCountry ?? lead.country ?? "N/A", "N/A"),
     destination: normalizeDestination(
       lead.destination,
-      lead.destinationName,
-      lead.country,
+      lead.destinationName ?? lead.travelTo ?? lead.travel_to,
     ),
     adultsCount: normalizeCount(
       lead.adultsCount ??

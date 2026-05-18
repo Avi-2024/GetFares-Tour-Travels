@@ -1715,14 +1715,6 @@ function createLeadsService({ repository, logger, events }) {
           "ASSIGNEE_ROLE_NOT_ALLOWED",
         );
       }
-      const normalizedAssigneeCountries = await resolveAssigneeCountrySet(assignee);
-      if (!assigneeCountryMatches(normalizedAssigneeCountries)) {
-        throw new AppError(
-          400,
-          "Assignee country does not match lead country",
-          "ASSIGNEE_COUNTRY_MISMATCH",
-        );
-      }
       if (
         managerId &&
         !isSuperAdminRole(requestRole) &&
@@ -1819,8 +1811,12 @@ function createLeadsService({ repository, logger, events }) {
 
     const assignmentWallClock = followupInstantToWallClock(nowIso);
     if (assignmentWallClock) {
+      const assignedByResolvedName = context.user?.id
+        ? await repository.findUserDisplayNameById?.(context.user.id)
+        : null;
       const assignedByName = String(
-        context.user?.fullName ??
+        assignedByResolvedName ??
+          context.user?.fullName ??
           context.user?.name ??
           context.user?.email ??
           context.user?.id ??

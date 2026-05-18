@@ -118,6 +118,7 @@ function createAuthService({
     buildAuthResponse,
     serializeUser,
     isTokenBlacklisted,
+    getAuthConfig: () => authConfig,
 
     async register(payload) {
       const startedAt = Date.now();

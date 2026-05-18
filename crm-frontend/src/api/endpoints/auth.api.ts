@@ -8,7 +8,6 @@ export interface LoginPayload {
 
 export interface LoginResponse {
   data: {
-    accessToken: string;
     user: {
       id: string;
       email: string;
@@ -39,6 +38,9 @@ export const authEndpoints = {
 
   toggleActive: (active: boolean) =>
     apiClient.post<{ data: UserProfile }>('/api/auth/toggle-active', { active }),
+
+  logout: () =>
+    apiClient.post<{ data: { success: boolean } }>('/api/auth/logout'),
 
   forgotPassword: (email: string) =>
     apiClient.post<{ message: string }>('/api/auth/forgot-password', { email }),

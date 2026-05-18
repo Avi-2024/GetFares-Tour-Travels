@@ -8,11 +8,9 @@ import { authEndpoints, type UserProfile } from '../endpoints/auth.api';
 export class AuthService {
   async login(email: string, password: string, rememberMe = false) {
     const response = await authEndpoints.login({ email, password, rememberMe });
-    
-    // Store token and user
-    localStorage.setItem('auth_token', response.data.accessToken);
+
     localStorage.setItem('auth_user', JSON.stringify(response.data.user));
-    
+
     return response.data;
   }
 
@@ -23,7 +21,11 @@ export class AuthService {
   }
 
   async logout() {
-    localStorage.removeItem('auth_token');
+    try {
+      await authEndpoints.logout();
+    } catch {
+      // Ignore logout API errors during cleanup
+    }
     localStorage.removeItem('auth_user');
     localStorage.removeItem('auth_permissions');
     window.location.href = '/login';
@@ -40,11 +42,11 @@ export class AuthService {
   }
 
   getToken(): string | null {
-    return localStorage.getItem('auth_token');
+    return null;
   }
 
   isAuthenticated(): boolean {
-    return !!this.getToken();
+    return !!this.getCurrentUser();
   }
 
   async toggleActive(active: boolean) {
