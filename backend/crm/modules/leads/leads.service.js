@@ -1322,10 +1322,11 @@ function createLeadsService({ repository, logger, events }) {
     }
 
     if (mapped.status && POSITIVE_RESPONSE_STATUSES.has(mapped.status) && !existing.responseAt) {
-      mapped.response_at = now;
+      const responseStamp = resolveActivityStamp(payload)?.createdAt || now;
+      mapped.response_at = responseStamp;
       if (existing.responseDeadline) {
         mapped.sla_breached = isAfterResponseDeadline(
-          now,
+          responseStamp,
           existing.responseDeadline,
         );
       }

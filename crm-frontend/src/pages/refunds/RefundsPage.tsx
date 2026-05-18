@@ -118,6 +118,10 @@ type PaymentLookup = {
   id: string
   referenceId: string
   amount: number
+  currency: string
+  paymentMode?: string
+  isVerified?: boolean
+  status?: string
   bookingId?: string
   paidAt?: string
   createdAt?: string
@@ -960,6 +964,24 @@ const RefundsPage = () => {
     () => new Map(payments.map(payment => [payment.id, payment])),
     [payments]
   )
+
+  const selectedPayment = useMemo(
+    () => paymentById.get(form.paymentId) ?? null,
+    [form.paymentId, paymentById]
+  )
+
+  const verifiedPaymentsSummary = useMemo(() => {
+    const verified = payments.filter(payment => payment.isVerified !== false)
+    if (!verified.length) return ''
+    const byCurrency = new Map<string, number>()
+    verified.forEach(payment => {
+      const code = String(payment.currency || 'INR').toUpperCase()
+      byCurrency.set(code, (byCurrency.get(code) || 0) + payment.amount)
+    })
+    return Array.from(byCurrency.entries())
+      .map(([code, total]) => formatCurrency(total, code))
+      .join(' + ')
+  }, [payments])
   const financeUsersForDropdown = useMemo(() => {
     const assignId = String(form.assignedTo || '').trim()
     const byId = new Map(financeUsers.map(u => [u.id, u]))
@@ -1058,7 +1080,7 @@ const RefundsPage = () => {
       if (!normalized) return 'No payment linked'
       const payment = paymentById.get(normalized)
       if (!payment) return `Payment ${shortId(normalized)}`
-      return `${payment.referenceId} - $${payment.amount.toFixed(2)}`
+      return `${payment.referenceId} - ${formatCurrency(payment.amount, payment.currency)}`
     },
     [paymentById]
   )
@@ -1088,16 +1110,19 @@ const RefundsPage = () => {
           : undefined
         const customerName = booking?.customer || 'Unknown Customer'
         const refLabel = payment.referenceId
-        const amountLabel = `$${payment.amount.toFixed(2)}`
+        const amountLabel = formatCurrency(payment.amount, payment.currency)
+        const modeLabel = payment.paymentMode
+          ? payment.paymentMode.replace(/_/g, ' ')
+          : ''
         return {
           value: payment.id,
           label: `${customerName} ${refLabel} ${amountLabel}`,
           leftLabel: customerName,
           rightLabel: refLabel,
-          rightSubLabel: amountLabel,
+          rightSubLabel: modeLabel ? `${amountLabel} · ${modeLabel}` : amountLabel,
           rightSubEmphasis: true,
           selectedLabel: `${customerName} · ${refLabel} · ${amountLabel}`,
-          searchText: `${customerName} ${refLabel} ${amountLabel} ${payment.bookingId || ''}`
+          searchText: `${customerName} ${refLabel} ${amountLabel} ${modeLabel} ${payment.bookingId || ''}`
         }
       }),
     [payments, bookingById]
@@ -1567,26 +1592,45 @@ const RefundsPage = () => {
           []
         const paymentsList = Array.isArray(paymentsData) ? paymentsData : []
 
-        const mappedPayments = paymentsList.map((payment: any) => ({
-          id: String(payment.id || ''),
-          bookingId: String(
-            payment.bookingId ||
-              payment.booking_id ||
-              payment.booking?.id ||
-              payment.booking?.bookingId ||
-              ''
-          ),
-          referenceId:
-            payment.paymentReference ||
-            payment.payment_reference ||
-            payment.gatewayPaymentId ||
-            payment.gateway_payment_id ||
-            payment.id,
-          amount: Number(payment.amount || 0),
-          paidAt: payment.paidAt || payment.paid_at,
-          createdAt: payment.createdAt || payment.created_at,
-          date: payment.date
-        }))
+        const mappedPayments = paymentsList
+          .map((payment: any) => {
+            const paymentReference = String(
+              payment.paymentReference ||
+                payment.payment_reference ||
+                payment.gatewayPaymentId ||
+                payment.gateway_payment_id ||
+                ''
+            ).trim()
+            const paymentId = String(payment.id || '')
+            return {
+              id: paymentId,
+              bookingId: String(
+                payment.bookingId ||
+                  payment.booking_id ||
+                  payment.booking?.id ||
+                  payment.booking?.bookingId ||
+                  ''
+              ),
+              referenceId: paymentReference || paymentId,
+              amount: Number(payment.amount || 0),
+              currency: String(payment.currency || 'INR').toUpperCase(),
+              paymentMode: String(
+                payment.paymentMode || payment.payment_mode || ''
+              ).toUpperCase(),
+              isVerified: Boolean(
+                payment.isVerified ?? payment.is_verified ?? false
+              ),
+              status: String(payment.status || '').toUpperCase(),
+              paidAt: payment.paidAt || payment.paid_at,
+              createdAt: payment.createdAt || payment.created_at,
+              date: payment.date
+            }
+          })
+          .filter(
+            payment =>
+              payment.isVerified &&
+              String(payment.status || '').toUpperCase() !== 'REFUNDED'
+          )
 
         setPayments(mappedPayments)
         setForm(current => {
@@ -1597,12 +1641,17 @@ const RefundsPage = () => {
           const hasSelectedPayment = mappedPayments.some(
             payment => payment.id === current.paymentId
           )
+          const nextPayment =
+            current.paymentId && hasSelectedPayment
+              ? mappedPayments.find(payment => payment.id === current.paymentId)
+              : latestPayment
           return {
             ...current,
-            paymentId:
-              current.paymentId && hasSelectedPayment
-                ? current.paymentId
-                : latestPayment?.id || ''
+            paymentId: nextPayment?.id || '',
+            currency: nextPayment?.currency || current.currency,
+            refundAmount:
+              current.refundAmount ||
+              (nextPayment ? Number(nextPayment.amount) : '')
           }
         })
       } catch (err) {
@@ -1684,8 +1733,21 @@ const RefundsPage = () => {
     setProofFile(file)
   }
 
+  const applySelectedPaymentToForm = useCallback((payment: PaymentLookup | null) => {
+    if (!payment) return
+    setForm(current => ({
+      ...current,
+      paymentId: payment.id,
+      currency: payment.currency || current.currency,
+      refundAmount: Number(payment.amount)
+    }))
+  }, [])
+
   const saveRefund = async () => {
-    if (!form.bookingId || form.refundAmount === '') return
+    if (!form.bookingId || !form.paymentId || form.refundAmount === '') {
+      setFormError('Select booking, payment reference, and refund amount.')
+      return
+    }
     if (!viewerRaisedByName) {
       setFormError('Your name could not be loaded. Refresh the page or sign in again.')
       return
@@ -1709,7 +1771,7 @@ const RefundsPage = () => {
         ? basePayload
         : {
             bookingId: form.bookingId,
-            ...(form.paymentId ? { paymentId: form.paymentId } : {}),
+            paymentId: form.paymentId,
             ...basePayload
           }
       const requestBody = proofFile
@@ -2029,17 +2091,32 @@ const RefundsPage = () => {
             </div>
             <div>
               <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
-                Payment Reference
+                Payment Reference *
               </label>
               <SearchableDropdown
                 value={form.paymentId}
-                onChange={value =>
-                  setForm(current => ({ ...current, paymentId: value }))
-                }
+                onChange={value => {
+                  const payment = payments.find(item => item.id === value) || null
+                  if (!value) {
+                    setForm(current => ({ ...current, paymentId: '' }))
+                    return
+                  }
+                  applySelectedPaymentToForm(payment)
+                }}
                 options={paymentDropdownOptions}
-                searchPlaceholder='Search payment...'
+                searchPlaceholder='Search payment reference...'
                 disabled={loadingPayments || !form.bookingId}
               />
+              {form.bookingId && !loadingPayments && verifiedPaymentsSummary ? (
+                <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+                </p>
+              ) : null}
+              {selectedPayment ? (
+                <p className='mt-1 text-xs text-emerald-700 dark:text-emerald-300'>
+                  Selected: {formatCurrency(selectedPayment.amount, selectedPayment.currency)}{' '}
+                  ({selectedPayment.paymentMode?.replace(/_/g, ' ') || 'payment'})
+                </p>
+              ) : null}
             </div>
             <div>
               <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>

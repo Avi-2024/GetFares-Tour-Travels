@@ -477,17 +477,6 @@ function createBookingsService({ repository, logger, events, config, leadsReposi
       return existing;
     }
 
-    if (
-      existing.status === BOOKING_STATUS.CANCELLED &&
-      nextStatus !== BOOKING_STATUS.CANCELLED
-    ) {
-      throw new AppError(
-        409,
-        "Cancelled booking cannot transition to another status.",
-        "BOOKING_STATUS_LOCKED",
-      );
-    }
-
     const changedAt = payload.changedAt || new Date().toISOString();
     const updatePayload = {};
 
@@ -511,6 +500,8 @@ function createBookingsService({ repository, logger, events, config, leadsReposi
       updatePayload.cancelled_at = changedAt;
     } else {
       updatePayload.status = BOOKING_STATUS.PENDING;
+      updatePayload.cancellation_reason = null;
+      updatePayload.cancelled_at = null;
     }
 
     updatePayload.updated_at = changedAt;

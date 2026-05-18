@@ -454,6 +454,46 @@ function createRefundsRepository({ db, logger, schema }) {
         );
     },
 
+    /** Refunds reserved against a specific payment (initiated + approved + processed). */
+    async getRefundReservationForPayment(paymentId, excludeRefundId = null) {
+      if (!paymentId) {
+        return 0;
+      }
+
+      if (canUseRawQuery()) {
+        const params = [paymentId];
+        let sql = `
+            SELECT COALESCE(SUM(refund_amount), 0) AS reservation
+            FROM ${schema.tableName}
+            WHERE payment_id = ?
+              AND status IN ('INITIATED', 'APPROVED', 'PROCESSED')
+          `;
+        if (excludeRefundId) {
+          sql += ` AND id <> ?`;
+          params.push(excludeRefundId);
+        }
+        const result = await db.query(sql, params);
+        return toNumber(result.rows[0]?.reservation, 0);
+      }
+
+      const rows = await db.findMany(schema.tableName, {
+        payment_id: paymentId,
+      });
+      const statuses = new Set(["INITIATED", "APPROVED", "PROCESSED"]);
+      return rows
+        .filter((row) =>
+          statuses.has(String(row.status ?? "INITIATED").toUpperCase()),
+        )
+        .filter(
+          (row) => !excludeRefundId || String(row.id) !== String(excludeRefundId),
+        )
+        .reduce(
+          (sum, row) =>
+            sum + toNumber(row.refund_amount ?? row.refundAmount, 0),
+          0,
+        );
+    },
+
     /** Sums refunds not yet processed (counts against available refund capacity). */
     async getPendingRefundReservationAmount(bookingId, excludeRefundId = null) {
       if (canUseRawQuery()) {

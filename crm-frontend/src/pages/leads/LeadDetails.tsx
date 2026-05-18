@@ -294,23 +294,6 @@ const LeadDetails: React.FC = () => {
     return `${y}-${m}-${d} ${hh}:${mm}:${ss}${tz}`
   }, [lead])
 
-  const firstFollowupLabel = useMemo(() => {
-    if (!followups.length) return 'N/A'
-    const sorted = [...followups].sort((a, b) => followupSortKey(a) - followupSortKey(b))
-    const first = sorted[0]
-    const local = first?.followupLocalAt ?? first?.followup_local_at
-    const tz = first?.clientTimezone ?? first?.client_timezone
-    if (local && String(local).trim()) {
-      const w = String(local).trim()
-      const t = tz && String(tz).trim() ? ` ${String(tz).trim()}` : ''
-      return `${w}${t}` || 'N/A'
-    }
-    const raw = normalizeWallClockDisplay(first?.followupDate ?? first?.followup_date)
-    if (!raw) return 'N/A'
-    const t = tz && String(tz).trim() ? ` ${String(tz).trim()}` : ''
-    return `${raw}${t}`
-  }, [followups])
-
   const resolveFollowupActorName = useCallback((item: any) => {
     const name = String(
       item?.userFullName ??
@@ -727,6 +710,17 @@ const LeadDetails: React.FC = () => {
     () => followups.filter(item => !isScheduleOnlyFollowup(item)),
     [followups]
   )
+
+  const firstFollowupLabel = useMemo(() => {
+    if (!visibleHistoryFollowups.length) return 'N/A'
+    const first = [...visibleHistoryFollowups].reduce((earliest, item) => {
+      const itemTime = resolveFollowupActionDate(item)?.getTime() || 0
+      const earliestTime = resolveFollowupActionDate(earliest)?.getTime() || 0
+      return itemTime < earliestTime ? item : earliest
+    })
+    const label = formatFollowupDisplay(first)
+    return label && label !== 'No date' ? label : 'N/A'
+  }, [visibleHistoryFollowups, resolveFollowupActionDate, formatFollowupDisplay])
 
   const visibleScheduledFollowups = useMemo(
     () => followups.filter(item => isScheduleOnlyFollowup(item)),
@@ -2030,13 +2024,7 @@ const LeadDetails: React.FC = () => {
                  <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
                   Date of creation: {createdAtLabel}
                 </p>
-                {lead.responseAt ? (
-                  <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
-                    {`First contact logged at ${
-                      formatDateTime(lead.responseAt, String(lead.responseAt), leadTimeZone)
-                    }.`}
-                  </p>
-                ) : null}
+               
                 <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
                   First follow-up: {firstFollowupLabel}
                 </p>

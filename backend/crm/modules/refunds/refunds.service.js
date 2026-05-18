@@ -227,20 +227,41 @@ function createRefundsService({ repository, bookingsRepository, leadsRepository,
 	        await ensureAccountsAssignee(payload.assignedTo);
 	      }
 
+	      const requestedRefund = toNumber(payload.refundAmount, 0);
+
 	      if (payload.paymentId) {
-	        await getPaymentById(payload.paymentId, booking.id);
+	        const payment = await getPaymentById(payload.paymentId, booking.id);
+	        if (!payment.isVerified) {
+	          throw new AppError(
+	            409,
+	            "Only verified payments can be refunded",
+	            "REFUND_PAYMENT_NOT_VERIFIED",
+	          );
+	        }
+	        const reservedOnPayment = await repository.getRefundReservationForPayment(
+	          payload.paymentId,
+	        );
+	        const maxOnPayment = Math.max(
+	          Number((toNumber(payment.amount, 0) - reservedOnPayment).toFixed(2)),
+	          0,
+	        );
+	        if (requestedRefund > maxOnPayment) {
+	          throw new AppError(
+	            409,
+	            `Refund amount exceeds available amount on this payment (${maxOnPayment}).`,
+	            "REFUND_EXCEEDS_PAYMENT_BALANCE",
+	          );
+	        }
+	      } else {
+	        const policy = await getRefundableBalance(booking.id);
+	        if (requestedRefund > policy.refundableBalance) {
+	          throw new AppError(
+	            409,
+	            `Refund amount exceeds refundable balance ${policy.refundableBalance}.`,
+	            "REFUND_EXCEEDS_REFUNDABLE_BALANCE",
+	          );
+	        }
 	      }
-
-      const policy = await getRefundableBalance(booking.id);
-      const requestedRefund = toNumber(payload.refundAmount, 0);
-
-      if (requestedRefund > policy.refundableBalance) {
-        throw new AppError(
-          409,
-          `Refund amount exceeds refundable balance ${policy.refundableBalance}.`,
-          "REFUND_EXCEEDS_REFUNDABLE_BALANCE",
-        );
-      }
 
 	      const created = await repository.create({
         ...buildCreateRecord(payload),
