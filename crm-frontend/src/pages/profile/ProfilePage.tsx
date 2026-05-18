@@ -85,7 +85,7 @@ const parseCountry = (value?: string): CountryCode => {
 const isValidEmail = (email: string) => /\S+@\S+\.\S+/.test(email)
 
 const ProfilePage = () => {
-  const { user, token, setAuthState, hasPermission } = useAuth()
+  const { user, setAuthState, hasPermission } = useAuth()
   const [profile, setProfile] = useState<ProfileRecord | null>(null)
   const [draft, setDraft] = useState({ name: '', email: '' })
   const [loadingProfile, setLoadingProfile] = useState(false)
