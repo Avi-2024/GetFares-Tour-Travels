@@ -114,6 +114,7 @@ function normalizeLeadTimeZone(rawValue: unknown): string | null {
 }
 
 type QualificationForm = {
+  leadType: 'HOLIDAY' | 'VISA' | 'BOTH' | ''
   panNumber: string
   addressLine: string
   leadCountry: string
@@ -134,6 +135,7 @@ type QualificationForm = {
 }
 
 const emptyQualification: QualificationForm = {
+  leadType: '',
   panNumber: '',
   addressLine: '',
   leadCountry: '',
@@ -249,6 +251,8 @@ const LeadDetails: React.FC = () => {
   const [campaigns, setCampaigns] = useState<any[]>([])
   const [showSavedQualification, setShowSavedQualification] = useState(false)
   const [showCustomFields, setShowCustomFields] = useState(false)
+  const [qualificationSaving, setQualificationSaving] = useState(false)
+  const qualificationSavingRef = useRef(false)
 
   const createdAtLabel = useMemo(() => {
     const wall = lead?.clientCreatedAt ?? lead?.client_created_at
@@ -457,6 +461,7 @@ const LeadDetails: React.FC = () => {
         : []
 
     setQualification({
+      leadType: item?.leadType ?? item?.lead_type ?? '',
       panNumber: item?.panNumber ?? item?.pan_number ?? '',
       addressLine: item?.addressLine ?? item?.address_line ?? '',
       leadCountry: item?.leadCountry ?? item?.lead_country ?? item?.country ?? '',
@@ -899,6 +904,16 @@ const LeadDetails: React.FC = () => {
     []
   )
 
+  const leadTypeOptions = useMemo(
+    () => [
+  
+      { value: 'HOLIDAY', label: 'Holidays' },
+      { value: 'VISA', label: 'Visa' },
+
+    ],
+    []
+  )
+
   const hotelCategoryOptions = useMemo(
     () => [
       { value: '', label: 'Hotel Category' },
@@ -1127,8 +1142,7 @@ const LeadDetails: React.FC = () => {
     const missing: string[] = []
     if (!qualification.leadCountry.trim()) missing.push('leadCountry')
     if (!qualification.clientCurrency.trim()) missing.push('clientCurrency')
-    if (!qualification.travelDate) missing.push('travelDate')
-    if (!qualification.travelEndDate) missing.push('travelEndDate')
+  
     if (
       qualification.travelDate &&
       qualification.travelEndDate &&
@@ -1176,17 +1190,25 @@ const LeadDetails: React.FC = () => {
 
   const saveQualification = async () => {
     if (!id || !lead) return
+    if (qualificationSavingRef.current) return
+    qualificationSavingRef.current = true
+    setQualificationSaving(true)
     setStatusError('')
     if (qualificationMissing.length) {
       setStatusError(
         `Missing required fields: ${qualificationMissing.join(', ')}`
       )
+      qualificationSavingRef.current = false
+      setQualificationSaving(false)
       return
     }
 
     try {
-      const isVisaLead = (lead?.leadType ?? lead?.lead_type) === 'VISA'
+      const selectedLeadType =
+        qualification.leadType || lead?.leadType || lead?.lead_type || 'HOLIDAY'
+      const isVisaLead = selectedLeadType === 'VISA'
       await leadsService.updateLead(id, {
+        leadType: qualification.leadType || undefined,
         panNumber: qualification.panNumber.trim() || undefined,
         addressLine: qualification.addressLine.trim() || undefined,
         leadCountry: qualification.leadCountry.trim() || undefined,
@@ -1213,6 +1235,9 @@ const LeadDetails: React.FC = () => {
       setTimeout(() => setShowSavedQualification(false), 2500)
     } catch (err) {
       reportApiError(err, 'Could not update qualification.', setStatusError)
+    } finally {
+      qualificationSavingRef.current = false
+      setQualificationSaving(false)
     }
   }
 
@@ -1299,8 +1324,11 @@ const LeadDetails: React.FC = () => {
     }
 
     try {
-      const isVisaLead = (lead?.leadType ?? lead?.lead_type) === 'VISA'
+      const selectedLeadType =
+        qualification.leadType || lead?.leadType || lead?.lead_type || 'HOLIDAY'
+      const isVisaLead = selectedLeadType === 'VISA'
       await leadsService.updateLead(id, {
+        leadType: qualification.leadType || undefined,
         status: conversion.canonical,
         subStatus: conversion.subStatus,
         customStatusLabel: null,
@@ -2057,6 +2085,20 @@ const LeadDetails: React.FC = () => {
                 </p>
                 <div className='mt-3 grid grid-cols-1 gap-2 md:grid-cols-2'>
                   <div>
+                    <label className='field-label'>Lead Type</label>
+                    <SearchableDropdown
+                      value={qualification.leadType}
+                      options={leadTypeOptions}
+                      searchPlaceholder='Search lead type...'
+                      onChange={value =>
+                        setQualification(prev => ({
+                          ...prev,
+                          leadType: value as 'HOLIDAY' | 'VISA' | 'BOTH' | ''
+                        }))
+                      }
+                    />
+                  </div>
+                  <div>
                     <label className='field-label'>PAN Number (optional)</label>
                     <input
                       className='field-input'
@@ -2254,7 +2296,7 @@ const LeadDetails: React.FC = () => {
                   ) : null}
                   <div>
                     <label className='field-label'>
-                      {(lead?.leadType ?? lead?.lead_type) === 'VISA'
+                      {(qualification.leadType || lead?.leadType || lead?.lead_type) === 'VISA'
                         ? 'Salary'
                         : 'Budget'}
                     </label>
@@ -2263,19 +2305,19 @@ const LeadDetails: React.FC = () => {
                       min={0}
                       className='field-input no-spinner'
                       placeholder={
-                        (lead?.leadType ?? lead?.lead_type) === 'VISA'
+                        (qualification.leadType || lead?.leadType || lead?.lead_type) === 'VISA'
                           ? 'Salary'
                           : 'Budget'
                       }
                       value={
-                        (lead?.leadType ?? lead?.lead_type) === 'VISA'
+                        (qualification.leadType || lead?.leadType || lead?.lead_type) === 'VISA'
                           ? qualification.salary
                           : qualification.budget
                       }
                       onChange={event =>
                         setQualification(prev => ({
                           ...prev,
-                          ...( (lead?.leadType ?? lead?.lead_type) === 'VISA'
+                          ...( (qualification.leadType || lead?.leadType || lead?.lead_type) === 'VISA'
                             ? { salary: event.target.value }
                             : { budget: event.target.value } )
                         }))
@@ -2369,9 +2411,10 @@ const LeadDetails: React.FC = () => {
                   </p>
                   <button
                     onClick={() => void saveQualification()}
-                    className='rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700'
+                    disabled={qualificationSaving}
+                    className='rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60'
                   >
-                    Save Qualification
+                    {qualificationSaving ? 'Saving...' : 'Save Qualification'}
                   </button>
                 </div>
               </div>
@@ -2392,7 +2435,7 @@ const LeadDetails: React.FC = () => {
               className='mt-2'
               value={statusComboValue}
               options={statusOptions}
-              searchPlaceholder='Search status...'
+              searchPlaceholder='Search / Add status...'
               creatable
               onCreatePick={text => {
                 const t = String(text ?? '').trim()
