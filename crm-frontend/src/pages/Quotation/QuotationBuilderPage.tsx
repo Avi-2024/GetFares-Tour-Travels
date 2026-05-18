@@ -1290,7 +1290,23 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
       setLeadsError('')
       try {
         const data = await leadsService.listLeadsRaw({ page: 1, limit: 50 })
-        setLeads((Array.isArray(data) ? data : []) as LeadOption[])
+        const rows = (Array.isArray(data) ? data : []) as LeadOption[]
+
+        // Ensure preselected lead is available even if not in first page.
+        if (preselectedLeadId && !rows.some(lead => String(lead.id) === preselectedLeadId)) {
+          try {
+            const direct = await leadsService.getLead(preselectedLeadId)
+            if (direct && String((direct as any).id || '') === preselectedLeadId) {
+              setLeads([direct as LeadOption, ...rows])
+            } else {
+              setLeads(rows)
+            }
+          } catch {
+            setLeads(rows)
+          }
+        } else {
+          setLeads(rows)
+        }
       } catch (error) {
         console.error('Failed to load leads:', error)
         setLeads([])
@@ -1301,7 +1317,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     }
 
     void loadLeads()
-  }, [leadsService, token])
+  }, [leadsService, preselectedLeadId, token])
 
   useEffect(() => {
     if (isEditMode || !preselectedLeadId || selectedLeadId) return
@@ -1621,22 +1637,47 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
   }, [token])
 
   useEffect(() => {
+    console.log('[QuotationBuilderPage] Route entered', {
+      isEditMode,
+      editingQuotationId,
+      path: location.pathname,
+      search: location.search
+    })
+
     if (!isEditMode || !editingQuotationId) return
     if (!token) {
+      console.log('[QuotationBuilderPage] Edit load blocked: missing token', {
+        editingQuotationId
+      })
       setSaveError('Login required to edit quotations.')
       return
     }
 
     let cancelled = false
     const loadQuotationForEdit = async () => {
+      console.log('[QuotationBuilderPage] Edit load start', {
+        editingQuotationId
+      })
       setLoadingEditQuotation(true)
       setSaveError('')
       try {
         const response = await quotationsApi.getById(editingQuotationId)
+        console.log('[QuotationBuilderPage] Edit API response received', {
+          editingQuotationId,
+          hasResponse: Boolean(response)
+        })
         const quotation = unwrapApiData<Record<string, unknown>>(response)
         if (!quotation) {
+          console.log('[QuotationBuilderPage] Edit payload missing', {
+            editingQuotationId
+          })
           throw new Error('Quotation payload not found')
         }
+        console.log('[QuotationBuilderPage] Edit payload parsed', {
+          editingQuotationId,
+          leadId: quotation?.leadId ?? quotation?.lead_id,
+          status: quotation?.status
+        })
 
         const quotationStatus = toTrimmedString(quotation.status).toUpperCase()
         if (!cancelled) {
@@ -2355,6 +2396,10 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
         }
       } catch (error) {
         console.error('Failed to load quotation for edit:', error)
+        console.log('[QuotationBuilderPage] Edit load failed', {
+          editingQuotationId,
+          error
+        })
         if (!cancelled) {
           reportApiError(
             error,
@@ -2363,6 +2408,10 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
           )
         }
       } finally {
+        console.log('[QuotationBuilderPage] Edit load finished', {
+          editingQuotationId,
+          cancelled
+        })
         if (!cancelled) {
           setLoadingEditQuotation(false)
         }

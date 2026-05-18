@@ -738,12 +738,33 @@ const QuotationsPage: React.FC = () => {
     }
   }
 
-  const handleEditQuotation = (quotation: Quotation) => {
+const handleEditQuotation = (quotation: Quotation) => {
+    console.log('[QuotationsPage] Edit click: start', {
+      quotationId: quotation?.id,
+      status: quotation?.status,
+      quoteNumber: (quotation as any)?.quoteNumber
+    })
+
     if (quotation.status === 'accepted') {
+      console.log('[QuotationsPage] Edit blocked: quotation is accepted', {
+        quotationId: quotation?.id
+      })
       setError('Approved quotations cannot be edited')
+      console.log('[QuotationsPage] Error state set for blocked edit', {
+        quotationId: quotation?.id
+      })
       return
     }
-    nav(`/quotations/${quotation.id}/edit`)
+
+    const editPath = `/quotations/${quotation.id}/edit`
+    console.log('[QuotationsPage] Edit allowed: navigating', {
+      quotationId: quotation?.id,
+      path: editPath
+    })
+    nav(editPath)
+    console.log('[QuotationsPage] Navigate call completed', {
+      quotationId: quotation?.id
+    })
   }
 
   const handleSendWhatsApp = async (quotation: Quotation) => {
