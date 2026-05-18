@@ -295,6 +295,59 @@ function resolveLeadDisplayId(
   return firstNonEmptyString(preferredCode, leadIdValue, lead.id)
 }
 
+function mapRawToLeadOption(raw: unknown): LeadOption {
+  const record = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
+  return {
+    ...(record as LeadOption),
+    id: String(record.id ?? ''),
+    leadId: toTrimmedString(record.leadId ?? record.lead_id) || null,
+    leadCode: toTrimmedString(record.leadCode ?? record.lead_code) || null,
+    lead_code: toTrimmedString(record.lead_code ?? record.leadCode) || null,
+    fullName: toTrimmedString(record.fullName ?? record.full_name) || null,
+    email: toTrimmedString(record.email) || null,
+    phone: toTrimmedString(record.phone) || null,
+    clientCurrency:
+      toTrimmedString(record.clientCurrency ?? record.client_currency) || null,
+    destinationId:
+      toTrimmedString(record.destinationId ?? record.destination_id) || null,
+    destinationName:
+      toTrimmedString(record.destinationName ?? record.destination_name) || null,
+    travelDate: toTrimmedString(record.travelDate ?? record.travel_date) || null,
+    leadCountry: toTrimmedString(record.leadCountry ?? record.lead_country) || null,
+    country: toTrimmedString(record.country) || null,
+    nationality: toTrimmedString(record.nationality) || null,
+    addressLine: toTrimmedString(record.addressLine ?? record.address_line) || null,
+    panNumber: toTrimmedString(record.panNumber ?? record.pan_number) || null,
+    travelPurpose:
+      toTrimmedString(record.travelPurpose ?? record.travel_purpose) || null,
+    adultsCount:
+      record.adultsCount !== undefined && record.adultsCount !== null
+        ? Number(record.adultsCount)
+        : record.adults_count !== undefined && record.adults_count !== null
+          ? Number(record.adults_count)
+          : null,
+    childrenCount:
+      record.childrenCount !== undefined && record.childrenCount !== null
+        ? Number(record.childrenCount)
+        : record.children_count !== undefined && record.children_count !== null
+          ? Number(record.children_count)
+          : null,
+    budget:
+      record.budget !== undefined && record.budget !== null
+        ? Number(record.budget)
+        : null,
+    salary:
+      record.salary !== undefined && record.salary !== null
+        ? Number(record.salary)
+        : null,
+    childAges: Array.isArray(record.childAges)
+      ? record.childAges.map(item => Number(item))
+      : Array.isArray(record.child_ages)
+        ? record.child_ages.map(item => Number(item))
+        : null
+  }
+}
+
 function toFiniteNumber(value: unknown, fallback = 0): number {
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : fallback
@@ -1278,36 +1331,100 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     void loadDestinations()
   }, [leadsService])
 
-  useEffect(() => {
-    const loadLeads = async () => {
-      if (!token) {
-        setLeads([])
-        setLeadsError('Login required to load leads.')
-        return
-      }
+  const mergeLeadOptions = useCallback(
+    (incoming: LeadOption[], keepSelectedId?: string) => {
+      setLeads(prev => {
+        const map = new Map<string, LeadOption>()
+        const selectedId = keepSelectedId || selectedLeadId
+        const selectedExisting =
+          (selectedId ? prev.find(item => item.id === selectedId) : null) ||
+          (selectedId ? incoming.find(item => item.id === selectedId) : null)
+        if (selectedExisting?.id) {
+          map.set(selectedExisting.id, selectedExisting)
+        }
+        for (const item of incoming) {
+          if (item.id) map.set(item.id, item)
+        }
+        return Array.from(map.values())
+      })
+    },
+    [selectedLeadId]
+  )
 
+  const hydrateLeadById = useCallback(
+    async (leadId: string) => {
+      if (!leadId || !token) return
+      try {
+        const response = await leadsService.getLeadById(leadId)
+        const payload = (response as { data?: unknown })?.data ?? response
+        const option = mapRawToLeadOption(payload)
+        if (!option.id) return
+        mergeLeadOptions([option], leadId)
+      } catch (error) {
+        console.error('Failed to load lead by id:', error)
+      }
+    },
+    [leadsService, mergeLeadOptions, token]
+  )
+
+  const loadRecentLeads = useCallback(async () => {
+    if (!token) {
+      setLeads([])
+      setLeadsError('Login required to load leads.')
+      return
+    }
+    setLeadsLoading(true)
+    setLeadsError('')
+    try {
+      const data = await leadsService.listLeadsRaw({
+        page: 1,
+        limit: 50,
+        sortBy: 'NEWEST_FIRST'
+      })
+      const options = (Array.isArray(data) ? data : []).map(mapRawToLeadOption)
+      mergeLeadOptions(options)
+    } catch (error) {
+      console.error('Failed to load recent leads:', error)
+      reportApiError(error, 'Failed to load leads from API.', setLeadsError)
+    } finally {
+      setLeadsLoading(false)
+    }
+  }, [leadsService, mergeLeadOptions, token])
+
+  const searchLeads = useCallback(
+    async (query: string) => {
+      if (!token) return
+      const term = query.trim()
+      if (term.length < 2) return
       setLeadsLoading(true)
       setLeadsError('')
       try {
-        const data = await leadsService.listLeadsRaw({ page: 1, limit: 50 })
-        setLeads((Array.isArray(data) ? data : []) as LeadOption[])
+        const data = await leadsService.listLeadsRaw({
+          page: 1,
+          limit: 50,
+          search: term
+        })
+        const options = (Array.isArray(data) ? data : []).map(mapRawToLeadOption)
+        mergeLeadOptions(options)
       } catch (error) {
-        console.error('Failed to load leads:', error)
-        setLeads([])
-        reportApiError(error, 'Failed to load leads from API.', setLeadsError)
+        console.error('Failed to search leads:', error)
+        reportApiError(error, 'Failed to search leads.', setLeadsError)
       } finally {
         setLeadsLoading(false)
       }
-    }
-
-    void loadLeads()
-  }, [leadsService, token])
+    },
+    [leadsService, mergeLeadOptions, token]
+  )
 
   useEffect(() => {
-    if (isEditMode || !preselectedLeadId || selectedLeadId) return
-    if (!leads.some(lead => lead.id === preselectedLeadId)) return
+    if (!selectedLeadId) return
+    void hydrateLeadById(selectedLeadId)
+  }, [hydrateLeadById, selectedLeadId])
+
+  useEffect(() => {
+    if (isEditMode || !preselectedLeadId) return
     setSelectedLeadId(preselectedLeadId)
-  }, [isEditMode, leads, preselectedLeadId, selectedLeadId])
+  }, [isEditMode, preselectedLeadId])
 
   const loadTemplates = useCallback(async () => {
     if (!token) {
@@ -3724,8 +3841,16 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                     options={leadDropdownOptions}
                     onChange={setSelectedLeadId}
                     disabled={leadsLoading}
-                    searchPlaceholder='Search lead...'
+                    searchPlaceholder='Name, phone, email, or lead ID (min 2 chars)...'
+                    onSearch={searchLeads}
+                    onMenuOpen={() => {
+                      if (!token) return
+                      if (leads.length <= 1) {
+                        void loadRecentLeads()
+                      }
+                    }}
                   />
+                 
                   {leadsLoading ? (
                     <p className='mt-1 text-xs text-gray-500'>
                       Loading leads...

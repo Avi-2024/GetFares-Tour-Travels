@@ -1765,10 +1765,6 @@ function createQuotationsService({ repository, leadsRepository, logger, events, 
         await repository.updateLeadStatus(updated.leadId, "CONVERTED");
       }
 
-      if (payload.status === QUOTATION_STATUS.REJECTED && updated.leadId) {
-        await repository.updateLeadStatus(updated.leadId, "LOST");
-      }
-
       await logVersion({
         quotation: { ...updated, items: quotation.items },
         action: `STATUS_${payload.status}`,

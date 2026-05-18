@@ -10,7 +10,7 @@ const dateTimeString = z
 
 const createPayload = z.object({
   bookingId: z.string().uuid(),
-  paymentId: z.string().uuid().optional(),
+  paymentId: z.string().uuid(),
   assignedTo: z.string().uuid().optional(),
   raisedByName: z.string().trim().min(2).max(150),
   refundAmount: z.coerce.number().positive(),
