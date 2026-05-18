@@ -1651,7 +1651,7 @@ const RefundsPage = () => {
             currency: nextPayment?.currency || current.currency,
             refundAmount:
               current.refundAmount ||
-              (nextPayment ? String(nextPayment.amount) : '')
+              (nextPayment ? Number(nextPayment.amount) : '')
           }
         })
       } catch (err) {
@@ -1739,7 +1739,7 @@ const RefundsPage = () => {
       ...current,
       paymentId: payment.id,
       currency: payment.currency || current.currency,
-      refundAmount: String(payment.amount)
+      refundAmount: Number(payment.amount)
     }))
   }, [])
 
