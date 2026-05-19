@@ -8,6 +8,14 @@ function createBookingsController({ service }) {
       res.status(200).json({ data: result });
     },
 
+    async paymentPickerOptions(req, res) {
+      const result = await service.paymentPickerOptions(
+        req.validated?.query || req.query,
+        req.context,
+      );
+      res.status(200).json({ data: result });
+    },
+
     async stats(req, res) {
       const result = await service.stats(req.context);
       res.status(200).json({ data: result });

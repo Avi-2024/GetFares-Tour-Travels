@@ -9,4 +9,5 @@ export const usersApi = {
     apiRequest("/api/users", { method: "POST", body: payload }),
   update: (id: string, payload: unknown) =>
     apiRequest(`/api/users/${id}`, { method: "PATCH", body: payload }),
+  getById: (id: string) => apiRequest(`/api/users/${id}`),
 };

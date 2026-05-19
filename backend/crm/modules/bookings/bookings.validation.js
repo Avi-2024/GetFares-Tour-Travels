@@ -156,6 +156,7 @@ const list = z.object({
       paymentStatus: paymentStatus.optional(),
       quotationId: z.string().uuid().optional(),
       createdBy: z.string().uuid().optional(),
+      search: z.string().trim().min(1).max(150).optional(),
     })
     .optional(),
 });
@@ -164,6 +165,18 @@ const stats = z.object({
   body: z.any().optional(),
   params: z.any().optional(),
   query: z.any().optional(),
+});
+
+const paymentPickerOptions = z.object({
+  body: z.object({}).optional(),
+  params: z.object({}).optional(),
+  query: z
+    .object({
+      page: z.coerce.number().int().positive().optional(),
+      limit: z.coerce.number().int().positive().max(100).optional(),
+      search: z.string().trim().min(2).max(150).optional(),
+    })
+    .optional(),
 });
 
 const runReminders = z.object({
@@ -241,6 +254,7 @@ const generateInvoice = z.object({
 
 const BookingsValidation = {
   list,
+  paymentPickerOptions,
   stats,
   runReminders,
   processDeadlineAlerts,

@@ -38,6 +38,24 @@ import {
   pickLeadDisplayCurrencyCode,
   pickQuotationDisplayCurrencyCode,
 } from "../../utils/quotationDisplayCurrency";
+import {
+  clearBookingsCreateDraft,
+  getBookingsPageCache,
+  getCachedQuotationOptions,
+  getCachedSupplierOptions,
+  invalidateBookingsFormDropdownCaches,
+  invalidateBookingsPageCache,
+  isBookingsPageCacheFresh,
+  normalizeBookingApiStats,
+  patchBookingsPageCache,
+  readBookingsCreateDraft,
+  readBookingsCreateModalOpen,
+  setCachedQuotationOptions,
+  setCachedSupplierOptions,
+  writeBookingsCreateDraft,
+  writeBookingsCreateModalOpen,
+  type BookingsPageStats,
+} from "../../lib/bookingsPageCache";
 
 type BookingStatus = 'confirmed' | 'pending' | 'cancelled'
 type PaymentStatus = 'partial' | 'unpaid' | 'paid' | 'refunded'
@@ -329,25 +347,31 @@ const CreateBookingModal = ({
   const [supplierError, setSupplierError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [quotationError, setQuotationError] = useState("");
-  const [selectedQuotationId, setSelectedQuotationId] = useState("");
-  const [formData, setFormData] = useState<NewBookingData>({
-    quotationId: "",
-    customer: "",
-    email: "",
-    phone: "",
-    destination: "",
-    travelStart: "",
-    travelEnd: "",
-    totalAmount: 0,
-    costAmount: 0,
-    advanceRequired: 0,
-    supplierId: "",
-    supplierName: "",
-    blockingDeadlineAt: "",
-    supplierPaymentDeadlineAt: "",
-    cancellationDeadlineAt: "",
-    currency: "INR",
-    notes: "",
+  const savedDraft = readBookingsCreateDraft();
+  const [selectedQuotationId, setSelectedQuotationId] = useState(
+    () => savedDraft?.selectedQuotationId ?? "",
+  );
+  const [formData, setFormData] = useState<NewBookingData>(() => {
+    const draft = savedDraft?.formData as Partial<NewBookingData> | undefined;
+    return {
+      quotationId: draft?.quotationId ?? "",
+      customer: draft?.customer ?? "",
+      email: draft?.email ?? "",
+      phone: draft?.phone ?? "",
+      destination: draft?.destination ?? "",
+      travelStart: draft?.travelStart ?? "",
+      travelEnd: draft?.travelEnd ?? "",
+      totalAmount: Number(draft?.totalAmount) || 0,
+      costAmount: Number(draft?.costAmount) || 0,
+      advanceRequired: Number(draft?.advanceRequired) || 0,
+      supplierId: draft?.supplierId ?? "",
+      supplierName: draft?.supplierName ?? "",
+      blockingDeadlineAt: draft?.blockingDeadlineAt ?? "",
+      supplierPaymentDeadlineAt: draft?.supplierPaymentDeadlineAt ?? "",
+      cancellationDeadlineAt: draft?.cancellationDeadlineAt ?? "",
+      currency: draft?.currency ?? "INR",
+      notes: draft?.notes ?? "",
+    };
   });
   const [errors, setErrors] = useState<
     Partial<Record<keyof NewBookingData, string>>
@@ -375,6 +399,12 @@ const CreateBookingModal = ({
   };
 
   const loadQuotations = async () => {
+    const cachedQuotations = getCachedQuotationOptions();
+    if (cachedQuotations?.length) {
+      setQuotationOptions(cachedQuotations);
+      return;
+    }
+
     setQuotationLoading(true);
     setQuotationError("");
     try {
@@ -462,6 +492,7 @@ const CreateBookingModal = ({
         })
         .filter(Boolean) as QuoteOption[];
       setQuotationOptions(options);
+      setCachedQuotationOptions(options);
     } catch (error) {
       console.error("Failed to load quotations:", error);
       reportApiError(error, "Failed to load quotations", setQuotationError);
@@ -472,6 +503,12 @@ const CreateBookingModal = ({
   };
 
   const loadSuppliers = async () => {
+    const cachedSuppliers = getCachedSupplierOptions();
+    if (cachedSuppliers?.length) {
+      setSupplierOptions(cachedSuppliers);
+      return;
+    }
+
     setSupplierLoading(true);
     setSupplierError("");
     try {
@@ -507,6 +544,7 @@ const CreateBookingModal = ({
 
       options.sort((left, right) => left.name.localeCompare(right.name));
       setSupplierOptions(options);
+      setCachedSupplierOptions(options);
     } catch (error) {
       console.error("Failed to load suppliers:", error);
       reportApiError(error, "Failed to load suppliers", setSupplierError);
@@ -870,6 +908,7 @@ const CreateBookingModal = ({
     setErrors({});
     setQuotationError("");
     setSelectedQuotationId("");
+    clearBookingsCreateDraft();
   };
 
   const handleSubmit = async () => {
@@ -895,7 +934,10 @@ const CreateBookingModal = ({
             Create New Booking
           </h3>
           <button
-            onClick={onClose}
+            onClick={() => {
+              clearBookingsCreateDraft();
+              onClose();
+            }}
             disabled={submitting}
             className="text-gray-400 hover:text-gray-600"
           >
@@ -1677,15 +1719,8 @@ const BookingsPage: React.FC = () => {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [error, setError] = useState('')
-  const [filterError, setFilterError] = useState('')
-  const [showMobileFilters, setShowMobileFilters] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [bookingItems, setBookingItems] = useState<Booking[]>([])
-  const [draftFilters, setDraftFilters] =
-    useState<BookingFilterState>(defaultFilters)
-  const [appliedFilters, setAppliedFilters] =
-    useState<BookingFilterState>(defaultFilters)
-  const [stats, setStats] = useState({
+  const initialPageCache = getBookingsPageCache()
+  const emptyStats: BookingsPageStats = {
     totalBookings: 0,
     activeBookings: 0,
     pendingBookings: 0,
@@ -1694,8 +1729,22 @@ const BookingsPage: React.FC = () => {
     totalRevenue: 0,
     pendingPaymentsAmount: 0,
     pendingPaymentsCount: 0,
-  });
-  const [statsLoading, setStatsLoading] = useState(false);
+  }
+
+  const [filterError, setFilterError] = useState('')
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
+  const [loading, setLoading] = useState(!initialPageCache)
+  const [bookingItems, setBookingItems] = useState<Booking[]>(
+    () => (initialPageCache?.items as Booking[]) ?? [],
+  )
+  const [draftFilters, setDraftFilters] =
+    useState<BookingFilterState>(defaultFilters)
+  const [appliedFilters, setAppliedFilters] =
+    useState<BookingFilterState>(defaultFilters)
+  const [stats, setStats] = useState<BookingsPageStats>(
+    () => initialPageCache?.stats ?? emptyStats,
+  );
+  const [statsLoading, setStatsLoading] = useState(!initialPageCache?.stats);
   const [statsError, setStatsError] = useState("");
   const [toast, setToast] = useState<{
     show: boolean;
@@ -1708,7 +1757,13 @@ const BookingsPage: React.FC = () => {
   });
 
   // Modal states
-  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(() =>
+    readBookingsCreateModalOpen(),
+  );
+
+  useEffect(() => {
+    writeBookingsCreateModalOpen(showCreateModal);
+  }, [showCreateModal]);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -1990,38 +2045,6 @@ const BookingsPage: React.FC = () => {
   //   return "Overdue";
   // };
 
-  const calculateStats = (items: Booking[]) => {
-    const totalBookings = items.length;
-    const activeBookings = items.filter(
-      (item) => item.status === "confirmed",
-    ).length;
-    const pendingBookings = items.filter(
-      (item) => item.status === "pending",
-    ).length;
-    const cancelledBookings = items.filter(
-      (item) => item.status === "cancelled",
-    ).length;
-    const nonCancelled = items.filter((item) => item.status !== "cancelled");
-    const pendingPayments = nonCancelled.filter(
-      (item) => item.paid < item.total,
-    );
-    const pendingPaymentsAmount = pendingPayments.reduce(
-      (sum, item) => sum + Math.max(item.total - item.paid, 0),
-      0,
-    );
-
-    return {
-      totalBookings,
-      activeBookings,
-      pendingBookings,
-      completedBookings: 0,
-      cancelledBookings,
-      totalRevenue: nonCancelled.reduce((sum, item) => sum + item.total, 0),
-      pendingPaymentsAmount,
-      pendingPaymentsCount: pendingPayments.length,
-    };
-  };
-
   useEffect(() => {
     const updatedBooking = (location.state as any)?.updatedBooking;
     if (!updatedBooking) return;
@@ -2040,11 +2063,37 @@ const BookingsPage: React.FC = () => {
     navigate("/bookings", { replace: true });
   }, [location.state, navigate]);
 
-  const fetchBookings = useCallback(async () => {
-    setLoading(true);
-    setStatsLoading(true);
+  const fetchBookingStats = useCallback(
+    async (options?: { silent?: boolean }) => {
+      const cached = getBookingsPageCache();
+      const silent = options?.silent ?? Boolean(cached?.stats);
+      if (!silent) {
+        setStatsLoading(true);
+      }
+      try {
+        const res = await bookingsService.stats();
+        const nextStats = normalizeBookingApiStats(res);
+        setStats(nextStats);
+        setStatsError("");
+        patchBookingsPageCache({ stats: nextStats });
+      } catch (err) {
+        console.error("Failed to load booking stats:", err);
+        if (!silent) {
+          reportApiError(err, "Failed to load booking stats", setStatsError);
+        }
+      } finally {
+        setStatsLoading(false);
+      }
+    },
+    [bookingsService],
+  );
+
+  const fetchBookings = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = options?.silent ?? isBookingsPageCacheFresh();
+    if (!silent) {
+      setLoading(true);
+    }
     setError("");
-    setStatsError("");
     try {
       const unwrapList = (response: any) => {
         const payload =
@@ -2167,21 +2216,24 @@ const BookingsPage: React.FC = () => {
         mapBooking(b, idx, lookups),
       );
       setBookingItems(mapped);
-      setStats(calculateStats(mapped));
+      patchBookingsPageCache({ items: mapped });
     } catch (err) {
       console.error("Failed to load bookings:", err);
       const message = reportApiError(err, "Failed to load bookings", setError);
-      setStatsError(message);
-      setBookingItems([]);
+      if (!silent) {
+        setBookingItems([]);
+        invalidateBookingsPageCache();
+      }
     } finally {
       setLoading(false);
-      setStatsLoading(false);
     }
   }, [bookingsService, leadsService])
 
   useEffect(() => {
-    void fetchBookings();
-  }, [fetchBookings]);
+    const fresh = isBookingsPageCacheFresh();
+    void fetchBookingStats({ silent: fresh });
+    void fetchBookings({ silent: fresh });
+  }, [fetchBookingStats, fetchBookings]);
 
   const showToast = (message: string, type: "success" | "error" | "info") => {
     setToast({ show: true, message, type });
@@ -2195,7 +2247,11 @@ const BookingsPage: React.FC = () => {
     setLoading(true);
     try {
       await bookingsService.sendConfirmation(bookingId);
-      await fetchBookings();
+      invalidateBookingsPageCache();
+      await Promise.all([
+        fetchBookingStats({ silent: true }),
+        fetchBookings({ silent: true }),
+      ]);
       showToast("Booking confirmed successfully", "success");
     } catch (error) {
       console.error("Failed to send confirmation:", error);
@@ -2214,7 +2270,11 @@ const BookingsPage: React.FC = () => {
     setLoading(true);
     try {
       await bookingsService.approve(booking.id);
-      await fetchBookings();
+      invalidateBookingsPageCache();
+      await Promise.all([
+        fetchBookingStats({ silent: true }),
+        fetchBookings({ silent: true }),
+      ]);
       showToast("Booking approved successfully", "success");
     } catch (error) {
       console.error("Failed to approve booking:", error);
@@ -2231,7 +2291,11 @@ const BookingsPage: React.FC = () => {
     setLoading(true);
     try {
       await bookingsService.recordPayment(bookingId, paymentData);
-      await fetchBookings();
+      invalidateBookingsPageCache();
+      await Promise.all([
+        fetchBookingStats({ silent: true }),
+        fetchBookings({ silent: true }),
+      ]);
       showToast("Payment recorded successfully", "success");
     } catch (error) {
       console.error("Failed to record payment:", error);
@@ -2291,7 +2355,12 @@ const BookingsPage: React.FC = () => {
 
       await bookingsService.create(payload);
       showToast("Booking created successfully", "success");
-      await fetchBookings();
+      invalidateBookingsPageCache();
+      invalidateBookingsFormDropdownCaches();
+      await Promise.all([
+        fetchBookingStats({ silent: true }),
+        fetchBookings({ silent: true }),
+      ]);
       return true;
     } catch (error) {
       console.error("Failed to create booking:", error);
@@ -2322,9 +2391,10 @@ const BookingsPage: React.FC = () => {
             { ...booking, status: "cancelled" as BookingStatus }
           : booking,
         );
-        setStats(calculateStats(next));
+        patchBookingsPageCache({ items: next });
         return next;
       });
+      void fetchBookingStats({ silent: true });
       showToast("Booking cancelled successfully", "success");
     } catch (error) {
       console.error("Failed to cancel booking:", error);
@@ -2654,7 +2724,10 @@ const BookingsPage: React.FC = () => {
       {/* Modals */}
       <CreateBookingModal
         isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
+        onClose={() => {
+          clearBookingsCreateDraft();
+          setShowCreateModal(false);
+        }}
         onSave={handleCreateBooking}
       />
 

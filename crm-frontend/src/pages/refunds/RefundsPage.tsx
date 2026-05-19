@@ -20,7 +20,6 @@ import {
   FaFilter
 } from 'react-icons/fa6'
 import { FaSearch } from 'react-icons/fa'
-import { CurrencyInput } from '../../components/form'
 import PermissionGate from '../../components/ui/PermissionGate'
 import StatusBadge from '../../components/ui/StatusBadge'
 import SurfaceCard from '../../components/ui/SurfaceCard'
@@ -29,11 +28,13 @@ import SearchableDropdown from '../../components/ui/SearchableDropdown'
 import { refundsApi } from '../../api/refunds'
 import { bookingsApi } from '../../api/bookings'
 import { paymentsApi } from '../../api/payments'
-import { customersApi } from '../../api/customers'
 import { reportApiError } from '../../lib/notify'
+import { prefetchBookingPickerOptions } from '../../lib/bookingPickerCache'
+import CreateRefundModal from './CreateRefundModal'
 import { useAuth } from '../../context/AuthContext'
 import { getCurrencyOptions, formatCurrency } from '../../utils/currency'
 import EditRefundModal from './EditRefundModal'
+import { IconLoadingButton, LoadingButton } from '../../components/ui/ButtonSpinner'
 
 type RefundStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'PROCESSED'
 
@@ -81,6 +82,8 @@ const defaultFilters: RefundFilterState = {
 type RefundRow = {
   id: string
   bookingId: string
+  bookingNumber?: string
+  customerName?: string
   paymentId?: string
   assignedTo?: string
   assignedToName?: string
@@ -198,6 +201,7 @@ const ConfirmModal = ({
   cancelText = 'Cancel',
   onConfirm,
   onCancel,
+  confirmLoading = false,
   children
 }: {
   isOpen: boolean
@@ -206,6 +210,7 @@ const ConfirmModal = ({
   type?: 'info' | 'warning' | 'danger'
   confirmText?: string
   cancelText?: string
+  confirmLoading?: boolean
   onConfirm: () => void
   onCancel: () => void
   children?: React.ReactNode
@@ -251,17 +256,21 @@ const ConfirmModal = ({
         {children}
         <div className='flex justify-end gap-3'>
           <button
+            type='button'
             onClick={onCancel}
-            className='px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700'
+            disabled={confirmLoading}
+            className='px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-60 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700'
           >
             {cancelText}
           </button>
-          <button
+          <LoadingButton
             onClick={onConfirm}
+            loading={confirmLoading}
+            loadingLabel='Working...'
             className={`px-4 py-2 text-sm font-medium text-white rounded-lg ${colors[type].confirm} transition-colors`}
           >
             {confirmText}
-          </button>
+          </LoadingButton>
         </div>
       </div>
     </div>
@@ -272,11 +281,13 @@ const ConfirmModal = ({
 const RejectModal = ({
   isOpen,
   onConfirm,
-  onCancel
+  onCancel,
+  confirmLoading = false
 }: {
   isOpen: boolean
   onConfirm: (reason: string) => void
   onCancel: () => void
+  confirmLoading?: boolean
 }) => {
   const [reason, setReason] = useState('')
   const [error, setError] = useState('')
@@ -335,12 +346,14 @@ const RejectModal = ({
           >
             Cancel
           </button>
-          <button
+          <LoadingButton
             onClick={handleConfirm}
+            loading={confirmLoading}
+            loadingLabel='Rejecting...'
             className='px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700'
           >
             Confirm Rejection
-          </button>
+          </LoadingButton>
         </div>
       </div>
     </div>
@@ -351,11 +364,13 @@ const RejectModal = ({
 const ProcessModal = ({
   isOpen,
   onConfirm,
-  onCancel
+  onCancel,
+  confirmLoading = false
 }: {
   isOpen: boolean
   onConfirm: (gatewayRefundId: string) => void
   onCancel: () => void
+  confirmLoading?: boolean
 }) => {
   const [gatewayRefundId, setGatewayRefundId] = useState('')
   const [error, setError] = useState('')
@@ -414,12 +429,14 @@ const ProcessModal = ({
           >
             Cancel
           </button>
-          <button
+          <LoadingButton
             onClick={handleConfirm}
+            loading={confirmLoading}
+            loadingLabel='Processing...'
             className='px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700'
           >
             Process Refund
-          </button>
+          </LoadingButton>
         </div>
       </div>
     </div>
@@ -700,7 +717,7 @@ const mapBookingApiToLookup = (booking: any): BookingLookup | null => {
       booking.booking_code ||
       booking.code ||
       '',
-    customer: derivedCustomerName || 'Unknown traveller',
+    customer: derivedCustomerName || '',
     customerEmail:
       booking.customerEmail ||
       booking.customer_email ||
@@ -755,6 +772,10 @@ const mapApiRefund = (refund: any): RefundRow => {
   return {
     id: refund?.id || '',
     bookingId: refund?.bookingId ?? refund?.booking_id ?? '',
+    bookingNumber:
+      refund?.bookingNumber ?? refund?.booking_number ?? undefined,
+    customerName:
+      refund?.customerName ?? refund?.customer_name ?? undefined,
     paymentId: refund?.paymentId ?? refund?.payment_id ?? undefined,
     assignedTo: refund?.assignedTo ?? refund?.assigned_to ?? undefined,
     assignedToName:
@@ -816,10 +837,15 @@ const RefundsPage = () => {
     [user?.name, user?.email]
   )
   const [rows, setRows] = useState<RefundRow[]>([])
-  const [loading, setLoading] = useState(false)
+  const [listLoading, setListLoading] = useState(false)
+  const [savingRefund, setSavingRefund] = useState(false)
+  const [actionPending, setActionPending] = useState<{
+    id: string
+    action: 'approve' | 'reject' | 'process'
+  } | null>(null)
   const [error, setError] = useState('')
   const [formError, setFormError] = useState('')
-  const [showForm, setShowForm] = useState(false)
+  const [showCreateModal, setShowCreateModal] = useState(false)
   const [editingRefundId, setEditingRefundId] = useState<string | null>(null)
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('ALL')
   const [search, setSearch] = useState('')
@@ -869,16 +895,12 @@ const RefundsPage = () => {
     setForm(prev => ({ ...prev, raisedByName: viewerRaisedByName }))
   }, [viewerRaisedByName])
 
-  const [bookings, setBookings] = useState<BookingLookup[]>([])
-  /** Populated via getById for refund rows — not only dropdown search results */
+  /** Populated via getById for refund rows */
   const [bookingLookupCache, setBookingLookupCache] = useState<
     Map<string, BookingLookup>
   >(() => new Map())
-  const [payments, setPayments] = useState<PaymentLookup[]>([])
   const [financeUsers, setFinanceUsers] = useState<FinanceUser[]>([])
   const [loadingFinanceUsers, setLoadingFinanceUsers] = useState(false)
-  const [loadingBookings, setLoadingBookings] = useState(false)
-  const [loadingPayments, setLoadingPayments] = useState(false)
   const currencyOptions = useMemo(() => getCurrencyOptions(false), [])
 
   const bookingById = useMemo(() => {
@@ -888,11 +910,36 @@ const RefundsPage = () => {
       if (!cid) return
       m.set(cid, { ...booking, id: cid })
     })
-    for (const booking of bookings) {
-      if (booking?.id) m.set(booking.id, booking)
-    }
     return m
-  }, [bookingLookupCache, bookings])
+  }, [bookingLookupCache])
+
+  const seedBookingLookupFromRows = useCallback((refundRows: RefundRow[]) => {
+    setBookingLookupCache(prev => {
+      const next = new Map(prev)
+      let changed = false
+      for (const row of refundRows) {
+        const id = String(row.bookingId || '').trim()
+        if (!id) continue
+        const lookup = mapBookingApiToLookup({
+          id,
+          bookingNumber: row.bookingNumber,
+          customerName: row.customerName,
+          customer: row.customerName,
+        })
+        if (!lookup) continue
+        const existing = next.get(id)
+        const shouldSet =
+          !existing ||
+          (!existing.customer?.trim() && lookup.customer?.trim()) ||
+          (!existing.bookingNumber?.trim() && lookup.bookingNumber?.trim())
+        if (shouldSet) {
+          next.set(id, lookup)
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+  }, [])
 
   const bookingsNeedHydrationKey = useMemo(() => {
     const uniq = [
@@ -902,10 +949,20 @@ const RefundsPage = () => {
           .filter(Boolean)
       )
     ]
-    const missing = uniq.filter(id => !bookingLookupCache.has(id))
+    const missing = uniq.filter(id => {
+      const fromRow = rows.find(row => String(row.bookingId || '').trim() === id)
+      if (fromRow?.customerName?.trim()) return false
+      const cached = bookingLookupCache.get(id)
+      return !cached?.customer?.trim()
+    })
     missing.sort()
     return missing.join('|')
   }, [rows, bookingLookupCache])
+
+  const bookingsPendingHydration = useMemo(
+    () => new Set(bookingsNeedHydrationKey.split('|').filter(Boolean)),
+    [bookingsNeedHydrationKey],
+  )
 
   useEffect(() => {
     if (!token || !bookingsNeedHydrationKey) return
@@ -947,8 +1004,25 @@ const RefundsPage = () => {
         let changed = false
         settled.forEach(lookup => {
           if (!lookup?.id) return
-          if (!next.has(lookup.id)) {
+          const existing = next.get(lookup.id)
+          if (!existing) {
             next.set(lookup.id, lookup)
+            changed = true
+            return
+          }
+          const merged: BookingLookup = {
+            ...existing,
+            ...lookup,
+            id: lookup.id,
+            bookingNumber:
+              existing.bookingNumber?.trim() || lookup.bookingNumber || '',
+            customer: existing.customer?.trim() || lookup.customer?.trim() || '',
+          }
+          if (
+            merged.bookingNumber !== existing.bookingNumber ||
+            merged.customer !== existing.customer
+          ) {
+            next.set(lookup.id, merged)
             changed = true
           }
         })
@@ -960,28 +1034,8 @@ const RefundsPage = () => {
       cancelled = true
     }
   }, [token, bookingsNeedHydrationKey])
-  const paymentById = useMemo(
-    () => new Map(payments.map(payment => [payment.id, payment])),
-    [payments]
-  )
+  const paymentById = useMemo(() => new Map<string, PaymentLookup>(), [])
 
-  const selectedPayment = useMemo(
-    () => paymentById.get(form.paymentId) ?? null,
-    [form.paymentId, paymentById]
-  )
-
-  const verifiedPaymentsSummary = useMemo(() => {
-    const verified = payments.filter(payment => payment.isVerified !== false)
-    if (!verified.length) return ''
-    const byCurrency = new Map<string, number>()
-    verified.forEach(payment => {
-      const code = String(payment.currency || 'INR').toUpperCase()
-      byCurrency.set(code, (byCurrency.get(code) || 0) + payment.amount)
-    })
-    return Array.from(byCurrency.entries())
-      .map(([code, total]) => formatCurrency(total, code))
-      .join(' + ')
-  }, [payments])
   const financeUsersForDropdown = useMemo(() => {
     const assignId = String(form.assignedTo || '').trim()
     const byId = new Map(financeUsers.map(u => [u.id, u]))
@@ -997,23 +1051,21 @@ const RefundsPage = () => {
     return financeUsers
   }, [financeUsers, form.assignedTo, editingRefundId, rows])
 
-  const financeUserOptions = useMemo(
-    () => [
-      {
-        value: '',
-        label: loadingFinanceUsers
-          ? 'Loading finance users...'
-          : financeUsers.length === 0 && financeUsersForDropdown.length <= 1
-          ? 'No accounts users found'
-          : 'Select finance person (optional)...'
-      },
+  const financeUserOptions = useMemo(() => {
+    const hasChoices = financeUsersForDropdown.length > 0
+    const placeholderLabel = loadingFinanceUsers
+      ? 'Loading finance users...'
+      : hasChoices
+        ? 'Select finance person (optional)...'
+        : 'No finance users — create an Accounts user in Settings'
+    return [
+      { value: '', label: placeholderLabel },
       ...financeUsersForDropdown.map(user => ({
         value: user.id,
-        label: `${user.fullName}${user.email ? ` - ${user.email}` : ''}`
-      }))
-    ],
-    [financeUsers, financeUsersForDropdown, loadingFinanceUsers]
-  )
+        label: `${user.fullName}${user.email ? ` - ${user.email}` : ''}`,
+      })),
+    ]
+  }, [financeUsersForDropdown, loadingFinanceUsers])
 
   const shortId = (value?: string) => {
     const normalized = String(value || '').trim()
@@ -1022,16 +1074,32 @@ const RefundsPage = () => {
     return `${normalized.slice(0, 8)}...`
   }
 
+  const resolveBookingCustomerName = useCallback(
+    (bookingId?: string, row?: Pick<RefundRow, 'customerName'>) => {
+      const id = String(bookingId || '').trim()
+      const fromRow = row?.customerName?.trim()
+      if (fromRow) return fromRow
+      return bookingById.get(id)?.customer?.trim() || ''
+    },
+    [bookingById],
+  )
+
   const getBookingDisplay = useCallback(
-    (bookingId?: string) => {
+    (bookingId?: string, row?: Pick<RefundRow, 'customerName' | 'bookingNumber'>) => {
       const normalized = String(bookingId || '').trim()
       if (!normalized) return 'N/A'
       const booking = bookingById.get(normalized)
-      const name = booking?.customer?.trim() || 'Unknown traveller'
-      const refLabel = formatBkBookingLabel(booking, normalized)
+      const name = resolveBookingCustomerName(normalized, row) || '—'
+      const refLabel = formatBkBookingLabel(
+        booking ??
+          (row?.bookingNumber ?
+            { id: normalized, bookingNumber: row.bookingNumber, customer: name }
+          : undefined),
+        normalized,
+      )
       return `${name} · ${refLabel}`
     },
-    [bookingById]
+    [bookingById, resolveBookingCustomerName],
   )
 
   const renderRefundBookingCell = useCallback(
@@ -1041,13 +1109,39 @@ const RefundsPage = () => {
     ): ReactNode => {
       const id = String(row.bookingId || '').trim()
       const booking = bookingById.get(id)
-      const name =
-        booking?.customer?.trim() || 'Unknown traveller'
-      const refLabel = formatBkBookingLabel(booking, id || row.bookingId)
-      const pendingHydrate =
-        Boolean(id && token && !bookingLookupCache.has(id))
+      const customerName = resolveBookingCustomerName(id, row)
+      const pendingHydrate = Boolean(
+        id && token && !customerName && bookingsPendingHydration.has(id),
+      )
       const showFinanceAssignee =
         options?.showFinanceAssignee !== false
+
+      if (pendingHydrate) {
+        return (
+          <>
+            <div className='h-4 w-36 max-w-full rounded bg-gray-200 dark:bg-gray-700 animate-pulse' />
+            <div className='mt-1.5 h-3 w-44 max-w-full rounded bg-gray-200 dark:bg-gray-700 animate-pulse' />
+            {showFinanceAssignee ? (
+              <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+                Finance: {row.assignedToName || 'Unassigned'}
+              </p>
+            ) : null}
+          </>
+        )
+      }
+
+      const name = customerName || '—'
+      const refLabel = formatBkBookingLabel(
+        booking ??
+          (row.bookingNumber ?
+            {
+              id,
+              bookingNumber: row.bookingNumber,
+              customer: customerName,
+            }
+          : undefined),
+        id || row.bookingId,
+      )
 
       return (
         <>
@@ -1060,9 +1154,6 @@ const RefundsPage = () => {
           >
             {refLabel}
           </p>
-          {pendingHydrate ? (
-            <p className='text-[10px] text-gray-400'>Loading booking…</p>
-          ) : null}
           {showFinanceAssignee ? (
             <p className='text-xs text-gray-500 dark:text-gray-400'>
               Finance: {row.assignedToName || 'Unassigned'}
@@ -1071,7 +1162,7 @@ const RefundsPage = () => {
         </>
       )
     },
-    [bookingById, bookingLookupCache, token]
+    [bookingById, bookingsPendingHydration, resolveBookingCustomerName, token],
   )
 
   const getPaymentDisplay = useCallback(
@@ -1084,84 +1175,6 @@ const RefundsPage = () => {
     },
     [paymentById]
   )
-
-  const bookingOptions = useMemo(
-    () =>
-      bookings.map(booking => {
-        const customerName = booking.customer || 'Unknown Customer'
-        const bookingLabel = booking.bookingNumber || shortId(booking.id)
-        return {
-          value: booking.id,
-          label: `${customerName} ${bookingLabel}`,
-          leftLabel: customerName,
-          rightLabel: bookingLabel,
-          selectedLabel: `${customerName} · ${bookingLabel}`,
-          searchText: `${customerName} ${bookingLabel} ${booking.id}`
-        }
-      }),
-    [bookings]
-  )
-
-  const paymentOptions = useMemo(
-    () =>
-      payments.map(payment => {
-        const booking = payment.bookingId
-          ? bookingById.get(payment.bookingId)
-          : undefined
-        const customerName = booking?.customer || 'Unknown Customer'
-        const refLabel = payment.referenceId
-        const amountLabel = formatCurrency(payment.amount, payment.currency)
-        const modeLabel = payment.paymentMode
-          ? payment.paymentMode.replace(/_/g, ' ')
-          : ''
-        return {
-          value: payment.id,
-          label: `${customerName} ${refLabel} ${amountLabel}`,
-          leftLabel: customerName,
-          rightLabel: refLabel,
-          rightSubLabel: modeLabel ? `${amountLabel} · ${modeLabel}` : amountLabel,
-          rightSubEmphasis: true,
-          selectedLabel: `${customerName} · ${refLabel} · ${amountLabel}`,
-          searchText: `${customerName} ${refLabel} ${amountLabel} ${modeLabel} ${payment.bookingId || ''}`
-        }
-      }),
-    [payments, bookingById]
-  )
-
-  const toPaymentTimestamp = (payment: PaymentLookup) => {
-    const raw =
-      payment.paidAt || payment.createdAt || payment.date || ''
-    const parsed = Date.parse(raw)
-    return Number.isFinite(parsed) ? parsed : 0
-  }
-
-  const bookingDropdownOptions = useMemo(
-    () => [
-      {
-        value: '',
-        label: loadingBookings ? 'Loading bookings...' : 'Select booking...'
-      },
-      ...bookingOptions
-    ],
-    [bookingOptions, loadingBookings]
-  )
-
-  const paymentDropdownOptions = useMemo(() => {
-    const selectedBookingId = String(form.bookingId || '').trim()
-    return [
-      {
-        value: '',
-        label: loadingPayments
-          ? 'Loading payments...'
-          : !selectedBookingId
-          ? 'Select booking first'
-          : paymentOptions.length === 0
-          ? 'No payments for selected booking'
-          : 'Select payment...'
-      },
-      ...paymentOptions
-    ]
-  }, [form.bookingId, loadingPayments, paymentOptions])
 
   const statusOptions = useMemo(
     () => [
@@ -1261,7 +1274,7 @@ const RefundsPage = () => {
       if (appliedFilters.toDate && (!createdAtIso || createdAtIso > appliedFilters.toDate))
         return false
 
-      const bookingDisplay = getBookingDisplay(row.bookingId)
+      const bookingDisplay = getBookingDisplay(row.bookingId, row)
       const paymentDisplay = getPaymentDisplay(row.paymentId)
       const bookingMeta = bookingById.get(String(row.bookingId || ''))
 
@@ -1291,9 +1304,9 @@ const RefundsPage = () => {
       }
       if (
         appliedFilters.customer &&
-        !`${bookingMeta?.customer ?? ''} ${bookingMeta?.customerEmail ?? ''} ${
-          bookingMeta?.customerPhone ?? ''
-        }`
+        !`${row.customerName ?? ''} ${bookingMeta?.customer ?? ''} ${
+          bookingMeta?.customerEmail ?? ''
+        } ${bookingMeta?.customerPhone ?? ''}`
           .toLowerCase()
           .includes(appliedFilters.customer.toLowerCase())
       ) {
@@ -1326,6 +1339,7 @@ const RefundsPage = () => {
         row.paymentId ?? '',
         bookingDisplay,
         paymentDisplay,
+        row.customerName ?? '',
         bookingMeta?.customer ?? '',
         bookingMeta?.customerEmail ?? '',
         bookingMeta?.customerPhone ?? '',
@@ -1451,7 +1465,7 @@ const RefundsPage = () => {
         return
       }
 
-      setLoading(true)
+      setListLoading(true)
       setError('')
       try {
         const response = await refundsApi.list()
@@ -1459,7 +1473,9 @@ const RefundsPage = () => {
         const data =
           (payload as any)?.data || (payload as any)?.items || payload
         if (Array.isArray(data)) {
-          setRows(data.map(mapApiRefund))
+          const mapped = data.map(mapApiRefund)
+          setRows(mapped)
+          seedBookingLookupFromRows(mapped)
         } else {
           setRows([])
           setError('Invalid refund data from API.')
@@ -1469,36 +1485,40 @@ const RefundsPage = () => {
         setRows([])
         reportApiError(err, 'Failed to load refunds.', setError)
       } finally {
-        setLoading(false)
+        setListLoading(false)
       }
     }
 
     void loadRefunds()
-  }, [token])
+  }, [token, seedBookingLookupFromRows])
 
   useEffect(() => {
-    if ((!showForm && !showEditModal) || !token) return
+    if (!token) return
 
     let cancelled = false
     const loadFinanceUsers = async () => {
       setLoadingFinanceUsers(true)
       try {
         const response = await refundsApi.listAssignableUsers()
-        const payload = (response as any)?.data ?? response
+        const payload = (response as { data?: unknown })?.data ?? response
         const data =
-          (payload as any)?.data || (payload as any)?.items || payload || []
+          (payload as { data?: unknown[] })?.data ??
+          (payload as { items?: unknown[] })?.items ??
+          (Array.isArray(payload) ? payload : [])
         if (cancelled) return
         setFinanceUsers(
-          (Array.isArray(data) ? data : []).map((item: any) => ({
-            id: String(item?.id || ''),
+          (Array.isArray(data) ? data : []).map((item: Record<string, unknown>) => ({
+            id: String(item?.id ?? ''),
             fullName: String(item?.fullName ?? item?.full_name ?? ''),
-            email: item?.email ? String(item.email) : undefined
-          }))
+            email: item?.email ? String(item.email) : undefined,
+          })),
         )
       } catch (err) {
         if (cancelled) return
         setFinanceUsers([])
-        reportApiError(err, 'Failed to load finance users', setFormError)
+        if (showEditModal) {
+          reportApiError(err, 'Failed to load finance users', setFormError)
+        }
       } finally {
         if (!cancelled) {
           setLoadingFinanceUsers(false)
@@ -1510,182 +1530,35 @@ const RefundsPage = () => {
     return () => {
       cancelled = true
     }
-  }, [showForm, showEditModal, token])
+  }, [token, showEditModal])
 
-  const loadBookingOptions = useCallback(async () => {
-    if (!token) {
-      setBookings([])
-      return
-    }
+  useEffect(() => {
+    if (!showEditModal || !editingRefundId) return
+    const bookingId = String(form.bookingId || '').trim()
+    if (!bookingId) return
 
-    setLoadingBookings(true)
-    try {
-      const paymentOptionsRes = await customersApi.getPaymentOptions()
-      const paymentOptions = unwrapListResponse(paymentOptionsRes)
-      const bookingMap = new Map<string, BookingLookup>()
-
-      paymentOptions.forEach((customer: any) => {
-        const customerName =
-          customer?.fullName ??
-          customer?.full_name ??
-          customer?.name ??
-          'Unknown Customer'
-        const customerEmail = customer?.email ?? ''
-        const customerPhone = customer?.phone ?? ''
-        const customerCurrency =
-          customer?.clientCurrency ??
-          customer?.client_currency ??
-          'INR'
-
-        ;(Array.isArray(customer?.bookings) ? customer.bookings : []).forEach(
-          (booking: any) => {
-            const mapped = mapBookingApiToLookup({
-              id: booking?.id,
-              bookingNumber: booking?.bookingNumber ?? booking?.booking_number,
-              customer: customerName,
-              customerEmail,
-              customerPhone,
-              currency: booking?.currency ?? customerCurrency
-            })
-            if (!mapped?.id) return
-            bookingMap.set(mapped.id, mapped)
-          }
-        )
-      })
-
-      setBookings(
-        Array.from(bookingMap.values())
-          .filter((b): b is BookingLookup => Boolean(b))
-          .map(b => ({
-            ...b,
-            bookingNumber:
-              (b.bookingNumber || '').trim() ?
-                b.bookingNumber
-              : `BK-${shortId(b.id)}`
-          }))
-      )
-    } catch (err) {
-      console.error('Failed to load refund booking options:', err)
-      setBookings([])
-    } finally {
-      setLoadingBookings(false)
-    }
-  }, [token])
-
-  const loadPaymentsForBooking = useCallback(
-    async (bookingId: string) => {
-      const normalizedBookingId = String(bookingId || '').trim()
-      if (!token || !normalizedBookingId) {
-        setPayments([])
-        setLoadingPayments(false)
-        return
-      }
-
-      setLoadingPayments(true)
+    let cancelled = false
+    ;(async () => {
       try {
-        const paymentsRes = await paymentsApi.list({ bookingId: normalizedBookingId })
-        const paymentsPayload = paymentsRes as any
-        const paymentsData =
-          paymentsPayload?.data?.data ||
-          paymentsPayload?.data ||
-          paymentsPayload ||
-          []
-        const paymentsList = Array.isArray(paymentsData) ? paymentsData : []
-
-        const mappedPayments = paymentsList
-          .map((payment: any) => {
-            const paymentReference = String(
-              payment.paymentReference ||
-                payment.payment_reference ||
-                payment.gatewayPaymentId ||
-                payment.gateway_payment_id ||
-                ''
-            ).trim()
-            const paymentId = String(payment.id || '')
-            return {
-              id: paymentId,
-              bookingId: String(
-                payment.bookingId ||
-                  payment.booking_id ||
-                  payment.booking?.id ||
-                  payment.booking?.bookingId ||
-                  ''
-              ),
-              referenceId: paymentReference || paymentId,
-              amount: Number(payment.amount || 0),
-              currency: String(payment.currency || 'INR').toUpperCase(),
-              paymentMode: String(
-                payment.paymentMode || payment.payment_mode || ''
-              ).toUpperCase(),
-              isVerified: Boolean(
-                payment.isVerified ?? payment.is_verified ?? false
-              ),
-              status: String(payment.status || '').toUpperCase(),
-              paidAt: payment.paidAt || payment.paid_at,
-              createdAt: payment.createdAt || payment.created_at,
-              date: payment.date
-            }
-          })
-          .filter(
-            payment =>
-              payment.isVerified &&
-              String(payment.status || '').toUpperCase() !== 'REFUNDED'
-          )
-
-        setPayments(mappedPayments)
-        setForm(current => {
-          if (current.bookingId !== normalizedBookingId) return current
-          const latestPayment = mappedPayments
-            .slice()
-            .sort((a, b) => toPaymentTimestamp(b) - toPaymentTimestamp(a))[0]
-          const hasSelectedPayment = mappedPayments.some(
-            payment => payment.id === current.paymentId
-          )
-          const nextPayment =
-            current.paymentId && hasSelectedPayment
-              ? mappedPayments.find(payment => payment.id === current.paymentId)
-              : latestPayment
-          return {
-            ...current,
-            paymentId: nextPayment?.id || '',
-            currency: nextPayment?.currency || current.currency,
-            refundAmount:
-              current.refundAmount ||
-              (nextPayment ? Number(nextPayment.amount) : '')
-          }
+        const res = await bookingsApi.getById(bookingId)
+        const raw = unwrapBookingResponse(res)
+        const mapped = mapBookingApiToLookup({
+          ...raw,
+          id: raw?.id ?? bookingId,
         })
+        const nextCurrency = String(mapped?.currency ?? 'INR').toUpperCase()
+        if (!cancelled) {
+          setForm(prev => ({ ...prev, currency: nextCurrency }))
+        }
       } catch (err) {
-        console.error('Failed to load payments for booking:', err)
-        setPayments([])
-      } finally {
-        setLoadingPayments(false)
+        console.error('Failed to load booking currency for refund edit:', err)
       }
-    },
-    [token]
-  )
+    })()
 
-  useEffect(() => {
-    if (!showForm) {
-      setBookings([])
-      setPayments([])
+    return () => {
+      cancelled = true
     }
-  }, [showForm])
-
-  useEffect(() => {
-    if (!showForm) return
-    void loadBookingOptions()
-  }, [showForm, loadBookingOptions])
-
-  useEffect(() => {
-    if (!showForm) return
-    const selectedBookingId = String(form.bookingId || '').trim()
-    if (!selectedBookingId) {
-      setPayments([])
-      setLoadingPayments(false)
-      return
-    }
-    void loadPaymentsForBooking(selectedBookingId)
-  }, [showForm, form.bookingId, loadPaymentsForBooking])
+  }, [showEditModal, editingRefundId, form.bookingId])
 
   const clearProofSelection = () => {
     setProofFile(null)
@@ -1733,16 +1606,6 @@ const RefundsPage = () => {
     setProofFile(file)
   }
 
-  const applySelectedPaymentToForm = useCallback((payment: PaymentLookup | null) => {
-    if (!payment) return
-    setForm(current => ({
-      ...current,
-      paymentId: payment.id,
-      currency: payment.currency || current.currency,
-      refundAmount: Number(payment.amount)
-    }))
-  }, [])
-
   const saveRefund = async () => {
     if (!form.bookingId || !form.paymentId || form.refundAmount === '') {
       setFormError('Select booking, payment reference, and refund amount.')
@@ -1753,7 +1616,7 @@ const RefundsPage = () => {
       return
     }
 
-    setLoading(true)
+    setSavingRefund(true)
     setFormError('')
     try {
       const normalizedAssignedTo = form.assignedTo.trim()
@@ -1800,7 +1663,7 @@ const RefundsPage = () => {
         setSelectedRefund(savedRefund)
       }
       resetRefundForm()
-      setShowForm(false)
+      setShowCreateModal(false)
     } catch (err) {
       console.error('Failed to save refund:', err)
       reportApiError(
@@ -1809,12 +1672,12 @@ const RefundsPage = () => {
         setFormError
       )
     } finally {
-      setLoading(false)
+      setSavingRefund(false)
     }
   }
 
   const handleEditRefund = (row: RefundRow) => {
-    setShowForm(false)
+    setShowCreateModal(false)
     setForm({
       bookingId: row.bookingId,
       paymentId: row.paymentId || '',
@@ -1840,7 +1703,7 @@ const RefundsPage = () => {
   const confirmApprove = () => {
     if (!actionRefundId) return
 
-    setLoading(true)
+    setActionPending({ id: actionRefundId, action: 'approve' })
     refundsApi
       .approve(actionRefundId)
       .then(response => {
@@ -1862,7 +1725,7 @@ const RefundsPage = () => {
       .finally(() => {
         setShowApproveConfirm(false)
         setActionRefundId(null)
-        setLoading(false)
+        setActionPending(null)
       })
   }
 
@@ -1874,7 +1737,7 @@ const RefundsPage = () => {
   const confirmReject = (reason: string) => {
     if (!actionRefundId) return
 
-    setLoading(true)
+    setActionPending({ id: actionRefundId, action: 'reject' })
     refundsApi
       .reject(actionRefundId, { reason })
       .then(response => {
@@ -1898,7 +1761,7 @@ const RefundsPage = () => {
       .finally(() => {
         setShowRejectModal(false)
         setActionRefundId(null)
-        setLoading(false)
+        setActionPending(null)
       })
   }
 
@@ -1910,7 +1773,7 @@ const RefundsPage = () => {
   const confirmProcess = (gatewayRefundId: string) => {
     if (!actionRefundId) return
 
-    setLoading(true)
+    setActionPending({ id: actionRefundId, action: 'process' })
     refundsApi
       .process(actionRefundId, { gatewayRefundId })
       .then(response => {
@@ -1934,9 +1797,17 @@ const RefundsPage = () => {
       .finally(() => {
         setShowProcessModal(false)
         setActionRefundId(null)
-        setLoading(false)
+        setActionPending(null)
       })
   }
+
+  const isRowActionLoading = useCallback(
+    (rowId: string, action: 'approve' | 'reject' | 'process' | 'edit') =>
+      action === 'edit'
+        ? savingRefund && editingRefundId === rowId
+        : actionPending?.id === rowId && actionPending?.action === action,
+    [actionPending, savingRefund, editingRefundId],
+  )
 
   const handleViewDetails = (refund: RefundRow) => {
     setSelectedRefund(refund)
@@ -1957,15 +1828,28 @@ const RefundsPage = () => {
       )}
 
       {/* Modals */}
+      <CreateRefundModal
+        isOpen={showCreateModal}
+        raisedByName={viewerRaisedByName}
+        onClose={() => setShowCreateModal(false)}
+        onCreated={data => {
+          const savedRefund = mapApiRefund(data)
+          setRows(current => [savedRefund, ...current])
+          showToast('Refund request created', 'success')
+        }}
+      />
+
       <EditRefundModal
         isOpen={showEditModal}
         refundId={editingRefundId}
         form={form}
         setForm={setForm}
         formError={formError}
-        loading={loading}
+        loading={savingRefund}
+        loadingFinanceUsers={loadingFinanceUsers}
         financeUserOptions={financeUserOptions}
         currencyOptions={currencyOptions}
+        currencyLocked={Boolean(form.bookingId?.trim())}
         proofFile={proofFile}
         proofUploadError={proofUploadError}
         proofInputRef={proofInputRef}
@@ -1982,7 +1866,11 @@ const RefundsPage = () => {
         type='info'
         confirmText='Approve'
         onConfirm={confirmApprove}
+        confirmLoading={
+          actionPending?.action === 'approve' && Boolean(actionRefundId)
+        }
         onCancel={() => {
+          if (actionPending) return
           setShowApproveConfirm(false)
           setActionRefundId(null)
         }}
@@ -1991,7 +1879,11 @@ const RefundsPage = () => {
       <RejectModal
         isOpen={showRejectModal}
         onConfirm={confirmReject}
+        confirmLoading={
+          actionPending?.action === 'reject' && Boolean(actionRefundId)
+        }
         onCancel={() => {
+          if (actionPending) return
           setShowRejectModal(false)
           setActionRefundId(null)
         }}
@@ -2000,7 +1892,11 @@ const RefundsPage = () => {
       <ProcessModal
         isOpen={showProcessModal}
         onConfirm={confirmProcess}
+        confirmLoading={
+          actionPending?.action === 'process' && Boolean(actionRefundId)
+        }
         onCancel={() => {
+          if (actionPending) return
           setShowProcessModal(false)
           setActionRefundId(null)
         }}
@@ -2009,7 +1905,10 @@ const RefundsPage = () => {
       <DetailsModal
         isOpen={showDetails}
         refund={selectedRefund}
-        bookingDisplay={getBookingDisplay(selectedRefund?.bookingId)}
+        bookingDisplay={getBookingDisplay(
+          selectedRefund?.bookingId,
+          selectedRefund ?? undefined,
+        )}
         paymentDisplay={getPaymentDisplay(selectedRefund?.paymentId)}
         onClose={() => {
           setShowDetails(false)
@@ -2034,235 +1933,16 @@ const RefundsPage = () => {
           <PermissionGate permission='refunds:update'>
             <button
               onClick={() => {
-                if (showForm) {
-                  setShowForm(false)
-                  resetRefundForm()
-                  return
-                }
-                resetRefundForm()
-                setShowForm(true)
+                prefetchBookingPickerOptions()
+                setShowCreateModal(true)
               }}
               className='inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors w-full sm:w-auto'
             >
-              {showForm ? <FaXmark className='text-lg' /> : <FaPlus />}{' '}
-              {showForm ? 'Close' : 'Create Refund'}
+              <FaPlus /> Create Refund
             </button>
           </PermissionGate>
         </div>
       </div>
-
-      {/* Create form (edit uses EditRefundModal) */}
-      {showForm && (
-        <SurfaceCard className='p-5 border border-gray-200 dark:border-gray-800'>
-          <div className='mb-4 flex items-center justify-between gap-3'>
-            <h2 className='text-base font-semibold text-gray-900 dark:text-gray-100'>
-              New Refund Request
-            </h2>
-          </div>
-          {formError ? (
-            <div className='mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-200'>
-              {formError}
-            </div>
-          ) : null}
-          <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
-            <div>
-              <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
-                Booking * (Search by booking number or ID)
-              </label>
-              <SearchableDropdown
-                value={form.bookingId}
-                onChange={value => {
-                  const selectedBooking =
-                    bookings.find(booking => booking.id === value) || null
-                  setForm(current => ({
-                    ...current,
-                    bookingId: value,
-                    paymentId: '',
-                    currency:
-                      selectedBooking?.currency ?
-                        String(selectedBooking.currency).toUpperCase()
-                      : current.currency
-                  }))
-                }}
-                options={bookingDropdownOptions}
-                searchPlaceholder='Type booking number (e.g., BK-1776424194713-8883)'
-                disabled={loadingBookings}
-              />
-            </div>
-            <div>
-              <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
-                Payment Reference *
-              </label>
-              <SearchableDropdown
-                value={form.paymentId}
-                onChange={value => {
-                  const payment = payments.find(item => item.id === value) || null
-                  if (!value) {
-                    setForm(current => ({ ...current, paymentId: '' }))
-                    return
-                  }
-                  applySelectedPaymentToForm(payment)
-                }}
-                options={paymentDropdownOptions}
-                searchPlaceholder='Search payment reference...'
-                disabled={loadingPayments || !form.bookingId}
-              />
-              {form.bookingId && !loadingPayments && verifiedPaymentsSummary ? (
-                <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
-                </p>
-              ) : null}
-              {selectedPayment ? (
-                <p className='mt-1 text-xs text-emerald-700 dark:text-emerald-300'>
-                  Selected: {formatCurrency(selectedPayment.amount, selectedPayment.currency)}{' '}
-                  ({selectedPayment.paymentMode?.replace(/_/g, ' ') || 'payment'})
-                </p>
-              ) : null}
-            </div>
-            <div>
-              <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
-                Assign Finance Person
-              </label>
-              <SearchableDropdown
-                value={form.assignedTo}
-                onChange={value =>
-                  setForm(current => ({ ...current, assignedTo: value }))
-                }
-                options={financeUserOptions}
-                searchPlaceholder='Search accounts user...'
-                disabled={loadingFinanceUsers}
-              />
-            </div>
-            <CurrencyInput
-              label='Refund Amount'
-              value={form.refundAmount}
-              onChange={value =>
-                setForm(current => ({ ...current, refundAmount: value }))
-              }
-              required
-            />
-            <div>
-              <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
-                Currency
-              </label>
-              <SearchableDropdown
-                value={form.currency}
-                onChange={value =>
-                  setForm(current => ({ ...current, currency: value }))
-                }
-                options={currencyOptions}
-                searchPlaceholder='Search currency...'
-              />
-            </div>
-            <CurrencyInput
-              label='Supplier Penalty'
-              value={form.supplierPenalty}
-              onChange={value =>
-                setForm(current => ({ ...current, supplierPenalty: value }))
-              }
-            />
-            <CurrencyInput
-              label='Service Charge'
-              value={form.serviceCharge}
-              onChange={value =>
-                setForm(current => ({ ...current, serviceCharge: value }))
-              }
-            />
-          </div>
-          <div className='mt-4'>
-            <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
-              Raised By *
-            </label>
-            <input
-              type='text'
-              readOnly
-              value={viewerRaisedByName}
-              title='Taken from logged-in account'
-              className='w-full cursor-not-allowed rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-800/80 dark:text-gray-200'
-            />
-            <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
-              Logged-in user (cannot be changed)
-            </p>
-          </div>
-          <div className='mt-4'>
-            <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
-              Notes
-            </label>
-            <textarea
-              value={form.notes}
-              onChange={event =>
-                setForm(current => ({ ...current, notes: event.target.value }))
-              }
-              rows={3}
-              placeholder='Refund reason, proof notes, or approval context'
-              className='w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-700 dark:bg-gray-900'
-            />
-          </div>
-          <div className='mt-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900'>
-            <p className='text-sm font-semibold text-gray-800 dark:text-gray-100 mb-2'>
-              Refund Proof
-            </p>
-            {proofFile ? (
-              <div className='flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-700 dark:bg-gray-800'>
-                <div>
-                  <p className='text-sm font-medium text-gray-800 dark:text-gray-100'>
-                    {proofFile.name}
-                  </p>
-                  <p className='text-xs text-gray-500'>
-                    {formatFileSize(proofFile.size)}
-                  </p>
-                </div>
-                <button
-                  type='button'
-                  className='text-xs font-semibold text-red-600 hover:underline'
-                  onClick={clearProofSelection}
-                >
-                  Remove
-                </button>
-              </div>
-            ) : (
-              <p className='text-sm text-gray-500'>
-                Upload refund proof image or PDF, max 5 MB.
-              </p>
-            )}
-            <div className='mt-3'>
-              <label
-                htmlFor='refund-proof-upload'
-                className='inline-flex cursor-pointer items-center rounded-lg border border-dashed border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:border-blue-500 hover:text-blue-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200'
-              >
-                Upload Proof
-              </label>
-              <input
-                id='refund-proof-upload'
-                ref={proofInputRef}
-                type='file'
-                accept='application/pdf,image/*'
-                className='hidden'
-                onChange={handleProofFileChange}
-              />
-            </div>
-            {proofUploadError && (
-              <p className='mt-2 text-xs text-red-500'>{proofUploadError}</p>
-            )}
-          </div>
-          <div className='flex justify-end gap-3 mt-4'>
-            <button
-              onClick={() => {
-                setShowForm(false)
-                resetRefundForm()
-              }}
-              className='px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50'
-            >
-              Cancel
-            </button>
-            <button
-              onClick={saveRefund}
-              className='px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700'
-            >
-              Create Refund
-            </button>
-          </div>
-        </SurfaceCard>
-      )}
 
       {/* Filters */}
       <SurfaceCard className='p-3 sm:p-4 border border-gray-200 dark:border-gray-800 space-y-3'>
@@ -2505,7 +2185,7 @@ const RefundsPage = () => {
 
       {/* Table */}
       <SurfaceCard className='overflow-hidden border border-gray-200 dark:border-gray-800'>
-        {loading ? (
+        {listLoading ? (
           <div className='p-8 flex justify-center'>
             <div className='animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600'></div>
           </div>
@@ -2589,37 +2269,45 @@ const RefundsPage = () => {
                             </button>
                             {row.status === 'PENDING' && (
                               <>
-                                <button
+                                <IconLoadingButton
                                   onClick={() => handleEditRefund(row)}
+                                  loading={isRowActionLoading(row.id, 'edit')}
+                                  disabled={Boolean(actionPending)}
                                   className='p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors'
                                   title='Edit'
                                 >
                                   <FaPen />
-                                </button>
-                                <button
+                                </IconLoadingButton>
+                                <IconLoadingButton
                                   onClick={() => handleApprove(row.id)}
+                                  loading={isRowActionLoading(row.id, 'approve')}
+                                  disabled={Boolean(actionPending)}
                                   className='p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors'
                                   title='Approve'
                                 >
                                   <FaCheck />
-                                </button>
-                                <button
+                                </IconLoadingButton>
+                                <IconLoadingButton
                                   onClick={() => handleReject(row.id)}
+                                  loading={isRowActionLoading(row.id, 'reject')}
+                                  disabled={Boolean(actionPending)}
                                   className='p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors'
                                   title='Reject'
                                 >
                                   <FaCircleXmark />
-                                </button>
+                                </IconLoadingButton>
                               </>
                             )}
                             {row.status === 'APPROVED' && (
-                              <button
+                              <IconLoadingButton
                                 onClick={() => handleProcess(row.id)}
+                                loading={isRowActionLoading(row.id, 'process')}
+                                disabled={Boolean(actionPending)}
                                 className='p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors'
                                 title='Process'
                               >
                                 <FaMoneyBillTransfer />
-                              </button>
+                              </IconLoadingButton>
                             )}
                           </div>
                         </PermissionGate>
@@ -2684,33 +2372,45 @@ const RefundsPage = () => {
                     </button>
                     {row.status === 'PENDING' && (
                       <>
-                        <button
+                        <IconLoadingButton
                           onClick={() => handleEditRefund(row)}
+                          loading={isRowActionLoading(row.id, 'edit')}
+                          disabled={Boolean(actionPending)}
                           className='p-2 text-amber-600 hover:bg-amber-50 rounded-lg'
+                          title='Edit'
                         >
                           <FaPen />
-                        </button>
-                        <button
+                        </IconLoadingButton>
+                        <IconLoadingButton
                           onClick={() => handleApprove(row.id)}
+                          loading={isRowActionLoading(row.id, 'approve')}
+                          disabled={Boolean(actionPending)}
                           className='p-2 text-green-600 hover:bg-green-50 rounded-lg'
+                          title='Approve'
                         >
                           <FaCheck />
-                        </button>
-                        <button
+                        </IconLoadingButton>
+                        <IconLoadingButton
                           onClick={() => handleReject(row.id)}
+                          loading={isRowActionLoading(row.id, 'reject')}
+                          disabled={Boolean(actionPending)}
                           className='p-2 text-red-600 hover:bg-red-50 rounded-lg'
+                          title='Reject'
                         >
                           <FaCircleXmark />
-                        </button>
+                        </IconLoadingButton>
                       </>
                     )}
                     {row.status === 'APPROVED' && (
-                      <button
+                      <IconLoadingButton
                         onClick={() => handleProcess(row.id)}
+                        loading={isRowActionLoading(row.id, 'process')}
+                        disabled={Boolean(actionPending)}
                         className='p-2 text-blue-600 hover:bg-blue-50 rounded-lg'
+                        title='Process'
                       >
                         <FaMoneyBillTransfer />
-                      </button>
+                      </IconLoadingButton>
                     )}
                   </div>
                 </div>

@@ -28,10 +28,11 @@ import SearchableDropdown from "../ui/SearchableDropdown";
 import CurrencySelector from "../ui/CurrencySelector";
 import { paymentsApi } from "../../api/payments";
 import { bookingsApi } from "../../api/bookings";
-import { leadsApi } from "../../api/leads";
-import { customersApi } from "../../api/customers";
+
+import { usersApi } from "../../api/users";
 import { getApiErrorMessage } from "../../api/apiClient";
 import { getCurrencyOptions,  formatCurrency } from "../../utils/currency";
+import { LoadingButton } from "../ui/ButtonSpinner";
 
 type TxStatus = "completed" | "pending" | "failed" | "refunded";
 type PaymentMode = "bank" | "card" | "cash" | "cheque" | "online";
@@ -41,8 +42,7 @@ const quickFilters = [
   { key: "ACTIVE", label: "Active" },
   { key: "COMPLETED", label: "Completed" },
   { key: "PENDING", label: "Pending" },
-  { key: "FAILED", label: "Failed" },
-  { key: "REFUNDED", label: "Refunded" },
+  { key: "FAILED", label: "Failed" }
 ] as const;
 type QuickFilter = (typeof quickFilters)[number]["key"];
 
@@ -179,29 +179,30 @@ const unwrapList = (response: unknown) => {
   return [];
 };
 
-
+const generatePaymentReferenceId = () => {
+  const suffix = Math.floor(Math.random() * 10000)
+    .toString()
+    .padStart(4, "0");
+  return `PAY-${Date.now()}-${suffix}`;
+};
 
 const pickCustomerName = (...sources: any[]) => {
   for (const source of sources) {
+    if (!source) continue;
+    const nestedCustomer = source.customer;
     const candidate =
-      source?.customerName ??
-      source?.customer_name ??
-      source?.customer?.fullName ??
-      source?.customer?.full_name ??
-      source?.customer?.name ??
-      source?.customerSnapshot?.fullName ??
-      source?.customerSnapshot?.full_name ??
-      source?.customerSnapshot?.name ??
-      source?.clientName ??
-      source?.lead?.fullName ??
-      source?.lead?.full_name ??
-      source?.lead?.name ??
-      source?.leadSnapshot?.fullName ??
-      source?.leadSnapshot?.full_name ??
-      source?.leadSnapshot?.name ??
-      source?.fullName ??
-      source?.full_name ??
-      source?.name;
+      source.customerName ??
+      source.customer_name ??
+      source.lead?.fullName ??
+      source.lead?.full_name ??
+      source.lead?.name ??
+      (typeof nestedCustomer === "string" ? nestedCustomer : undefined) ??
+      nestedCustomer?.fullName ??
+      nestedCustomer?.full_name ??
+      nestedCustomer?.name ??
+      source.fullName ??
+      source.full_name ??
+      source.name;
 
     if (typeof candidate === "string" && candidate.trim()) {
       return candidate.trim();
@@ -213,16 +214,13 @@ const pickCustomerName = (...sources: any[]) => {
 
 const pickCustomerEmail = (...sources: any[]) => {
   for (const source of sources) {
+    if (!source) continue;
     const candidate =
-      source?.customerEmail ??
-      source?.customer_email ??
-      source?.email ??
-      source?.primaryEmail ??
-      source?.contactEmail ??
-      source?.customer?.email ??
-      source?.customerSnapshot?.email ??
-      source?.lead?.email ??
-      source?.leadSnapshot?.email;
+      source.customerEmail ??
+      source.customer_email ??
+      source.lead?.email ??
+      source.email ??
+      source.customer?.email;
 
     if (typeof candidate === "string" && candidate.trim()) {
       return candidate.trim();
@@ -234,20 +232,16 @@ const pickCustomerEmail = (...sources: any[]) => {
 
 const pickCustomerPhone = (...sources: any[]) => {
   for (const source of sources) {
+    if (!source) continue;
     const candidate =
-      source?.customerPhone ??
-      source?.customer_phone ??
-      source?.phone ??
-      source?.mobile ??
-      source?.contactNumber ??
-      source?.contact_number ??
-      source?.customer?.phone ??
-      source?.customer?.mobile ??
-      source?.customerSnapshot?.phone ??
-      source?.lead?.phone ??
-      source?.lead?.mobile ??
-      source?.leadSnapshot?.phone ??
-      source?.leadSnapshot?.mobile;
+      source.customerPhone ??
+      source.customer_phone ??
+      source.lead?.phone ??
+      source.lead?.mobile ??
+      source.phone ??
+      source.mobile ??
+      source.customer?.phone ??
+      source.customer?.mobile;
 
     if (typeof candidate === "string" && candidate.trim()) {
       return candidate.trim();
@@ -355,6 +349,66 @@ const mapApiModeToTx = (value?: string): PaymentMode => {
   }
 };
 
+const formatDetailDate = (value?: string) => {
+  if (!value) return "N/A";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return String(value);
+  return parsed.toLocaleDateString("en-IN", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+};
+
+const isUuid = (value: string) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value.trim(),
+  );
+
+const readUserLabel = (user: any): string => {
+  const name = String(user?.fullName ?? user?.full_name ?? user?.name ?? "").trim();
+  if (name) return name;
+  return String(user?.email ?? "").trim();
+};
+
+const getPaymentModeLabel = (mode: PaymentMode) => {
+  switch (mode) {
+    case "cash":
+      return "Cash";
+    case "card":
+      return "Card";
+    case "online":
+      return "Online / Gateway";
+    case "cheque":
+      return "Cheque";
+    case "bank":
+    default:
+      return "Bank Transfer";
+  }
+};
+
+const resolveVerifierDisplayName = async (
+  verifiedBy?: string,
+  verifiedByName?: string,
+) => {
+  const label = String(verifiedByName ?? "").trim();
+  if (label && !isUuid(label)) return label;
+
+  const userId = String(verifiedBy ?? "").trim();
+  if (!userId || !isUuid(userId)) {
+    return label || userId || undefined;
+  }
+
+  try {
+    const res = await usersApi.getById(userId);
+    const payload = unwrapData<any>(res);
+    const user = payload?.data ?? payload;
+    return readUserLabel(user) || label || undefined;
+  } catch {
+    return label || undefined;
+  }
+};
+
 const mapTxModeToApi = (value?: PaymentMode) => {
   switch (value) {
     case "cash":
@@ -373,6 +427,9 @@ const mapTxModeToApi = (value?: PaymentMode) => {
 
 const mapPaymentToTransaction = (row: any): Transaction => {
   const bookingId = String(row?.bookingId ?? row?.booking_id ?? "N/A");
+  const bookingNumber = String(
+    row?.bookingNumber ?? row?.booking_number ?? "",
+  ).trim();
   const paidAt =
     row?.paidAt ?? row?.paid_at ?? row?.createdAt ?? row?.created_at ?? null;
   const customerId =
@@ -389,6 +446,11 @@ const mapPaymentToTransaction = (row: any): Transaction => {
     row?.lead?.leadId ??
     row?.lead?.lead_id ??
     null;
+  const leadSnapshot = row?.lead ?? null;
+  const customerName =
+    row?.customerName ??
+    row?.customer_name ??
+    pickCustomerName(row, row?.customer, leadSnapshot);
   return {
     id: String(row?.id ?? ""),
     referenceId:
@@ -398,21 +460,23 @@ const mapPaymentToTransaction = (row: any): Transaction => {
       row?.gateway_payment_id ??
       row?.gatewayOrderId ??
       row?.gateway_order_id ??
-      row?.id ??
       "",
     date: toDisplayDate(paidAt ?? row?.createdAt ?? row?.created_at),
-    customer:
-      pickCustomerName(row, row?.customer, row?.lead) ||
-      row?.customer ||
-      "Unknown",
+    customer: customerName || row?.customer || "Unknown",
     customerEmail:
-      pickCustomerEmail(row, row?.customer, row?.lead) || undefined,
+      (row?.customerEmail ??
+        row?.customer_email ??
+        pickCustomerEmail(row, row?.customer, leadSnapshot)) ||
+      undefined,
     customerPhone:
-      pickCustomerPhone(row, row?.customer, row?.lead) || undefined,
+      (row?.customerPhone ??
+        row?.customer_phone ??
+        pickCustomerPhone(row, row?.customer, leadSnapshot)) ||
+      undefined,
     customerId: customerId ? String(customerId) : undefined,
     leadId: leadId ? String(leadId) : undefined,
     bookingId,
-    bookingLabel: bookingId,
+    bookingLabel: bookingNumber || bookingId,
     amount: toNumber(row?.amount, 0),
     currency: row?.currency || 'INR',
     mode: mapApiModeToTx(row?.paymentMode ?? row?.payment_mode),
@@ -421,14 +485,8 @@ const mapPaymentToTransaction = (row: any): Transaction => {
     verifiedAt: row?.verifiedAt ?? row?.verified_at ?? undefined,
     verifiedBy: row?.verifiedBy ?? row?.verified_by ?? undefined,
     verifiedByName:
-      pickCustomerName(
-        row?.verifiedByUser,
-        row?.verified_by_user,
-        row?.verifiedByCustomer,
-        row?.verified_by_customer,
-      ) ||
-      row?.verifiedByName ||
-      row?.verified_by_name ||
+      readUserLabel(row?.verifiedByUser ?? row?.verified_by_user) ||
+      String(row?.verifiedByName ?? row?.verified_by_name ?? "").trim() ||
       undefined,
     paymentReference: row?.paymentReference ?? row?.payment_reference,
     gatewayOrderId: row?.gatewayOrderId ?? row?.gateway_order_id,
@@ -454,27 +512,107 @@ const mapPaymentToTransaction = (row: any): Transaction => {
   };
 };
 
-const pickBookingCustomerName = (booking: any) => {
-  const candidate =
-    booking?.customerName ??
-    booking?.customer_name ??
-    booking?.customer ??
-    booking?.customerSnapshot?.fullName ??
-    booking?.customerSnapshot?.full_name ??
-    booking?.customerSnapshot?.name ??
-    booking?.customer?.fullName ??
-    booking?.customer?.full_name ??
-    booking?.customer?.name ??
-    booking?.leadName ??
-    booking?.lead_name ??
-    booking?.lead?.fullName ??
-    booking?.lead?.full_name ??
-    booking?.lead?.name ??
-    booking?.fullName ??
-    booking?.full_name ??
-    booking?.name;
-  return typeof candidate === "string" && candidate.trim() ? candidate.trim() : "";
+const hasResolvedBookingLabel = (
+  tx: Pick<Transaction, "bookingId" | "bookingLabel">,
+) => {
+  const label = String(tx.bookingLabel ?? "").trim();
+  const bookingId = String(tx.bookingId ?? "").trim();
+  if (!label || !bookingId) return false;
+  if (label === bookingId) return false;
+  return true;
 };
+
+type PaymentBookingOption = {
+  id: string;
+  bookingNumber: string; 
+  customer?: string;
+  currency?: string;
+  totalAmount?: number;
+};
+
+const mapApiBookingToPaymentOption = (booking: any): PaymentBookingOption | null => {
+  const id = String(booking?.id ?? "").trim();
+  if (!id) return null;
+  const totalRaw =
+    booking?.totalAmount ??
+    booking?.total_amount ??
+    booking?.total ??
+    booking?.amount ??
+    0;
+  return {
+    id,
+    bookingNumber: String(
+      booking?.bookingNumber ?? booking?.booking_number ?? id,
+    ).trim(),
+    customer: pickCustomerName(booking) || undefined,
+    currency: String(
+      booking?.currency ??
+        booking?.clientCurrency ??
+        booking?.client_currency ??
+        "INR",
+    ).toUpperCase(),
+    totalAmount: Number(totalRaw) || 0,
+  };
+};
+
+const BOOKING_SEARCH_PAGE_SIZE = 50;
+const BOOKING_OPTIONS_CACHE_TTL_MS = 5 * 60 * 1000;
+
+let paymentBookingOptionsCache: {
+  items: PaymentBookingOption[];
+  fetchedAt: number;
+} | null = null;
+let paymentBookingOptionsInflight: Promise<PaymentBookingOption[]> | null = null;
+
+const rowsToPaymentBookingOptions = (rows: unknown[]) =>
+  rows
+    .map((row) => mapApiBookingToPaymentOption(row))
+    .filter(
+      (item: PaymentBookingOption | null): item is PaymentBookingOption =>
+        item !== null,
+    );
+
+async function fetchPaymentBookingOptions(
+  search?: string,
+): Promise<PaymentBookingOption[]> {
+  const term = search?.trim() ?? "";
+  if (
+    !term &&
+    paymentBookingOptionsCache &&
+    Date.now() - paymentBookingOptionsCache.fetchedAt <
+      BOOKING_OPTIONS_CACHE_TTL_MS
+  ) {
+    return paymentBookingOptionsCache.items;
+  }
+
+  if (!term && paymentBookingOptionsInflight) {
+    return paymentBookingOptionsInflight;
+  }
+
+  const request = (async () => {
+    const response = await bookingsApi.paymentOptions({
+      limit: BOOKING_SEARCH_PAGE_SIZE,
+      ...(term.length >= 2 ? { search: term } : {}),
+    });
+    return rowsToPaymentBookingOptions(unwrapList(response));
+  })();
+
+  if (!term) {
+    paymentBookingOptionsInflight = request;
+  }
+
+  try {
+    const items = await request;
+    if (!term) {
+      paymentBookingOptionsCache = { items, fetchedAt: Date.now() };
+    }
+    return items;
+  } finally {
+    if (!term) {
+      paymentBookingOptionsInflight = null;
+    }
+  }
+}
 
 const pickEntityName = (entity: any) => {
   const candidate =
@@ -532,12 +670,14 @@ const ConfirmModal = ({
   message,
   onConfirm,
   onCancel,
+  confirmLoading = false,
 }: {
   isOpen: boolean;
   title: string;
   message: string;
   onConfirm: () => void;
   onCancel: () => void;
+  confirmLoading?: boolean;
 }) => {
   if (!isOpen) return null;
 
@@ -562,12 +702,14 @@ const ConfirmModal = ({
           >
             Cancel
           </button>
-          <button
+          <LoadingButton
             onClick={onConfirm}
+            loading={confirmLoading}
+            loadingLabel="Working..."
             className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
           >
             Confirm
-          </button>
+          </LoadingButton>
         </div>
       </div>
     </div>
@@ -583,7 +725,7 @@ const VerifyModal = ({
 }: {
   isOpen: boolean;
   transaction: Transaction | null;
-  onConfirm: (data: PaymentVerificationData) => void;
+  onConfirm: (data: PaymentVerificationData) => void | Promise<void>;
   onCancel: () => void;
 }) => {
   const [paidAt, setPaidAt] = useState(
@@ -597,6 +739,7 @@ const VerifyModal = ({
   const [gatewayPaymentId, setGatewayPaymentId] = useState("");
   const [notes, setNotes] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [submitting, setSubmitting] = useState(false);
   const verificationStatusOptions = useMemo(
     () => [
       { value: "completed", label: "Completed" },
@@ -618,16 +761,23 @@ const VerifyModal = ({
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!validate()) return;
-    onConfirm({
-      paidAt,
-      status,
-      proofUrl: proofUrl || undefined,
-      paymentReference: paymentReference || undefined,
-      gatewayPaymentId: gatewayPaymentId || undefined,
-      notes: notes || undefined,
-    });
+    setSubmitting(true);
+    try {
+      await Promise.resolve(
+        onConfirm({
+          paidAt,
+          status,
+          proofUrl: proofUrl || undefined,
+          paymentReference: paymentReference || undefined,
+          gatewayPaymentId: gatewayPaymentId || undefined,
+          notes: notes || undefined,
+        }),
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -660,7 +810,7 @@ const VerifyModal = ({
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-sm text-gray-500">Booking ID</span>
+              <span className="text-sm text-gray-500">Booking</span>
               <span className="text-sm font-medium text-gray-900">
                 {transaction.bookingLabel || transaction.bookingId}
               </span>
@@ -778,12 +928,16 @@ const VerifyModal = ({
           >
             Cancel
           </button>
-          <button
-            onClick={handleSubmit}
+          <LoadingButton
+            onClick={() => {
+              void handleSubmit();
+            }}
+            loading={submitting}
+            loadingLabel="Verifying..."
             className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
           >
             Verify Payment
-          </button>
+          </LoadingButton>
         </div>
       </div>
     </div>
@@ -799,7 +953,7 @@ const PaymentFormModal = ({
 }: {
   isOpen: boolean;
   transaction: Transaction | null;
-  onSave: (data: any) => void;
+  onSave: (data: any) => void | Promise<void>;
   onCancel: () => void;
 }) => {
   const buildFormData = (tx: Transaction | null) => ({
@@ -827,78 +981,119 @@ const PaymentFormModal = ({
   const [formData, setFormData] = useState(() => buildFormData(transaction));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [currency, setCurrency] = useState(transaction?.currency || 'INR');
-  const [customers, setCustomers] = useState<
-    Array<{
-      id: string;
-      name: string;
-      email?: string;
-      phone?: string;
-      customerId?: string;
-    }>
-  >([]);
-  const [bookings, setBookings] = useState<
-    Array<{
-      id: string;
-      bookingNumber: string;
-      customer?: string;
-      customerId?: string;
-      currency?: string;
-      totalAmount?: number;
-    }>
-  >([]);
-  const [loadingCustomers, setLoadingCustomers] = useState(false);
+  const [bookings, setBookings] = useState<PaymentBookingOption[]>([]);
   const [loadingBookings, setLoadingBookings] = useState(false);
+  const [bookingSearchError, setBookingSearchError] = useState("");
+  const [selectedBookingMeta, setSelectedBookingMeta] =
+    useState<PaymentBookingOption | null>(null);
   const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
   const [invoiceUploadError, setInvoiceUploadError] = useState("");
   const invoiceInputRef = useRef<HTMLInputElement | null>(null);
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [proofUploadError, setProofUploadError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const proofInputRef = useRef<HTMLInputElement | null>(null);
   const currencyOptions = useMemo(() => getCurrencyOptions(false), []);
-  const customerDropdownOptions = useMemo(
-    () => [
-      {
-        value: "",
-        label: loadingCustomers ? "Loading customers..." : "Select customer...",
-      },
-      ...customers.map((customer) => ({
-        value: customer.id,
-        label: `${customer.name}${customer.email ? ` (${customer.email})` : ""}`,
-        searchText:
-          `${customer.name} ${customer.email ?? ""} ${customer.id}`.trim(),
-      })),
-    ],
-    [customers, loadingCustomers],
+  const mergeBookingOptions = useCallback((incoming: PaymentBookingOption[]) => {
+    if (!incoming.length) return;
+    setBookings((prev) => {
+      const byId = new Map(prev.map((item) => [item.id, item]));
+      incoming.forEach((item) => {
+        if (item.id) byId.set(item.id, item);
+      });
+      return Array.from(byId.values());
+    });
+  }, []);
+  const loadRecentBookings = useCallback(async () => {
+    setLoadingBookings(true);
+    setBookingSearchError("");
+    try {
+      const next = await fetchPaymentBookingOptions();
+      mergeBookingOptions(next);
+    } catch (err) {
+      console.error("Failed to load recent bookings:", err);
+      setBookingSearchError("Failed to load bookings. Try searching again.");
+    } finally {
+      setLoadingBookings(false);
+    }
+  }, [mergeBookingOptions]);
+  const searchBookings = useCallback(
+    async (query: string) => {
+      const term = query.trim();
+      if (term.length < 2) return;
+      setLoadingBookings(true);
+      setBookingSearchError("");
+      try {
+        const next = await fetchPaymentBookingOptions(term);
+        mergeBookingOptions(next);
+      } catch (err) {
+        console.error("Failed to search bookings:", err);
+        setBookingSearchError("Booking search failed. Please retry.");
+      } finally {
+        setLoadingBookings(false);
+      }
+    },
+    [mergeBookingOptions],
+  );
+  const hydrateSelectedBooking = useCallback(
+    async (bookingId: string) => {
+      const normalizedId = bookingId.trim();
+      if (!normalizedId) {
+        setSelectedBookingMeta(null);
+        return;
+      }
+      try {
+        const response = await bookingsApi.getById(normalizedId);
+        const mapped = mapApiBookingToPaymentOption(unwrapData(response));
+        if (!mapped) return;
+        setSelectedBookingMeta(mapped);
+        mergeBookingOptions([mapped]);
+        if (mapped.currency) {
+          setCurrency(String(mapped.currency).toUpperCase());
+        }
+      } catch (err) {
+        console.error("Failed to load booking details:", err);
+      }
+    },
+    [mergeBookingOptions],
   );
   const bookingDropdownOptions = useMemo(() => {
-    const selectedCustomerId = formData.customer?.trim();
-    const filtered =
-      selectedCustomerId ?
-        bookings.filter((booking) => booking.customerId === selectedCustomerId)
-      : [];
+    const selectedId = formData.bookingId?.trim();
+    const rows = [...bookings];
+    if (
+      selectedBookingMeta &&
+      selectedId &&
+      !rows.some((booking) => booking.id === selectedId)
+    ) {
+      rows.unshift(selectedBookingMeta);
+    }
+    const bookingOptions = rows.map((booking) => {
+      const customerName = booking.customer || "Unknown Customer";
+      const bookingLabel = booking.bookingNumber || booking.id;
+      return {
+        value: booking.id,
+        label: `${customerName} · ${bookingLabel}`,
+        leftLabel: customerName,
+        rightLabel: bookingLabel,
+        selectedLabel: `${customerName} · ${bookingLabel}`,
+        searchText: `${customerName} ${bookingLabel} ${booking.id}`.trim(),
+      };
+    });
     return [
       {
         value: "",
         label:
-          loadingBookings ? "Loading bookings..."
-          : !selectedCustomerId ? "Select customer first"
-          : filtered.length === 0 ? "No bookings for this customer"
-          : "Select booking...",
+          loadingBookings ? "Loading bookings..." : "Select booking...",
       },
-      ...filtered.map((booking) => ({
-        value: booking.id,
-        label: `${booking.bookingNumber}${
-          booking.customer ? ` - ${booking.customer}` : ""
-        }`,
-        searchText:
-          `${booking.bookingNumber} ${booking.customer ?? ""} ${booking.id}`.trim(),
-      })),
+      ...bookingOptions,
     ];
-  }, [bookings, loadingBookings, formData.customer]);
-  const selectedBooking = useMemo(
-    () => bookings.find((booking) => booking.id === formData.bookingId),
-    [bookings, formData.bookingId],
-  );
+  }, [bookings, formData.bookingId, loadingBookings, selectedBookingMeta]);
+  const selectedBooking = useMemo(() => {
+    const selectedId = formData.bookingId?.trim();
+    if (!selectedId) return null;
+    if (selectedBookingMeta?.id === selectedId) return selectedBookingMeta;
+    return bookings.find((booking) => booking.id === selectedId) ?? null;
+  }, [bookings, formData.bookingId, selectedBookingMeta]);
   const selectedBookingTotal = useMemo(() => {
     if (!selectedBooking) return null;
     const total = Number(selectedBooking.totalAmount ?? 0);
@@ -919,7 +1114,6 @@ const PaymentFormModal = ({
       { value: "pending", label: "Pending" },
       { value: "completed", label: "Completed" },
       { value: "failed", label: "Failed" },
-      { value: "refunded", label: "Refunded" },
     ],
     [],
   );
@@ -948,12 +1142,43 @@ const PaymentFormModal = ({
   }, [isOpen, clearInvoiceSelection, clearProofSelection]);
 
   useEffect(() => {
+    if (!isOpen) return;
     clearInvoiceSelection();
     clearProofSelection();
-    setFormData(buildFormData(transaction));
-    setCurrency(transaction?.currency || "INR");
     setErrors({});
-  }, [transaction, clearInvoiceSelection, clearProofSelection]);
+    setSelectedBookingMeta(null);
+
+    if (transaction) {
+      setFormData(buildFormData(transaction));
+      setCurrency(transaction.currency || "INR");
+      const bookingId = String(transaction.bookingId || "").trim();
+      if (bookingId) {
+        void hydrateSelectedBooking(bookingId);
+      }
+    } else {
+      const referenceId = generatePaymentReferenceId();
+      setFormData({
+        ...buildFormData(null),
+        referenceId,
+        paymentReference: referenceId,
+      });
+      setCurrency("INR");
+    }
+
+    if (!transaction && bookings.length === 0) {
+      void loadRecentBookings();
+    }
+  }, [
+    isOpen,
+    transaction,
+    bookings.length,
+    clearInvoiceSelection,
+    clearProofSelection,
+    loadRecentBookings,
+    hydrateSelectedBooking,
+  ]);
+
+  const currencyLocked = Boolean(formData.bookingId.trim());
 
   const handleInvoiceFileChange = (
     event: React.ChangeEvent<HTMLInputElement>,
@@ -999,71 +1224,6 @@ const PaymentFormModal = ({
     setProofFile(file);
   };
 
-      // Load customers and bookings when modal opens
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const loadData = async () => {
-      setLoadingCustomers(true);
-      setLoadingBookings(true);
-      try {
-        const paymentOptionsRes = await customersApi.getPaymentOptions();
-        const paymentOptions = unwrapList(paymentOptionsRes);
-
-        const nextCustomers = paymentOptions.map((customer: any) => ({
-          id: `customer-${String(customer?.customerId || "")}`,
-          name:
-            customer?.fullName ??
-            customer?.full_name ??
-            customer?.name ??
-            "Unknown",
-          email: customer?.email ?? undefined,
-          phone: customer?.phone ?? undefined,
-          customerId: String(customer?.customerId || ""),
-        }));
-        const nextBookings = paymentOptions.flatMap((customer: any) =>
-          (Array.isArray(customer?.bookings) ? customer.bookings : []).map(
-            (booking: any) => ({
-              id: String(booking?.id || ""),
-              bookingNumber:
-                booking?.bookingNumber ??
-                booking?.booking_number ??
-                booking?.id ??
-                "",
-              customer:
-                customer?.fullName ??
-                customer?.full_name ??
-                customer?.name ??
-                "",
-              customerId: `customer-${String(customer?.customerId || "")}`,
-              currency:
-                booking?.currency ??
-                customer?.clientCurrency ??
-                customer?.client_currency ??
-                "INR",
-              totalAmount: Number(
-                booking?.amount ??
-                  booking?.totalAmount ??
-                  booking?.total_amount ??
-                  0,
-              ),
-            }),
-          ),
-        );
-
-        setCustomers(nextCustomers);
-        setBookings(nextBookings);
-      } catch (err) {
-        console.error("Failed to load payment options:", err);
-      } finally {
-        setLoadingCustomers(false);
-        setLoadingBookings(false);
-      }
-    };
-
-    void loadData();
-  }, [isOpen]);
-
   if (!isOpen) return null;
 
   const currentInvoiceLink = transaction?.invoiceUrl;
@@ -1071,8 +1231,7 @@ const PaymentFormModal = ({
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
-    if (!formData.customer) newErrors.customer = "Customer is required";
-    if (!formData.bookingId) newErrors.bookingId = "Booking ID is required";
+    if (!formData.bookingId) newErrors.bookingId = "Booking is required";
     if (!formData.amount) newErrors.amount = "Amount is required";
     const parsedAmount = Number(formData.amount);
     if (!Number.isFinite(parsedAmount) || parsedAmount <= 0)
@@ -1148,22 +1307,30 @@ const PaymentFormModal = ({
     const now = new Date().toISOString();
     const resolvedPaymentReference =
       String(formData.paymentReference || formData.referenceId || "").trim();
-    onSave({
-      ...formData,
-      currency,
-      paymentReference: resolvedPaymentReference || undefined,
-      referenceId: resolvedPaymentReference,
-      amount:
-        parseFloat(formData.amount) *
-        (transaction?.amount && transaction.amount < 0 ? -1 : 1),
-      id: transaction?.id || `tx-${Date.now()}`,
-      createdAt: transaction?.createdAt || now,
-      updatedAt: now,
-      invoiceFile,
-      proofFile,
-      invoiceAttachment,
-      proofAttachment,
-    });
+
+    setSubmitting(true);
+    try {
+      await Promise.resolve(
+        onSave({
+          ...formData,
+          currency,
+          paymentReference: resolvedPaymentReference || undefined,
+          referenceId: resolvedPaymentReference,
+          amount:
+            parseFloat(formData.amount) *
+            (transaction?.amount && transaction.amount < 0 ? -1 : 1),
+          id: transaction?.id || `tx-${Date.now()}`,
+          createdAt: transaction?.createdAt || now,
+          updatedAt: now,
+          invoiceFile,
+          proofFile,
+          invoiceAttachment,
+          proofAttachment,
+        }),
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -1174,8 +1341,10 @@ const PaymentFormModal = ({
             {transaction ? "Edit Payment" : "Add New Payment"}
           </h3>
           <button
+            type="button"
             onClick={onCancel}
-            className="text-gray-400 hover:text-gray-600"
+            disabled={submitting}
+            className="text-gray-400 hover:text-gray-600 disabled:opacity-60"
           >
             <FaXmark className="text-xl" />
           </button>
@@ -1183,36 +1352,21 @@ const PaymentFormModal = ({
 
         <div className="p-6 space-y-4">
           {/* Basic Info */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="field-label">Customer *</label>
-              {transaction ?
+          <div className={transaction ? "grid grid-cols-2 gap-4" : ""}>
+            {transaction ?
+              <div>
+                <label className="field-label">Customer</label>
                 <input
                   type="text"
                   value={transaction.customer || formData.customer}
                   readOnly
-                  className={`field-input ${
-                    errors.customer ? "border-red-500" : ""
-                  } bg-gray-50 cursor-not-allowed`}
+                  className="field-input bg-gray-50 cursor-not-allowed"
                   placeholder="Customer"
                 />
-              : <SearchableDropdown
-                  value={formData.customer}
-                  onChange={(value) =>
-                    setFormData({ ...formData, customer: value, bookingId: "" })
-                  }
-                  options={customerDropdownOptions}
-                  hasError={Boolean(errors.customer)}
-                  searchPlaceholder="Search customer..."
-                  disabled={loadingCustomers}
-                />
-              }
-              {errors.customer && (
-                <p className="text-xs text-red-500 mt-1">{errors.customer}</p>
-              )}
-            </div>
-            <div>
-              <label className="field-label">Booking ID *</label>
+              </div>
+            : null}
+            <div className={transaction ? "" : "w-full"}>
+              <label className="field-label">Booking *</label>
               {transaction ?
                 <input
                   type="text"
@@ -1230,22 +1384,47 @@ const PaymentFormModal = ({
               : <SearchableDropdown
                   value={formData.bookingId}
                   onChange={(value) => {
+                    setFormData({ ...formData, bookingId: value });
+                    if (!value) {
+                      setSelectedBookingMeta(null);
+                      setCurrency("INR");
+                      return;
+                    }
                     const nextBooking =
                       bookings.find((booking) => booking.id === value) || null;
-                    setFormData({ ...formData, bookingId: value });
-                    if (nextBooking?.currency) {
-                      setCurrency(String(nextBooking.currency).toUpperCase());
+                    if (nextBooking) {
+                      setSelectedBookingMeta(nextBooking);
+                      if (nextBooking.currency) {
+                        setCurrency(String(nextBooking.currency).toUpperCase());
+                      }
+                    } else {
+                      void hydrateSelectedBooking(value);
                     }
                   }}
                   options={bookingDropdownOptions}
                   hasError={Boolean(errors.bookingId)}
-                  searchPlaceholder="Search booking..."
+                  searchPlaceholder="Booking number or ID (min 2 chars)..."
                   disabled={loadingBookings}
+                  onSearch={searchBookings}
+                  onMenuOpen={() => {
+                    if (bookings.length === 0 && !loadingBookings) {
+                      void loadRecentBookings();
+                    }
+                  }}
                 />
               }
               {errors.bookingId && (
                 <p className="text-xs text-red-500 mt-1">{errors.bookingId}</p>
               )}
+              {bookingSearchError ?
+                <p className="text-xs text-red-500 mt-1">{bookingSearchError}</p>
+              : null}
+              {!transaction && !bookingSearchError ?
+                <p className="text-xs text-gray-500 mt-1">
+                  Open the list for recent bookings, or type 2+ characters to
+                  search large booking catalogs.
+                </p>
+              : null}
             </div>
           </div>
 
@@ -1283,7 +1462,13 @@ const PaymentFormModal = ({
                 options={currencyOptions}
                 onChange={(value) => setCurrency(value)}
                 searchPlaceholder="Search currency..."
+                disabled={currencyLocked}
               />
+              {currencyLocked ?
+                <p className="text-xs text-gray-500 mt-1">
+                  Currency comes from the booking and cannot be changed.
+                </p>
+              : null}
             </div>
             <div>
               <label className="field-label">Payment Mode</label>
@@ -1310,9 +1495,17 @@ const PaymentFormModal = ({
                 onChange={(e) =>
                   setFormData({ ...formData, referenceId: e.target.value })
                 }
-                className="field-input"
-                placeholder="TRX-XXXX"
+                readOnly={!transaction}
+                className={`field-input ${
+                  !transaction ? "bg-gray-50 cursor-not-allowed" : ""
+                }`}
+                placeholder="PAY-XXXX"
               />
+              {!transaction ?
+                <p className="text-xs text-gray-500 mt-1">
+                  Auto-generated reference for this payment.
+                </p>
+              : null}
             </div>
             <div>
               <label className="field-label">Status</label>
@@ -1511,19 +1704,23 @@ const PaymentFormModal = ({
 
         <div className="sticky bottom-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 p-4 flex justify-end gap-3">
           <button
+            type="button"
             onClick={onCancel}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+            disabled={submitting}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-60"
           >
             Cancel
           </button>
-          <button
+          <LoadingButton
             onClick={() => {
               void handleSubmit();
             }}
+            loading={submitting}
+            loadingLabel={transaction ? "Updating..." : "Saving..."}
             className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
           >
             {transaction ? "Update Payment" : "Add Payment"}
-          </button>
+          </LoadingButton>
         </div>
       </div>
     </div>
@@ -1544,20 +1741,10 @@ const DetailsModal = ({
   onVerify: () => void;
   onEdit: () => void;
 }) => {
-  if (!isOpen || !transaction) return null;
-
-  const formatDateTime = (dateStr?: string) => {
-    if (!dateStr) return "N/A";
-    return new Date(dateStr).toLocaleString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      // hour: "2-digit",
-      // minute: "2-digit",
-    });
-  };
   const [showInvoicePreview, setShowInvoicePreview] = useState(false);
-  const invoiceLink = transaction.invoiceUrl ?? transaction.proofUrl;
+  const [verifiedByDisplay, setVerifiedByDisplay] = useState("");
+
+  const invoiceLink = transaction?.invoiceUrl ?? transaction?.proofUrl;
   const invoicePreviewSrc = useMemo(() => {
     if (!invoiceLink) return null;
     if (
@@ -1570,6 +1757,41 @@ const DetailsModal = ({
     }
     return `data:application/pdf;base64,${invoiceLink}`;
   }, [invoiceLink]);
+
+  useEffect(() => {
+    if (!isOpen || !transaction) {
+      setVerifiedByDisplay("");
+      return;
+    }
+
+    const preset = String(transaction.verifiedByName ?? "").trim();
+    if (preset && !isUuid(preset)) {
+      setVerifiedByDisplay(preset);
+      return;
+    }
+
+    let cancelled = false;
+    void resolveVerifierDisplayName(
+      transaction.verifiedBy,
+      transaction.verifiedByName,
+    ).then((label) => {
+      if (!cancelled) {
+        setVerifiedByDisplay(label || "");
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, transaction?.id, transaction?.verifiedBy, transaction?.verifiedByName]);
+
+  if (!isOpen || !transaction) return null;
+
+  const showPaymentRef = Boolean(
+    transaction.paymentReference &&
+      transaction.paymentReference !== transaction.id &&
+      !isUuid(transaction.paymentReference),
+  );
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -1599,27 +1821,23 @@ const DetailsModal = ({
             </span>
           </div>
 
-          {/* Basic Info */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-              <p className="text-xs text-gray-500 mb-1">Reference ID</p>
-              <p className="text-lg font-bold text-blue-600">
-                #{transaction.referenceId}
-              </p>
-            </div>
-            <div className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-              <p className="text-xs text-gray-500 mb-1">Amount</p>
-              <p
-                className={`text-lg font-bold ${
-                  transaction.amount < 0 ? "text-red-600" : "text-gray-900"
-                }`}
-              >
-                {transaction.amount < 0 ? "-" : ""}
-                {formatCurrency(Math.abs(transaction.amount), transaction.currency || 'INR')}
-              </p>
-            </div>
+          {/* Amount */}
+          <div className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+            <p className="text-xs text-gray-500 mb-1">Amount</p>
+            <p
+              className={`text-lg font-bold ${
+                transaction.amount < 0 ?
+                  "text-red-600"
+                : "text-gray-900 dark:text-gray-100"
+              }`}
+            >
+              {transaction.amount < 0 ? "-" : ""}
+              {formatCurrency(
+                Math.abs(transaction.amount),
+                transaction.currency || "INR",
+              )}
+            </p>
           </div>
-
           {/* Transaction Details */}
           <div className="space-y-3">
             <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -1633,32 +1851,24 @@ const DetailsModal = ({
                 </span>
               </div>
               <div className="flex justify-between py-2 border-b border-gray-100 dark:border-gray-800">
-                <span className="text-sm text-gray-500">Booking ID</span>
+                <span className="text-sm text-gray-500">Booking</span>
                 <span className="text-sm font-medium text-gray-900">
                   {transaction.bookingLabel || transaction.bookingId}
                 </span>
               </div>
               <div className="flex justify-between py-2 border-b border-gray-100 dark:border-gray-800">
-                <span className="text-sm text-gray-500">Date</span>
-                <span className="text-sm font-medium text-gray-900">
-                  {transaction.date}
+                <span className="text-sm text-gray-500">Payment date</span>
+                <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                  {formatDetailDate(transaction.paidAt || transaction.date)}
                 </span>
               </div>
               <div className="flex justify-between py-2 border-b border-gray-100 dark:border-gray-800">
                 <span className="text-sm text-gray-500">Payment Mode</span>
-                <span className="text-sm font-medium text-gray-900 capitalize">
-                  {transaction.mode}
+                <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                  {getPaymentModeLabel(transaction.mode)}
                 </span>
               </div>
-              {transaction.paidAt && (
-                <div className="flex justify-between py-2 border-b border-gray-100 dark:border-gray-800">
-                  <span className="text-sm text-gray-500">Paid At</span>
-                  <span className="text-sm font-medium text-gray-900">
-                    {formatDateTime(transaction.paidAt)}
-                  </span>
-                </div>
-              )}
-              {transaction.paymentReference && (
+              {showPaymentRef && (
                 <div className="flex justify-between py-2 border-b border-gray-100 dark:border-gray-800">
                   <span className="text-sm text-gray-500">Payment Ref</span>
                   <span className="text-sm font-medium text-gray-900">
@@ -1771,23 +1981,28 @@ const DetailsModal = ({
                 <div className="flex justify-between py-2 border-b border-gray-100 dark:border-gray-800">
                   <span className="text-sm text-gray-500">Verified At</span>
                   <span className="text-sm font-medium text-gray-900">
-                    {formatDateTime(transaction.verifiedAt)}
+                    {formatDetailDate(transaction.verifiedAt)}
                   </span>
                 </div>
                 <div className="flex justify-between py-2 border-b border-gray-100 dark:border-gray-800">
                   <span className="text-sm text-gray-500">Verified By</span>
                   <span className="text-sm font-medium text-gray-900">
-                    {transaction.verifiedByName ||
-                      transaction.customer ||
-                      transaction.verifiedBy ||
-                      "N/A"}
+                    {verifiedByDisplay || "N/A"}
                   </span>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Metadata removed */}
+          {(transaction.createdAt || transaction.updatedAt) && (
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {transaction.createdAt ?
+                `Created: ${formatDetailDate(transaction.createdAt)}` : ""}
+              {transaction.createdAt && transaction.updatedAt ? " · " : ""}
+              {transaction.updatedAt ?
+                `Updated: ${formatDetailDate(transaction.updatedAt)}` : ""}
+            </p>
+          )}
         </div>
 
         <div className="sticky bottom-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 p-4 flex justify-end gap-3">
@@ -1845,6 +2060,7 @@ const Payments: React.FC = () => {
   const [search, setSearch] = useState("");
   const [filterError, setFilterError] = useState("");
   const [showAddPanel, setShowAddPanel] = useState(false);
+  const [openingAddPanel, setOpeningAddPanel] = useState(false);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [page, setPage] = useState(1);
   const [draftFilters, setDraftFilters] =
@@ -1876,6 +2092,7 @@ const Payments: React.FC = () => {
   const [statsError, setStatsError] = useState("");
   const [selectedTransaction, setSelectedTransaction] =
     useState<Transaction | null>(null);
+  const detailsLoadSeqRef = useRef(0);
   const [showDetails, setShowDetails] = useState(false);
   const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -1905,7 +2122,6 @@ const Payments: React.FC = () => {
       { value: "completed", label: "Completed" },
       { value: "pending", label: "Pending" },
       { value: "failed", label: "Failed" },
-      { value: "refunded", label: "Refunded" },
     ],
     [],
   );
@@ -2199,94 +2415,7 @@ const Payments: React.FC = () => {
       const res = await paymentsApi.list();
       const data = unwrapData<any[]>(res) ?? [];
       const paymentRows = Array.isArray(data) ? data : [];
-
-      const initialRows = paymentRows.map((row) => {
-        const tx = mapPaymentToTransaction(row);
-        return {
-          ...tx,
-          bookingLabel: tx.bookingLabel || tx.bookingId,
-        };
-      });
-
-      const needsBookingHydration = initialRows.some(
-        (tx) =>
-          !tx.bookingLabel ||
-          tx.bookingLabel === tx.bookingId ||
-          tx.customer === "Unknown" ||
-          !tx.customer,
-      );
-
-      if (!needsBookingHydration) {
-        setTransactions(initialRows);
-        return;
-      }
-
-      const bookingIds = Array.from(
-        new Set(
-          initialRows.map((row) => String(row.bookingId || "")).filter(Boolean),
-        ),
-      );
-
-      let bookingById: Record<string, any> = {};
-      if (bookingIds.length) {
-        try {
-          const bookingsRes = await bookingsApi.list({ page: 1, limit: 500 });
-          const bookingsData = unwrapList(bookingsRes);
-          bookingById = bookingsData.reduce(
-            (acc: Record<string, any>, booking: any) => {
-              const key = String(
-                booking?.id ?? booking?.bookingId ?? booking?.booking_id ?? "",
-              );
-              if (key) acc[key] = booking;
-              return acc;
-            },
-            {} as Record<string, any>,
-          );
-        } catch (_error) {
-          bookingById = {};
-        }
-      }
-
-      const rows = paymentRows.map((row) => {
-        const tx = mapPaymentToTransaction(row);
-        const bookingKey = String(row?.bookingId ?? row?.booking_id ?? "");
-        const booking = bookingById[bookingKey];
-        if (!booking) return tx;
-
-        const bookingNumber =
-          booking?.bookingNumber ??
-          booking?.bookingId ??
-          booking?.code ??
-          tx.bookingId;
-        const bookingCustomer = pickBookingCustomerName(booking) || tx.customer;
-
-        return {
-          ...tx,
-          bookingLabel: String(bookingNumber || tx.bookingId),
-          customer:
-            tx.customer === "Unknown" ?
-              String(bookingCustomer || tx.customer)
-            : tx.customer,
-          customerId:
-            tx.customerId ||
-            String(
-              booking?.customerId ??
-                booking?.customer_id ??
-                booking?.customer?.id ??
-                "",
-            ) ||
-            undefined,
-          customerEmail:
-            tx.customerEmail ||
-            pickCustomerEmail(row, row?.customer, booking, booking?.customer) ||
-            undefined,
-          customerPhone:
-            tx.customerPhone ||
-            pickCustomerPhone(row, row?.customer, booking, booking?.customer) ||
-            undefined,
-        };
-      });
-      setTransactions(rows);
+      setTransactions(paymentRows.map((row) => mapPaymentToTransaction(row)));
     } catch (err) {
       console.error("Failed to load payments:", err);
       setTransactionsError(getApiErrorMessage(err, "Failed to load payments"));
@@ -2323,132 +2452,107 @@ const Payments: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    void fetchTransactions();
-  }, [fetchTransactions]);
+    let cancelled = false;
 
-  useEffect(() => {
-    void fetchStats(selectedCurrency);
-  }, [fetchStats, selectedCurrency]);
+    const load = async () => {
+      await fetchTransactions();
+      if (!cancelled) {
+        await fetchStats(selectedCurrency);
+      }
+    };
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchTransactions, fetchStats, selectedCurrency]);
 
   const handleViewDetails = async (tx: Transaction) => {
+    const loadSeq = ++detailsLoadSeqRef.current;
     setSelectedTransaction(tx);
     setShowDetails(true);
+
+    const seedHasBooking = hasResolvedBookingLabel(tx);
+    const seedHasCustomer =
+      Boolean(tx.customer) && tx.customer !== "Unknown";
+
     try {
       const res = await paymentsApi.getById(tx.id);
+      if (loadSeq !== detailsLoadSeqRef.current) return;
+
       const data = unwrapData<any>(res);
-      if (data) {
-        const fullTx = mapPaymentToTransaction(data);
-        setSelectedTransaction((current) => {
-          if (!current || current.id !== tx.id) return current;
+      if (!data) return;
 
-          const next = { ...current, ...fullTx };
+      const fullTx = mapPaymentToTransaction(data);
+      const merged: Transaction = { ...tx, ...fullTx };
 
-          // Do not downgrade UI fields to fallback values.
-          if (fullTx.customer === "Unknown" && current.customer) {
-            next.customer = current.customer;
-          }
-          if (!fullTx.customerEmail && current.customerEmail) {
-            next.customerEmail = current.customerEmail;
-          }
-          if (!fullTx.customerPhone && current.customerPhone) {
-            next.customerPhone = current.customerPhone;
-          }
+      if (fullTx.customer === "Unknown" && tx.customer) {
+        merged.customer = tx.customer;
+      }
+      if (!fullTx.customerEmail && tx.customerEmail) {
+        merged.customerEmail = tx.customerEmail;
+      }
+      if (!fullTx.customerPhone && tx.customerPhone) {
+        merged.customerPhone = tx.customerPhone;
+      }
+      if (seedHasBooking && hasResolvedBookingLabel(tx)) {
+        merged.bookingLabel = tx.bookingLabel;
+      }
 
-          return next;
-        });
+      const needsBookingLookup = !seedHasBooking && !hasResolvedBookingLabel(merged);
+      const needsCustomerLookup =
+        !seedHasCustomer &&
+        (merged.customer === "Unknown" || !merged.customer);
 
-        const bookingId =
-          String(data?.bookingId ?? data?.booking_id ?? fullTx.bookingId ?? "")
-            .trim();
-        if (bookingId) {
+      if (needsBookingLookup || needsCustomerLookup) {
+        const bookingId = String(
+          data?.bookingId ?? data?.booking_id ?? merged.bookingId ?? "",
+        ).trim();
+
+        if (bookingId && bookingId !== "N/A") {
           try {
             const bookingRes = await bookingsApi.getById(bookingId);
-            const bookingData = unwrapData<any>(bookingRes);
-            const booking = bookingData?.data ?? bookingData;
-            const bookingNumber =
+            if (loadSeq !== detailsLoadSeqRef.current) return;
+
+            const bookingPayload = unwrapData<any>(bookingRes);
+            const booking = bookingPayload?.data ?? bookingPayload;
+            const bookingNumber = String(
               booking?.bookingNumber ??
-              booking?.booking_number ??
-              booking?.bookingCode ??
-              booking?.booking_code ??
-              "";
-            if (bookingNumber) {
-              setSelectedTransaction((current) =>
-                current && current.id === tx.id ?
-                  {
-                    ...current,
-                    bookingLabel:
-                      current.bookingLabel &&
-                      current.bookingLabel !== current.bookingId ?
-                        current.bookingLabel
-                      : String(bookingNumber),
-                  }
-                : current,
-              );
+                booking?.booking_number ??
+                booking?.bookingCode ??
+                booking?.booking_code ??
+                "",
+            ).trim();
+            const bookingCustomerName = pickCustomerName(booking, booking?.lead);
+
+            if (needsBookingLookup && bookingNumber) {
+              merged.bookingLabel = bookingNumber;
             }
-
-            const bookingCustomerName = pickBookingCustomerName(booking);
-            const bookingCustomerId =
-              String(
-                booking?.customerId ??
-                  booking?.customer_id ??
-                  booking?.customer?.id ??
-                  booking?.customer?.customerId ??
-                  booking?.customer?.customer_id ??
-                  "",
-              ).trim();
-            const bookingLeadId =
-              String(
-                booking?.leadId ??
-                  booking?.lead_id ??
-                  booking?.lead?.id ??
-                  booking?.lead?.leadId ??
-                  booking?.lead?.lead_id ??
-                  "",
-              ).trim();
-
-            const applyName = (name: string) => {
-              if (!name) return;
-              setSelectedTransaction((current) =>
-                current &&
-                current.id === tx.id &&
-                (current.customer === "Unknown" || !current.customer) ?
-                  { ...current, customer: name }
-                : current,
-              );
-            };
-
-            if (fullTx.customer === "Unknown" || !fullTx.customer) {
-              applyName(bookingCustomerName);
-            }
-
             if (
-              (fullTx.customer === "Unknown" || !fullTx.customer) &&
-              !bookingCustomerName &&
-              bookingCustomerId
+              needsCustomerLookup &&
+              bookingCustomerName &&
+              (merged.customer === "Unknown" || !merged.customer)
             ) {
-              const customerRes = await customersApi.getById(bookingCustomerId);
-              const customerData = unwrapData<any>(customerRes);
-              const customer = customerData?.data ?? customerData;
-              applyName(pickEntityName(customer));
-            }
-
-            if (
-              (fullTx.customer === "Unknown" || !fullTx.customer) &&
-              !bookingCustomerName &&
-              !bookingCustomerId &&
-              bookingLeadId
-            ) {
-              const leadRes = await leadsApi.getById(bookingLeadId);
-              const leadData = unwrapData<any>(leadRes);
-              const lead = leadData?.data ?? leadData;
-              applyName(pickEntityName(lead));
+              merged.customer = bookingCustomerName;
             }
           } catch {
-            // ignore booking lookup failures
+            // keep list-row labels when booking lookup fails
           }
         }
       }
+
+      const verifierLabel = await resolveVerifierDisplayName(
+        merged.verifiedBy,
+        merged.verifiedByName,
+      );
+      if (loadSeq !== detailsLoadSeqRef.current) return;
+      if (verifierLabel) {
+        merged.verifiedByName = verifierLabel;
+      }
+
+      setSelectedTransaction(merged);
     } catch (err) {
+      if (loadSeq !== detailsLoadSeqRef.current) return;
       console.error("Failed to load payment details:", err);
     }
   };
@@ -2742,7 +2846,7 @@ const Payments: React.FC = () => {
           showEditModal ? "open" : "closed"
         }`}
         isOpen={showEditModal}
-        transaction={selectedTransaction}
+        transaction={showEditModal ? selectedTransaction : null}
         onSave={handleSaveEdit}
         onCancel={() => {
           setShowEditModal(false);
@@ -2751,7 +2855,6 @@ const Payments: React.FC = () => {
       />
 
       <PaymentFormModal
-        key={`add-${showAddPanel ? "open" : "closed"}`}
         isOpen={showAddPanel}
         transaction={null}
         onSave={handleAddPayment}
@@ -2762,6 +2865,7 @@ const Payments: React.FC = () => {
         isOpen={showDetails}
         transaction={selectedTransaction}
         onClose={() => {
+          detailsLoadSeqRef.current += 1;
           setShowDetails(false);
           setSelectedTransaction(null);
         }}
@@ -2797,12 +2901,24 @@ const Payments: React.FC = () => {
           >
             Create Refund
           </button>
-          <button
-            onClick={() => setShowAddPanel(true)}
+          <LoadingButton
+            onClick={() => {
+              void (async () => {
+                setOpeningAddPanel(true);
+                try {
+                  await fetchPaymentBookingOptions();
+                  setShowAddPanel(true);
+                } finally {
+                  setOpeningAddPanel(false);
+                }
+              })();
+            }}
+            loading={openingAddPanel}
+            loadingLabel="Loading..."
             className="inline-flex h-10 min-w-[140px] items-center justify-center rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white transition-all duration-200 hover:bg-blue-700"
           >
             <FaPlus className="mr-2" /> Add Payment
-          </button>
+          </LoadingButton>
         </div>
       </div>
 
@@ -3156,7 +3272,7 @@ const Payments: React.FC = () => {
                   <div className="flex items-start justify-between">
                     <div className="space-y-1">
                       <p className="text-sm font-medium text-blue-600 dark:text-blue-400">
-                        #{tx.referenceId}
+                        {tx.referenceId}
                       </p>
                       <p className="text-xs text-gray-500">{tx.date}</p>
                     </div>
@@ -3175,7 +3291,7 @@ const Payments: React.FC = () => {
                       {tx.customer}
                     </p>
                     <p className="text-xs text-gray-500">
-                      Booking #{tx.bookingLabel || tx.bookingId}
+                      Booking {tx.bookingLabel || tx.bookingId}
                     </p>
                   </div>
 
@@ -3299,14 +3415,14 @@ const Payments: React.FC = () => {
                       className="hover:bg-blue-50/30 dark:hover:bg-gray-800/40 transition-colors"
                     >
                       <td className="px-5 py-4 text-sm font-medium text-blue-600 dark:text-blue-300">
-                        #{tx.referenceId}
+                        {tx.referenceId}
                       </td>
                       <td className="px-5 py-4">
                         <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
                           {tx.customer}
                         </p>
                         <p className="text-xs text-gray-500">
-                          #{tx.bookingLabel || tx.bookingId}
+                          {tx.bookingLabel || tx.bookingId}
                         </p>
                       </td>
                       <td

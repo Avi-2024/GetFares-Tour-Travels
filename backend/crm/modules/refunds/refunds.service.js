@@ -40,6 +40,14 @@ function createRefundsService({ repository, bookingsRepository, leadsRepository,
     );
   }
 
+  const FINANCE_ASSIGNEE_ROLES = new Set([
+    "accounts",
+    "admin",
+    "super_admin",
+    "superadmin",
+    "management",
+  ]);
+
   async function ensureAccountsAssignee(userId) {
     const user = await repository.findUserById(userId);
     if (!user || !user.isActive) {
@@ -54,10 +62,10 @@ function createRefundsService({ repository, bookingsRepository, leadsRepository,
     const roleName = String(role?.name || "")
       .trim()
       .toLowerCase();
-    if (roleName !== "accounts") {
+    if (!FINANCE_ASSIGNEE_ROLES.has(roleName)) {
       throw new AppError(
         409,
-        "Refund can only be assigned to accounts users",
+        "Refund can only be assigned to finance team users (accounts, admin, or management)",
         "REFUND_ASSIGNEE_ROLE_INVALID",
       );
     }

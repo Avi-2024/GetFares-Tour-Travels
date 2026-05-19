@@ -1,6 +1,20 @@
+/** Roles allowed in "Assign Finance Person" picker (must match refunds.service assignee check). */
+const ASSIGNABLE_REFUND_ROLE_NAMES = Object.freeze([
+  "accounts",
+  "admin",
+  "super_admin",
+  "superadmin",
+  "management",
+]);
+
 function createRefundsRepository({ db, logger, schema }) {
   const tableCache = new Map();
   const columnCache = new Map();
+
+  function isAssignableRefundRole(roleName) {
+    const normalized = String(roleName || "").trim().toLowerCase();
+    return ASSIGNABLE_REFUND_ROLE_NAMES.includes(normalized);
+  }
 
   function canUseRawQuery() {
     return (
@@ -179,6 +193,8 @@ function createRefundsRepository({ db, logger, schema }) {
     return {
       id: row.id,
       bookingId: row.booking_id ?? row.bookingId ?? null,
+      bookingNumber: row.booking_number ?? row.bookingNumber ?? null,
+      customerName: row.customer_name ?? row.customerName ?? null,
       paymentId: row.payment_id ?? row.paymentId ?? null,
       assignedTo: assignedToId,
       assignedToName: assignedToUser?.fullName ?? null,
@@ -292,6 +308,49 @@ function createRefundsRepository({ db, logger, schema }) {
 
   return Object.freeze({
     async findAll(filters = {}) {
+      if (canUseRawQuery()) {
+        const mapped = mapListFilters(filters);
+        const conditions = [];
+        const params = [];
+
+        if (mapped.booking_id) {
+          conditions.push("r.booking_id = ?");
+          params.push(mapped.booking_id);
+        }
+        if (mapped.payment_id) {
+          conditions.push("r.payment_id = ?");
+          params.push(mapped.payment_id);
+        }
+        if (mapped.status) {
+          conditions.push("r.status = ?");
+          params.push(mapped.status);
+        }
+
+        const whereSql = conditions.length
+          ? `WHERE ${conditions.join(" AND ")}`
+          : "";
+
+        const result = await db.query(
+          `
+            SELECT
+              r.*,
+              b.booking_number,
+              NULLIF(TRIM(l.full_name), '') AS customer_name
+            FROM ${schema.tableName} r
+            LEFT JOIN ${schema.bookingsTable} b ON b.id = r.booking_id
+            LEFT JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
+            LEFT JOIN ${schema.leadsTable} l ON l.id = q.lead_id
+            ${whereSql}
+            ORDER BY r.created_at DESC
+          `,
+          params,
+        );
+
+        const rows = result.rows || [];
+        const userLookup = await buildUserLookup(rows);
+        return rows.map((row) => toRefund(row, userLookup));
+      }
+
       const rows = await db.findMany(schema.tableName, mapListFilters(filters));
       const userLookup = await buildUserLookup(rows);
       return rows
@@ -361,7 +420,12 @@ function createRefundsRepository({ db, logger, schema }) {
     },
 
     async findAssignableAccountsUsers() {
+      const roleNames = ASSIGNABLE_REFUND_ROLE_NAMES.map((name) =>
+        String(name).trim().toLowerCase(),
+      );
+
       if (canUseRawQuery()) {
+        const placeholders = roleNames.map(() => "?").join(", ");
         const rows = await db.query(
           `
             SELECT
@@ -369,13 +433,21 @@ function createRefundsRepository({ db, logger, schema }) {
               u.full_name,
               u.email,
               u.role_id,
-              u.is_active
+              u.is_active,
+              r.name AS role_name
             FROM ${schema.usersTable} u
             INNER JOIN ${schema.rolesTable} r ON r.id = u.role_id
-            WHERE LOWER(TRIM(r.name)) = 'accounts'
+            WHERE LOWER(TRIM(r.name)) IN (${placeholders})
               AND COALESCE(u.is_active, 1) = 1
-            ORDER BY u.full_name ASC, u.email ASC
+            ORDER BY
+              CASE LOWER(TRIM(r.name))
+                WHEN 'accounts' THEN 0
+                ELSE 1
+              END,
+              u.full_name ASC,
+              u.email ASC
           `,
+          roleNames,
         );
         return (Array.isArray(rows.rows) ? rows.rows : [])
           .map((row) => toUserSummary(row))
@@ -392,14 +464,19 @@ function createRefundsRepository({ db, logger, schema }) {
           String(role.name || "").trim().toLowerCase(),
         ]),
       );
+      const allowedRoles = new Set(roleNames);
 
       return (Array.isArray(users) ? users : [])
         .map((row) => toUserSummary(row))
         .filter((user) => user?.id && user.isActive)
-        .filter((user) => roleLookup.get(String(user.roleId || "")) === "accounts")
-        .sort((left, right) =>
-          String(left.fullName || "").localeCompare(String(right.fullName || "")),
-        );
+        .filter((user) => allowedRoles.has(roleLookup.get(String(user.roleId || "")) || ""))
+        .sort((left, right) => {
+          const leftRole = roleLookup.get(String(left.roleId || "")) || "";
+          const rightRole = roleLookup.get(String(right.roleId || "")) || "";
+          if (leftRole === "accounts" && rightRole !== "accounts") return -1;
+          if (rightRole === "accounts" && leftRole !== "accounts") return 1;
+          return String(left.fullName || "").localeCompare(String(right.fullName || ""));
+        });
     },
 
     async getVerifiedPaidAmount(bookingId) {

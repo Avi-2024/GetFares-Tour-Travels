@@ -827,6 +827,14 @@ function createBookingsService({ repository, logger, events, config, leadsReposi
       return visible;
     },
 
+    async paymentPickerOptions(filters = {}, context = {}) {
+      logger.debug(
+        { module: "bookings", requestId: context.requestId, filters },
+        "Listing booking payment picker options",
+      );
+      return repository.findPaymentPickerOptions(filters);
+    },
+
     async stats(context = {}) {
       logger.debug(
         { module: "bookings", requestId: context.requestId },

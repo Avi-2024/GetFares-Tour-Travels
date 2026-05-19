@@ -1079,6 +1079,127 @@ function createBookingsRepository({ db, logger, schema }) {
     async hasColumn(tableName, columnName) {
       return hasColumn(tableName, columnName);
     },
+
+    async findPaymentPickerOptions(filters = {}) {
+      const limit = Math.min(
+        Math.max(Number.parseInt(String(filters.limit ?? "50"), 10) || 50, 1),
+        100,
+      );
+      const search = String(filters.search ?? "").trim();
+
+      if (canIntrospect()) {
+        const conditions = ["b.status <> 'CANCELLED'"];
+        const params = [];
+
+        if (search.length >= 2) {
+          const like = `%${search.replace(/[\\%_]/g, "\\$&")}%`;
+          conditions.push(
+            "(b.booking_number LIKE ? OR CAST(b.id AS CHAR) LIKE ?)",
+          );
+          params.push(like, like);
+        }
+
+        let hasClientCurrency = false;
+        let hasCurrencyColumn = false;
+        try {
+          hasClientCurrency = await hasColumn(
+            schema.tableName,
+            "client_currency",
+          );
+          hasCurrencyColumn = await hasColumn(schema.tableName, "currency");
+        } catch (error) {
+          logger?.warn?.(
+            { err: error, table: schema.tableName },
+            "Unable to inspect bookings columns for payment picker options",
+          );
+        }
+
+        const currencyExpression =
+          hasClientCurrency && hasCurrencyColumn
+            ? "COALESCE(NULLIF(b.client_currency, ''), NULLIF(b.currency, ''), 'INR')"
+            : hasClientCurrency
+              ? "COALESCE(NULLIF(b.client_currency, ''), 'INR')"
+              : hasCurrencyColumn
+                ? "COALESCE(NULLIF(b.currency, ''), 'INR')"
+                : "'INR'";
+
+        const runPickerQuery = (currencyExpr) =>
+          db.query(
+            `
+            SELECT
+              b.id,
+              b.booking_number,
+              b.total_amount,
+              ${currencyExpr} AS currency,
+              l.full_name AS customer_name
+            FROM ${schema.tableName} b
+            LEFT JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
+            LEFT JOIN ${schema.leadsTable} l ON l.id = q.lead_id
+            WHERE ${conditions.join(" AND ")}
+            ORDER BY b.created_at DESC
+            LIMIT ?
+          `,
+            [...params, limit],
+          );
+
+        let result;
+        try {
+          result = await runPickerQuery(currencyExpression);
+        } catch (error) {
+          const message = String(error?.message || "");
+          const missingColumn =
+            error?.code === "42703" ||
+            error?.code === "ER_BAD_FIELD_ERROR" ||
+            error?.errno === 1054 ||
+            message.includes("Unknown column") ||
+            message.includes("client_currency") ||
+            message.includes("currency");
+
+          if (!missingColumn) {
+            throw error;
+          }
+
+          result = await runPickerQuery("'INR'");
+        }
+
+        return (result.rows || []).map((row) => ({
+          id: row.id,
+          bookingNumber: row.booking_number ?? row.bookingNumber ?? row.id,
+          customer:
+            typeof row.customer_name === "string" ?
+              row.customer_name.trim()
+            : "",
+          currency: String(row.currency || "INR").toUpperCase(),
+          totalAmount: toNumber(row.total_amount ?? row.totalAmount, 0),
+        }));
+      }
+
+      const rows = await db.findMany(schema.tableName, {});
+      const searchTerm = search.toLowerCase();
+      return rows
+        .filter((row) => (row.status ?? "PENDING") !== "CANCELLED")
+        .filter((row) => !toBoolean(row.is_deleted ?? row.isDeleted, false))
+        .filter((row) => {
+          if (search.length < 2) return true;
+          const bookingNumber = String(
+            row.booking_number ?? row.bookingNumber ?? "",
+          ).toLowerCase();
+          const bookingId = String(row.id ?? "").toLowerCase();
+          return (
+            bookingNumber.includes(searchTerm) || bookingId.includes(searchTerm)
+          );
+        })
+        .slice(0, limit)
+        .map((row) => ({
+          id: row.id,
+          bookingNumber: row.booking_number ?? row.bookingNumber ?? row.id,
+          customer: "",
+          currency: String(
+            row.client_currency ?? row.clientCurrency ?? row.currency ?? "INR",
+          ).toUpperCase(),
+          totalAmount: toNumber(row.total_amount ?? row.totalAmount, 0),
+        }));
+    },
   });
 }
 

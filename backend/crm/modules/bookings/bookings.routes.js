@@ -24,6 +24,13 @@ function createBookingsRoutes({
     validateRequest(validation.stats),
     asyncHandler(controller.stats),
   );
+  router.get(
+    "/payment-options",
+    requireAuth,
+    authorize(["payments:create", "bookings:read"]),
+    validateRequest(validation.paymentPickerOptions),
+    asyncHandler(controller.paymentPickerOptions),
+  );
   router.post(
     "/reminders/run",
     requireAuth,

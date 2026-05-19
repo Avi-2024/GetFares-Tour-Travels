@@ -62,9 +62,15 @@ function createPaymentsRepository({ db, logger, schema }) {
       return null;
     }
 
+    const leadId = row.lead_id ?? row.leadId ?? null;
+    const leadFullName = row.lead_full_name ?? row.leadFullName ?? null;
+    const leadEmail = row.lead_email ?? row.leadEmail ?? null;
+    const leadPhone = row.lead_phone ?? row.leadPhone ?? row.lead_mobile ?? row.leadMobile ?? null;
+
     return {
       id: row.id,
       bookingId: row.booking_id ?? row.bookingId ?? null,
+      bookingNumber: row.booking_number ?? row.bookingNumber ?? null,
       amount: toNumber(row.amount, 0),
       currency: row.currency ?? "INR",
       paymentMode: row.payment_mode ?? row.paymentMode ?? null,
@@ -78,11 +84,61 @@ function createPaymentsRepository({ db, logger, schema }) {
       status: row.status ?? "PENDING",
       isVerified: toBoolean(row.is_verified ?? row.isVerified, false),
       verifiedBy: row.verified_by ?? row.verifiedBy ?? null,
+      verifiedByName: row.verified_by_name ?? row.verifiedByName ?? null,
       verifiedAt: toDate(row.verified_at ?? row.verifiedAt),
       paidAt: toDate(row.paid_at ?? row.paidAt),
       notes: row.notes ?? row.note ?? null,
       createdAt: toDate(row.created_at ?? row.createdAt),
       updatedAt: toDate(row.updated_at ?? row.updatedAt),
+      leadId,
+      customerName: leadFullName,
+      customerEmail: leadEmail,
+      customerPhone: leadPhone,
+      lead:
+        leadId || leadFullName || leadEmail || leadPhone ?
+          {
+            id: leadId,
+            fullName: leadFullName,
+            email: leadEmail,
+            phone: leadPhone,
+            mobile: leadPhone,
+          }
+        : null,
+    };
+  }
+
+  function toPositiveInt(value) {
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      return null;
+    }
+    return parsed;
+  }
+
+  function buildListWhere(mapped = {}) {
+    const conditions = [];
+    const params = [];
+
+    if (mapped.booking_id) {
+      conditions.push("p.booking_id = ?");
+      params.push(mapped.booking_id);
+    }
+    if (mapped.status) {
+      conditions.push("p.status = ?");
+      params.push(mapped.status);
+    }
+    if (mapped.payment_mode) {
+      conditions.push("p.payment_mode = ?");
+      params.push(mapped.payment_mode);
+    }
+    if (mapped.is_verified !== undefined) {
+      conditions.push("COALESCE(p.is_verified, FALSE) = ?");
+      params.push(mapped.is_verified ? 1 : 0);
+    }
+
+    return {
+      whereSql: conditions.length ? `WHERE ${conditions.join(" AND ")}` : "",
+      params,
     };
   }
 
@@ -605,7 +661,43 @@ function createPaymentsRepository({ db, logger, schema }) {
       };
     },
     async findAll(filters = {}) {
-      const rows = await db.findMany(schema.tableName, mapListFilters(filters));
+      const mapped = mapListFilters(filters);
+
+      if (canUseRawQuery()) {
+        const { whereSql, params } = buildListWhere(mapped);
+        const limit = toPositiveInt(mapped.limit);
+        const page = toPositiveInt(mapped.page) || 1;
+        const offset = limit ? (page - 1) * limit : 0;
+
+        let query = `
+          SELECT
+            p.*,
+            b.booking_number,
+            q.lead_id,
+            l.full_name AS lead_full_name,
+            l.email AS lead_email,
+            l.phone AS lead_phone,
+            u.full_name AS verified_by_name
+          FROM ${schema.tableName} p
+          LEFT JOIN ${schema.bookingsTable} b ON b.id = p.booking_id
+          LEFT JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
+          LEFT JOIN ${schema.leadsTable} l ON l.id = q.lead_id
+          LEFT JOIN ${schema.usersTable} u ON u.id = p.verified_by
+          ${whereSql}
+          ORDER BY p.created_at DESC
+        `;
+
+        const queryParams = [...params];
+        if (limit) {
+          query += " LIMIT ? OFFSET ?";
+          queryParams.push(limit, offset);
+        }
+
+        const result = await db.query(query, queryParams);
+        return (result.rows || []).map((row) => toPayment(row));
+      }
+
+      const rows = await db.findMany(schema.tableName, mapped);
       return rows
         .map((row) => toPayment(row))
         .sort((a, b) => {

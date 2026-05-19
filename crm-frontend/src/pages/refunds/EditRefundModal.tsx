@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { FaXmark } from 'react-icons/fa6'
 import { CurrencyInput } from '../../components/form'
 import SearchableDropdown from '../../components/ui/SearchableDropdown'
+import { LoadingButton } from '../../components/ui/ButtonSpinner'
 import { useAuth } from '../../context/AuthContext'
 
 const formatFileSize = (bytes: number) => {
@@ -22,8 +23,10 @@ type EditRefundModalProps = {
   setForm: any
   formError: string
   loading: boolean
+  loadingFinanceUsers?: boolean
   financeUserOptions: any[]
   currencyOptions: any[]
+  currencyLocked?: boolean
   proofFile: File | null
   proofUploadError: string
   proofInputRef: React.RefObject<HTMLInputElement | null>
@@ -40,6 +43,7 @@ const EditRefundModal = ({
   setForm,
   formError,
   loading,
+  loadingFinanceUsers = false,
   financeUserOptions,
   currencyOptions,
   proofFile,
@@ -99,7 +103,8 @@ const EditRefundModal = ({
                   setForm((current: any) => ({ ...current, assignedTo: value }))
                 }
                 options={financeUserOptions}
-                searchPlaceholder='Search accounts user...'
+                searchPlaceholder='Search finance user...'
+                disabled={loadingFinanceUsers}
               />
             </div>
             <CurrencyInput
@@ -121,7 +126,13 @@ const EditRefundModal = ({
                 }
                 options={currencyOptions}
                 searchPlaceholder='Search currency...'
+                disabled={currencyLocked}
               />
+              {currencyLocked ?
+                <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+                  Currency comes from the booking and cannot be changed.
+                </p>
+              : null}
             </div>
             <CurrencyInput
               label='Supplier Penalty'
@@ -226,13 +237,14 @@ const EditRefundModal = ({
           >
             Cancel
           </button>
-          <button
+          <LoadingButton
             onClick={onSave}
-            disabled={loading}
-            className='px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50'
+            loading={loading}
+            loadingLabel='Updating...'
+            className='px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700'
           >
-            {loading ? 'Updating...' : 'Update Refund'}
-          </button>
+            Update Refund
+          </LoadingButton>
         </div>
       </div>
     </div>
