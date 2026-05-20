@@ -1,5 +1,13 @@
 import { AppError } from "../../core/errors/index.js";
 import { isSuperAdminRole } from "../../core/constants/index.js";
+import {
+  ianaFromLeadCountry,
+  localWallClockFromUtc,
+  normalizeIANATimezone,
+  toUtc,
+  utcInstantFromLocalWallClock,
+  WALL_CLOCK_REGEX,
+} from "../../core/datetime/timezone.js";
 
 const LEAD_TEMPERATURE = Object.freeze({
   HOT: "HOT",
@@ -113,7 +121,65 @@ function followupInstantToWallClock(value) {
   return `${m[1]} ${m[2]}:${m[3]}:${sec}`;
 }
 
-const WALL_CLOCK_REGEX = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
+/**
+ * Store follow-up instant as UTC in followup_date; keep wall clock + IANA on the row.
+ * @param {Record<string, unknown>} payload
+ * @param {{ fallbackTimezone?: string }} [opts]
+ */
+function normalizeFollowupStoragePayload(payload, opts = {}) {
+  const fallback =
+    normalizeIANATimezone(opts.fallbackTimezone) ||
+    DEFAULT_SYSTEM_DATE_TIME_PREFERENCES.timezone;
+  const tzRaw =
+    normalizeIANATimezone(payload.clientTimezone) || fallback;
+
+  const wallRaw = String(payload.followupLocalAt ?? "").trim();
+  const fdRaw = payload.followupDate;
+
+  const wallFromPayload =
+    wallRaw && WALL_CLOCK_REGEX.test(wallRaw) ?
+      wallRaw
+    : fdRaw && typeof fdRaw === "string" && WALL_CLOCK_REGEX.test(String(fdRaw).trim()) ?
+      String(fdRaw).trim()
+    : null;
+
+  if (wallFromPayload && tzRaw) {
+    const utc = utcInstantFromLocalWallClock(wallFromPayload, tzRaw);
+    if (utc) {
+      return {
+        ...payload,
+        followupDate: utc.toISOString(),
+        followupLocalAt: wallFromPayload,
+        clientTimezone: tzRaw,
+      };
+    }
+  }
+
+  const parsedIso =
+    fdRaw != null &&
+    fdRaw !== "" &&
+    !(typeof fdRaw === "string" && WALL_CLOCK_REGEX.test(String(fdRaw).trim())) ?
+      toUtc(fdRaw instanceof Date ? fdRaw.getTime() : fdRaw)
+    : null;
+
+  if (parsedIso && !Number.isNaN(parsedIso.getTime())) {
+    return {
+      ...payload,
+      followupDate: parsedIso.toISOString(),
+      followupLocalAt:
+        wallRaw && WALL_CLOCK_REGEX.test(wallRaw) ?
+          wallRaw
+        : localWallClockFromUtc(parsedIso, tzRaw) ||
+          (payload.followupLocalAt ?? null),
+      clientTimezone: tzRaw,
+    };
+  }
+
+  return {
+    ...payload,
+    clientTimezone: tzRaw || payload.clientTimezone,
+  };
+}
 
 function normalizeActivityWallClock(value) {
   const raw = String(value ?? "").trim();
@@ -146,7 +212,8 @@ function resolveActivityStamp(payload = {}) {
   if (!createdAt || !timezone) {
     return null;
   }
-  return { createdAt, timezone };
+  const tzNorm = normalizeIANATimezone(timezone);
+  return { createdAt, timezone: tzNorm || timezone };
 }
 
 // In-memory cache for agents by country
@@ -1810,7 +1877,16 @@ function createLeadsService({ repository, logger, events }) {
       reason: payload.reason || null,
     });
 
-    const assignmentWallClock = followupInstantToWallClock(nowIso);
+    const assignTz =
+      normalizeIANATimezone(
+        payload.activityTimezone ||
+          payload.clientTimezone ||
+          existing.clientTimezone ||
+          null,
+      ) ||
+      ianaFromLeadCountry(existing.leadCountry || existing.country) ||
+      DEFAULT_SYSTEM_DATE_TIME_PREFERENCES.timezone;
+    const assignmentWallClock = localWallClockFromUtc(new Date(nowIso), assignTz);
     if (assignmentWallClock) {
       const assignedByResolvedName = context.user?.id
         ? await repository.findUserDisplayNameById?.(context.user.id)
@@ -1836,22 +1912,24 @@ function createLeadsService({ repository, logger, events }) {
         ? `Reassigned by ${assignedByName} from ${previousAssigneeName} to ${newAssigneeName}`
         : `Assigned by ${assignedByName} to ${newAssigneeName}`;
 
-      await repository.createFollowup({
-        leadId: existing.id,
-        userId: context.user?.id || assignee.id || null,
-        followupType: "EMAIL",
-        followupDate: assignmentWallClock,
-        followupLocalAt: assignmentWallClock,
-        clientTimezone:
-          payload.activityTimezone ||
-          payload.clientTimezone ||
-          DEFAULT_SYSTEM_DATE_TIME_PREFERENCES.timezone,
-        statusSnapshot: "ASSIGNMENT",
-        notes: assignmentNote,
-        isCompleted: true,
-        isScheduleOnly: false,
-        countsTowardCompliance: false,
-      });
+      await repository.createFollowup(
+        normalizeFollowupStoragePayload(
+          {
+            leadId: existing.id,
+            userId: context.user?.id || assignee.id || null,
+            followupType: "EMAIL",
+            followupDate: nowIso,
+            followupLocalAt: assignmentWallClock,
+            clientTimezone: assignTz,
+            statusSnapshot: "ASSIGNMENT",
+            notes: assignmentNote,
+            isCompleted: true,
+            isScheduleOnly: false,
+            countsTowardCompliance: false,
+          },
+          { fallbackTimezone: assignTz },
+        ),
+      );
     }
 
     const lead = withTemperature(updated);
@@ -2477,19 +2555,26 @@ function createLeadsService({ repository, logger, events }) {
       }
 
       const scheduleActivityStamp = resolveActivityStamp(payload);
-      const followup = await repository.createFollowup({
-        leadId: lead.id,
-        userId: payload.userId || context.user?.id || lead.assignedTo || null,
-        followupType: normalizedType,
-        followupDate: wall,
-        cadenceCode: payload.cadenceCode || null,
-        notes: payload.notes,
-        createdAt: scheduleActivityStamp?.createdAt || null,
-        clientTimezone: tz,
-        followupLocalAt: wall,
-        isScheduleOnly: true,
-        countsTowardCompliance: false,
-      });
+      const prefs = await resolveSystemDateTimePreferences();
+      const tzNorm = normalizeIANATimezone(tz) || prefs.timezone;
+      const followup = await repository.createFollowup(
+        normalizeFollowupStoragePayload(
+          {
+            leadId: lead.id,
+            userId: payload.userId || context.user?.id || lead.assignedTo || null,
+            followupType: normalizedType,
+            followupDate: wall,
+            cadenceCode: payload.cadenceCode || null,
+            notes: payload.notes,
+            createdAt: scheduleActivityStamp?.createdAt || null,
+            clientTimezone: tzNorm,
+            followupLocalAt: wall,
+            isScheduleOnly: true,
+            countsTowardCompliance: false,
+          },
+          { fallbackTimezone: prefs.timezone },
+        ),
+      );
       const dateTimePreferences = await resolveSystemDateTimePreferences();
       const typeLabel = String(followup.followupType || normalizedType || "FOLLOW_UP")
         .trim()
@@ -2895,25 +2980,35 @@ function createLeadsService({ repository, logger, events }) {
             continue;
           }
 
-          const cadenceWall = followupInstantToWallClock(
-            slot.followupDate.toISOString(),
+          const cadenceTz =
+            normalizeIANATimezone(lead.clientTimezone) ||
+            ianaFromLeadCountry(lead.leadCountry || lead.country) ||
+            DEFAULT_SYSTEM_DATE_TIME_PREFERENCES.timezone;
+          const cadenceLocal = localWallClockFromUtc(
+            slot.followupDate,
+            cadenceTz,
           );
-          if (!cadenceWall) {
+          if (!cadenceLocal) {
             continue;
           }
-          await repository.createFollowup({
-            leadId: lead.id,
-            userId: lead.assignedTo || context.user?.id || null,
-            followupType: slot.type,
-            followupDate: cadenceWall,
-            followupLocalAt: cadenceWall,
-            clientTimezone: DEFAULT_SYSTEM_DATE_TIME_PREFERENCES.timezone,
-            cadenceCode: slot.code,
-            notes: `AUTO_CADENCE:${slot.code}`,
-            isCompleted: false,
-            isScheduleOnly: true,
-            countsTowardCompliance: false,
-          });
+          await repository.createFollowup(
+            normalizeFollowupStoragePayload(
+              {
+                leadId: lead.id,
+                userId: lead.assignedTo || context.user?.id || null,
+                followupType: slot.type,
+                followupDate: slot.followupDate.toISOString(),
+                followupLocalAt: cadenceLocal,
+                clientTimezone: cadenceTz,
+                cadenceCode: slot.code,
+                notes: `AUTO_CADENCE:${slot.code}`,
+                isCompleted: false,
+                isScheduleOnly: true,
+                countsTowardCompliance: false,
+              },
+              { fallbackTimezone: cadenceTz },
+            ),
+          );
           existingCodes.add(slot.code);
           summary.scheduled += 1;
         }
@@ -3195,20 +3290,30 @@ function createLeadsService({ repository, logger, events }) {
           );
         }
 
-        await repository.createFollowup({
-          leadId: id,
-          userId: context.user?.id || updated?.assignedTo || existing.assignedTo || null,
-          followupType: workflowFollowupType,
-          followupDate: wall,
-          clientTimezone:
+        const wfTz =
+          normalizeIANATimezone(
             workflowActionTimezone || scheduledReminder?.clientTimezone || null,
-          followupLocalAt: wall,
-          statusSnapshot: workflowStatusSnapshot,
-          notes: payload.notes || null,
-          isCompleted: true,
-          isScheduleOnly: false,
-          countsTowardCompliance: shouldTrackWorkflowFollowup,
-        });
+          ) || DEFAULT_SYSTEM_DATE_TIME_PREFERENCES.timezone;
+
+        await repository.createFollowup(
+          normalizeFollowupStoragePayload(
+            {
+              leadId: id,
+              userId:
+                context.user?.id || updated?.assignedTo || existing.assignedTo || null,
+              followupType: workflowFollowupType,
+              followupDate: wall,
+              clientTimezone: wfTz,
+              followupLocalAt: wall,
+              statusSnapshot: workflowStatusSnapshot,
+              notes: payload.notes || null,
+              isCompleted: true,
+              isScheduleOnly: false,
+              countsTowardCompliance: shouldTrackWorkflowFollowup,
+            },
+            { fallbackTimezone: wfTz },
+          ),
+        );
 
         if (scheduledReminder?.id) {
           await repository.updateFollowup(scheduledReminder.id, {
@@ -3249,20 +3354,28 @@ function createLeadsService({ repository, logger, events }) {
             nextCustomTrimmed.length <= snapshotMax ?
               nextCustomTrimmed
             : `${nextCustomTrimmed.slice(0, Math.max(0, snapshotMax - 3))}...`;
-          await repository.createFollowup({
-            leadId: id,
-            userId:
-              context.user?.id || updated?.assignedTo || existing.assignedTo || null,
-            followupType: "EMAIL",
-            followupDate: wall,
-            clientTimezone: tz,
-            followupLocalAt: wall,
-            statusSnapshot: snap,
-            notes: historyLines.join("\n\n"),
-            isCompleted: true,
-            isScheduleOnly: false,
-            countsTowardCompliance: false,
-          });
+          await repository.createFollowup(
+            normalizeFollowupStoragePayload(
+              {
+                leadId: id,
+                userId:
+                  context.user?.id ||
+                  updated?.assignedTo ||
+                  existing.assignedTo ||
+                  null,
+                followupType: "EMAIL",
+                followupDate: wall,
+                clientTimezone: tz,
+                followupLocalAt: wall,
+                statusSnapshot: snap,
+                notes: historyLines.join("\n\n"),
+                isCompleted: true,
+                isScheduleOnly: false,
+                countsTowardCompliance: false,
+              },
+              { fallbackTimezone: DEFAULT_SYSTEM_DATE_TIME_PREFERENCES.timezone },
+            ),
+          );
         }
       }
 

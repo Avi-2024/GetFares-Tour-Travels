@@ -1,5 +1,11 @@
 import crypto from "node:crypto";
 import { AppError } from "../../core/errors/index.js";
+import {
+  ianaFromLeadCountry,
+  localWallClockFromUtc,
+  normalizeIANATimezone,
+  toUtc,
+} from "../../core/datetime/timezone.js";
 import { getWebhookFileLogger } from "./webhookFileLogger.js";
 import { LeadFieldsUtils } from "../leads/leadFields.utils.js";
 import { resolveMetaLeadRoutingRule, normalizeMetaId } from "./metaLeadRouting.rules.js";
@@ -49,24 +55,6 @@ function normalizeLeadgenId(value) {
   }
 
   return normalized.replace(/^l:/i, "");
-}
-
-function toMysqlWallClock(value) {
-  const normalized = normalizeValue(value);
-  if (!normalized) {
-    return null;
-  }
-  const date = new Date(normalized);
-  if (Number.isNaN(date.getTime())) {
-    return null;
-  }
-  const year = String(date.getFullYear());
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  const hours = String(date.getHours()).padStart(2, "0");
-  const minutes = String(date.getMinutes()).padStart(2, "0");
-  const seconds = String(date.getSeconds()).padStart(2, "0");
-  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 }
 
 // flattenMetaFieldData, pickFirst, deriveFullName moved to shared utilities.
@@ -168,7 +156,11 @@ function buildLeadPayload(metaLead = {}, event = {}, pageConfig = {}, campaign =
     metaFormId,
     metaAdId,
   });
-  const clientCreatedAt = toMysqlWallClock(metaLead.created_time);
+  const leadWallTz = ianaFromLeadCountry(pageConfig.countryName);
+  const metaUtc = toUtc(metaLead.created_time);
+  const clientCreatedAt =
+    metaUtc ? localWallClockFromUtc(metaUtc, leadWallTz) : null;
+  const clientTimezone = normalizeIANATimezone(leadWallTz) || leadWallTz;
 
   return {
     fullName: deriveFullName({
@@ -200,6 +192,7 @@ function buildLeadPayload(metaLead = {}, event = {}, pageConfig = {}, campaign =
     metaAdsetId: metaLead.adset_id || event.adsetId || null,
     metaCampaignId,
     clientCreatedAt,
+    clientTimezone,
     allowDuplicate: true,
     utmSource: META_UTM_SOURCE,
     utmMedium: META_UTM_MEDIUM,

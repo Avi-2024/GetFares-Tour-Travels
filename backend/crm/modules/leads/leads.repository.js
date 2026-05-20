@@ -1,6 +1,13 @@
 import { randomUUID } from "node:crypto";
 
 import { AppError } from "../../core/errors/index.js";
+import {
+  localWallClockFromUtc,
+  normalizeIANATimezone,
+  toUtc,
+  utcInstantFromLocalWallClock,
+  WALL_CLOCK_REGEX,
+} from "../../core/datetime/timezone.js";
 
 function createLeadsRepository({ db, logger, schema }) {
   const ASSIGNABLE_ROLES = new Set([
@@ -521,6 +528,50 @@ function createLeadsRepository({ db, logger, schema }) {
     return Boolean(value);
   }
 
+  function enrichFollowupRead(domain) {
+    if (!domain) {
+      return null;
+    }
+    const tz = normalizeIANATimezone(domain.clientTimezone);
+    let followupDate = domain.followupDate;
+    let utc = null;
+
+    if (followupDate instanceof Date) {
+      utc = toUtc(followupDate);
+    } else if (followupDate != null && followupDate !== "") {
+      const asString = String(followupDate);
+      utc = toUtc(followupDate);
+      if (!utc && WALL_CLOCK_REGEX.test(asString.trim()) && tz) {
+        utc = utcInstantFromLocalWallClock(asString.trim(), tz);
+      }
+    }
+
+    let followupDateOut = followupDate;
+    if (utc && !Number.isNaN(utc.getTime())) {
+      followupDateOut = utc.toISOString();
+    }
+
+    let followupLocalAt = domain.followupLocalAt;
+    if (
+      utc &&
+      tz &&
+      (!followupLocalAt || !String(followupLocalAt).trim())
+    ) {
+      followupLocalAt = localWallClockFromUtc(utc, tz);
+    }
+
+    const clientTimezone = tz || domain.clientTimezone;
+
+    return {
+      ...domain,
+      followupDate: followupDateOut,
+      followupLocalAt: followupLocalAt ?? domain.followupLocalAt,
+      clientTimezone,
+      activityTimezone: clientTimezone,
+      activity_timezone: clientTimezone,
+    };
+  }
+
   function toFollowupDomain(row) {
     if (!row) {
       return null;
@@ -530,7 +581,7 @@ function createLeadsRepository({ db, logger, schema }) {
       row.followup_type ?? row.followupType,
     );
 
-    return {
+    return enrichFollowupRead({
       id: row.id,
       leadId: row.lead_id ?? row.leadId,
       userId: row.user_id ?? row.userId ?? null,
@@ -563,7 +614,7 @@ function createLeadsRepository({ db, logger, schema }) {
       activity_created_at: row.created_at ?? row.createdAt ?? null,
       activityTimezone: row.client_timezone ?? row.clientTimezone ?? null,
       activity_timezone: row.client_timezone ?? row.clientTimezone ?? null,
-    };
+    });
   }
 
   function toAssignableUser(row, roleName) {
@@ -2918,21 +2969,30 @@ function createLeadsRepository({ db, logger, schema }) {
       return mapRowToDomain(row);
     },
 
-	    async create(payload) {
-	      logger.debug({ module: "leads", payload, payloadKeys: Object.keys(payload) }, "Creating lead - raw payload");
-	      
-	      // Generate lead_code before insert since it's NOT NULL
-	      if (!payload.lead_code) {
-	        const serial = await reserveNextLeadCodeSerial();
-	        payload.lead_code = formatLeadCode(serial);
-	        logger.debug({ module: "leads", leadCode: payload.lead_code, serial }, "Generated lead_code");
-	      }
-	      
-	      const sanitized = await sanitizeForTable(schema.tableName, payload);
-	      logger.debug({ module: "leads", finalPayload: sanitized, keys: Object.keys(sanitized) }, "Final payload before insert");
-	      const row = await db.insert(schema.tableName, sanitized);
-	      return mapRowToDomain(row);
-	    },
+    async create(payload) {
+      logger.debug(
+        { module: "leads", payload, payloadKeys: Object.keys(payload) },
+        "Creating lead - raw payload",
+      );
+
+      // Generate lead_code before insert since it's NOT NULL
+      if (!payload.lead_code) {
+        const serial = await reserveNextLeadCodeSerial();
+        payload.lead_code = formatLeadCode(serial);
+        logger.debug(
+          { module: "leads", leadCode: payload.lead_code, serial },
+          "Generated lead_code",
+        );
+      }
+
+      const sanitized = await sanitizeForTable(schema.tableName, payload);
+      logger.debug(
+        { module: "leads", finalPayload: sanitized, keys: Object.keys(sanitized) },
+        "Final payload before insert",
+      );
+      const row = await db.insert(schema.tableName, sanitized);
+      return mapRowToDomain(row);
+    },
 
     async ensureLeadCode(leadId) {
       return assignLeadCode(leadId);
@@ -2969,7 +3029,9 @@ function createLeadsRepository({ db, logger, schema }) {
 
     async createActivity(payload) {
       const createdAt = payload.createdAt ?? payload.created_at ?? null;
-      const timezone = payload.timezone ?? payload.clientTimezone ?? null;
+      const rawTz = payload.timezone ?? payload.clientTimezone ?? null;
+      const timezone =
+        normalizeIANATimezone(rawTz) || String(rawTz ?? "").trim() || null;
       if (!createdAt || !timezone) {
         throw new AppError(
           400,
@@ -3053,8 +3115,8 @@ function createLeadsRepository({ db, logger, schema }) {
         .filter(Boolean);
     },
 
-    async createFollowup(payload) {      console.log('[Repository] createFollowup payload:', JSON.stringify(payload, null, 2));
-          const sanitized = await sanitizeForTable(schema.followupsTable, {
+    async createFollowup(payload) {
+      const sanitized = await sanitizeForTable(schema.followupsTable, {
         lead_id: payload.leadId,
         user_id: payload.userId || null,
         followup_type: normalizeFollowupType(payload.followupType),
@@ -3069,9 +3131,7 @@ function createLeadsRepository({ db, logger, schema }) {
         is_schedule_only: payload.isScheduleOnly ?? false,
         counts_toward_compliance: payload.countsTowardCompliance ?? true,
       });
-      console.log('[Repository] Sanitized for DB:', JSON.stringify(sanitized, null, 2));
-         const row = await db.insert(schema.followupsTable, sanitized);
-          console.log('[Repository] Inserted row:', JSON.stringify(row, null, 2));
+      const row = await db.insert(schema.followupsTable, sanitized);
 
       return toFollowupDomain(row);
     },
@@ -3316,7 +3376,7 @@ function createLeadsRepository({ db, logger, schema }) {
 
       return mapRowsToDomain(candidates);
     },
-  });fi
+  });
 }
 
 export { createLeadsRepository };
