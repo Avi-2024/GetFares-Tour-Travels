@@ -3325,7 +3325,7 @@ function createLeadsRepository({ db, logger, schema }) {
       const rows = await db.findMany(schema.followupsTable, { lead_id: leadId });
       const followups = rows
         .map((row) => toFollowupDomain(row))
-        .filter((item) => !item.isScheduleOnly && item.countsTowardCompliance);
+        .filter((item) => item.isScheduleOnly && item.countsTowardCompliance);
       const stats = {
         total: followups.length,
         calls: 0,

@@ -603,6 +603,57 @@ function createMetaLeadService({
   }
 
   async function fetchLeadWithRetry(leadgenId, pageConfig = {}) {
+    const normalizedId = String(leadgenId || "").trim();
+    if (
+      allowInsecureWebhooks &&
+      normalizedId.startsWith("testcrm_")
+    ) {
+      const country = normalizeCampaignCountry(pageConfig.countryName);
+      const isUae = /^uae$/i.test(String(country || ""));
+      const suffix = normalizedId.replace(/^testcrm_/, "").slice(-12) || "local";
+      logger?.info?.(
+        {
+          leadgenId: normalizedId,
+          pageId: pageConfig.pageId || null,
+          country,
+          mock: true,
+        },
+        "Using mock Meta lead payload (META_ALLOW_INSECURE_WEBHOOKS + testcrm_ prefix)",
+      );
+      return {
+        id: normalizedId,
+        created_time: new Date().toISOString(),
+        form_id: isUae ? "1424002562747237" : "1424002562747236",
+        page_id: pageConfig.pageId || null,
+        field_data: [
+          {
+            name: "full_name",
+            values: [
+              isUae ?
+                `Meta UAE Webhook Test ${suffix}`
+              : `Meta India Webhook Test ${suffix}`,
+            ],
+          },
+          {
+            name: "email",
+            values: [
+              isUae ?
+                `meta.uae.${suffix}@getfares.com`
+              : `meta.india.${suffix}@getfares.com`,
+            ],
+          },
+          {
+            name: "phone_number",
+            values: [isUae ? "971501234567" : "919876543210"],
+          },
+          {
+            name: "city",
+            values: [isUae ? "Dubai" : "Mumbai"],
+          },
+        ],
+      };
+    }
+
     let lastError = null;
 
     for (let attempt = 0; attempt < GRAPH_FETCH_RETRY_LIMIT; attempt += 1) {

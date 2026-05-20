@@ -86,6 +86,16 @@ function isScheduleOnlyFollowup(item: any): boolean {
   return text === '1' || text === 'true' || text === 'yes'
 }
 
+function countsTowardComplianceFollowup(item: any): boolean {
+  const raw = item?.countsTowardCompliance ?? item?.counts_toward_compliance
+  if (typeof raw === 'boolean') return raw
+  if (typeof raw === 'number') return raw === 1
+  const text = String(raw ?? '').trim().toLowerCase()
+  if (text === '1' || text === 'true' || text === 'yes') return true
+  if (text === '0' || text === 'false' || text === 'no') return false
+  return false
+}
+
 function normalizeWallClockDisplay(rawValue: unknown): string | null {
   const raw = String(rawValue ?? '').trim()
   if (!raw) return null
@@ -700,9 +710,13 @@ const LeadDetails: React.FC = () => {
     void loadCampaigns()
   }, [loadCampaigns])
 
-  /** Compliance counts: workflow rows only (not schedule-only reminders). */
+  /** Compliance counts: manual Schedule Follow-up rows only. */
   const followupsForCompliance = useMemo(
-    () => followups.filter(item => !isScheduleOnlyFollowup(item)),
+    () =>
+      followups.filter(
+        item =>
+          isScheduleOnlyFollowup(item) && countsTowardComplianceFollowup(item)
+      ),
     [followups]
   )
 
@@ -1284,14 +1298,6 @@ const LeadDetails: React.FC = () => {
       toast.error('Closed reason is required for LOST.')
       return
     }
-    if (
-      selectedWorkflowFollowupType === 'CALL' &&
-      compliance.calls >= REQUIRED_COMPLIANCE.calls
-    ) {
-      setStatusSaving(false)
-      toast.error('CALL limit reached (6). Use WhatsApp or Final Reminder.')
-      return
-    }
 
     if (conversion.canonical === 'CONVERTED') {
       if (loadingSentQuotations) {
@@ -1488,6 +1494,34 @@ const LeadDetails: React.FC = () => {
     if (!id) return
     if (!followupDraft.followupDate) {
       toast.error('Please select follow-up date/time.')
+      return
+    }
+    const scheduleType = String(followupDraft.followupType || 'CALL')
+      .trim()
+      .toUpperCase()
+    if (
+      scheduleType === 'CALL' &&
+      !isCallsDisabled &&
+      compliance.calls >= REQUIRED_COMPLIANCE.calls
+    ) {
+      toast.error('You have reached the call limit.')
+      setFollowupScheduleError('You have reached the call limit.')
+      return
+    }
+    if (
+      scheduleType === 'WHATSAPP' &&
+      compliance.whatsapp >= REQUIRED_COMPLIANCE.whatsapp
+    ) {
+      toast.error('You have reached the WhatsApp limit.')
+      setFollowupScheduleError('You have reached the WhatsApp limit.')
+      return
+    }
+    if (
+      scheduleType === 'FINAL_REMINDER' &&
+      compliance.finalReminders >= REQUIRED_COMPLIANCE.finalReminders
+    ) {
+      toast.error('You have reached the final reminder limit.')
+      setFollowupScheduleError('You have reached the final reminder limit.')
       return
     }
     setFollowupSaving(true)

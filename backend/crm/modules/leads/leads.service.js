@@ -2544,6 +2544,38 @@ function createLeadsService({ repository, logger, events }) {
         normalizedType = "WHATSAPP";
       }
 
+      const complianceStats = await repository.getFollowupComplianceStats(lead.id);
+      if (normalizedType === "CALL" && complianceStats.calls >= FOLLOWUP_COMPLIANCE_RULES.requiredCalls) {
+        throw new AppError(
+          409,
+          "You have reached the call limit.",
+          "FOLLOWUP_LIMIT_REACHED",
+          { followupType: "CALL", ...complianceStats },
+        );
+      }
+      if (
+        normalizedType === "WHATSAPP" &&
+        complianceStats.whatsapp >= FOLLOWUP_COMPLIANCE_RULES.requiredWhatsapp
+      ) {
+        throw new AppError(
+          409,
+          "You have reached the WhatsApp limit.",
+          "FOLLOWUP_LIMIT_REACHED",
+          { followupType: "WHATSAPP", ...complianceStats },
+        );
+      }
+      if (
+        normalizedType === "FINAL_REMINDER" &&
+        complianceStats.finalReminders >= FOLLOWUP_COMPLIANCE_RULES.requiredFinalReminders
+      ) {
+        throw new AppError(
+          409,
+          "You have reached the final reminder limit.",
+          "FOLLOWUP_LIMIT_REACHED",
+          { followupType: "FINAL_REMINDER", ...complianceStats },
+        );
+      }
+
       const wall = String(payload.followupLocalAt || "").trim();
       const tz = String(payload.clientTimezone || "").trim();
       if (!wall || !tz) {
@@ -2570,7 +2602,7 @@ function createLeadsService({ repository, logger, events }) {
             clientTimezone: tzNorm,
             followupLocalAt: wall,
             isScheduleOnly: true,
-            countsTowardCompliance: false,
+            countsTowardCompliance: true,
           },
           { fallbackTimezone: prefs.timezone },
         ),
@@ -3309,7 +3341,7 @@ function createLeadsService({ repository, logger, events }) {
               notes: payload.notes || null,
               isCompleted: true,
               isScheduleOnly: false,
-              countsTowardCompliance: shouldTrackWorkflowFollowup,
+              countsTowardCompliance: false,
             },
             { fallbackTimezone: wfTz },
           ),
