@@ -1,233 +1,237 @@
-# CRM Lead Details — Question to Field Mapping (Client Guide)
+# Meta Ads → CRM Lead Details (Simple Guide)
 
-**Document for:** GetFares sales & marketing teams  
-**Purpose:** Shows which Meta Lead Ad questions fill which fields on the **Lead Details** screen in the CRM  
-**Last updated:** May 2026  
-
----
-
-## How to read this guide
-
-When a lead comes from **Meta Lead Ads**, answers are stored in the CRM on the **Lead Details** page (`/leads/{id}`).
-
-That page has **three areas**:
-
-| Area on screen | What it is |
-|----------------|------------|
-| **1. Lead summary (top)** | Name, phone, email, country, nationality, status — quick read |
-| **2. Qualification Capture (form)** | Main trip/visa details agents review and save |
-| **3. Custom Fields (button)** | Extra Meta answers that do not have a dedicated CRM field yet |
-
-Some values are **filled automatically** (no question on the form). Agents may complete missing items on a follow-up call.
+**For:** Client, marketing, sales  
+**One page idea:** Meta form answers → show on **Lead Details** in CRM  
 
 ---
 
-## Automatic fields (not asked on Meta form)
+## 3 rules (remember this)
 
-These are set by the system based on **which Meta page** the lead came from:
-
-| CRM field | India Meta page | UAE Meta page |
-|-----------|-----------------|---------------|
-| Lead country | India | United Arab Emirates |
-| Client currency | INR | AED |
-| Lead source | Meta India Page | Meta UAE Page |
-| Lead type | Holiday *or* Visa (see below) | Holiday *or* Visa (see below) |
-
-**Lead type rules**
-
-| Lead type | When |
-|-----------|------|
-| **Holiday** | India page leads, and UAE leads from **holiday/package** forms (e.g. Maldives) |
-| **Visa** | UAE leads from **visa assistance** forms (UK visa, bank statement, salary in AED, etc.) |
-
----
-
-# Part A — Holiday leads (India & UAE packages)
-
-## A1. Questions → Lead Details (Holiday)
-
-| # | Question you ask on Meta / on call | Where it appears in CRM | CRM field name |
-|---|-----------------------------------|-------------------------|----------------|
-| 1 | Full name | Lead summary (top) | Full name |
-| 2 | Phone number | Lead summary (top) | Phone |
-| 3 | Email address | Lead summary (top) | Email |
-| 4 | Which destination would you like to visit? | Qualification → **Destination** | Destination |
-| 5 | When are you planning to travel? | Qualification → **Travel start date** | Travel start date |
-| 6 | What is your approximate budget per person? | Qualification → **Budget** | Budget |
-| 7 | Who will you be travelling with? | Qualification → **Travel purpose** | Travel purpose |
-| 8 | What kind of travel experience are you looking for? | Qualification → **Travel purpose** (if #7 empty) | Travel purpose |
-| 9 | Preferred stay experience? (e.g. overwater villa) | Qualification → **Preferred hotel category** | Hotel category |
-| 10 | Which city will you be travelling from? | Qualification / summary → **City** | City |
-| 11 | What is your nationality? | Summary + Qualification → **Nationality** | Nationality |
-| 12 | Do you need visa assistance for this trip? | Qualification → **Visa requirement** (Yes/No) | Visa required |
-| 13 | How soon are you planning to book? | **Custom Fields** (until promoted) | Booking timeline |
-| 14 | Any special requirements? | **Custom Fields** | Special notes |
-
-**Agent completes on call (usually not on Meta form)**
-
-| Item | Where in CRM |
-|------|----------------|
-| Travel end date | Qualification → Travel end date |
-| Number of adults / children / children ages | Qualification |
-| PAN (optional) | Finance / Qualification |
-| Address | Qualification |
-| Campaign (optional) | Qualification → Campaign |
-
----
-
-## A2. UAE Maldives form (same Holiday type, different wording)
-
-If the ad uses the **Maldives** form, these questions map the same CRM fields:
-
-| Meta question (examples) | CRM field |
-|--------------------------|-----------|
-| What type of Maldives experience are you looking for? | Travel purpose |
-| Which Maldives resort are you interested in? | Destination |
-| Which UAE city will you be travelling from? | City |
-| How soon are you planning to book? | Custom Fields (booking timeline) |
-| What is your nationality? | Nationality |
-
----
-
-## A3. India package form (extra column)
-
-| Meta question | CRM field |
-|---------------|-----------|
-| Which destinations are you interested in? (multiple) | Destination |
-| How soon are you planning to book your package? | Custom Fields (booking timeline) |
-
----
-
-# Part B — Visa leads (UAE visa assistance)
-
-## B1. Questions → Lead Details (Visa)
-
-| # | Question you ask on Meta / on call | Where it appears in CRM | CRM field name |
-|---|-----------------------------------|-------------------------|----------------|
-| 1 | Full name | Lead summary (top) | Full name |
-| 2 | Phone number | Lead summary (top) | Phone |
-| 3 | Email address | Lead summary (top) | Email |
-| 4 | What is your nationality? | Summary + Qualification → **Nationality** | Nationality |
-| 5 | Which visa assistance are you looking for? (e.g. UK tourist) | Qualification → **Destination** | Destination / visa product |
-| 6 | Which country are you applying visa for? *(if you add this question)* | Qualification → **Destination** | Destination |
-| 7 | Do you have 6 months passport validity? | **Custom Fields** | Passport validity |
-| 8 | Do you have a valid 6-month bank statement? | **Custom Fields** | Bank statement |
-| 9 | What is your current monthly salary in AED? | Qualification → **Salary** | Salary |
-| 10 | When are you planning to travel? | Qualification → **Travel start date** (if exact date) or Custom Fields (if “within X days”) | Travel date |
-| 11 | Have you faced any previous visa rejection? | **Custom Fields** | Previous rejection |
-| 12 | Which UAE city are you currently living in? | Qualification → **City** | City |
-| 13 | How urgently do you need visa processing? | **Custom Fields** | Processing urgency |
-| 14 | Any additional requirements? | **Custom Fields** | Additional notes |
-
-**Not shown for Visa leads on Qualification form**
-
-Budget, preferred hotel category, travel purpose (holiday-style), and “visa required for trip” are **hidden** — those apply only to **Holiday** leads.
-
-**Automatic for all UAE visa Meta leads**
-
-| Item | Value |
-|------|--------|
-| Lead country | United Arab Emirates |
-| Client currency | AED |
-| Lead type | Visa |
-| Lead source | Meta UAE Page |
-
----
-
-# Part C — Visual map (one page)
+| # | Rule |
+|---|------|
+| **1** | **Which Meta page?** → sets **country**, **currency**, **source** (no question needed) |
+| **2** | **Which form?** → sets **Holiday** or **Visa** (package form vs visa form) |
+| **3** | **Each answer** → goes to **Summary (top)**, **Qualification (form)**, or **Custom Fields (extra button)** |
 
 ```
-META LEAD AD ANSWERS
-        │
-        ├─► LEAD SUMMARY (top of page)
-        │     • Full name, phone, email
-        │     • Lead country (auto from page)
-        │     • Nationality (if answered)
-        │
-        ├─► QUALIFICATION CAPTURE (main form)
-        │     Holiday: destination, dates, budget, hotel, travel purpose, visa for trip
-        │     Visa: destination/visa type, nationality, salary, city, travel date
-        │     Both: lead type, country, currency, source, adults/children (agent)
-        │
-        └─► CUSTOM FIELDS (button)
-              • Booking timeline (“how soon to book”)
-              • Passport / bank statement / rejection / urgency (visa)
-              • Long resort text, special requirements
-              • Anything not listed above
+Meta Page (India or UAE)
+    → Country + INR/AED + Source (automatic)
+
+Meta Form (Holiday OR Visa)
+    → Lead type (automatic)
+
+Each question
+    → Summary OR Qualification OR Custom Fields
 ```
 
 ---
 
-# Part D — Quick reference by CRM screen label
+## Rule 1 — Meta page (automatic)
 
-## Holiday — what fills each label
+| | India page | UAE page |
+|---|------------|----------|
+| **Lead country** | India | United Arab Emirates |
+| **Currency** | INR | AED |
+| **Source** | Meta India Page | Meta UAE Page |
 
-| Label on Lead Details screen | Filled from question |
-|------------------------------|----------------------|
-| Full name (top) | Full name |
-| Email \| Phone (top) | Email, phone |
-| Country (top, blue) | Auto — India or UAE page |
-| Nationality (top) | What is your nationality? |
-| Lead type | Auto — Holiday |
-| Lead country | Auto — India / United Arab Emirates |
-| Client currency | Auto — INR / AED |
-| Destination | Which destination…? / Maldives resort / multi-destination |
-| Travel start date | When are you planning to travel? |
-| Travel end date | Agent on call |
-| Budget | Budget per person |
-| Travel purpose | Travel experience / who travelling with |
-| Preferred hotel category | Preferred stay experience |
-| City | Which city travelling from |
-| Visa requirement | Need visa assistance for this trip? |
-| Lead source | Auto — Meta India / Meta UAE Page |
-| Custom Fields → “How soon…” | How soon planning to book |
-
-## Visa — what fills each label
-
-| Label on Lead Details screen | Filled from question |
-|------------------------------|----------------------|
-| Full name (top) | Full name |
-| Email \| Phone (top) | Email, phone |
-| Country (top) | Auto — United Arab Emirates |
-| Nationality | What is your nationality? |
-| Lead type | Auto — Visa |
-| Client currency | Auto — AED |
-| Destination | Which visa assistance…? |
-| Salary | Monthly salary in AED |
-| City | Which UAE city living in |
-| Travel start date | When planning to travel (if exact date) |
-| Custom Fields | Passport validity, bank statement, rejection, urgency, extras |
+Page IDs (reference): India `1021995967663811` · UAE `958886697315918`
 
 ---
 
-# Part E — Meta page reference (for marketing)
+## Rule 2 — Form ID decides Holiday vs Visa (main dependency)
 
-| Market | Meta page ID (env) | Default country | Default currency | Typical forms |
-|--------|----------------------|-----------------|------------------|---------------|
-| India | `1021995967663811` | India | INR | Package / destination |
-| UAE | `958886697315918` | United Arab Emirates | AED | Maldives holiday **or** UK/visa assistance |
+**Yes — we depend on `form_id`, not ad ID.**
 
-**Form IDs (reference only — new ads on same form still work)**
+| What changes in Meta | CRM mapping breaks? |
+|----------------------|---------------------|
+| New **ad** / adset / campaign | **No** — same form ID → same rules |
+| New **form** (new form ID) | **Yes** — add one row to table below |
+| Same form, reworded questions | **No** — if stable keys stay same |
 
-| Form | Form ID | Lead type |
-|------|---------|-----------|
-| India packages | `35414224904842634` | Holiday |
-| UAE Maldives | `1424002562747237` | Holiday |
-| UAE visa assistance | `1607144173711800` | Visa |
+| Form name | **Form ID** (this is what CRM uses) | Lead type | Market |
+|-----------|-------------------------------------|-----------|--------|
+| India packages | `35414224904842634` | Holiday | India page |
+| UAE Maldives | `1424002562747237` | Holiday | UAE page |
+| UAE visa assistance | `1607144173711800` | Visa | UAE page |
+
+**Flow**
+
+```
+metaPageId  →  country, currency, source
+metaFormId  →  Holiday or Visa + which question map to use
+metaAdId    →  ignored for qualification (tracking only)
+```
+
+**Do not mix:** Do not put visa questions on a **holiday** form ID (or vice versa).
+
+**New form in future?** Copy questions from the matching row above, keep the same stable keys, tell dev the new `form_id`.
 
 ---
 
-# Part F — Notes for client
+## Rule 3 — Where answers appear in CRM
 
-1. **Relative dates** — If Meta only offers “within 7 days” / “within a month”, that text appears under **Custom Fields** until an agent sets an exact **travel date** on the call.
+| CRM area | What goes here |
+|----------|----------------|
+| **Summary (top)** | Name, phone, email, country, nationality |
+| **Qualification (main form)** | Main trip or visa details agents work on |
+| **Custom Fields (button)** | Extra answers (timeline, yes/no docs, urgency, notes) |
 
-2. **Budget / salary bands** — Meta may send ranges (e.g. `40k_-_75k`, `15000_–_25000_aed`). CRM stores a parsed number where possible; the original answer remains in Custom Fields.
-
-3. **One lead, one type** — A lead is either **Holiday** or **Visa** on the Qualification form; the CRM shows the relevant fields only.
-
-4. **Sharing this doc** — Safe to share with client; no passwords or internal API paths.
+**Agent adds on call (any lead):** travel end date, adults/children/ages, PAN, address, campaign.
 
 ---
 
-**Internal technical docs (for dev team):**  
-[`lead-form-questions-stable-keys.md`](./lead-form-questions-stable-keys.md) · [`canvas-prompt-meta-qualification-engine.md`](./canvas-prompt-meta-qualification-engine.md)
+# Holiday form — questions to use
+
+**Use on:** India page + UAE Maldives/package ads  
+**CRM shows:** Budget, hotel, travel purpose — **not** salary  
+
+| Ask on Meta | Shows in CRM as | Area |
+|-------------|-----------------|------|
+| Full name | Full name | Summary |
+| Phone number | Phone | Summary |
+| Email | Email | Summary |
+| Which destination would you like to visit? | Destination | Qualification |
+| When are you planning to travel? | Travel start date *(if “within 7 days” → Custom Fields until agent sets date)* | Qualification / Custom Fields |
+| Budget per person? | Budget | Qualification |
+| Who will you be travelling with? | Travel purpose | Qualification |
+| What kind of travel experience? | Travel purpose *(use one; experience wins if both)* | Qualification |
+| Preferred stay experience? | Hotel category | Qualification |
+| Which city travelling from? | City | Qualification |
+| What is your nationality? | Nationality | Summary + Qualification |
+| Need visa help for this trip? | Visa requirement (Yes/No) | Qualification |
+| How soon planning to book? | Booking timeline | Custom Fields |
+| Special requirements? | Special notes | Custom Fields |
+
+### UAE Maldives — same Holiday type, different words
+
+| Ask on Meta | CRM field |
+|-------------|-----------|
+| Maldives experience type? | Travel purpose |
+| Which Maldives resort? | Destination |
+| Which UAE city travelling from? | City |
+| How soon to book? | Booking timeline (Custom Fields) |
+| Nationality? | Nationality |
+
+### India only — extra questions
+
+| Ask on Meta | CRM field |
+|-------------|-----------|
+| Multiple destinations interested? | Destination |
+| How soon to book your package? | Booking timeline (Custom Fields) |
+
+---
+
+# Visa form — questions to use
+
+**Use on:** UAE page · visa assistance ads only  
+**CRM shows:** Salary, visa product — **hides** budget, hotel, holiday travel purpose  
+
+| Ask on Meta | Shows in CRM as | Area |
+|-------------|-----------------|------|
+| Full name | Full name | Summary |
+| Phone | Phone | Summary |
+| Email | Email | Summary |
+| Nationality? | Nationality | Summary + Qualification |
+| Which visa assistance? (e.g. UK tourist) | Destination / visa product | Qualification |
+| Which country applying visa for? *(optional)* | Destination | Qualification |
+| 6 months passport validity? | Passport validity | Custom Fields |
+| Valid 6-month bank statement? | Bank statement | Custom Fields |
+| Monthly salary in AED? | Salary | Qualification |
+| When planning to travel? | Travel date | Qualification / Custom Fields |
+| Previous visa rejection? | Previous rejection | Custom Fields |
+| Which UAE city living in? | City | Qualification |
+| How urgent is processing? | Processing urgency | Custom Fields |
+| Additional requirements? | Additional notes | Custom Fields |
+
+**Always automatic for UAE visa leads:** Country = UAE · Currency = AED · Type = Visa · Source = Meta UAE Page
+
+---
+
+# Stable field keys (for Meta form setup)
+
+Meta turns your question text into these **keys**. Keep wording consistent so keys stay the same.
+
+### Every form (Holiday + Visa)
+
+| # | Key |
+|---|-----|
+| 1 | `full_name` |
+| 2 | `phone_number` |
+| 3 | `email` |
+
+### Holiday form only (4–13)
+
+| # | Key |
+|---|-----|
+| 4 | `which_destination_would_you_like_to_visit` |
+| 5 | `when_are_you_planning_to_travel` |
+| 6 | `what_is_your_budget_per_person` |
+| 7 | `who_will_you_be_travelling_with` |
+| 8 | `what_kind_of_travel_experience_are_you_looking_for` |
+| 9 | `preferred_stay_experience` |
+| 10 | `which_city_will_you_be_travelling_from` |
+| 11 | `how_soon_are_you_planning_to_book` |
+| 12 | `do_you_need_visa_assistance_for_this_trip` |
+| 13 | `what_is_your_nationality` |
+
+**Also use on live UAE/India forms (aliases):**
+
+- `which_maldives_resort_are_you_interested_in` → Destination  
+- `what_type_of_maldives_experience_are_you_looking_for` → Travel purpose  
+- `which_uae_city_will_you_be_travelling_from` → City  
+- `how_soon_are_you_planning_to_book_your_package` → Booking timeline  
+- `which_destinations_are_you_interested_in` → Destination  
+
+### Visa form only (14–18 + extras)
+
+| # | Key |
+|---|-----|
+| 14 | `which_visa_assistance_are_you_looking_for` |
+| 15 | `what_is_your_nationality` |
+| 16 | `do_you_have_a_valid_6_month_bank_statement` *(live forms may use `…_6_months_…`)* |
+| 17 | `do_you_have_6_months_passport_validity` |
+| 18 | `what_is_your_current_monthly_salary_in_the_aed` |
+
+**Also use:**
+
+- `have_you_faced_any_previous_visa_rejection`  
+- `how_urgently_do_you_need_visa_processing`  
+- `any_additional_requirements`  
+
+---
+
+# Cheat sheet — one glance
+
+| You run… | Page ID | **Form ID** | Type | Currency |
+|----------|---------|-------------|------|----------|
+| India packages | India | `35414224904842634` | Holiday | INR |
+| UAE Maldives | UAE | `1424002562747237` | Holiday | AED |
+| UAE UK / visa ads | UAE | `1607144173711800` | Visa | AED |
+
+| Question type | Holiday form | Visa form |
+|---------------|:------------:|:---------:|
+| Destination / resort | ✓ | — |
+| Budget | ✓ | — |
+| Hotel / experience | ✓ | — |
+| Visa for trip (yes/no) | ✓ | — |
+| Visa product / UK visa | — | ✓ |
+| Salary AED | — | ✓ |
+| Bank / passport | — | ✓ |
+
+---
+
+# Today vs after system update
+
+| Doc says | Works fully today? |
+|----------|-------------------|
+| Name, phone, email | Yes |
+| Custom Fields (all Meta extras) | Yes |
+| Country INR/AED on new leads | After dev mapper + API restart |
+| Visa form → Visa type | After dev mapper |
+| Nationality / destination in Qualification | After dev mapper |
+| Agent fields (end date, pax) | Yes (manual) |
+
+---
+
+**Technical build:** [`canvas-prompt-meta-qualification-engine.md`](./canvas-prompt-meta-qualification-engine.md)  
+**Full key list:** [`lead-form-questions-stable-keys.md`](./lead-form-questions-stable-keys.md)
