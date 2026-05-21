@@ -15,9 +15,14 @@ import {
 import { authApi } from '../../api'
 import { reportApiError } from '../../lib/notify'
 import { useAuth } from '../../context/AuthContext'
+import {
+  isStandaloneMode,
+  STANDALONE_DEMO_EMAIL,
+  STANDALONE_DEMO_PASSWORD,
+} from '../../config/standalone'
 
-const DEMO_EMAIL = ''
-const DEMO_PASSWORD = ''
+const DEMO_EMAIL = isStandaloneMode() ? STANDALONE_DEMO_EMAIL : ''
+const DEMO_PASSWORD = isStandaloneMode() ? STANDALONE_DEMO_PASSWORD : ''
 const PERMISSION_RESOLVE_TIMEOUT_MS = 2500
 const ENABLE_LOGIN_PERF_LOGS = import.meta.env.DEV
 
@@ -451,6 +456,11 @@ const Login = () => {
                   <p className='text-sm text-gray-500 mt-1'>
                     Sign in to access your workspace
                   </p>
+                  {isStandaloneMode() && (
+                    <p className='text-xs text-[#602FF7] mt-2 font-medium'>
+                      Demo mode — backend not required. Use prefilled credentials.
+                    </p>
+                  )}
                 </div>
 
                 <form className='space-y-5' onSubmit={handleSignIn}>

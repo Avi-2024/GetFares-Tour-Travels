@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { authApi, rbacApi } from "../api";
+import { isStandaloneMode } from "../config/standalone";
 
 type AuthUser = {
   id: string;
@@ -136,6 +137,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
 
       const requestPromise = (async (): Promise<string[]> => {
+        if (isStandaloneMode()) {
+          const all = ["*"];
+          setPermissions(all);
+          localStorage.setItem(STORAGE_PERMISSIONS, JSON.stringify(all));
+          return all;
+        }
+
         if (isAdmin) {
           const allPermissions = ["*"];
           setPermissions(allPermissions);
@@ -228,7 +236,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   useEffect(() => {
-    if (!token) return;
+    if (!token || isStandaloneMode()) return;
 
     const expiryMs = parseTokenExpiryMs(token);
     if (!expiryMs) return;

@@ -4,17 +4,22 @@ import react from "@vitejs/plugin-react";
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
+  const standalone =
+    env.VITE_STANDALONE === "true" || env.VITE_STANDALONE === "1";
+
   const apiTarget =
     env.VITE_API_PROXY_TARGET ||
     env.VITE_API_BASE_URL ||
     "http://localhost:3000";
 
-  const apiProxy = {
-    "/api": {
-      target: apiTarget,
-      changeOrigin: true,
-    },
-  };
+  const apiProxy = standalone
+    ? undefined
+    : {
+        "/api": {
+          target: apiTarget,
+          changeOrigin: true,
+        },
+      };
 
   return {
     plugins: [react()],
@@ -25,10 +30,10 @@ export default defineConfig(({ mode }) => {
       include: ["react", "react-dom"],
     },
     server: {
-      proxy: apiProxy,
+      ...(apiProxy ? { proxy: apiProxy } : {}),
     },
     preview: {
-      proxy: apiProxy,
+      ...(apiProxy ? { proxy: apiProxy } : {}),
     },
   };
 });

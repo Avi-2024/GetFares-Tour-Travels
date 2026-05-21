@@ -5,9 +5,13 @@ import axios, {
   type AxiosRequestHeaders,
   type InternalAxiosRequestConfig,
 } from "axios";
+import { isStandaloneMode } from "../config/standalone";
+import { createMockApiClient } from "./mock/createMockApiClient";
 
 export const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "";
+
+export { isStandaloneMode } from "../config/standalone";
 export type ApiError = Error & {
   status: number;
   details?: unknown;
@@ -213,6 +217,10 @@ const attachInterceptors = (
 };
 
 export const createApiClient = (config: ApiClientConfig = {}): ApiClient => {
+  if (isStandaloneMode()) {
+    return createMockApiClient(config);
+  }
+
   const {
     baseURL = API_BASE_URL,
     timeoutMs = 20000,
@@ -304,10 +312,12 @@ const handleLegacyUnauthorized = () => {
   }
 };
 
-const legacyClient = createApiClient({
-  getAuthToken: () => localStorage.getItem(STORAGE_TOKEN),
-  onUnauthorized: handleLegacyUnauthorized,
-});
+const legacyClient = isStandaloneMode()
+  ? createMockApiClient()
+  : createApiClient({
+      getAuthToken: () => localStorage.getItem(STORAGE_TOKEN),
+      onUnauthorized: handleLegacyUnauthorized,
+    });
 
 const resolveResponseType = (
   responseType: LegacyRequestOptions["responseType"],
