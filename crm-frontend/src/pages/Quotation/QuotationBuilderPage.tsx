@@ -100,6 +100,9 @@ type TemplateOption = {
   headerBranding?: string
   inclusions?: string
   exclusions?: string
+  itinerary?: unknown
+  hotelDetails?: string
+  visaDetails?: string
   paymentTerms?: string
   cancellationPolicy?: string
   footerDisclaimer?: string
@@ -489,6 +492,61 @@ function getDayLabel(index: number): string {
   return `Day ${index + 1}`
 }
 
+function parseItineraryFromRaw(raw: unknown): Item[] {
+  if (!raw) return []
+
+  let source: unknown = raw
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim()
+    if (!trimmed) return []
+    try {
+      source = JSON.parse(trimmed)
+    } catch {
+      const chunks = trimmed
+        .split(/\n\s*\n+/)
+        .map(s => s.trim())
+        .filter(Boolean)
+      return chunks.map((chunk, index) => {
+        const lines = chunk.split('\n')
+        const first = (lines[0] ?? '').trim()
+        const rest = lines.slice(1).join('\n').trim()
+        return {
+          id: `tpl-it-${index}`,
+          day: getDayLabel(index),
+          title: first || getDayLabel(index),
+          description: rest
+        }
+      })
+    }
+  }
+
+  if (
+    source &&
+    typeof source === 'object' &&
+    !Array.isArray(source) &&
+    (typeof (source as { plain?: unknown }).plain === 'string' ||
+      typeof (source as { text?: unknown }).text === 'string')
+  ) {
+    const plain = String(
+      (source as { plain?: string; text?: string }).plain ??
+        (source as { text?: string }).text ??
+        ''
+    ).trim()
+    return parseItineraryFromRaw(plain)
+  }
+
+  if (!Array.isArray(source)) return []
+
+  return source
+    .map((row: any, index: number) => ({
+      id: String(row?.id ?? `tpl-it-${index}`),
+      day: String(row?.day ?? getDayLabel(index)).trim() || getDayLabel(index),
+      title: String(row?.title ?? row?.heading ?? '').trim(),
+      description: String(row?.description ?? row?.details ?? '').trim()
+    }))
+    .filter(item => item.day || item.title || item.description)
+}
+
 function calculateNightsBetweenDates(startDate: string, endDate: string): number {
   if (!startDate || !endDate) return 0
   
@@ -646,17 +704,25 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     visaDetails: ''
   })
 
+  const templateDurationLockedRef = useRef(false)
+
   useEffect(() => {
-  // When component mounts or when prefilled dates change, auto-calculate nights and days
-  if (form.startDate && form.endDate) {
-    const nights = calculateNightsBetweenDates(form.startDate, form.endDate)
-    setForm(p => ({
-      ...p,
-      nights,
-      durationDays: String(nights + 1)
-    }))
-  }
-}, [form.startDate, form.endDate]) // Recalculate whenever dates change
+    if (!selectedTemplateId || selectedTemplateId === AUTO_TEMPLATE_SENTINEL) {
+      templateDurationLockedRef.current = false
+    }
+  }, [selectedTemplateId, AUTO_TEMPLATE_SENTINEL])
+
+  useEffect(() => {
+    if (templateDurationLockedRef.current) return
+    if (form.startDate && form.endDate) {
+      const nights = calculateNightsBetweenDates(form.startDate, form.endDate)
+      setForm(p => ({
+        ...p,
+        nights,
+        durationDays: String(nights + 1)
+      }))
+    }
+  }, [form.startDate, form.endDate])
 
   const [downloading, setDownloading] = useState(false)
   const [showPdfModal, setShowPdfModal] = useState(false)
@@ -828,6 +894,9 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     headerBranding: raw?.headerBranding ?? raw?.header_branding ?? '',
     inclusions: raw?.inclusions ?? '',
     exclusions: raw?.exclusions ?? '',
+    itinerary: raw?.itinerary ?? undefined,
+    hotelDetails: raw?.hotelDetails ?? raw?.hotel_details ?? '',
+    visaDetails: raw?.visaDetails ?? raw?.visa_details ?? '',
     paymentTerms: raw?.paymentTerms ?? raw?.payment_terms ?? '',
     cancellationPolicy:
       raw?.cancellationPolicy ?? raw?.cancellation_policy ?? '',
@@ -967,35 +1036,47 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
 
   const applyTemplateDefaults = (template: TemplateOption | null) => {
     if (!template) return
+
+    const pickTemplateText = (value?: string | null) => {
+      const trimmed = String(value ?? '').trim()
+      return trimmed || undefined
+    }
+
+    const parsedItinerary = parseItineraryFromRaw(template.itinerary)
+    const itineraryDayCount =
+      parsedItinerary.length > 0 ? parsedItinerary.length : 0
+
+    templateDurationLockedRef.current = itineraryDayCount > 0
+
     setForm(prev => ({
       ...prev,
-      headerBranding:
-        prev.headerBranding.trim() || !(template.headerBranding || '').trim()
-          ? prev.headerBranding
-          : String(template.headerBranding),
-      inclusions:
-        prev.inclusions.trim() || !(template.inclusions || '').trim()
-          ? prev.inclusions
-          : String(template.inclusions),
-      exclusions:
-        prev.exclusions.trim() || !(template.exclusions || '').trim()
-          ? prev.exclusions
-          : String(template.exclusions),
-      paymentTerms:
-        prev.paymentTerms.trim() || !(template.paymentTerms || '').trim()
-          ? prev.paymentTerms
-          : String(template.paymentTerms),
-      cancellationPolicy:
-        prev.cancellationPolicy.trim() ||
-          !(template.cancellationPolicy || '').trim()
-          ? prev.cancellationPolicy
-          : String(template.cancellationPolicy),
-      footerDisclaimer:
-        prev.footerDisclaimer.trim() ||
-          !(template.footerDisclaimer || '').trim()
-          ? prev.footerDisclaimer
-          : String(template.footerDisclaimer)
+      quotationTitle: pickTemplateText(template.name) ?? prev.quotationTitle,
+      headerBranding: pickTemplateText(template.headerBranding) ?? '',
+      inclusions: pickTemplateText(template.inclusions) ?? '',
+      exclusions: pickTemplateText(template.exclusions) ?? '',
+      paymentTerms: pickTemplateText(template.paymentTerms) ?? '',
+      cancellationPolicy: pickTemplateText(template.cancellationPolicy) ?? '',
+      footerDisclaimer: pickTemplateText(template.footerDisclaimer) ?? '',
+      hotelDetails: pickTemplateText(template.hotelDetails) ?? '',
+      visaDetails: pickTemplateText(template.visaDetails) ?? '',
+      ...(itineraryDayCount > 0
+        ? {
+            durationDays: String(itineraryDayCount),
+            nights: Math.max(0, itineraryDayCount - 1)
+          }
+        : {})
     }))
+
+    if (parsedItinerary.length > 0) {
+      setItineraryItems(buildItineraryRows(itineraryDayCount, parsedItinerary))
+    }
+
+    if (Number(template.minMarginPercent) > 0) {
+      setCosts(prev => ({
+        ...prev,
+        markupPercent: Number(template.minMarginPercent)
+      }))
+    }
   }
 
   const toBulletList = (value: string) =>

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { requiredPhoneSchema } from "../../core/utils/phone-validation.js";
 
 const verify = z.object({
   query: z
@@ -27,7 +28,7 @@ const configStatus = z.object({
 const sendText = z.object({
   body: z
     .object({
-      to: z.string().min(6).max(25),
+      to: requiredPhoneSchema,
       text: z.string().min(1).max(4000),
       previewUrl: z.boolean().optional(),
       leadId: z.string().min(10).max(64).optional(),
@@ -70,7 +71,7 @@ const listThreads = z.object({
 const sendTemplate = z.object({
   body: z
     .object({
-      to: z.string().min(6).max(25),
+      to: requiredPhoneSchema,
       templateName: z.string().min(1).max(200),
       language: z.string().min(2).max(10).optional(),
       components: z.array(z.any()).optional(),

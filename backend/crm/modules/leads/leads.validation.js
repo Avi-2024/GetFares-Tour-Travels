@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+  optionalPhoneSchema,
+  requiredPhoneSchema,
+} from "../../core/utils/phone-validation.js";
 
 const leadStatus = z
   .string()
@@ -67,7 +71,7 @@ const basePayload = z.object({
   country: z.string().min(2).max(100).optional(),
   countryId: z.string().uuid().optional(),
   city: z.string().trim().max(150).optional(),
-  phone: z.string().min(6).max(20).optional(),
+  phone: optionalPhoneSchema,
   email: z.string().email().optional(),
   panNumber: z.string().min(8).max(20).optional(),
   addressLine: z.string().min(5).max(2000).optional(),
@@ -125,7 +129,7 @@ const create = z.object({
   body: basePayload
     .extend({
       fullName: z.string().trim().min(2),
-      phone: z.string().trim().min(6).max(20),
+      phone: requiredPhoneSchema,
       email: z.string().email(),
       autoAssign: z.boolean().optional(),
       allowDuplicate: z.boolean().optional(),

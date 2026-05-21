@@ -4,6 +4,7 @@
  */
 
 import { customersEndpoints } from '../endpoints/customers.api';
+import { isValidPhoneDigits, PHONE_DIGITS_MIN_ERROR } from '../../utils/phoneValidation';
 
 export class CustomersService {
   async list(params?: {
@@ -23,8 +24,8 @@ export class CustomersService {
     }
 
     // Validate phone
-    if (!payload.phone || payload.phone.length < 10) {
-      throw new Error('Valid phone number is required');
+    if (!payload.phone || !isValidPhoneDigits(payload.phone)) {
+      throw new Error(PHONE_DIGITS_MIN_ERROR);
     }
 
     const response = await customersEndpoints.create(payload);

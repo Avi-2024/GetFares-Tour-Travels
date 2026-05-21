@@ -20,6 +20,7 @@ import {
 } from 'react-international-phone'
 import 'react-international-phone/style.css'
 import { reportApiError } from '../../lib/notify'
+import { isValidPhoneDigits } from '../../utils/phoneValidation'
 import { usersApi } from '../../api/users'
 import { useAuth } from '../../context/AuthContext'
 import SearchableDropdown from '../../components/ui/SearchableDropdown'
@@ -938,9 +939,8 @@ const UsersPage: React.FC<UsersPageProps> = ({ embedded = false }) => {
   }
 
   const isValidPhone = (phone?: string) => {
-    if (!phone) return true
-    const normalized = phone.replace(/[\s\-\(\)]/g, '')
-    return normalized.length >= 6 && normalized.length <= 20
+    if (!phone?.trim()) return true
+    return isValidPhoneDigits(phone)
   }
 
   const normalizePhone = (phone?: string) => {
@@ -972,7 +972,7 @@ const UsersPage: React.FC<UsersPageProps> = ({ embedded = false }) => {
       return
     }
     if (!isValidPhone(formData.phone)) {
-      showToast('Phone number must be 6-20 digits.', 'error')
+      showToast('Phone number must be 9-15 digits.', 'error')
       return
     }
     if (!formData.password || formData.password.length < 8) {
@@ -1030,7 +1030,7 @@ const UsersPage: React.FC<UsersPageProps> = ({ embedded = false }) => {
       return
     }
     if (!isValidPhone(formData.phone)) {
-      showToast('Phone number must be 6-20 digits.', 'error')
+      showToast('Phone number must be 9-15 digits.', 'error')
       return
     }
     const nextPassword = String(formData.password || '').trim()

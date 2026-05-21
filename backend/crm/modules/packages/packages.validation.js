@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { optionalQueryBoolean } from "../../core/utils/zod-query-boolean.js";
+import { optionalPhoneSchema } from "../../core/utils/phone-validation.js";
 
 const packageStatus = z.enum(["DRAFT", "ACTIVE", "EXPIRED", "SOLD_OUT"]);
 const packageCategory = z.enum([
@@ -197,7 +198,7 @@ const createEnquiry = z.object({
     travelDate: z.string().date().optional(),
     travellersCount: z.coerce.number().int().positive().optional(),
     fullName: z.string().trim().min(2).max(150).optional(),
-    phone: z.string().trim().min(6).max(20).optional(),
+    phone: optionalPhoneSchema,
     email: z.string().email().optional(),
     source: z.string().trim().min(2).max(120).optional(),
   }),

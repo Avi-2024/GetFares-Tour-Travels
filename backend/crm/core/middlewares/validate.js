@@ -1,4 +1,5 @@
 import { AppError } from "../errors/index.js";
+import { formatZodValidationDetails } from "../utils/format-zod-validation.js";
 
 function validateRequest(schema) {
   return (req, res, next) => {
@@ -36,7 +37,7 @@ function validateRequest(schema) {
           400,
           "Validation failed",
           "VALIDATION_ERROR",
-          result.error.flatten(),
+          formatZodValidationDetails(result.error),
         ),
       );
     }

@@ -1,10 +1,11 @@
 import { z } from "zod";
+import { webhookOptionalPhoneSchema } from "../../core/utils/phone-validation.js";
 
 const baseCaptureSchema = z
   .object({
     fullName: z.string().min(2).optional(),
     name: z.string().min(2).optional(),
-    phone: z.string().min(6).max(20).optional(),
+    phone: webhookOptionalPhoneSchema,
     email: z.string().email().optional(),
     panNumber: z.string().min(8).max(20).optional(),
     addressLine: z.string().min(5).max(2000).optional(),

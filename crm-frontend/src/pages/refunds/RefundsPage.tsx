@@ -1,4 +1,4 @@
-import {
+﻿import {
   useCallback,
   useEffect,
   useMemo,
@@ -1983,7 +1983,7 @@ const RefundsPage = () => {
                 setSearch(event.target.value)
                 setPage(1)
               }}
-              placeholder='Search by refund ID, booking, payment, customer...'
+              placeholder='Search by refund ID, Booking'
               className='w-full pl-9 pr-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800'
             />
           </div>
@@ -2298,17 +2298,7 @@ const RefundsPage = () => {
                                 </IconLoadingButton>
                               </>
                             )}
-                            {row.status === 'APPROVED' && (
-                              <IconLoadingButton
-                                onClick={() => handleProcess(row.id)}
-                                loading={isRowActionLoading(row.id, 'process')}
-                                disabled={Boolean(actionPending)}
-                                className='p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors'
-                                title='Process'
-                              >
-                                <FaMoneyBillTransfer />
-                              </IconLoadingButton>
-                            )}
+                            
                           </div>
                         </PermissionGate>
                       </td>

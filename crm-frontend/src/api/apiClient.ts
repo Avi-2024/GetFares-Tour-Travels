@@ -5,6 +5,13 @@ import axios, {
   type AxiosRequestHeaders,
   type InternalAxiosRequestConfig,
 } from "axios";
+import {
+  formatValidationErrorMessage,
+  formatFieldErrorsForToast,
+  isValidationErrorPayload,
+  extractValidationDetails,
+  mapValidationFieldErrors,
+} from "../lib/validationErrors";
 
 export const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "";
@@ -33,18 +40,42 @@ export const getApiErrorMessage = (
   error: unknown,
   fallback = "Something went wrong",
 ) => {
-  if (isApiError(error) && error.message?.trim()) {
-    const message = error.message.trim();
-    const readMatch = message.match(/^Missing permission:\s*([a-z_]+):read$/i);
-    if (readMatch) {
-      const entity = readMatch[1].replace(/_/g, " ").trim();
-      return `You dont have permission to view ${entity} in the crm frontend`;
+  if (isApiError(error)) {
+    if (error.details && isValidationErrorPayload(error.details)) {
+      const fieldErrors = mapValidationFieldErrors(
+        extractValidationDetails(error.details),
+      );
+      if (Object.keys(fieldErrors).length > 0) {
+        return formatFieldErrorsForToast(fieldErrors);
+      }
+
+      const validationMessage = formatValidationErrorMessage(
+        error.details,
+        fallback,
+      );
+      if (validationMessage && validationMessage !== "Validation failed") {
+        return validationMessage;
+      }
     }
-    if (/^Missing permission:\s*[a-z_]+:[a-z_]+$/i.test(message)) {
-      return "You dont have permission to perform this action in the crm frontend";
+
+    if (error.message?.trim()) {
+      const message = error.message.trim();
+      const readMatch = message.match(/^Missing permission:\s*([a-z_]+):read$/i);
+      if (readMatch) {
+        const entity = readMatch[1].replace(/_/g, " ").trim();
+        return `You dont have permission to view ${entity} in the crm frontend`;
+      }
+      if (/^Missing permission:\s*[a-z_]+:[a-z_]+$/i.test(message)) {
+        return "You dont have permission to perform this action in the crm frontend";
+      }
+      return message;
     }
-    return message;
   }
+
+  if (error instanceof Error && error.message?.trim()) {
+    return error.message.trim();
+  }
+
   return fallback;
 };
 

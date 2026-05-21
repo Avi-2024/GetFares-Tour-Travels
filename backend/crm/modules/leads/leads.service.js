@@ -8,6 +8,7 @@ import {
   utcInstantFromLocalWallClock,
   WALL_CLOCK_REGEX,
 } from "../../core/datetime/timezone.js";
+import { isWebhookInboundLead } from "../../core/utils/phone-validation.js";
 
 const LEAD_TEMPERATURE = Object.freeze({
   HOT: "HOT",
@@ -796,7 +797,25 @@ function createLeadsService({ repository, logger, events }) {
     if (input.adultsCount === undefined || input.childrenCount === undefined) {
       missing.push("paxSplit(adultsCount,childrenCount)");
     }
-   
+
+    const leadType = normalizeLeadType(input.leadType ?? input.type ?? "HOLIDAY");
+    if (leadType === "HOLIDAY") {
+      if (!normalizeHotelCategory(input.preferredHotelCategory)) {
+        missing.push("preferredHotelCategory");
+      }
+      if (!String(input.travelPurpose || "").trim()) {
+        missing.push("travelPurpose");
+      }
+      if (input.budget === undefined || input.budget === null || input.budget === "") {
+        missing.push("budget");
+      }
+    }
+    if (leadType === "VISA") {
+      if (input.salary === undefined || input.salary === null || input.salary === "") {
+        missing.push("salary");
+      }
+    }
+
     return missing;
   }
 
@@ -1986,6 +2005,12 @@ function createLeadsService({ repository, logger, events }) {
   async function create(payload, context = {}) {
     const normalizedStatus = normalizeLeadStatus(payload.status);
     payload.status = normalizedStatus;
+
+    // Meta / webhook captures: always create (legacy), no CRM 9-digit phone rule.
+    if (isWebhookInboundLead(payload, context)) {
+      payload.allowDuplicate = true;
+    }
+
     if (context.user?.id) {
       const wall = String(payload.clientCreatedAt || "").trim();
       const tz = String(payload.clientTimezone || "").trim();
@@ -3178,6 +3203,7 @@ function createLeadsService({ repository, logger, events }) {
         STATUS_REQUIRING_QUALIFICATION.has(nextStatus)
       ) {
         assertQualificationCaptured({
+          leadType: payload.leadType ?? payload.type ?? existing.leadType,
           leadCountry: payload.leadCountry ?? existing.leadCountry ?? existing.country,
           nationality: payload.nationality ?? existing.nationality,
           destinationId: payload.destinationId ?? existing.destinationId,
@@ -3187,6 +3213,7 @@ function createLeadsService({ repository, logger, events }) {
           adultsCount: payload.adultsCount ?? existing.adultsCount,
           childrenCount: payload.childrenCount ?? existing.childrenCount,
           budget: payload.budget ?? existing.budget,
+          salary: payload.salary ?? existing.salary,
           visaRequired: payload.visaRequired ?? existing.visaRequired,
           preferredHotelCategory:
             payload.preferredHotelCategory ?? existing.preferredHotelCategory,

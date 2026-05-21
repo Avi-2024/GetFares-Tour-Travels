@@ -30,7 +30,12 @@ export function ianaFromLeadCountry(countryName) {
   if (n === "india" || n === "ind") {
     return "Asia/Kolkata";
   }
-  if (n === "uae" || n === "united arab emirates") {
+  if (
+    n === "uae" ||
+    n === "united arab emirates" ||
+    n === "ae" ||
+    n === "dubai"
+  ) {
     return "Asia/Dubai";
   }
   if (!n) {

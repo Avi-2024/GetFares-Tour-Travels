@@ -48,6 +48,47 @@ function normalizeCampaignCountry(value) {
   return normalized;
 }
 
+/** Meta page config → CRM lead_country + client_currency (India INR, UAE AED). */
+function resolveMetaLeadCountryAndCurrency(pageConfig = {}) {
+  const countryCode = String(pageConfig.countryCode || "")
+    .trim()
+    .toUpperCase();
+  const countryLabel = normalizeCampaignCountry(pageConfig.countryName);
+
+  if (countryCode === "AE" || countryLabel === "UAE") {
+    return {
+      leadCountry: "United Arab Emirates",
+      clientCurrency: "AED",
+    };
+  }
+
+  if (countryCode === "IN" || countryLabel === "India") {
+    return {
+      leadCountry: "India",
+      clientCurrency: "INR",
+    };
+  }
+
+  if (countryLabel === "UAE") {
+    return {
+      leadCountry: "United Arab Emirates",
+      clientCurrency: "AED",
+    };
+  }
+
+  if (countryLabel === "India") {
+    return {
+      leadCountry: "India",
+      clientCurrency: "INR",
+    };
+  }
+
+  return {
+    leadCountry: countryLabel || pageConfig.countryName || null,
+    clientCurrency: null,
+  };
+}
+
 function normalizeLeadgenId(value) {
   const normalized = normalizeValue(value);
   if (!normalized) {
@@ -156,7 +197,9 @@ function buildLeadPayload(metaLead = {}, event = {}, pageConfig = {}, campaign =
     metaFormId,
     metaAdId,
   });
-  const leadWallTz = ianaFromLeadCountry(pageConfig.countryName);
+  const { leadCountry, clientCurrency } =
+    resolveMetaLeadCountryAndCurrency(pageConfig);
+  const leadWallTz = ianaFromLeadCountry(leadCountry || pageConfig.countryName);
   const metaUtc = toUtc(metaLead.created_time);
   const clientCreatedAt =
     metaUtc ? localWallClockFromUtc(metaUtc, leadWallTz) : null;
@@ -181,8 +224,9 @@ function buildLeadPayload(metaLead = {}, event = {}, pageConfig = {}, campaign =
     adName: normalizeValue(metaLead.ad_name ?? metaLead.adName ?? null),
     source: routingRule?.assign?.source || pageConfig.sourceLabel || META_SOURCE,
     leadType: routingRule?.assign?.leadType || null,
-    leadCountry: pageConfig.countryName || null,
-    country: pageConfig.countryName || null,
+    leadCountry,
+    country: leadCountry,
+    clientCurrency,
     countryId: pageConfig.countryId || null,
     campaignId: campaign?.id || null,
     metaLeadId: event.leadgenId,

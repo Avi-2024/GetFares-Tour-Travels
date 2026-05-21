@@ -20,6 +20,13 @@ import {
 import { getNationalityOptions } from '../../utils/nationality'
 import { nowWallClockString } from '../../utils/clientWallClock'
 import { getBrowserTimeZone } from '../../utils/dateTimePreferences'
+import {
+  PHONE_DIGITS_MIN,
+  PHONE_DIGITS_MAX,
+  PHONE_DIGITS_MIN_ERROR,
+  isValidPhoneDigits,
+  countPhoneDigits
+} from '../../utils/phoneValidation'
 
 type LeadType = 'HOLIDAY' | 'VISA' | null
 
@@ -75,8 +82,9 @@ const initialForm: FormState = {
 }
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-const PHONE_E164_DIGITS_MIN = 8
-const PHONE_E164_DIGITS_MAX = 15
+
+const PHONE_E164_DIGITS_MIN = PHONE_DIGITS_MIN
+const PHONE_E164_DIGITS_MAX = PHONE_DIGITS_MAX
 
 const normalizePrefillPhone = (value: unknown): string => {
   const raw = String(value ?? '').trim()
@@ -311,7 +319,7 @@ const CreateLead: React.FC = () => {
         return
       }
 
-      if (phone && phone.length < PHONE_E164_DIGITS_MIN) {
+      if (phone && countPhoneDigits(phone) < PHONE_E164_DIGITS_MIN) {
         setDuplicateWarning('')
         setDuplicateLead(null)
         return
@@ -348,11 +356,8 @@ const CreateLead: React.FC = () => {
 
   const validation = useMemo(() => {
     const email = form.email.trim()
-    const phoneDigits = form.phone.replace(/\D/g, '')
     const phoneLooksValid =
-      form.phone.trim().startsWith('+') &&
-      phoneDigits.length >= PHONE_E164_DIGITS_MIN &&
-      phoneDigits.length <= PHONE_E164_DIGITS_MAX
+      form.phone.trim().startsWith('+') && isValidPhoneDigits(form.phone)
 
     const adultsCountValue = Number(form.adultsCount || 0)
     const childrenCountValue = Number(form.childrenCount || 0)
@@ -941,7 +946,9 @@ const CreateLead: React.FC = () => {
                 placeholder: 'Phone number'
               }}
             />
-           
+            {fieldError('phone') ? (
+              <p className='mt-1 text-xs text-red-500'>{PHONE_DIGITS_MIN_ERROR}</p>
+            ) : null}
           </div>
           <div>
             <label className='field-label'>Lead Country *</label>

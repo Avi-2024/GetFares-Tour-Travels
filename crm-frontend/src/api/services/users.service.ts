@@ -4,6 +4,7 @@
  */
 
 import { usersEndpoints, type User, type CreateUserPayload, type UpdateUserPayload } from '../endpoints/users.api';
+import { isValidPhoneDigits, PHONE_DIGITS_RANGE_ERROR } from '../../utils/phoneValidation';
 
 export class UsersService {
   async list(params?: {
@@ -24,8 +25,8 @@ export class UsersService {
     }
 
     // Validate phone
-    if (!payload.phone || payload.phone.length < 10) {
-      throw new Error('Valid phone number is required');
+    if (payload.phone && !isValidPhoneDigits(payload.phone)) {
+      throw new Error(PHONE_DIGITS_RANGE_ERROR);
     }
 
     // Validate role

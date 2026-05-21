@@ -50,6 +50,7 @@ function buildLeadPayload(payload, defaultSource) {
     utmCampaign: payload.utmCampaign,
     source: payload.source || defaultSource,
     status: "OPEN",
+    allowDuplicate: true,
   };
 }
 

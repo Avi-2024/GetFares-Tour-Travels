@@ -1,11 +1,12 @@
 import { z } from "zod";
 import { optionalQueryBoolean } from "../../core/utils/zod-query-boolean.js";
+import { optionalPhoneSchema } from "../../core/utils/phone-validation.js";
 
 const createPayload = z
   .object({
     fullName: z.string().trim().min(2).max(150),
     email: z.string().email().max(150),
-    phone: z.string().trim().min(6).max(20).optional(),
+    phone: optionalPhoneSchema,
     country: z.string().trim().min(2).max(100).optional(),
     agentCountry: z.string().trim().min(2).max(100).optional(),
     type: z.string().trim().min(2).max(40).optional(),
@@ -44,7 +45,7 @@ const updatePayload = z
   .object({
     fullName: z.string().trim().min(2).max(150).optional(),
     email: z.string().email().max(150).optional(),
-    phone: z.string().trim().min(6).max(20).optional(),
+    phone: optionalPhoneSchema,
     country: z.string().trim().min(2).max(100).optional(),
     agentCountry: z.string().trim().min(2).max(100).optional(),
     type: z.string().trim().min(2).max(40).optional(),

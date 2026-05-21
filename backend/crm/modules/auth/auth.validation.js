@@ -1,10 +1,11 @@
 import { z } from "zod";
+import { optionalPhoneSchema } from "../../core/utils/phone-validation.js";
 
 const register = z.object({
   body: z.object({
     fullName: z.string().min(2),
     email: z.string().email(),
-    phone: z.string().min(6).max(20).optional(),
+    phone: optionalPhoneSchema,
     password: z.string().min(8),
     role: z.string().optional(),
     roleId: z.string().uuid().optional(),

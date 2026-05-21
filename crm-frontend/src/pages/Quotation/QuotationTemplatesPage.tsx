@@ -13,7 +13,12 @@ import SearchableDropdown from '../../components/ui/SearchableDropdown'
 import TextInput from '../../components/form/TextInput'
 import NumberInput from '../../components/form/NumberInput'
 import { quotationsApi } from '../../api/quotations'
-import { reportApiError } from '../../lib/notify'
+import { isApiError } from '../../api/apiClient'
+import { reportApiError, reportValidationErrors } from '../../lib/notify'
+import {
+  extractValidationDetails,
+  mapValidationFieldErrors
+} from '../../lib/validationErrors'
 
 type TemplateType = 'READY_PACKAGE' | 'VISA' | 'CUSTOM_ITINERARY'
 
@@ -49,6 +54,53 @@ type TemplateRow = {
   footerDisclaimer?: string
 }
 
+type TemplateFormState = {
+  code: string
+  name: string
+  templateType: TemplateType
+  minMarginPercent: number | undefined
+  isActive: boolean
+  headerBranding: string
+  inclusions: string
+  exclusions: string
+  hotelDetails: string
+  visaDetails: string
+  paymentTerms: string
+  cancellationPolicy: string
+  footerDisclaimer: string
+}
+
+function validateTemplateForm(form: TemplateFormState): Record<string, string> {
+  const errors: Record<string, string> = {}
+  const code = form.code.trim()
+  const name = form.name.trim()
+
+  if (!code) {
+    errors.code = 'Template code is required'
+  } else if (code.length < 2) {
+    errors.code = 'Template code must be at least 2 characters'
+  } else if (code.length > 50) {
+    errors.code = 'Template code must be at most 50 characters'
+  }
+
+  if (!name) {
+    errors.name = 'Template name is required'
+  } else if (name.length < 2) {
+    errors.name = 'Template name must be at least 2 characters'
+  } else if (name.length > 150) {
+    errors.name = 'Template name must be at most 150 characters'
+  }
+
+  if (
+    form.minMarginPercent != null &&
+    (form.minMarginPercent < 0 || form.minMarginPercent > 100)
+  ) {
+    errors.minMarginPercent = 'Min margin must be between 0 and 100'
+  }
+
+  return errors
+}
+
 const QuotationTemplatesPage: React.FC = () => {
   const [rows, setRows] = useState<TemplateRow[]>([])
   const [search, setSearch] = useState('')
@@ -58,6 +110,7 @@ const QuotationTemplatesPage: React.FC = () => {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [notice, setNotice] = useState('')
   const [itineraryItems, setItineraryItems] = useState<ItineraryItem[]>([])
   const [form, setForm] = useState({
@@ -249,8 +302,26 @@ const QuotationTemplatesPage: React.FC = () => {
     []
   )
 
+  const clearFieldError = (field: string) => {
+    setFieldErrors(prev => {
+      if (!prev[field]) return prev
+      const next = { ...prev }
+      delete next[field]
+      return next
+    })
+  }
+
+  const itineraryFieldError = useMemo(() => {
+    const match = Object.entries(fieldErrors).find(([field]) =>
+      field.startsWith('itinerary')
+    )
+    return match?.[1] ?? ''
+  }, [fieldErrors])
+
   const openCreate = () => {
     setEditingId(null)
+    setFieldErrors({})
+    setError('')
     setForm({
       code: '',
       name: '',
@@ -272,6 +343,8 @@ const QuotationTemplatesPage: React.FC = () => {
 
   const openEdit = (row: TemplateRow) => {
     setEditingId(row.id)
+    setFieldErrors({})
+    setError('')
     setForm({
       code: row.code,
       name: row.name,
@@ -292,13 +365,16 @@ const QuotationTemplatesPage: React.FC = () => {
   }
 
   const saveTemplate = async () => {
-    if (!form.code.trim() || !form.name.trim()) {
-      setError('Template code and name are required')
+    const clientErrors = validateTemplateForm(form)
+    if (Object.keys(clientErrors).length > 0) {
+      setFieldErrors(clientErrors)
+      reportValidationErrors(clientErrors, setError)
       return
     }
 
     setSaving(true)
     setError('')
+    setFieldErrors({})
     setNotice('')
     try {
       const itinerary = itineraryItems
@@ -337,7 +413,15 @@ const QuotationTemplatesPage: React.FC = () => {
       setShowForm(false)
       await loadTemplates()
     } catch (err) {
-      reportApiError(err, 'Failed to save template', setError)
+      const apiFieldErrors = mapValidationFieldErrors(
+        extractValidationDetails(isApiError(err) ? err.details : err)
+      )
+      if (Object.keys(apiFieldErrors).length > 0) {
+        setFieldErrors(apiFieldErrors)
+        reportValidationErrors(apiFieldErrors, setError)
+      } else {
+        reportApiError(err, 'Failed to save template', setError)
+      }
     } finally {
       setSaving(false)
     }
@@ -446,17 +530,21 @@ const QuotationTemplatesPage: React.FC = () => {
             <TextInput
               label='Template Code'
               value={form.code}
-              onChange={value =>
+              onChange={value => {
+                clearFieldError('code')
                 setForm(current => ({ ...current, code: value }))
-              }
+              }}
+              error={fieldErrors.code}
               required
             />
             <TextInput
               label='Template Name'
               value={form.name}
-              onChange={value =>
+              onChange={value => {
+                clearFieldError('name')
                 setForm(current => ({ ...current, name: value }))
-              }
+              }}
+              error={fieldErrors.name}
               required
             />
             <div>
@@ -465,68 +553,93 @@ const QuotationTemplatesPage: React.FC = () => {
                 value={form.templateType}
                 options={templateTypeOptions}
                 searchPlaceholder='Search template type...'
-                onChange={value =>
+                hasError={Boolean(fieldErrors.templateType)}
+                onChange={value => {
+                  clearFieldError('templateType')
                   setForm(current => ({
                     ...current,
                     templateType: value as TemplateType
                   }))
-                }
+                }}
               />
+              {fieldErrors.templateType ? (
+                <p className='mt-1 text-xs text-red-500'>
+                  {fieldErrors.templateType}
+                </p>
+              ) : null}
             </div>
             <NumberInput
               label='Min Margin %'
               value={form.minMarginPercent ?? ''}
-              onChange={value =>
+              onChange={value => {
+                clearFieldError('minMarginPercent')
                 setForm(current => ({
                   ...current,
                   minMarginPercent: value === '' ? undefined : Number(value)
                 }))
-              }
+              }}
+              error={fieldErrors.minMarginPercent}
+              min={0}
+              max={100}
             />
             <div className='md:col-span-2'>
               <label className='field-label'>Header Branding</label>
               <textarea
                 rows={2}
-                className='field-input'
+                className={`field-input ${fieldErrors.headerBranding ? 'border-red-500' : ''}`}
                 value={form.headerBranding}
-                onChange={event =>
+                onChange={event => {
+                  clearFieldError('headerBranding')
                   setForm(current => ({
                     ...current,
                     headerBranding: event.target.value
                   }))
-                }
+                }}
                 placeholder='Brand header text used in generated quotation'
               />
+              {fieldErrors.headerBranding ? (
+                <p className='mt-1 text-xs text-red-500'>
+                  {fieldErrors.headerBranding}
+                </p>
+              ) : null}
             </div>
             <div className='md:col-span-2'>
               <label className='field-label'>Inclusions</label>
               <textarea
                 rows={3}
-                className='field-input'
+                className={`field-input ${fieldErrors.inclusions ? 'border-red-500' : ''}`}
                 value={form.inclusions}
-                onChange={event =>
+                onChange={event => {
+                  clearFieldError('inclusions')
                   setForm(current => ({
                     ...current,
                     inclusions: event.target.value
                   }))
-                }
+                }}
                 placeholder='Included services and terms'
               />
+              {fieldErrors.inclusions ? (
+                <p className='mt-1 text-xs text-red-500'>{fieldErrors.inclusions}</p>
+              ) : null}
             </div>
             <div className='md:col-span-2'>
               <label className='field-label'>Exclusions</label>
               <textarea
                 rows={3}
-                className='field-input'
+                className={`field-input ${fieldErrors.exclusions ? 'border-red-500' : ''}`}
                 value={form.exclusions}
-                onChange={event =>
+                onChange={event => {
+                  clearFieldError('exclusions')
                   setForm(current => ({
                     ...current,
                     exclusions: event.target.value
                   }))
-                }
+                }}
                 placeholder='Excluded services and terms'
               />
+              {fieldErrors.exclusions ? (
+                <p className='mt-1 text-xs text-red-500'>{fieldErrors.exclusions}</p>
+              ) : null}
             </div>
             <div className='md:col-span-2'>
               <div className='flex items-center justify-between'>
@@ -552,6 +665,9 @@ const QuotationTemplatesPage: React.FC = () => {
                   Add Day
                 </button>
               </div>
+              {itineraryFieldError ? (
+                <p className='mt-2 text-xs text-red-500'>{itineraryFieldError}</p>
+              ) : null}
               <div className='mt-2 space-y-2'>
                 {itineraryItems.length === 0 ? (
                   <div className='rounded-lg border border-dashed border-gray-200 px-3 py-3 text-xs text-gray-500 dark:border-gray-700'>
@@ -635,76 +751,100 @@ const QuotationTemplatesPage: React.FC = () => {
               <label className='field-label'>Hotel Details</label>
               <textarea
                 rows={3}
-                className='field-input'
+                className={`field-input ${fieldErrors.hotelDetails ? 'border-red-500' : ''}`}
                 value={form.hotelDetails}
-                onChange={event =>
+                onChange={event => {
+                  clearFieldError('hotelDetails')
                   setForm(current => ({
                     ...current,
                     hotelDetails: event.target.value
                   }))
-                }
+                }}
                 placeholder='Hotel details text'
               />
+              {fieldErrors.hotelDetails ? (
+                <p className='mt-1 text-xs text-red-500'>{fieldErrors.hotelDetails}</p>
+              ) : null}
             </div>
             <div className='md:col-span-2'>
               <label className='field-label'>Visa Details</label>
               <textarea
                 rows={3}
-                className='field-input'
+                className={`field-input ${fieldErrors.visaDetails ? 'border-red-500' : ''}`}
                 value={form.visaDetails}
-                onChange={event =>
+                onChange={event => {
+                  clearFieldError('visaDetails')
                   setForm(current => ({
                     ...current,
                     visaDetails: event.target.value
                   }))
-                }
+                }}
                 placeholder='Visa details text'
               />
+              {fieldErrors.visaDetails ? (
+                <p className='mt-1 text-xs text-red-500'>{fieldErrors.visaDetails}</p>
+              ) : null}
             </div>
             <div className='md:col-span-2'>
               <label className='field-label'>Payment Terms</label>
               <textarea
                 rows={2}
-                className='field-input'
+                className={`field-input ${fieldErrors.paymentTerms ? 'border-red-500' : ''}`}
                 value={form.paymentTerms}
-                onChange={event =>
+                onChange={event => {
+                  clearFieldError('paymentTerms')
                   setForm(current => ({
                     ...current,
                     paymentTerms: event.target.value
                   }))
-                }
+                }}
                 placeholder='Payment schedule and terms'
               />
+              {fieldErrors.paymentTerms ? (
+                <p className='mt-1 text-xs text-red-500'>{fieldErrors.paymentTerms}</p>
+              ) : null}
             </div>
             <div className='md:col-span-2'>
               <label className='field-label'>Cancellation Policy</label>
               <textarea
                 rows={2}
-                className='field-input'
+                className={`field-input ${fieldErrors.cancellationPolicy ? 'border-red-500' : ''}`}
                 value={form.cancellationPolicy}
-                onChange={event =>
+                onChange={event => {
+                  clearFieldError('cancellationPolicy')
                   setForm(current => ({
                     ...current,
                     cancellationPolicy: event.target.value
                   }))
-                }
+                }}
                 placeholder='Cancellation rules and charges'
               />
+              {fieldErrors.cancellationPolicy ? (
+                <p className='mt-1 text-xs text-red-500'>
+                  {fieldErrors.cancellationPolicy}
+                </p>
+              ) : null}
             </div>
             <div className='md:col-span-2'>
               <label className='field-label'>Footer Disclaimer</label>
               <textarea
                 rows={2}
-                className='field-input'
+                className={`field-input ${fieldErrors.footerDisclaimer ? 'border-red-500' : ''}`}
                 value={form.footerDisclaimer}
-                onChange={event =>
+                onChange={event => {
+                  clearFieldError('footerDisclaimer')
                   setForm(current => ({
                     ...current,
                     footerDisclaimer: event.target.value
                   }))
-                }
+                }}
                 placeholder='Legal / compliance footer text'
               />
+              {fieldErrors.footerDisclaimer ? (
+                <p className='mt-1 text-xs text-red-500'>
+                  {fieldErrors.footerDisclaimer}
+                </p>
+              ) : null}
             </div>
           </div>
           <div className='mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
@@ -778,9 +918,7 @@ const QuotationTemplatesPage: React.FC = () => {
                     <th className='hidden px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 sm:table-cell sm:px-5'>
                       Status
                     </th>
-                    <th className='hidden px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 md:table-cell md:px-5'>
-                      Updated At
-                    </th>
+                   
                     <th className='px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500 sm:px-5'>
                       Actions
                     </th>
@@ -811,9 +949,7 @@ const QuotationTemplatesPage: React.FC = () => {
                           status={row.isActive ? 'Approved' : 'Draft'}
                         />
                       </td>
-                      <td className='hidden px-4 py-4 text-xs text-gray-500 md:table-cell md:px-5'>
-                        {row.updatedAt}
-                      </td>
+                   
                       <td className='px-4 py-4 sm:px-5'>
                         <div className='flex justify-end gap-2'>
                           <button

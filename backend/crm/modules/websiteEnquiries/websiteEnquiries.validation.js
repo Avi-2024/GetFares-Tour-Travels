@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { webhookOptionalPhoneSchema } from "../../core/utils/phone-validation.js";
 
 const optionalDateOnly = z.preprocess(
   (val) => {
@@ -20,7 +21,7 @@ const createCaptureSchema = z
     fullName: z.string().min(2).optional(),
     name: z.string().min(2).optional(),
     email: z.string().email().optional(),
-    phone: z.string().min(6).max(20).optional(),
+    phone: webhookOptionalPhoneSchema,
     clientCurrency: z.string().trim().min(3).max(10).optional(),
     destination: z.string().min(2).max(150).optional(),
     destinationName: z.string().min(2).max(150).optional(),

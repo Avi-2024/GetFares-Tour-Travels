@@ -34,6 +34,7 @@ import {
 import { Country } from 'country-state-city'
 import { getCurrencyOptions } from '../../utils/currency'
 import { getNationalityOptions } from '../../utils/nationality'
+import { toLeadCountryFormValue } from '../../utils/leadCountry'
 import { getBrowserTimeZone } from '../../utils/dateTimePreferences'
 import {
   nowWallClockString,
@@ -124,7 +125,7 @@ function normalizeLeadTimeZone(rawValue: unknown): string | null {
 }
 
 type QualificationForm = {
-  leadType: 'HOLIDAY' | 'VISA' | 'BOTH' | ''
+  leadType: 'HOLIDAY' | 'VISA' | ''
   panNumber: string
   addressLine: string
   leadCountry: string
@@ -418,6 +419,18 @@ const LeadDetails: React.FC = () => {
     return Math.max(0, Math.floor(numericValue))
   }, [qualification.childrenCount])
 
+  const activeQualificationLeadType = useMemo((): 'HOLIDAY' | 'VISA' => {
+    const raw = String(
+      qualification.leadType || lead?.leadType || lead?.lead_type || 'HOLIDAY'
+    )
+      .trim()
+      .toUpperCase()
+    return raw === 'VISA' ? 'VISA' : 'HOLIDAY'
+  }, [qualification.leadType, lead?.leadType, lead?.lead_type])
+
+  const isHolidayQualification = activeQualificationLeadType === 'HOLIDAY'
+  const isVisaQualification = activeQualificationLeadType === 'VISA'
+
   const cleanChildAges = useMemo(
     () =>
       childAges
@@ -458,7 +471,9 @@ const LeadDetails: React.FC = () => {
       leadType: item?.leadType ?? item?.lead_type ?? '',
       panNumber: item?.panNumber ?? item?.pan_number ?? '',
       addressLine: item?.addressLine ?? item?.address_line ?? '',
-      leadCountry: item?.leadCountry ?? item?.lead_country ?? item?.country ?? '',
+      leadCountry: toLeadCountryFormValue(
+        item?.leadCountry ?? item?.lead_country ?? item?.country ?? ''
+      ),
       nationality: item?.nationality ?? '',
       clientCurrency: item?.clientCurrency ?? item?.client_currency ?? 'INR',
       destinationName:
@@ -925,11 +940,23 @@ const LeadDetails: React.FC = () => {
 
   const hotelCategoryOptions = useMemo(
     () => [
-      { value: '', label: 'Hotel Category' },
+      { value: '', label: 'Select hotel category' },
       { value: '3_STAR', label: '3 Star' },
       { value: '4_STAR', label: '4 Star' },
       { value: '5_STAR', label: '5 Star' },
       { value: 'ANY', label: 'Any' }
+    ],
+    []
+  )
+
+  const travelPurposeOptions = useMemo(
+    () => [
+      { value: '', label: 'Select purpose' },
+      { value: 'LEISURE', label: 'Leisure' },
+      { value: 'BUSINESS', label: 'Business' },
+      { value: 'HONEYMOON', label: 'Honeymoon' },
+      { value: 'FAMILY', label: 'Family' },
+      { value: 'ADVENTURE', label: 'Adventure' }
     ],
     []
   )
@@ -1151,7 +1178,7 @@ const LeadDetails: React.FC = () => {
     const missing: string[] = []
     if (!qualification.leadCountry.trim()) missing.push('leadCountry')
     if (!qualification.clientCurrency.trim()) missing.push('clientCurrency')
-  
+
     if (
       qualification.travelDate &&
       qualification.travelEndDate &&
@@ -1159,9 +1186,19 @@ const LeadDetails: React.FC = () => {
     ) {
       missing.push('travelDateRange')
     }
-  
-    
-   
+
+    if (isHolidayQualification && !qualification.preferredHotelCategory) {
+      missing.push('preferredHotelCategory')
+    }
+    if (isHolidayQualification && !qualification.travelPurpose.trim()) {
+      missing.push('travelPurpose')
+    }
+    if (isVisaQualification && !String(qualification.salary || '').trim()) {
+      missing.push('salary')
+    }
+    if (isHolidayQualification && !String(qualification.budget || '').trim()) {
+      missing.push('budget')
+    }
 
     const adults = Number(qualification.adultsCount)
     const children = Number(qualification.childrenCount)
@@ -1190,7 +1227,12 @@ const LeadDetails: React.FC = () => {
       missing.push('childAges')
     }
     return missing
-  }, [childAges, qualification])
+  }, [
+    childAges,
+    isHolidayQualification,
+    isVisaQualification,
+    qualification
+  ])
 
   const isComplianceComplete =
     (isCallsDisabled || compliance.calls >= REQUIRED_COMPLIANCE.calls) &&
@@ -1213,14 +1255,13 @@ const LeadDetails: React.FC = () => {
     }
 
     try {
-      const selectedLeadType =
-        qualification.leadType || lead?.leadType || lead?.lead_type || 'HOLIDAY'
-      const isVisaLead = selectedLeadType === 'VISA'
+      const isVisaLead = isVisaQualification
       await leadsService.updateLead(id, {
-        leadType: qualification.leadType || undefined,
+        leadType: activeQualificationLeadType,
         panNumber: qualification.panNumber.trim() || undefined,
         addressLine: qualification.addressLine.trim() || undefined,
-        leadCountry: qualification.leadCountry.trim() || undefined,
+        leadCountry:
+          toLeadCountryFormValue(qualification.leadCountry) || undefined,
         nationality: qualification.nationality.trim() || undefined,
         clientCurrency: qualification.clientCurrency.trim() || undefined,
         destinationName: qualification.destinationName.trim() || undefined,
@@ -1233,8 +1274,14 @@ const LeadDetails: React.FC = () => {
           ? { salary: Number(qualification.salary) }
           : { budget: Number(qualification.budget) }),
         visaRequired: qualification.visaRequired === 'YES',
-        preferredHotelCategory: qualification.preferredHotelCategory,
-        travelPurpose: qualification.travelPurpose.trim(),
+        ...(isHolidayQualification && qualification.preferredHotelCategory
+          ? {
+              preferredHotelCategory: qualification.preferredHotelCategory
+            }
+          : {}),
+        ...(isHolidayQualification
+          ? { travelPurpose: qualification.travelPurpose.trim() || undefined }
+          : {}),
         source: qualification.leadSource.trim() || undefined,
         campaignId: qualification.campaignId || undefined,
         qualificationCompleted: true
@@ -1325,11 +1372,9 @@ const LeadDetails: React.FC = () => {
     }
 
     try {
-      const selectedLeadType =
-        qualification.leadType || lead?.leadType || lead?.lead_type || 'HOLIDAY'
-      const isVisaLead = selectedLeadType === 'VISA'
+      const isVisaLead = isVisaQualification
       await leadsService.updateLead(id, {
-        leadType: qualification.leadType || undefined,
+        leadType: activeQualificationLeadType,
         status: conversion.canonical,
         subStatus: conversion.subStatus,
         customStatusLabel: null,
@@ -1343,7 +1388,8 @@ const LeadDetails: React.FC = () => {
             : undefined,
         panNumber: qualification.panNumber.trim() || undefined,
         addressLine: qualification.addressLine.trim() || undefined,
-        leadCountry: qualification.leadCountry.trim() || undefined,
+        leadCountry:
+          toLeadCountryFormValue(qualification.leadCountry) || undefined,
         nationality: qualification.nationality.trim() || undefined,
         clientCurrency: qualification.clientCurrency.trim() || undefined,
         destinationName: qualification.destinationName.trim() || undefined,
@@ -1356,8 +1402,14 @@ const LeadDetails: React.FC = () => {
           ? { salary: Number(qualification.salary) }
           : { budget: Number(qualification.budget) }),
         visaRequired: qualification.visaRequired === 'YES',
-        preferredHotelCategory: qualification.preferredHotelCategory,
-        travelPurpose: qualification.travelPurpose.trim(),
+        ...(isHolidayQualification && qualification.preferredHotelCategory
+          ? {
+              preferredHotelCategory: qualification.preferredHotelCategory
+            }
+          : {}),
+        ...(isHolidayQualification
+          ? { travelPurpose: qualification.travelPurpose.trim() || undefined }
+          : {}),
         source: qualification.leadSource.trim() || undefined,
         campaignId: qualification.campaignId || undefined,
         qualificationCompleted: STATUS_REQUIRING_QUALIFICATION.has(
@@ -2113,12 +2165,19 @@ const LeadDetails: React.FC = () => {
                       value={qualification.leadType}
                       options={leadTypeOptions}
                       searchPlaceholder='Search lead type...'
-                      onChange={value =>
+                      onChange={value => {
+                        const nextType = value as 'HOLIDAY' | 'VISA' | ''
                         setQualification(prev => ({
                           ...prev,
-                          leadType: value as 'HOLIDAY' | 'VISA' | 'BOTH' | ''
+                          leadType: nextType,
+                          ...(nextType === 'VISA'
+                            ? {
+                                preferredHotelCategory: '',
+                                travelPurpose: ''
+                              }
+                            : { salary: '' })
                         }))
-                      }
+                      }}
                     />
                   </div>
                   <div>
@@ -2319,83 +2378,83 @@ const LeadDetails: React.FC = () => {
                   ) : null}
                   <div>
                     <label className='field-label'>
-                      {(qualification.leadType || lead?.leadType || lead?.lead_type) === 'VISA'
-                        ? 'Salary'
-                        : 'Budget'}
+                      {isVisaQualification ? 'Salary' : 'Budget'}
                     </label>
                     <input
                       type='number'
                       min={0}
                       className='field-input no-spinner'
-                      placeholder={
-                        (qualification.leadType || lead?.leadType || lead?.lead_type) === 'VISA'
-                          ? 'Salary'
-                          : 'Budget'
-                      }
+                      placeholder={isVisaQualification ? 'Salary' : 'Budget'}
                       value={
-                        (qualification.leadType || lead?.leadType || lead?.lead_type) === 'VISA'
+                        isVisaQualification
                           ? qualification.salary
                           : qualification.budget
                       }
                       onChange={event =>
                         setQualification(prev => ({
                           ...prev,
-                          ...( (qualification.leadType || lead?.leadType || lead?.lead_type) === 'VISA'
+                          ...(isVisaQualification
                             ? { salary: event.target.value }
-                            : { budget: event.target.value } )
+                            : { budget: event.target.value })
                         }))
                       }
                     />
                   </div>
-                  <div>
-                    <label className='field-label'>Visa Requirement</label>
-                    <SearchableDropdown
-                      value={qualification.visaRequired}
-                      options={visaOptions}
-                      searchPlaceholder='Search visa requirement...'
-                      onChange={value =>
-                        setQualification(prev => ({
-                          ...prev,
-                          visaRequired: value as 'YES' | 'NO' | ''
-                        }))
-                      }
-                    />
-                  </div>
-                  <div>
-                    <label className='field-label'>
-                      Preferred Hotel Category
-                    </label>
-                    <SearchableDropdown
-                      value={qualification.preferredHotelCategory}
-                      options={hotelCategoryOptions}
-                      searchPlaceholder='Search hotel category...'
-                      onChange={value =>
-                        setQualification(prev => ({
-                          ...prev,
-                          preferredHotelCategory: value as
-                            | '3_STAR'
-                            | '4_STAR'
-                            | '5_STAR'
-                            | 'ANY'
-                            | ''
-                        }))
-                      }
-                    />
-                  </div>
-                  <div>
-                    <label className='field-label'>Travel Purpose</label>
-                    <input
-                      className='field-input'
-                      placeholder='Travel purpose'
-                      value={qualification.travelPurpose}
-                      onChange={event =>
-                        setQualification(prev => ({
-                          ...prev,
-                          travelPurpose: event.target.value
-                        }))
-                      }
-                    />
-                  </div>
+                  {isHolidayQualification ? (
+                    <div>
+                      <label className='field-label'>Visa Requirement</label>
+                      <SearchableDropdown
+                        value={qualification.visaRequired}
+                        options={visaOptions}
+                        searchPlaceholder='Search visa requirement...'
+                        onChange={value =>
+                          setQualification(prev => ({
+                            ...prev,
+                            visaRequired: value as 'YES' | 'NO' | ''
+                          }))
+                        }
+                      />
+                    </div>
+                  ) : null}
+                  {isHolidayQualification ? (
+                    <div>
+                      <label className='field-label'>
+                        Preferred Hotel Category
+                      </label>
+                      <SearchableDropdown
+                        value={qualification.preferredHotelCategory}
+                        options={hotelCategoryOptions}
+                        searchPlaceholder='Search hotel category...'
+                        onChange={value =>
+                          setQualification(prev => ({
+                            ...prev,
+                            preferredHotelCategory: value as
+                              | '3_STAR'
+                              | '4_STAR'
+                              | '5_STAR'
+                              | 'ANY'
+                              | ''
+                          }))
+                        }
+                      />
+                    </div>
+                  ) : null}
+                  {isHolidayQualification ? (
+                    <div>
+                      <label className='field-label'>Travel Purpose</label>
+                      <SearchableDropdown
+                        value={qualification.travelPurpose}
+                        options={travelPurposeOptions}
+                        searchPlaceholder='Search purpose...'
+                        onChange={value =>
+                          setQualification(prev => ({
+                            ...prev,
+                            travelPurpose: value
+                          }))
+                        }
+                      />
+                    </div>
+                  ) : null}
                   <div>
                     <label className='field-label'>Lead Source</label>
                     <SearchableDropdown

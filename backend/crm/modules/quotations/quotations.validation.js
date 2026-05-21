@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { optionalQueryBoolean } from "../../core/utils/zod-query-boolean.js";
+import { recipientPhoneSchema } from "../../core/utils/phone-validation.js";
 
 const quotationStatus = z.enum([
   "DRAFT",
@@ -151,7 +152,7 @@ const send = z.object({
     .object({
       channel: deliveryChannel.optional(),
       recipientEmail: z.string().email().optional(),
-      recipientPhone: z.string().min(6).max(25).optional(),
+      recipientPhone: recipientPhoneSchema.optional(),
       message: z.string().max(1000).optional(),
       expiresInHours: z.coerce.number().int().positive().max(720).optional(),
       responseCategory: responseCategory.optional(),
@@ -266,8 +267,16 @@ const leadToQuoteReport = z.object({
 
 const createTemplate = z.object({
   body: z.object({
-    code: z.string().min(2).max(50),
-    name: z.string().min(2).max(150),
+    code: z
+      .string()
+      .trim()
+      .min(2, "Template code must be at least 2 characters")
+      .max(50, "Template code must be at most 50 characters"),
+    name: z
+      .string()
+      .trim()
+      .min(2, "Template name must be at least 2 characters")
+      .max(150, "Template name must be at most 150 characters"),
     templateType,
     headerBranding: z.string().max(4000).optional(),
     inclusions: z.string().max(8000).optional(),
@@ -288,8 +297,18 @@ const createTemplate = z.object({
 const updateTemplate = z.object({
   body: z
     .object({
-      code: z.string().min(2).max(50).optional(),
-      name: z.string().min(2).max(150).optional(),
+      code: z
+        .string()
+        .trim()
+        .min(2, "Template code must be at least 2 characters")
+        .max(50, "Template code must be at most 50 characters")
+        .optional(),
+      name: z
+        .string()
+        .trim()
+        .min(2, "Template name must be at least 2 characters")
+        .max(150, "Template name must be at most 150 characters")
+        .optional(),
       templateType: templateType.optional(),
       headerBranding: z.string().max(4000).optional(),
       inclusions: z.string().max(8000).optional(),

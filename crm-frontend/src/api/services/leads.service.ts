@@ -4,6 +4,7 @@
  */
 
 import { leadsEndpoints, type CreateLeadPayload, type UpdateLeadPayload } from '../endpoints/leads.api';
+import { isValidPhoneDigits, PHONE_DIGITS_MIN_ERROR } from '../../utils/phoneValidation';
 
 export class LeadsService {
   async list(params?: {
@@ -20,8 +21,8 @@ export class LeadsService {
 
   async create(payload: CreateLeadPayload) {
     // Validate phone
-    if (!payload.phone || payload.phone.length < 10) {
-      throw new Error('Valid phone number is required');
+    if (!payload.phone || !isValidPhoneDigits(payload.phone)) {
+      throw new Error(PHONE_DIGITS_MIN_ERROR);
     }
 
     const response = await leadsEndpoints.create({

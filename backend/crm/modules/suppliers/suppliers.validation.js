@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { optionalQueryBoolean } from "../../core/utils/zod-query-boolean.js";
+import { optionalPhoneSchema } from "../../core/utils/phone-validation.js";
 
 const uuid = z.string().uuid();
 const payableStatus = z.enum(["PENDING", "PARTIAL", "PAID"]);
@@ -15,7 +16,7 @@ const settlementPaymentMode = z.enum([
 const supplierPayload = z.object({
   name: z.string().trim().min(2).max(150),
   contactPerson: z.string().trim().min(2).max(150).optional(),
-  phone: z.string().trim().min(6).max(20).optional(),
+  phone: optionalPhoneSchema,
   email: z.string().email().max(150).optional(),
   panNumber: z.string().trim().min(8).max(20).optional(),
   gstNumber: z.string().trim().min(5).max(30).optional(),

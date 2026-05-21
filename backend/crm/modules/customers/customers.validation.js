@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { optionalPhoneSchema } from "../../core/utils/phone-validation.js";
 
 const customerSegment = z.enum(["PLATINUM", "GOLD", "SILVER", "NEW"]);
 const listSortBy = z.enum(["name", "ltv", "bookings", "createdAt"]);
@@ -17,10 +18,7 @@ const optionalPan = z.preprocess(
   z.string().trim().min(5).max(20).optional(),
 );
 
-const optionalPhone = z.preprocess(
-  emptyToUndefined,
-  z.string().trim().min(6).max(20).optional(),
-);
+const optionalPhone = z.preprocess(emptyToUndefined, optionalPhoneSchema);
 
 const optionalEmail = z.preprocess(
   emptyToUndefined,
@@ -93,7 +91,7 @@ const list = z.object({
       createdTo: z.string().date().optional(),
       segment: customerSegment.optional(),
       email: z.string().email().optional(),
-      phone: z.string().trim().min(6).max(20).optional(),
+      phone: optionalPhoneSchema,
       clientCurrency: z.string().trim().min(3).max(10).optional(),
     })
     .optional(),
