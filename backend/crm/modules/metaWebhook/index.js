@@ -4,6 +4,12 @@ import { createMetaLeadRepository } from "./metaLead.repository.js";
 import { createMetaWebhookRoutes } from "./metaWebhook.routes.js";
 import { MetaWebhookValidation } from "./metaWebhook.validation.js";
 import { createMetaApi } from "./metaApi.js";
+import { createMetaLeadMappingRepository } from "./metaLeadMapping.repository.js";
+import { createMetaLeadMappingResolver } from "./metaLeadMapping.resolver.js";
+import { createMetaLeadMappingService } from "./metaLeadMapping.service.js";
+import { createMetaLeadMappingController } from "./metaLeadMapping.controller.js";
+import { createMetaLeadMappingRoutes } from "./metaLeadMapping.routes.js";
+import { MetaLeadMappingValidation } from "./metaLeadMapping.validation.js";
 
 function createMetaWebhookModule({ dependencies, leadsService }) {
   if (!leadsService) {
@@ -13,6 +19,33 @@ function createMetaWebhookModule({ dependencies, leadsService }) {
   const repository = createMetaLeadRepository({
     db: dependencies.db,
     logger: dependencies.logger,
+  });
+
+  const mappingRepository = createMetaLeadMappingRepository({
+    db: dependencies.db,
+    logger: dependencies.logger,
+  });
+
+  const mappingResolver = createMetaLeadMappingResolver({
+    repository: mappingRepository,
+    logger: dependencies.logger,
+  });
+
+  const mappingService = createMetaLeadMappingService({
+    repository: mappingRepository,
+    resolver: mappingResolver,
+    logger: dependencies.logger,
+  });
+
+  const mappingController = createMetaLeadMappingController({
+    service: mappingService,
+  });
+
+  const mappingRouter = createMetaLeadMappingRoutes({
+    controller: mappingController,
+    validation: MetaLeadMappingValidation,
+    validateRequest: dependencies.middlewares.validateRequest,
+    requireAuth: dependencies.middlewares.requireAuth,
   });
 
   const metaApi = createMetaApi({
@@ -29,9 +62,10 @@ function createMetaWebhookModule({ dependencies, leadsService }) {
     metaApi,
     logger: dependencies.logger,
     config: dependencies.config,
+    mappingResolver,
   });
 
-  const controller = createMetaWebhookController({ 
+  const controller = createMetaWebhookController({
     service,
     logger: dependencies.logger,
   });
@@ -45,9 +79,12 @@ function createMetaWebhookModule({ dependencies, leadsService }) {
   return Object.freeze({
     name: "metaWebhook",
     router,
+    mappingRouter,
     controller,
     service,
     repository,
+    mappingService,
+    mappingResolver,
   });
 }
 

@@ -27,9 +27,18 @@ import SurfaceCard from "../ui/SurfaceCard";
 import SearchableDropdown from "../ui/SearchableDropdown";
 import DestinationPricingManager from "../settings/DestinationPricingManager";
 import CountryManagementPanel from "../settings/CountryManagementPanel";
+import MetaLeadMappingPanel from "../settings/MetaLeadMappingPanel";
 import { buildAdminCountryOptions, type CountryOption } from "../../utils/countries";
 
 import UsersPage from "../../pages/users/UsersPage";
+
+function isSuperAdminRole(role?: string) {
+  const normalized = String(role ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
+  return normalized === "super_admin" || normalized === "superadmin";
+}
 
 type Tab =
   | 'user-management'
@@ -39,6 +48,7 @@ type Tab =
   | 'destinations-pricing'
   | 'pdf-templates'
   | 'integrations'
+  | 'meta-lead-mapping'
 
 type UserRecord = {
   id: string
@@ -116,6 +126,7 @@ const tabs: Array<{ id: Tab; label: string }> = [
   { id: 'roles-permissions', label: 'Roles & Permissions' },
   // { id: 'country-management', label: 'Country Management' },
   { id: 'system-settings', label: 'System Settings' },
+  { id: 'meta-lead-mapping', label: 'Meta Lead Mapping' },
   // { id: 'destinations-pricing', label: 'Destinations & Pricing' },
   // { id: 'pdf-templates', label: 'PDF Templates' }
   // { id: "integrations", label: "Integrations" },
@@ -542,7 +553,8 @@ const RoleListItem: React.FC<{
 )
 
 const Settings: React.FC = () => {
-  const { hasPermission } = useAuth();
+  const { hasPermission, user } = useAuth();
+  const isSuperAdmin = isSuperAdminRole(user?.role);
   const { updatePreferences } = useDateTimePreferences();
   const usersService = useUsersService();
   const authService = useAuthService();
@@ -758,9 +770,10 @@ const Settings: React.FC = () => {
       tabs.filter(tab => {
         if (tab.id === 'user-management') return canReadUsers
         if (tab.id === 'roles-permissions') return canManageRbac
+        if (tab.id === 'meta-lead-mapping') return isSuperAdmin
         return canReadSettings
       }),
-    [canManageRbac, canReadSettings, canReadUsers]
+    [canManageRbac, canReadSettings, canReadUsers, isSuperAdmin]
   )
 
   const loadUsers = useCallback(async () => {
@@ -2168,6 +2181,8 @@ const Settings: React.FC = () => {
             </p>
           </SurfaceCard>
         ) : null}
+
+        {activeTab === 'meta-lead-mapping' ? <MetaLeadMappingPanel /> : null}
 
         {activeTab === 'integrations' ? (
           <SurfaceCard>

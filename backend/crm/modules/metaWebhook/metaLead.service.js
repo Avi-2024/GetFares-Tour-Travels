@@ -8,6 +8,8 @@ import {
 } from "../../core/datetime/timezone.js";
 import { getWebhookFileLogger } from "./webhookFileLogger.js";
 import { LeadFieldsUtils } from "../leads/leadFields.utils.js";
+import { resolveMetaLeadRoutingRule } from "./metaLeadRouting.rules.js";
+
 const META_SOURCE = "Meta Lead Ads";
 
 function normalizeMetaId(value) {
@@ -20,20 +22,7 @@ const META_UTM_MEDIUM = "lead_ads";
 const GRAPH_FETCH_RETRY_LIMIT = 3;
 const GRAPH_FETCH_RETRY_DELAYS_MS = [250, 750];
 
-const {
-  normalizeFieldKey: normalizeKey,
-  normalizeFieldValue: normalizeValue,
-  flattenMetaFieldData,
-  pickFirst,
-  deriveFullName,
-  splitFixedAndDynamicFields,
-  FIXED_FIELD_ALIASES,
-  META_DESTINATION_INTEREST_KEY_PREFIX,
-  pickMetaDestinationInterestText,
-  pickMetaTravelDestinationText,
-  truncateTravelToDb,
-  stripDynamicEntriesByKeyPrefixes,
-} = LeadFieldsUtils;
+const { normalizeFieldValue: normalizeValue, deriveFullName } = LeadFieldsUtils;
 
 function normalizeCampaignCountry(value) {
   const normalized = normalizeValue(value);
@@ -168,36 +157,62 @@ function extractLeadgenEvents(payload = {}) {
   return events;
 }
 
-function buildLeadPayload(metaLead = {}, event = {}, pageConfig = {}, campaign = null) {
-  const { fields, labels } = flattenMetaFieldData(metaLead.field_data);
-  const email = pickFirst(fields, FIXED_FIELD_ALIASES.email);
-  const phone = pickFirst(fields, FIXED_FIELD_ALIASES.phone);
-  const fullName = pickFirst(fields, FIXED_FIELD_ALIASES.fullName);
-  const firstName = pickFirst(fields, FIXED_FIELD_ALIASES.firstName);
-  const lastName = pickFirst(fields, FIXED_FIELD_ALIASES.lastName);
-  const city = pickFirst(fields, FIXED_FIELD_ALIASES.city);
-  let { dynamic, dynamicLabels } = splitFixedAndDynamicFields({ fields, labels });
-  const interestDestination = pickMetaDestinationInterestText(fields);
-  const interestUsable =
-    interestDestination && String(interestDestination).trim().length >= 2
-      ? interestDestination
-      : null;
-  const travelToRaw = pickMetaTravelDestinationText(fields);
-  const travelTo = truncateTravelToDb(travelToRaw, 150);
-  if (interestUsable) {
-    ({ dynamic, dynamicLabels } = stripDynamicEntriesByKeyPrefixes(
-      { dynamic, dynamicLabels },
-      [META_DESTINATION_INTEREST_KEY_PREFIX],
-    ));
-  }
+async function buildLeadPayload(
+  metaLead = {},
+  event = {},
+  pageConfig = {},
+  campaign = null,
+  mappingResolver = null,
+) {
   const metaCampaignId = String(
     metaLead.campaign_id || event.campaignId || "",
   ).trim() || null;
   const metaPageId = normalizeMetaId(event.pageId || metaLead.page_id || null);
   const metaFormId = normalizeMetaId(metaLead.form_id || event.formId || null);
   const metaAdId = normalizeMetaId(metaLead.ad_id || event.adId || null);
-  const { leadCountry, clientCurrency } =
-    resolveMetaLeadCountryAndCurrency(pageConfig);
+
+  const routingRule = resolveMetaLeadRoutingRule({
+    metaPageId,
+    metaFormId,
+    metaAdId,
+  });
+  const legacyAssign = routingRule?.assign || {};
+
+  const scope = {
+    metaAdId,
+    metaFormId,
+    metaCampaignId,
+    metaPageId,
+    metaLeadId: event.leadgenId,
+  };
+
+  const mapped = mappingResolver ?
+      await mappingResolver.resolveAndApply({
+        fieldData: metaLead.field_data,
+        scope,
+        useLegacyFallback: true,
+      })
+    : null;
+
+  const mappedPayload = mapped?.payload || {};
+  const profileAssign = mapped?.profileAssign || {};
+  const pageDefaults = resolveMetaLeadCountryAndCurrency(pageConfig);
+
+  const email = mappedPayload.email || null;
+  const phone = mappedPayload.phone || null;
+
+  const leadCountry =
+    profileAssign.leadCountry ||
+    mappedPayload.leadCountry ||
+    pageDefaults.leadCountry ||
+    null;
+
+  const clientCurrency =
+    profileAssign.clientCurrency ||
+    mappedPayload.clientCurrency ||
+    pageDefaults.clientCurrency ||
+    null;
+
   const leadWallTz = ianaFromLeadCountry(leadCountry || pageConfig.countryName);
   const metaUtc = toUtc(metaLead.created_time);
   const clientCreatedAt =
@@ -206,26 +221,38 @@ function buildLeadPayload(metaLead = {}, event = {}, pageConfig = {}, campaign =
 
   return {
     fullName: deriveFullName({
-      fullName,
-      firstName,
-      lastName,
+      fullName: mappedPayload.fullName,
       email,
       phone,
       hint: event.leadgenId,
     }),
     email,
     phone,
-    city,
-    travelTo,
-    destinationName: travelTo,
-    platform: "meta",
-    campaignName: campaign?.name || null,
-    adName: normalizeValue(metaLead.ad_name ?? metaLead.adName ?? null),
-    source: pageConfig.sourceLabel || META_SOURCE,
-    leadType: null,
+    city: mappedPayload.city || null,
+    nationality: mappedPayload.nationality || null,
+    travelTo: mappedPayload.travelTo || null,
+    destinationName: mappedPayload.destinationName || mappedPayload.travelTo || null,
+    travelPurpose: mappedPayload.travelPurpose || null,
+    budget: mappedPayload.budget ?? null,
+    visaRequired: mappedPayload.visaRequired,
+    clientCurrency,
+    platform: mappedPayload.platform || "meta",
+    campaignName: mappedPayload.campaignName || campaign?.name || null,
+    adName:
+      mappedPayload.adName ||
+      normalizeValue(metaLead.ad_name ?? metaLead.adName ?? null),
+    source:
+      profileAssign.sourceLabel ||
+      legacyAssign.source ||
+      pageConfig.sourceLabel ||
+      META_SOURCE,
+    leadType:
+      profileAssign.leadType ||
+      mappedPayload.leadType ||
+      legacyAssign.leadType ||
+      null,
     leadCountry,
     country: leadCountry,
-    clientCurrency,
     countryId: pageConfig.countryId || null,
     campaignId: campaign?.id || null,
     metaLeadId: event.leadgenId,
@@ -241,8 +268,9 @@ function buildLeadPayload(metaLead = {}, event = {}, pageConfig = {}, campaign =
     utmMedium: META_UTM_MEDIUM,
     utmCampaign: metaCampaignId,
     notes: buildNotes(metaLead, event.leadgenId, event),
-    dynamicFields: dynamic,
-    dynamicFieldLabels: dynamicLabels,
+    dynamicFields: mapped?.dynamic || {},
+    dynamicFieldLabels: mapped?.dynamicLabels || {},
+    metaMappingProfileId: mapped?.matchedProfileId || null,
   };
 }
 
@@ -413,6 +441,7 @@ function createMetaLeadService({
   metaApi,
   logger,
   config,
+  mappingResolver = null,
 }) {
   const fileLogger = getWebhookFileLogger();
   const verifyToken = config?.meta?.verifyToken;
@@ -1005,7 +1034,13 @@ function createMetaLeadService({
     console.log("Campaign:", campaign ? JSON.stringify(summarizeCampaignRecord(campaign), null, 2) : "NONE");
     
     console.log("\n========== BUILDING LEAD PAYLOAD ==========");
-    const payload = buildLeadPayload(metaLead, event, pageConfig, campaign);
+    const payload = await buildLeadPayload(
+      metaLead,
+      event,
+      pageConfig,
+      campaign,
+      mappingResolver,
+    );
     console.log("Lead payload:", JSON.stringify(payload, null, 2));
     
     fileLogger.logLeadPayload(event.leadgenId, payload);
