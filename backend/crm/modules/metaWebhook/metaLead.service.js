@@ -8,9 +8,13 @@ import {
 } from "../../core/datetime/timezone.js";
 import { getWebhookFileLogger } from "./webhookFileLogger.js";
 import { LeadFieldsUtils } from "../leads/leadFields.utils.js";
-import { resolveMetaLeadRoutingRule, normalizeMetaId } from "./metaLeadRouting.rules.js";
-
 const META_SOURCE = "Meta Lead Ads";
+
+function normalizeMetaId(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+  return raw.replace(/^[a-z_]+:/i, "");
+}
 const META_UTM_SOURCE = "meta";
 const META_UTM_MEDIUM = "lead_ads";
 const GRAPH_FETCH_RETRY_LIMIT = 3;
@@ -192,11 +196,6 @@ function buildLeadPayload(metaLead = {}, event = {}, pageConfig = {}, campaign =
   const metaPageId = normalizeMetaId(event.pageId || metaLead.page_id || null);
   const metaFormId = normalizeMetaId(metaLead.form_id || event.formId || null);
   const metaAdId = normalizeMetaId(metaLead.ad_id || event.adId || null);
-  const routingRule = resolveMetaLeadRoutingRule({
-    metaPageId,
-    metaFormId,
-    metaAdId,
-  });
   const { leadCountry, clientCurrency } =
     resolveMetaLeadCountryAndCurrency(pageConfig);
   const leadWallTz = ianaFromLeadCountry(leadCountry || pageConfig.countryName);
@@ -222,8 +221,8 @@ function buildLeadPayload(metaLead = {}, event = {}, pageConfig = {}, campaign =
     platform: "meta",
     campaignName: campaign?.name || null,
     adName: normalizeValue(metaLead.ad_name ?? metaLead.adName ?? null),
-    source: routingRule?.assign?.source || pageConfig.sourceLabel || META_SOURCE,
-    leadType: routingRule?.assign?.leadType || null,
+    source: pageConfig.sourceLabel || META_SOURCE,
+    leadType: null,
     leadCountry,
     country: leadCountry,
     clientCurrency,
