@@ -1,51 +1,80 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Country } from 'country-state-city'
+import {
+  FaCheck,
+  FaChevronDown,
+  FaChevronUp,
+  FaPlus,
+  FaRotate,
+  FaTrash
+} from 'react-icons/fa6'
 import { toast } from 'sonner'
-import SurfaceCard from '../ui/SurfaceCard'
-import SearchableDropdown from '../ui/SearchableDropdown'
 import { getApiErrorMessage } from '../../api/apiClient'
 import { useAuth } from '../../context/AuthContext'
 import { getCurrencyOptions } from '../../utils/currency'
 import {
   metaLeadMappingsApi,
+  type MetaLeadFieldMap,
   type MetaLeadMappingMetadata,
   type MetaLeadProfile,
   type MetaLeadScopeType
 } from '../../api/metaLeadMappings'
+import { canManageMetaConfiguration } from '../../utils/roles'
+import SearchableDropdown from '../ui/SearchableDropdown'
 
-const SCOPE_LABELS: Record<MetaLeadScopeType, string> = {
-  ad: 'Ad ID',
-  form: 'Form ID',
-  campaign: 'Campaign ID',
-  page: 'Page ID',
-  default: 'Default (fallback)'
+/* ─── constants ─────────────────────────────────────────────── */
+const SCOPE_ORDER: MetaLeadScopeType[] = ['ad', 'form', 'campaign', 'page', 'default']
+
+const SCOPE_INFO: Record<
+  MetaLeadScopeType,
+  { label: string; idLabel: string; placeholder: string; hint: string }
+> = {
+  ad: {
+    label: 'Specific ad',
+    idLabel: 'Ad ID',
+    placeholder: '120245301739500369',
+    hint: 'Best match — one ad creative.'
+  },
+  form: {
+    label: 'Lead form',
+    idLabel: 'Form ID',
+    placeholder: '964456066326392',
+    hint: 'Use when same form runs on multiple ads.'
+  },
+  campaign: {
+    label: 'Campaign',
+    idLabel: 'Campaign ID',
+    placeholder: '120242855833600369',
+    hint: 'Matches all ads in this campaign.'
+  },
+  page: {
+    label: 'Facebook page',
+    idLabel: 'Page ID',
+    placeholder: '1021995967663811',
+    hint: 'Every lead from this Facebook page.'
+  },
+  default: {
+    label: 'Fallback (all others)',
+    idLabel: '',
+    placeholder: '',
+    hint: 'Used when no other rule matches.'
+  }
 }
 
-const LEAD_TYPE_OPTIONS = [
-  { value: '', label: 'Inherit (from page fallback)' },
+const LEAD_TYPES = [
   { value: 'HOLIDAY', label: 'Holidays' },
-  { value: 'VISA', label: 'Visa' },
-  { value: 'BOTH', label: 'Both' }
+  { value: 'VISA', label: 'Visa' }
 ]
 
-const COMMON_QUESTION_KEYS = [
+const QUESTION_PRESETS = [
   { value: 'what_is_your_nationality', label: 'Nationality' },
   { value: 'which_destination_would_you_like_to_visit', label: 'Destination' },
-  {
-    value: 'which_destinations_are_you_interested_in',
-    label: 'Destinations (multi)'
-  },
+  { value: 'which_destinations_are_you_interested_in', label: 'Destinations (multi)' },
   { value: 'what_is_your_budget_per_person', label: 'Budget per person' },
   { value: 'which_visa_assistance_are_you_looking_for', label: 'Visa type' },
   { value: 'what_is_the_purpose_of_travel', label: 'Travel purpose' },
-  {
-    value: 'which_maldives_resort_are_you_interested_in',
-    label: 'Maldives resort'
-  },
-  {
-    value: 'which_uae_city_will_you_be_travelling_from',
-    label: 'UAE city'
-  },
+  { value: 'which_maldives_resort_are_you_interested_in', label: 'Maldives resort' },
+  { value: 'which_uae_city_will_you_be_travelling_from', label: 'UAE city' },
   { value: 'city', label: 'City' }
 ]
 
@@ -53,363 +82,739 @@ const SAMPLE_JSON = `[
   {"name":"full_name","values":["Test User"]},
   {"name":"email","values":["test@example.com"]},
   {"name":"phone_number","values":["+971501234567"]},
-  {"name":"what_is_your_nationality?","values":["Bangladesh"]}
+  {"name":"what_is_your_nationality","values":["India"]}
 ]`
 
-function isSuperAdminRole(role?: string) {
-  const normalized = String(role ?? '')
-    .trim()
-    .toLowerCase()
-    .replace(/[\s-]+/g, '_')
-  return normalized === 'super_admin' || normalized === 'superadmin'
+/* ─── tiny components ───────────────────────────────────────── */
+function Label({ children }: { children: React.ReactNode }) {
+  return <p className="mb-1 text-sm font-medium text-slate-700">{children}</p>
 }
 
+function Hint({ children }: { children: React.ReactNode }) {
+  return <p className="mt-1 text-xs text-slate-400">{children}</p>
+}
+
+function TextInput({
+  value,
+  onChange,
+  placeholder,
+  disabled,
+  mono
+}: {
+  value: string
+  onChange: (v: string) => void
+  placeholder?: string
+  disabled?: boolean
+  mono?: boolean
+}) {
+  return (
+    <input
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      disabled={disabled}
+      className={`w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm transition focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-400 ${mono ? 'font-mono' : ''}`}
+    />
+  )
+}
+
+function RuleCard({
+  profile,
+  active,
+  onClick
+}: {
+  profile: MetaLeadProfile
+  active: boolean
+  onClick: () => void
+}) {
+  const info = SCOPE_INFO[profile.scopeType]
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`w-full rounded-xl border px-4 py-3 text-left transition-colors ${
+        active
+          ? 'border-blue-300 bg-blue-50'
+          : 'border-slate-200 bg-white hover:bg-slate-50'
+      }`}
+    >
+      <p className="text-sm font-semibold text-slate-800">{profile.name}</p>
+      <p className="mt-0.5 text-xs text-slate-500">
+        {info.label}
+        {profile.scopeId ? (
+          <span className="ml-1 font-mono text-slate-400">· {profile.scopeId}</span>
+        ) : null}
+      </p>
+      <div className="mt-1.5 flex flex-wrap gap-1">
+        {profile.leadType && (
+          <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-medium text-violet-700">
+            {profile.leadType === 'HOLIDAY' ? 'Holidays' : 'Visa'}
+          </span>
+        )}
+        {profile.clientCurrency && (
+          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+            {profile.clientCurrency}
+          </span>
+        )}
+        {profile.leadCountry && (
+          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+            {profile.leadCountry}
+          </span>
+        )}
+      </div>
+    </button>
+  )
+}
+
+/* ─── rule form state ────────────────────────────────────────── */
+type RuleForm = {
+  name: string
+  scopeType: MetaLeadScopeType
+  scopeId: string
+  leadType: string
+  leadCountry: string
+  currency: string
+  sourceLabel: string
+}
+
+const emptyForm = (): RuleForm => ({
+  name: '',
+  scopeType: 'form',
+  scopeId: '',
+  leadType: 'HOLIDAY',
+  leadCountry: '',
+  currency: 'INR',
+  sourceLabel: ''
+})
+
+function formFromProfile(p: MetaLeadProfile): RuleForm {
+  return {
+    name: p.name,
+    scopeType: p.scopeType,
+    scopeId: p.scopeId || '',
+    leadType: p.leadType === 'VISA' ? 'VISA' : 'HOLIDAY',
+    leadCountry: p.leadCountry || '',
+    currency: p.clientCurrency || 'INR',
+    sourceLabel: p.sourceLabel || ''
+  }
+}
+
+/* ─── main ───────────────────────────────────────────────────── */
 const MetaLeadMappingPanel: React.FC = () => {
   const { user } = useAuth()
-  const isSuperAdmin = isSuperAdminRole(user?.role)
+  const canManage = canManageMetaConfiguration(user?.role)
+  const mountedRef = useRef(true)
+
+  /* data */
   const [metadata, setMetadata] = useState<MetaLeadMappingMetadata | null>(null)
   const [profiles, setProfiles] = useState<MetaLeadProfile[]>([])
-  const [selectedId, setSelectedId] = useState('')
-  const [loading, setLoading] = useState(true)
+  const [bootstrapping, setBootstrapping] = useState(true)
+
+  /* ui states */
   const [saving, setSaving] = useState(false)
-  const [name, setName] = useState('')
-  const [scopeType, setScopeType] = useState<MetaLeadScopeType>('form')
-  const [scopeId, setScopeId] = useState('')
-  const [priority, setPriority] = useState('100')
-  const [leadType, setLeadType] = useState('')
-  const [leadCountry, setLeadCountry] = useState('')
-  const [clientCurrency, setClientCurrency] = useState('INR')
-  const [sourceLabel, setSourceLabel] = useState('')
-  const [questionPreset, setQuestionPreset] = useState('')
-  const [mapKeys, setMapKeys] = useState('')
+  const [addingMap, setAddingMap] = useState(false)
+  const [removingMapId, setRemovingMapId] = useState<string | null>(null)
+  const [testing, setTesting] = useState(false)
+
+  /* rule form */
+  const [selectedId, setSelectedId] = useState('')
+  const [isNew, setIsNew] = useState(false)
+  const [form, setForm] = useState<RuleForm>(emptyForm())
+
+  /* section toggles */
+  const [showMaps, setShowMaps] = useState(false)
+  const [showTest, setShowTest] = useState(false)
+
+  /* question map form */
+  const [mapQuestion, setMapQuestion] = useState('')
   const [mapColumn, setMapColumn] = useState('')
-  const [mapTransform, setMapTransform] = useState('none')
+
+  /* test */
+  const [testJson, setTestJson] = useState(SAMPLE_JSON)
   const [testFormId, setTestFormId] = useState('')
   const [testAdId, setTestAdId] = useState('')
-  const [testJson, setTestJson] = useState(SAMPLE_JSON)
+  const [testCampaignId, setTestCampaignId] = useState('')
   const [testResult, setTestResult] = useState('')
 
+  /* ── derived ── */
   const selected = useMemo(
-    () => profiles.find(p => p.id === selectedId) ?? null,
+    () => profiles.find((p) => p.id === selectedId) ?? null,
     [profiles, selectedId]
   )
 
+  const formOpen = isNew || selectedId !== ''
+
+  const countryOptions = useMemo(
+    () => [
+      { value: '', label: 'Select country' },
+      ...Country.getAllCountries()
+        .map((c) => ({ value: c.name, label: c.name }))
+        .sort((a, b) => a.label.localeCompare(b.label))
+    ],
+    []
+  )
+
+  const currencyOptions = useMemo(() => getCurrencyOptions(false), [])
+
   const columnOptions = useMemo(
     () =>
-      (metadata?.mappableColumns ?? []).map(c => ({
+      (metadata?.mappableColumns ?? []).map((c) => ({
         value: c.column,
-        label: `${c.label} (${c.column})`
+        label: c.label
       })),
     [metadata]
   )
 
-  const scopeOptions = useMemo(
-    () =>
-      (metadata?.scopeTypes ?? ['form']).map(t => ({
-        value: t,
-        label: SCOPE_LABELS[t as MetaLeadScopeType] ?? t
-      })),
-    [metadata]
-  )
-
-  const transformOptions = useMemo(
-    () => (metadata?.transforms ?? ['none']).map(t => ({ value: t, label: t })),
-    [metadata]
-  )
-
-  const load = useCallback(async () => {
-    setLoading(true)
-    try {
-      const [meta, list] = await Promise.all([
-        metaLeadMappingsApi.getMetadata(),
-        metaLeadMappingsApi.listProfiles()
-      ])
-      setMetadata(meta)
-      setProfiles(list)
-      setSelectedId(prev => prev || list[0]?.id || '')
-    } catch (e) {
-      toast.error(getApiErrorMessage(e, 'Load failed'))
-    } finally {
-      setLoading(false)
+  /* ── initial load (once) ── */
+  useEffect(() => {
+    mountedRef.current = true
+    const init = async () => {
+      try {
+        const [meta, list] = await Promise.all([
+          metaLeadMappingsApi.getMetadata(),
+          metaLeadMappingsApi.listProfiles()
+        ])
+        if (!mountedRef.current) return
+        setMetadata(meta)
+        setProfiles(list)
+      } catch (err) {
+        if (!mountedRef.current) return
+        toast.error(getApiErrorMessage(err, 'Failed to load rules'))
+      } finally {
+        if (mountedRef.current) setBootstrapping(false)
+      }
+    }
+    void init()
+    return () => {
+      mountedRef.current = false
     }
   }, [])
 
-  useEffect(() => {
-    void load()
-  }, [load])
+  /* ── form helpers ── */
+  const setF = useCallback(
+    <K extends keyof RuleForm>(key: K, value: RuleForm[K]) =>
+      setForm((f) => ({ ...f, [key]: value })),
+    []
+  )
 
-  useEffect(() => {
-    if (!selected) {
-      setName('')
-      setScopeType('form')
-      setScopeId('')
-      return
-    }
-    setName(selected.name)
-    setScopeType(selected.scopeType)
-    setScopeId(selected.scopeId || '')
-    setPriority(String(selected.priority ?? 100))
-    setLeadType(selected.leadType || '')
-    setLeadCountry(selected.leadCountry || '')
-    setClientCurrency(selected.clientCurrency || '')
-    setSourceLabel(selected.sourceLabel || '')
-    if (selected.scopeType === 'form') setTestFormId(selected.scopeId)
-  }, [selected])
+  const openNew = () => {
+    setSelectedId('')
+    setIsNew(true)
+    setForm(emptyForm())
+    setShowMaps(false)
+    setTestResult('')
+  }
 
-  const profilePayload = () => ({
-    name: name.trim(),
-    scopeType,
-    scopeId: scopeType === 'default' ? '' : scopeId.trim(),
-    priority: Number(priority) || 100,
-    leadType: leadType || null,
-    leadCountry: leadCountry.trim() || null,
-    clientCurrency: clientCurrency.trim() || null,
-    sourceLabel: sourceLabel.trim() || null,
-    isActive: true
-  })
+  const selectRule = (id: string) => {
+    const p = profiles.find((x) => x.id === id)
+    if (!p) return
+    setIsNew(false)
+    setSelectedId(id)
+    setForm(formFromProfile(p))
+    setShowMaps(false)
+    setTestResult('')
+    if (p.scopeType === 'form') setTestFormId(p.scopeId || '')
+    else if (p.scopeType === 'ad') setTestAdId(p.scopeId || '')
+    else if (p.scopeType === 'campaign') setTestCampaignId(p.scopeId || '')
+  }
 
-  const saveProfile = async () => {
-    if (!name.trim()) return toast.error('Name required')
+  const closeForm = () => {
+    setSelectedId('')
+    setIsNew(false)
+    setShowMaps(false)
+    setTestResult('')
+  }
+
+  /* helper: replace one profile in list */
+  const patchProfile = useCallback(
+    (updated: MetaLeadProfile) =>
+      setProfiles((prev) =>
+        prev.map((p) => (p.id === updated.id ? updated : p))
+      ),
+    []
+  )
+
+  /* ── save rule ── */
+  const saveRule = async () => {
+    if (!form.name.trim()) return toast.error('Rule name is required')
+    if (form.scopeType !== 'default' && !form.scopeId.trim())
+      return toast.error(`${SCOPE_INFO[form.scopeType].idLabel} is required`)
+    if (!form.leadType) return toast.error('Select lead type')
+    if (!form.currency) return toast.error('Select currency')
+
     setSaving(true)
     try {
-      if (selected) {
-        await metaLeadMappingsApi.updateProfile(selected.id, profilePayload())
-        await metaLeadMappingsApi.reloadCache()
-        toast.success('Saved')
-      } else {
-        const created = await metaLeadMappingsApi.createProfile(profilePayload())
-        setSelectedId(created.id)
-        toast.success('Created')
+      const payload = {
+        name: form.name.trim(),
+        scopeType: form.scopeType,
+        scopeId: form.scopeType === 'default' ? '' : form.scopeId.trim(),
+        priority: selected?.priority ?? 100,
+        leadType: form.leadType || null,
+        leadCountry: form.leadCountry || null,
+        clientCurrency: form.currency || null,
+        sourceLabel: form.sourceLabel.trim() || null,
+        isActive: true
       }
-      await load()
-    } catch (e) {
-      toast.error(getApiErrorMessage(e, 'Save failed'))
+
+      if (selected) {
+        const updated = await metaLeadMappingsApi.updateProfile(selected.id, payload)
+        /* update in list, preserve fieldMaps */
+        patchProfile({ ...updated, fieldMaps: selected.fieldMaps })
+        toast.success('Rule saved')
+      } else {
+        const created = await metaLeadMappingsApi.createProfile(payload)
+        setProfiles((prev) => [...prev, { ...created, fieldMaps: [] }])
+        setIsNew(false)
+        setSelectedId(created.id)
+        toast.success('Rule created')
+      }
+      /* fire-and-forget cache reload */
+      metaLeadMappingsApi.reloadCache().catch(() => {})
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Save failed'))
     } finally {
       setSaving(false)
     }
   }
 
+  /* ── add question map ── */
   const addMap = async () => {
-    if (!selected) return toast.error('Select profile')
-    const keys = mapKeys.split(/[\n,]+/).map(s => s.trim()).filter(Boolean)
-    if (!keys.length || !mapColumn) return toast.error('Keys and column required')
-    setSaving(true)
+    if (!selected) return toast.error('Save rule first')
+    if (!mapQuestion.trim()) return toast.error('Pick a question')
+    if (!mapColumn) return toast.error('Pick a CRM field')
+
+    setAddingMap(true)
     try {
-      await metaLeadMappingsApi.createFieldMap(selected.id, {
-        metaFieldKeys: keys,
+      const newMap = await metaLeadMappingsApi.createFieldMap(selected.id, {
+        metaFieldKeys: [mapQuestion.trim()],
         targetColumn: mapColumn,
-        transform: mapTransform
+        transform: 'none'
       })
-      setMapKeys('')
-      await metaLeadMappingsApi.reloadCache()
-      await load()
-      toast.success('Map added')
-    } catch (e) {
-      toast.error(getApiErrorMessage(e, 'Add map failed'))
+      /* append map to profile in list */
+      patchProfile({
+        ...selected,
+        fieldMaps: [...(selected.fieldMaps || []), newMap]
+      })
+      setMapQuestion('')
+      setMapColumn('')
+      metaLeadMappingsApi.reloadCache().catch(() => {})
+      toast.success('Mapping added')
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Failed to add mapping'))
     } finally {
-      setSaving(false)
+      setAddingMap(false)
     }
   }
 
+  /* ── remove question map ── */
   const removeMap = async (mapId: string) => {
-    setSaving(true)
+    if (!selected) return
+    setRemovingMapId(mapId)
     try {
       await metaLeadMappingsApi.deleteFieldMap(mapId)
-      await metaLeadMappingsApi.reloadCache()
-      await load()
-      toast.success('Map removed')
-    } catch (e) {
-      toast.error(getApiErrorMessage(e, 'Remove failed'))
+      patchProfile({
+        ...selected,
+        fieldMaps: (selected.fieldMaps || []).filter((m) => m.id !== mapId)
+      })
+      metaLeadMappingsApi.reloadCache().catch(() => {})
+      toast.success('Mapping removed')
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Failed to remove'))
     } finally {
-      setSaving(false)
+      setRemovingMapId(null)
     }
   }
 
-  if (!isSuperAdmin) {
+  /* ── test ── */
+  const runTest = async () => {
+    setTesting(true)
+    setTestResult('')
+    try {
+      let fieldData: unknown
+      try {
+        fieldData = JSON.parse(testJson)
+      } catch {
+        toast.error('Invalid JSON in sample')
+        return
+      }
+      const result = await metaLeadMappingsApi.testMapping({
+        fieldData: fieldData as Parameters<typeof metaLeadMappingsApi.testMapping>[0]['fieldData'],
+        metaFormId: testFormId.trim() || undefined,
+        metaAdId: testAdId.trim() || undefined,
+        metaCampaignId: testCampaignId.trim() || undefined
+      })
+      setTestResult(JSON.stringify(result, null, 2))
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Test failed'))
+    } finally {
+      setTesting(false)
+    }
+  }
+
+  /* ── guards ── */
+  if (!canManage)
     return (
-      <SurfaceCard className='p-4'>
-        <p className='text-sm text-gray-600 dark:text-gray-300'>
-          Meta Lead Mapping is only available to super admin users.
-        </p>
-      </SurfaceCard>
+      <p className="text-sm text-slate-500">Admin or super admin access required.</p>
     )
-  }
 
-  if (loading && !profiles.length) {
-    return <p className='text-sm text-gray-500'>Loading…</p>
-  }
+  if (bootstrapping)
+    return (
+      <div className="flex items-center gap-2 text-sm text-slate-500">
+        <FaRotate className="animate-spin" /> Loading rules…
+      </div>
+    )
 
+  const info = SCOPE_INFO[form.scopeType]
+
+  /* ─── render ─────────────────────────────────────────────────── */
   return (
-    <div className='space-y-4'>
-      <SurfaceCard className='p-4'>
-        <div className='flex flex-wrap justify-between gap-2'>
-          <div>
-            <h2 className='text-lg font-semibold'>Meta Lead Mapping</h2>
-            <p className='text-sm text-gray-500'>
-              Configure per ad / form / page in database — not in .env. Secrets
-              (tokens) stay in server env only.
-            </p>
-            {metadata?.configSource ? (
-              <p className='mt-1 text-xs text-gray-400'>{metadata.configSource}</p>
-            ) : null}
-          </div>
+    <div className="flex gap-6 max-w-5xl">
+
+      {/* ── Left: rule list ── */}
+      <div className="w-64 shrink-0 space-y-2">
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-semibold text-slate-700">Rules</p>
           <button
-            type='button'
-            className='btn-secondary text-sm'
-            onClick={() =>
-              metaLeadMappingsApi.reloadCache().then(r =>
-                toast.success(`Cache: ${r.profileCount} profiles`)
-              )
-            }
+            type="button"
+            onClick={openNew}
+            disabled={saving}
+            className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs hover:bg-slate-50 disabled:opacity-40"
           >
-            Reload cache
+            <FaPlus /> New
           </button>
         </div>
-      </SurfaceCard>
 
-      <div className='grid gap-4 xl:grid-cols-[260px_1fr]'>
-        <SurfaceCard className='p-3'>
-          <button
-            type='button'
-            className='btn-secondary mb-2 w-full text-sm'
-            onClick={() => {
-              setSelectedId('')
-              setName('')
-            }}
-          >
-            New profile
-          </button>
-          {profiles.map(p => (
-            <button
+        {profiles.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-slate-300 py-8 text-center text-xs text-slate-400">
+            No rules yet
+          </div>
+        ) : (
+          profiles.map((p) => (
+            <RuleCard
               key={p.id}
-              type='button'
-              className={`mb-1 w-full rounded-lg px-2 py-2 text-left text-sm ${
-                p.id === selectedId ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-100'
-              }`}
-              onClick={() => setSelectedId(p.id)}
-            >
-              {p.name}
-              <span className='block text-xs text-gray-500'>
-                {p.scopeType} {p.scopeId}
-              </span>
-            </button>
-          ))}
-        </SurfaceCard>
-
-        <div className='space-y-4'>
-          <SurfaceCard className='p-4 space-y-3'>
-            <h3 className='font-medium'>{selected ? 'Edit' : 'Create'} profile</h3>
-            <p className='text-xs text-gray-500'>
-              Scope: which ad / form / page this rule applies to (paste ID from
-              Meta Ads Manager).
-            </p>
-            <input className='field-input' placeholder='Profile name' value={name} onChange={e => setName(e.target.value)} />
-            <SearchableDropdown value={scopeType} options={scopeOptions} onChange={v => setScopeType(v as MetaLeadScopeType)} />
-            <input className='field-input font-mono text-xs' placeholder='Scope ID (Meta)' value={scopeId} disabled={scopeType === 'default'} onChange={e => setScopeId(e.target.value)} />
-            <input className='field-input' type='number' placeholder='Priority (lower = wins)' value={priority} onChange={e => setPriority(e.target.value)} />
-
-            <div className='border-t border-gray-200 pt-3 dark:border-gray-700'>
-              <p className='mb-2 text-sm font-medium text-gray-800 dark:text-gray-100'>
-                Fixed defaults (dropdowns)
-              </p>
-              <label className='field-label'>Lead type</label>
-              <SearchableDropdown value={leadType} options={LEAD_TYPE_OPTIONS} onChange={setLeadType} />
-              <label className='field-label mt-2'>Lead country</label>
-              <SearchableDropdown value={leadCountry} options={countryOptions} searchPlaceholder='Search country…' onChange={setLeadCountry} />
-              <label className='field-label mt-2'>Client currency</label>
-              <SearchableDropdown value={clientCurrency} options={currencyOptions} searchPlaceholder='Search currency…' onChange={setClientCurrency} />
-              <label className='field-label mt-2'>Lead source label</label>
-              <input className='field-input' placeholder='e.g. Getfares, Meta India Page' value={sourceLabel} onChange={e => setSourceLabel(e.target.value)} />
-            </div>
-
-            <button type='button' className='btn-primary text-sm' disabled={saving} onClick={() => void saveProfile()}>
-              {selected ? 'Save profile' : 'Create profile'}
-            </button>
-          </SurfaceCard>
-
-          {selected ? (
-            <SurfaceCard className='p-4 space-y-2'>
-              <h3 className='font-medium'>Map form questions → lead fields</h3>
-              <p className='text-xs text-gray-500'>
-                Nationality, destination, budget, etc. come from the ad form
-                answers — pick CRM field and Meta question key(s).
-              </p>
-              {(selected.fieldMaps || []).map(m => (
-                <div key={m.id} className='flex items-center justify-between rounded border p-2 text-xs'>
-                  <span className='font-mono'>{m.metaFieldKeys.join(', ')} → {m.targetColumn}</span>
-                  <button
-                    type='button'
-                    className='text-red-600 disabled:opacity-50'
-                    disabled={saving}
-                    onClick={() => void removeMap(m.id)}
-                  >
-                    Remove
-                  </button>
-                </div>
-              ))}
-              <label className='field-label'>Common question (optional)</label>
-              <SearchableDropdown
-                value={questionPreset}
-                options={[
-                  { value: '', label: 'Pick preset or type keys below' },
-                  ...COMMON_QUESTION_KEYS
-                ]}
-                onChange={v => {
-                  setQuestionPreset(v)
-                  if (v) setMapKeys(v)
-                }}
-              />
-              <label className='field-label'>Meta question keys (comma or newline)</label>
-              <textarea className='field-input font-mono text-xs' rows={2} placeholder='what_is_your_nationality' value={mapKeys} onChange={e => setMapKeys(e.target.value)} />
-              <label className='field-label'>CRM field</label>
-              <SearchableDropdown value={mapColumn} options={formColumnOptions} searchPlaceholder='Nationality, Destination…' onChange={setMapColumn} />
-              <SearchableDropdown value={mapTransform} options={transformOptions} onChange={setMapTransform} />
-              <button type='button' className='btn-secondary text-sm' disabled={saving} onClick={() => void addMap()}>
-                Add map
-              </button>
-            </SurfaceCard>
-          ) : null}
-
-          <SurfaceCard className='p-4 space-y-2'>
-            <h3 className='font-medium'>Test</h3>
-            <input
-              className='field-input font-mono text-xs'
-              placeholder='metaFormId'
-              value={testFormId}
-              onChange={e => setTestFormId(e.target.value)}
+              profile={p}
+              active={selectedId === p.id && !isNew}
+              onClick={() => selectRule(p.id)}
             />
-            <input
-              className='field-input font-mono text-xs'
-              placeholder='metaAdId (optional)'
-              value={testAdId}
-              onChange={e => setTestAdId(e.target.value)}
-            />
-            <textarea className='field-input font-mono text-xs' rows={5} value={testJson} onChange={e => setTestJson(e.target.value)} />
-            <button
-              type='button'
-              className='btn-primary text-sm'
-              onClick={() => {
-                try {
-                  const fieldData = JSON.parse(testJson)
-                  metaLeadMappingsApi
-                    .testMapping({
-                      fieldData,
-                      metaFormId: testFormId.trim() || undefined,
-                      metaAdId: testAdId.trim() || undefined
-                    })
-                    .then(r => setTestResult(JSON.stringify(r, null, 2)))
-                    .catch(e => toast.error(getApiErrorMessage(e, 'Test failed')))
-                } catch {
-                  toast.error('Invalid JSON')
-                }
-              }}
-            >
-              Run test
-            </button>
-            {testResult ? <pre className='max-h-40 overflow-auto rounded bg-gray-900 p-2 text-xs text-green-200'>{testResult}</pre> : null}
-          </SurfaceCard>
+          ))
+        )}
+
+        <div className="rounded-xl bg-slate-50 p-3 text-xs text-slate-500 leading-5">
+          <strong className="text-slate-700">Priority order:</strong>
+          <br />
+          Ad → Form → Campaign → Page → Fallback
         </div>
       </div>
+
+      {/* ── Right: detail ── */}
+      {formOpen ? (
+        <div className="flex-1 min-w-0 space-y-4">
+
+          {/* ── Rule identity + lead defaults ── */}
+          <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-4">
+            <p className="text-sm font-semibold text-slate-800">
+              {isNew ? 'New rule' : 'Edit rule'}
+            </p>
+
+            <div>
+              <Label>Rule name</Label>
+              <TextInput
+                value={form.name}
+                onChange={(v) => setF('name', v)}
+                placeholder="e.g. India Holidays Form"
+              />
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <Label>When lead comes from</Label>
+                <select
+                  value={form.scopeType}
+                  onChange={(e) => {
+                    setF('scopeType', e.target.value as MetaLeadScopeType)
+                    setF('scopeId', '')
+                  }}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {SCOPE_ORDER.map((s) => (
+                    <option key={s} value={s}>
+                      {SCOPE_INFO[s].label}
+                    </option>
+                  ))}
+                </select>
+                <Hint>{info.hint}</Hint>
+              </div>
+
+              {form.scopeType !== 'default' && (
+                <div>
+                  <Label>{info.idLabel}</Label>
+                  <TextInput
+                    value={form.scopeId}
+                    onChange={(v) => setF('scopeId', v)}
+                    placeholder={info.placeholder}
+                    mono
+                  />
+                  <Hint>Copy from Meta Ads Manager → ID column.</Hint>
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 space-y-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Save this lead as…
+              </p>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <Label>Lead type</Label>
+                  <SearchableDropdown
+                    value={form.leadType}
+                    options={LEAD_TYPES}
+                    onChange={(v) => setF('leadType', v)}
+                  />
+                </div>
+                <div>
+                  <Label>Currency</Label>
+                  <SearchableDropdown
+                    value={form.currency}
+                    options={currencyOptions}
+                    searchPlaceholder="Search currency…"
+                    onChange={(v) => setF('currency', v)}
+                  />
+                </div>
+                <div>
+                  <Label>Country</Label>
+                  <SearchableDropdown
+                    value={form.leadCountry}
+                    options={countryOptions}
+                    searchPlaceholder="Search country…"
+                    onChange={(v) => setF('leadCountry', v)}
+                  />
+                </div>
+                <div>
+                  <Label>Source label</Label>
+                  <TextInput
+                    value={form.sourceLabel}
+                    onChange={(v) => setF('sourceLabel', v)}
+                    placeholder="Meta Ads India"
+                  />
+                  <Hint>Shown as "Lead source" on the lead card.</Hint>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between border-t border-slate-100 pt-4">
+              <button
+                type="button"
+                onClick={closeForm}
+                disabled={saving}
+                className="text-sm text-slate-400 hover:text-slate-700 disabled:opacity-40"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => void saveRule()}
+                className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-5 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+              >
+                {saving ? <FaRotate className="animate-spin" /> : <FaCheck />}
+                {isNew ? 'Create rule' : 'Save rule'}
+              </button>
+            </div>
+          </div>
+
+          {/* ── Question mapping ── */}
+          {selected && (
+            <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setShowMaps((s) => !s)}
+                className="flex w-full items-center justify-between px-5 py-4 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+              >
+                <span>
+                  Question → CRM field mapping
+                  <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-normal text-slate-500">
+                    {selected.fieldMaps?.length ?? 0} mapped
+                  </span>
+                </span>
+                {showMaps ? (
+                  <FaChevronUp className="text-slate-400" />
+                ) : (
+                  <FaChevronDown className="text-slate-400" />
+                )}
+              </button>
+
+              {showMaps && (
+                <div className="border-t border-slate-100 p-5 space-y-4">
+                  <p className="text-xs text-slate-500">
+                    Map a Meta form question to a CRM field so the answer is saved
+                    automatically. E.g. nationality question → Nationality field.
+                  </p>
+
+                  {/* existing maps */}
+                  {(selected.fieldMaps || []).length > 0 && (
+                    <div className="space-y-2">
+                      {selected.fieldMaps.map((m) => (
+                        <div
+                          key={m.id}
+                          className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs"
+                        >
+                          <span className="font-mono text-slate-600 truncate">
+                            {m.metaFieldKeys.join(', ')}
+                            <span className="mx-2 text-slate-400">→</span>
+                            {columnOptions.find((c) => c.value === m.targetColumn)
+                              ?.label ?? m.targetColumn}
+                          </span>
+                          <button
+                            type="button"
+                            disabled={removingMapId === m.id}
+                            onClick={() => void removeMap(m.id)}
+                            className="ml-3 shrink-0 text-red-400 hover:text-red-600 disabled:opacity-40"
+                            title="Remove mapping"
+                          >
+                            {removingMapId === m.id ? (
+                              <FaRotate className="animate-spin" />
+                            ) : (
+                              <FaTrash />
+                            )}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* add new */}
+                  <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] items-end">
+                    <div>
+                      <Label>Form question</Label>
+                      <SearchableDropdown
+                        value={mapQuestion}
+                        options={[
+                          { value: '', label: 'Pick question' },
+                          ...QUESTION_PRESETS
+                        ]}
+                        onChange={setMapQuestion}
+                        searchPlaceholder="Search…"
+                      />
+                    </div>
+                    <div>
+                      <Label>Save into CRM field</Label>
+                      <SearchableDropdown
+                        value={mapColumn}
+                        options={[
+                          { value: '', label: 'Pick CRM field' },
+                          ...columnOptions
+                        ]}
+                        onChange={setMapColumn}
+                        searchPlaceholder="Search field…"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      disabled={addingMap || !mapQuestion || !mapColumn}
+                      onClick={() => void addMap()}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-40"
+                    >
+                      {addingMap ? <FaRotate className="animate-spin" /> : <FaPlus />}
+                      Add
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Test rule ── */}
+          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setShowTest((s) => !s)}
+              className="flex w-full items-center justify-between px-5 py-4 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+            >
+              <span>
+                Test rule
+                <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-normal text-slate-500">
+                  optional
+                </span>
+              </span>
+              {showTest ? (
+                <FaChevronUp className="text-slate-400" />
+              ) : (
+                <FaChevronDown className="text-slate-400" />
+              )}
+            </button>
+
+            {showTest && (
+              <div className="border-t border-slate-100 p-5 space-y-3">
+                <p className="text-xs text-slate-500">
+                  Paste IDs and a sample form response to see which rule fires.
+                </p>
+
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div>
+                    <Label>Form ID</Label>
+                    <TextInput
+                      value={testFormId}
+                      onChange={setTestFormId}
+                      placeholder="optional"
+                      mono
+                    />
+                  </div>
+                  <div>
+                    <Label>Ad ID</Label>
+                    <TextInput
+                      value={testAdId}
+                      onChange={setTestAdId}
+                      placeholder="optional"
+                      mono
+                    />
+                  </div>
+                  <div>
+                    <Label>Campaign ID</Label>
+                    <TextInput
+                      value={testCampaignId}
+                      onChange={setTestCampaignId}
+                      placeholder="optional"
+                      mono
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <Label>Sample lead JSON</Label>
+                  <textarea
+                    rows={5}
+                    value={testJson}
+                    onChange={(e) => setTestJson(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  disabled={testing}
+                  onClick={() => void runTest()}
+                  className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-700 disabled:opacity-50"
+                >
+                  {testing ? <FaRotate className="animate-spin" /> : null}
+                  Run test
+                </button>
+
+                {testResult && (
+                  <pre className="max-h-56 overflow-auto rounded-lg bg-slate-950 p-4 text-xs text-emerald-300">
+                    {testResult}
+                  </pre>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-slate-300 text-sm text-slate-400">
+          Select a rule to edit, or click{' '}
+          <strong className="mx-1">New</strong> to create one.
+        </div>
+      )}
     </div>
   )
 }

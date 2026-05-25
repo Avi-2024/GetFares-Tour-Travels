@@ -14,7 +14,7 @@ class AuthInterceptor implements IHttpInterceptor {
     config: InternalAxiosRequestConfig,
   ): InternalAxiosRequestConfig {
     const token = this.tokenStorage.loadToken();
-    if (token) {
+    if (token && token !== "cookie_session") {
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;

@@ -4,12 +4,6 @@ import crypto from "node:crypto";
 import { AppError } from "../../core/errors/index.js";
 import { DEFAULT_ROLE } from "../../core/constants/index.js";
 
-const CRM_LOGIN_BLOCKED_ROLE_TOKENS = new Set([
-  "cms_full_access",
-  "cms_access",
-  "crm_full_access",
-]);
-
 function createAuthService({
   repository,
   logger,
@@ -85,13 +79,6 @@ function createAuthService({
         403,
         "This account does not have a CRM role assigned",
         "AUTH_CRM_ROLE_REQUIRED",
-      );
-    }
-    if (CRM_LOGIN_BLOCKED_ROLE_TOKENS.has(normalizedRole)) {
-      throw new AppError(
-        403,
-        "CMS account cannot login to CRM. Please use CMS login.",
-        "AUTH_CMS_ROLE_BLOCKED",
       );
     }
   }

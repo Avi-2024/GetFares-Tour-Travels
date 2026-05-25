@@ -299,18 +299,6 @@ function summarizePageConfig(pageConfig = {}) {
   };
 }
 
-function mergeByKey(items = [], key) {
-  const mapped = new Map();
-
-  items.filter(Boolean).forEach((item) => {
-    const itemKey = String(item?.[key] || "").trim();
-    if (itemKey) {
-      mapped.set(itemKey, item);
-    }
-  });
-
-  return [...mapped.values()];
-}
 
 function buildAutoCampaignName({
   metaCampaignId,
@@ -442,98 +430,60 @@ function createMetaLeadService({
   logger,
   config,
   mappingResolver = null,
+  pageConfigProvider = null,
 }) {
   const fileLogger = getWebhookFileLogger();
-  const verifyToken = config?.meta?.verifyToken;
-  const appSecret = config?.meta?.appSecret;
-  const allowInsecureWebhooks = config?.meta?.allowInsecureWebhooks === true;
-  const envPages = Array.isArray(config?.meta?.pages) ? config.meta.pages : [];
+  // All Meta config is DB-driven (set in Meta Configuration admin panel).
+  // Only allowInsecureWebhooks falls back to env as a last resort.
+  const envAllowInsecure = config?.meta?.allowInsecureWebhooks === true;
 
-  console.log("\n========== META LEAD SERVICE INITIALIZED ==========");
-  console.log("Verify token configured:", verifyToken ? "YES" : "NO");
-  console.log("App secret configured:", appSecret ? "YES" : "NO");
-  console.log("Allow insecure webhooks:", allowInsecureWebhooks);
-  console.log("Environment pages count:", envPages.length);
-  envPages.forEach((page, idx) => {
-    console.log(`\nPage ${idx + 1}:`);
-    console.log("  Page ID:", page.pageId);
-    console.log("  Page Name:", page.pageName);
-    console.log("  Country:", page.countryName, "(", page.countryCode, ")");
-    console.log("  Source Label:", page.sourceLabel);
-    console.log("  Access Token:", page.accessToken ? "[CONFIGURED]" : "[MISSING]");
-    console.log("  App Secret:", page.appSecret ? "[CONFIGURED]" : "[MISSING]");
-    console.log("  Verify Token:", page.verifyToken ? "[CONFIGURED]" : "[MISSING]");
-  });
-  console.log("\n================================================\n");
-  
+  async function getIntegrationSettings() {
+    if (pageConfigProvider?.getResolvedIntegrationForWebhook) {
+      return pageConfigProvider.getResolvedIntegrationForWebhook();
+    }
+    // Fallback: env vars (deprecated — configure via admin panel instead)
+    return {
+      verifyToken: config?.meta?.verifyToken || null,
+      appSecret: config?.meta?.appSecret || null,
+      allowInsecureWebhooks: envAllowInsecure,
+    };
+  }
+
+  async function allowInsecureWebhooksEnabled() {
+    const integration = await getIntegrationSettings();
+    return integration.allowInsecureWebhooks === true || envAllowInsecure;
+  }
+
   fileLogger.logServiceInitialization({
-    verifyToken,
-    appSecret,
-    allowInsecureWebhooks,
-    pages: envPages,
+    source: "db",
+    allowInsecureWebhooks: envAllowInsecure,
   });
 
   async function listConfiguredPages() {
-    const repositoryPages =
-      repository?.listActivePageConfigs ? await repository.listActivePageConfigs() : [];
-    return mergeByKey([...envPages, ...repositoryPages], "pageId");
+    if (pageConfigProvider?.listActivePagesForWebhook) {
+      return pageConfigProvider.listActivePagesForWebhook();
+    }
+    if (repository?.listActivePageConfigs) {
+      return repository.listActivePageConfigs();
+    }
+    return [];
   }
 
   async function resolvePageConfig(pageId) {
-    console.log("\n========== resolvePageConfig ==========");
-    console.log("Looking for page ID:", pageId);
-    
     const normalizedPageId = String(pageId || "").trim();
     if (!normalizedPageId) {
-      console.error("Page ID is empty or null");
       fileLogger.error("Empty Page ID", { pageId });
       return null;
     }
-    console.log("Normalized page ID:", normalizedPageId);
-
-    console.log("Checking environment pages...");
-    console.log("Environment pages count:", envPages.length);
-    envPages.forEach((page, idx) => {
-      console.log(`Env page ${idx}:`, {
-        pageId: page?.pageId,
-        pageName: page?.pageName,
-        countryName: page?.countryName,
-      });
-    });
-    
-    const envPage =
-      envPages.find(
-        (page) => String(page?.pageId || "").trim() === normalizedPageId,
-      ) || null;
-    if (envPage) {
-      console.log("Found in environment pages:", {
-        pageId: envPage.pageId,
-        pageName: envPage.pageName,
-        countryName: envPage.countryName,
-      });
-      fileLogger.logPageConfigResolution(normalizedPageId, true, envPage);
-      return envPage;
-    }
-    console.log("Not found in environment pages");
-
-    console.log("Checking database for page config...");
-    const dbPage = repository?.findPageConfigByPageId ?
+    const page =
+      pageConfigProvider?.findPageConfigForWebhook ?
+        await pageConfigProvider.findPageConfigForWebhook(normalizedPageId)
+      : repository?.findPageConfigByPageId ?
         await repository.findPageConfigByPageId(normalizedPageId)
       : null;
-    
-    if (dbPage) {
-      console.log("Found in database:", {
-        pageId: dbPage.pageId,
-        pageName: dbPage.pageName,
-        countryName: dbPage.countryName,
-      });
-      fileLogger.logPageConfigResolution(normalizedPageId, true, dbPage);
-    } else {
-      console.log("Not found in database");
-      fileLogger.logPageConfigResolution(normalizedPageId, false);
-    }
-    
-    return dbPage;
+
+    fileLogger.logPageConfigResolution(normalizedPageId, !!page, page ?? undefined);
+    return page;
   }
 
   async function verifyWebhook(query = {}) {
@@ -553,8 +503,11 @@ function createMetaLeadService({
       throw new AppError(400, "Invalid hub.mode", "META_WEBHOOK_INVALID");
     }
 
+    const integration = await getIntegrationSettings();
     const tokens = new Set();
-    if (verifyToken) {
+    if (integration.verifyToken) {
+      tokens.add(String(integration.verifyToken));
+    } else if (verifyToken) {
       tokens.add(String(verifyToken));
     }
 
@@ -622,8 +575,11 @@ function createMetaLeadService({
   }
 
   async function getSignatureSecrets(payload = {}) {
+    const integration = await getIntegrationSettings();
     const secrets = new Set();
-    if (appSecret) {
+    if (integration.appSecret) {
+      secrets.add(String(integration.appSecret));
+    } else if (appSecret) {
       secrets.add(String(appSecret));
     }
 
@@ -650,7 +606,7 @@ function createMetaLeadService({
   async function assertSignature(rawBody, signatureHeader, payload = {}) {
    
     
-    if (allowInsecureWebhooks) {
+    if (await allowInsecureWebhooksEnabled()) {
       console.log("Skipping signature validation (insecure mode enabled)");
       fileLogger.info("Signature Validation Skipped", { reason: "insecure_mode" });
       return;
@@ -677,7 +633,7 @@ function createMetaLeadService({
   async function fetchLeadWithRetry(leadgenId, pageConfig = {}) {
     const normalizedId = String(leadgenId || "").trim();
     if (
-      allowInsecureWebhooks &&
+      (await allowInsecureWebhooksEnabled()) &&
       normalizedId.startsWith("testcrm_")
     ) {
       const country = normalizeCampaignCountry(pageConfig.countryName);

@@ -10,6 +10,11 @@ import { createMetaLeadMappingService } from "./metaLeadMapping.service.js";
 import { createMetaLeadMappingController } from "./metaLeadMapping.controller.js";
 import { createMetaLeadMappingRoutes } from "./metaLeadMapping.routes.js";
 import { MetaLeadMappingValidation } from "./metaLeadMapping.validation.js";
+import { createMetaPageConfigRepository } from "./metaPageConfig.repository.js";
+import { createMetaPageConfigService } from "./metaPageConfig.service.js";
+import { createMetaPageConfigController } from "./metaPageConfig.controller.js";
+import { createMetaPageConfigRoutes } from "./metaPageConfig.routes.js";
+import { MetaPageConfigValidation } from "./metaPageConfig.validation.js";
 
 function createMetaWebhookModule({ dependencies, leadsService }) {
   if (!leadsService) {
@@ -48,6 +53,28 @@ function createMetaWebhookModule({ dependencies, leadsService }) {
     requireAuth: dependencies.middlewares.requireAuth,
   });
 
+  const pageConfigRepository = createMetaPageConfigRepository({
+    db: dependencies.db,
+    logger: dependencies.logger,
+  });
+
+  const pageConfigService = createMetaPageConfigService({
+    repository: pageConfigRepository,
+    config: dependencies.config,
+    logger: dependencies.logger,
+  });
+
+  const pageConfigController = createMetaPageConfigController({
+    service: pageConfigService,
+  });
+
+  const pageConfigRouter = createMetaPageConfigRoutes({
+    controller: pageConfigController,
+    validation: MetaPageConfigValidation,
+    validateRequest: dependencies.middlewares.validateRequest,
+    requireAuth: dependencies.middlewares.requireAuth,
+  });
+
   const metaApi = createMetaApi({
     accessToken: dependencies.config?.meta?.accessToken,
     graphBaseUrl: dependencies.config?.meta?.graphBaseUrl,
@@ -63,6 +90,7 @@ function createMetaWebhookModule({ dependencies, leadsService }) {
     logger: dependencies.logger,
     config: dependencies.config,
     mappingResolver,
+    pageConfigProvider: pageConfigService,
   });
 
   const controller = createMetaWebhookController({
@@ -80,11 +108,13 @@ function createMetaWebhookModule({ dependencies, leadsService }) {
     name: "metaWebhook",
     router,
     mappingRouter,
+    pageConfigRouter,
     controller,
     service,
     repository,
     mappingService,
     mappingResolver,
+    pageConfigService,
   });
 }
 

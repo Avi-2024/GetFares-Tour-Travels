@@ -11,6 +11,7 @@ import CreateQuotationPage from "./pages/Quotation/CreateQuotationPage";
 import EditQuotationPage from "./pages/Quotation/EditQuotationPage";
 import QuotationDetailPage from "./pages/Quotation/QuotationDetailPage";
 import Settings from "./components/layout/Settings";
+import MetaConfigurationPage from "./pages/meta/MetaConfigurationPage";
 
 import LeadsDetail from "./pages/leads/LeadDetails";
 import WhatsAppInboxPage from "./pages/leads/WhatsAppInboxPage";
@@ -112,6 +113,15 @@ function App() {
               <Route path="/settings" element={<Settings />} />
               <Route path="/packages" element={<PackagesPage />} />
               <Route path="/destinations" element={<DestinationsPage />} />
+            </Route>
+
+            <Route
+              element={<PermissionRoute roles={["admin", "super_admin"]} />}
+            >
+              <Route
+                path="/meta-configuration"
+                element={<MetaConfigurationPage />}
+              />
             </Route>
 
             <Route element={<PermissionRoute permission="payments:read" />}>

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { asyncHandler } from "../../core/utils/index.js";
 import { AppError } from "../../core/errors/index.js";
-import { isSuperAdminRole } from "../../core/constants/index.js";
+import { canManageMetaConfiguration } from "../../core/constants/index.js";
 
 function createMetaLeadMappingRoutes({
   controller,
@@ -11,20 +11,20 @@ function createMetaLeadMappingRoutes({
 }) {
   const router = Router();
 
-  const requireSuperAdmin = (req, _res, next) => {
-    if (isSuperAdminRole(req.context?.user?.role)) {
+  const requireMetaConfigAccess = (req, _res, next) => {
+    if (canManageMetaConfiguration(req.context?.user?.role)) {
       return next();
     }
     return next(
       new AppError(
         403,
-        "Only super admin can manage Meta lead mappings",
-        "META_MAP_SUPERADMIN_REQUIRED",
+        "Only admin or super admin can manage Meta lead mappings",
+        "META_MAP_ACCESS_DENIED",
       ),
     );
   };
 
-  router.use(requireAuth, requireSuperAdmin);
+  router.use(requireAuth, requireMetaConfigAccess);
 
   router.get("/metadata", asyncHandler(controller.getMetadata));
 

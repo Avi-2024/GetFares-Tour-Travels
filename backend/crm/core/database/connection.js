@@ -487,41 +487,22 @@ class MySQLDatabase {
 }
 
 function resolveMysqlSslFlag() {
-  const raw = String(process.env.MYSQL_SSL ?? "")
-    .trim()
-    .toLowerCase();
-  console.log('[DEBUG] MYSQL_SSL env var:', process.env.MYSQL_SSL, '| normalized:', raw);
-  if (["0", "false", "no", "off"].includes(raw)) {
-    console.log('[DEBUG] SSL explicitly disabled');
-    return false;
-  }
-  if (["1", "true", "yes", "on"].includes(raw)) {
-    console.log('[DEBUG] SSL explicitly enabled');
-    return true;
-  }
-  console.log('[DEBUG] SSL flag not set, will auto-detect');
-  return null;
+  const raw = String(process.env.MYSQL_SSL ?? "").trim().toLowerCase();
+  if (["0", "false", "no", "off"].includes(raw)) return false;
+  if (["1", "true", "yes", "on"].includes(raw)) return true;
+  return null; // auto-detect
 }
 
 function shouldUseMysqlTls(host, flag) {
-  console.log('[DEBUG] shouldUseMysqlTls - host:', host, '| flag:', flag);
-  if (flag === true) {
-    console.log('[DEBUG] Using SSL because flag is true');
-    return true;
-  }
-  if (flag === false) {
-    console.log('[DEBUG] Not using SSL because flag is false');
-    return false;
-  }
-  // Auto-detect Azure MySQL and other cloud providers that require SSL
+  if (flag === true) return true;
+  if (flag === false) return false;
+  // Auto-detect cloud MySQL providers that require SSL
   const hostLower = String(host || "").toLowerCase();
-  const shouldUse = (
+  return (
     hostLower.includes(".mysql.database.azure.com") ||
     hostLower.includes(".rds.amazonaws.com") ||
     hostLower.includes(".db.ondigitalocean.com")
   );
-  console.log('[DEBUG] Auto-detect SSL:', shouldUse, '| host:', hostLower);
-  return shouldUse;
 }
 
 function createDatabaseConnection({ config, logger }) {
@@ -652,14 +633,12 @@ function createDatabaseConnection({ config, logger }) {
     };
 
     const sslFlag = resolveMysqlSslFlag();
-    console.log('[DEBUG] Final SSL flag:', sslFlag);
-    // ✅ FORCE SSL (no condition)
-poolConfig.ssl = {
-  minVersion: "TLSv1.2",
-  rejectUnauthorized: false,
-};
-
-console.log("[FIX] SSL FORCE ENABLED");
+    if (shouldUseMysqlTls(mysqlHost, sslFlag)) {
+      poolConfig.ssl = {
+        minVersion: "TLSv1.2",
+        rejectUnauthorized: false,
+      };
+    }
     logger.info(
       {
         mysqlHost,

@@ -51,39 +51,9 @@ function normalizeOptional(value) {
   return normalized || null;
 }
 
-function buildMetaPagesConfig() {
-  return inferScopedNames("META", "PAGE_ID")
-    .map((scope) => ({
-      id: normalizeOptional(readScopedValue("META", scope, "PAGE_ID")),
-      pageId: normalizeOptional(readScopedValue("META", scope, "PAGE_ID")),
-      pageName:
-        normalizeOptional(readScopedValue("META", scope, "PAGE_NAME")) || `${scope} Page`,
-      countryId: normalizeOptional(readScopedValue("META", scope, "COUNTRY_ID")),
-      countryCode: normalizeOptional(readScopedValue("META", scope, "COUNTRY_CODE")),
-      countryName: normalizeOptional(readScopedValue("META", scope, "COUNTRY_NAME")),
-      sourceLabel:
-        normalizeOptional(readScopedValue("META", scope, "SOURCE_LABEL")) ||
-        `Meta ${scope} Page`,
-      accessToken: normalizeOptional(readScopedValue("META", scope, "ACCESS_TOKEN")),
-      appSecret: normalizeOptional(readScopedValue("META", scope, "APP_SECRET")),
-      verifyToken: normalizeOptional(readScopedValue("META", scope, "VERIFY_TOKEN")),
-      graphVersion:
-        normalizeOptional(readScopedValue("META", scope, "GRAPH_VERSION")) ||
-        env.META_GRAPH_VERSION,
-      graphBaseUrl:
-        normalizeOptional(readScopedValue("META", scope, "GRAPH_BASE_URL")) ||
-        env.META_GRAPH_BASE_URL,
-      graphFields: parseCsvOrDefault(
-        readScopedValue("META", scope, "GRAPH_FIELDS"),
-        env.META_GRAPH_FIELDS.split(",")
-          .map((field) => field.trim())
-          .filter(Boolean),
-      ),
-      isActive: true,
-      scope,
-    }))
-    .filter((page) => page.pageId);
-}
+// Meta pages are now managed from the Super Admin panel (Meta Configuration → Facebook pages).
+// META_INDIA_PAGE_ID / META_UAE_PAGE_ID etc. in .env are no longer read.
+// Only META_SECRETS_ENCRYPTION_KEY is required in .env (encryption key cannot be stored in DB).
 
 function buildWhatsappChannelsConfig() {
   return inferScopedNames("WHATSAPP", "PHONE_NUMBER_ID")
@@ -126,7 +96,6 @@ function buildWhatsappChannelsConfig() {
     .filter((channel) => channel.phoneNumberId);
 }
 
-const metaPages = buildMetaPagesConfig();
 const whatsappChannels = buildWhatsappChannelsConfig();
 
 const config = Object.freeze({
@@ -189,16 +158,20 @@ const config = Object.freeze({
     token: env.METRICS_TOKEN,
   },
   meta: {
-    verifyToken: env.META_VERIFY_TOKEN,
-    accessToken: env.META_ACCESS_TOKEN,
-    appSecret: env.META_APP_SECRET || env.WHATSAPP_APP_SECRET,
+    // Fallback-only env vars — DB values (set in Meta Configuration panel) take priority.
+    // These can be removed from .env once pages are configured in the admin panel.
+    verifyToken: env.META_VERIFY_TOKEN || null,
+    appSecret: env.META_APP_SECRET || env.WHATSAPP_APP_SECRET || null,
     graphBaseUrl: env.META_GRAPH_BASE_URL,
     graphVersion: env.META_GRAPH_VERSION,
     graphFields: env.META_GRAPH_FIELDS.split(",")
       .map((field) => field.trim())
       .filter(Boolean),
     allowInsecureWebhooks: env.META_ALLOW_INSECURE_WEBHOOKS,
-    pages: metaPages,
+    // Required: used to encrypt tokens stored in DB. Never put this in DB.
+    secretsEncryptionKey:
+      env.META_SECRETS_ENCRYPTION_KEY || env.JWT_ACCESS_SECRET,
+    // pages: [] — pages are loaded from DB at runtime via pageConfigProvider
   },
   whatsapp: {
     verifyToken: env.WHATSAPP_VERIFY_TOKEN || env.META_VERIFY_TOKEN,

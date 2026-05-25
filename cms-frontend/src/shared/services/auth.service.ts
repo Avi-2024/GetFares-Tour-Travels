@@ -23,7 +23,25 @@ interface LoginResponsePayload {
 }
 
 interface LoginResponseEnvelope {
-  data?: LoginResponsePayload;
+  data?: LoginResponsePayload | LoginResponsePayload[];
+}
+
+const COOKIE_SESSION_MARKER = "cookie_session";
+const CMS_ALLOWED_ROLE_TOKENS = new Set([
+  "cms_full_access",
+  "cms_access",
+  "crm_full_access",
+]);
+
+function unwrapLoginPayload(
+  envelope?: LoginResponseEnvelope,
+): LoginResponsePayload | null {
+  const raw = envelope?.data;
+  if (!raw) return null;
+  if (Array.isArray(raw)) {
+    return raw[0] ?? null;
+  }
+  return raw;
 }
 
 class AuthService implements IAuthService<User> {
@@ -72,16 +90,19 @@ class AuthService implements IAuthService<User> {
         { email, password },
       );
 
-      const payload = response?.data;
-      const accessToken = payload?.accessToken || "";
+      const payload = unwrapLoginPayload(response);
       const user = payload?.user;
+      const accessToken = payload?.accessToken?.trim() || COOKIE_SESSION_MARKER;
 
-      if (!accessToken || !user?.id || !user?.email || !user?.fullName) {
+      if (!user?.id || !user?.email || !user?.fullName) {
         return "Invalid login response from server.";
       }
 
-      const normalizedRole = String(user.role || "").trim().toLowerCase();
-      if (normalizedRole !== "cms_full_access") {
+      const normalizedRole = String(user.role || "")
+        .trim()
+        .toLowerCase()
+        .replace(/[\s-]+/g, "_");
+      if (!CMS_ALLOWED_ROLE_TOKENS.has(normalizedRole)) {
         return "You do not have CMS access permission.";
       }
 

@@ -8,6 +8,7 @@ import {
   FaCreditCard,
   FaFileInvoiceDollar,
   FaFolderOpen,
+  FaFacebook,
   FaGear,
   FaBell,
   FaBoxOpen,
@@ -20,13 +21,16 @@ import {
 } from "react-icons/fa6";
 import { useAuth } from "../../context/AuthContext";
 
-// const isAdminRole = (role?: string) => {
-//   const normalized = String(role ?? "")
-//     .trim()
-//     .toLowerCase()
-//     .replace(/[\s-]+/g, "_");
-//   return normalized === "admin" || normalized === "super_admin";
-// };
+const normalizeRole = (role?: string) =>
+  String(role ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
+
+const userHasRole = (userRole: string | undefined, allowed: string[]) => {
+  const normalized = normalizeRole(userRole);
+  return allowed.some((r) => normalizeRole(r) === normalized);
+};
 
 const sections = [
   {
@@ -162,6 +166,12 @@ const sections = [
     items: [
       // { label: "Users", to: "/users", icon: FaUsers, permission: "users:read" },
       {
+        label: "Meta Configuration",
+        to: "/meta-configuration",
+        icon: FaFacebook,
+        roles: ["admin", "super_admin"],
+      },
+      {
         label: "Settings",
         to: "/settings",
         icon: FaGear,
@@ -177,7 +187,7 @@ const Sidebar: React.FC<{
   onClose?: () => void;
 }> = ({ collapsed, onToggleCollapse, onClose }) => {
   const navigate = useNavigate();
-  const { hasPermission } = useAuth();
+  const { hasPermission, user } = useAuth();
 
   return (
     <aside
@@ -226,8 +236,19 @@ const Sidebar: React.FC<{
             : null}
             <div className="space-y-1">
               {section.items.map((item) => {
-                if (item.permission && !hasPermission(item.permission))
+                if (
+                  item.roles?.length &&
+                  !userHasRole(user?.role, item.roles)
+                ) {
                   return null;
+                }
+                if (
+                  !item.roles?.length &&
+                  item.permission &&
+                  !hasPermission(item.permission)
+                ) {
+                  return null;
+                }
                 const Icon = item.icon;
                 if (item.to === "#") {
                   return (

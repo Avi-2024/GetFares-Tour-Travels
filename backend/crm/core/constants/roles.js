@@ -12,4 +12,14 @@ function isSuperAdminRole(value) {
   return normalized === "super_admin" || normalized === "superadmin";
 }
 
-export { DEFAULT_ROLE, normalizeRoleName, isSuperAdminRole };
+function canManageMetaConfiguration(value) {
+  const normalized = normalizeRoleName(value);
+  return isSuperAdminRole(value) || normalized === "admin";
+}
+
+export {
+  DEFAULT_ROLE,
+  normalizeRoleName,
+  isSuperAdminRole,
+  canManageMetaConfiguration,
+};

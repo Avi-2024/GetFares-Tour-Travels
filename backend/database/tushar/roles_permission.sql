@@ -1,5 +1,5 @@
 START TRANSACTION;
-Use get2vacations;
+Use g2v;
 CREATE TEMPORARY TABLE tmp_roles (
   role_code VARCHAR(50) PRIMARY KEY,
   role_description TEXT

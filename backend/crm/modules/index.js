@@ -137,6 +137,9 @@ function registerModules(app, dependencies) {
   if (metaWebhookModule.mappingRouter) {
     app.use("/api/meta-lead-mappings", metaWebhookModule.mappingRouter);
   }
+  if (metaWebhookModule.pageConfigRouter) {
+    app.use("/api/meta-connection", metaWebhookModule.pageConfigRouter);
+  }
 
   const whatsappModule = createWhatsappModule({
     dependencies: featureDependencies,

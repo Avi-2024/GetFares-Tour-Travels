@@ -27,7 +27,6 @@ import SurfaceCard from "../ui/SurfaceCard";
 import SearchableDropdown from "../ui/SearchableDropdown";
 import DestinationPricingManager from "../settings/DestinationPricingManager";
 import CountryManagementPanel from "../settings/CountryManagementPanel";
-import MetaLeadMappingPanel from "../settings/MetaLeadMappingPanel";
 import { buildAdminCountryOptions, type CountryOption } from "../../utils/countries";
 
 import UsersPage from "../../pages/users/UsersPage";
@@ -48,7 +47,6 @@ type Tab =
   | 'destinations-pricing'
   | 'pdf-templates'
   | 'integrations'
-  | 'meta-lead-mapping'
 
 type UserRecord = {
   id: string
@@ -126,7 +124,6 @@ const tabs: Array<{ id: Tab; label: string }> = [
   { id: 'roles-permissions', label: 'Roles & Permissions' },
   // { id: 'country-management', label: 'Country Management' },
   { id: 'system-settings', label: 'System Settings' },
-  { id: 'meta-lead-mapping', label: 'Meta Lead Mapping' },
   // { id: 'destinations-pricing', label: 'Destinations & Pricing' },
   // { id: 'pdf-templates', label: 'PDF Templates' }
   // { id: "integrations", label: "Integrations" },
@@ -770,7 +767,6 @@ const Settings: React.FC = () => {
       tabs.filter(tab => {
         if (tab.id === 'user-management') return canReadUsers
         if (tab.id === 'roles-permissions') return canManageRbac
-        if (tab.id === 'meta-lead-mapping') return isSuperAdmin
         return canReadSettings
       }),
     [canManageRbac, canReadSettings, canReadUsers, isSuperAdmin]
@@ -1568,7 +1564,7 @@ const Settings: React.FC = () => {
               onClick={() => setActiveTab(tab.id)}
               className={`rounded-xl px-3 py-2 text-left text-sm font-medium ${
                 activeTab === tab.id
-                  ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300'
+                  ? 'bg-pink-50 text-pink-600 shadow-sm ring-1 ring-pink-100 dark:bg-pink-900/20 dark:text-pink-300 dark:ring-pink-900/40'
                   : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
               }`}
             >
@@ -2182,7 +2178,6 @@ const Settings: React.FC = () => {
           </SurfaceCard>
         ) : null}
 
-        {activeTab === 'meta-lead-mapping' ? <MetaLeadMappingPanel /> : null}
 
         {activeTab === 'integrations' ? (
           <SurfaceCard>
