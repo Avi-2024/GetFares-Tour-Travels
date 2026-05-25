@@ -80,7 +80,12 @@ function createAuthController({ service }) {
         ...(authConfig.cookieDomain ? { domain: authConfig.cookieDomain } : {}),
       });
 
-      res.status(200).json({ data: { user: result.user } });
+      res.status(200).json({
+        data: {
+          accessToken: result.accessToken,
+          user: result.user,
+        },
+      });
     },
 
     async me(req, res) {
