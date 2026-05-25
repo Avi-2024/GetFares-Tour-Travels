@@ -46,7 +46,6 @@ export class LoginForm extends Component<LoginFormProps> {
       theme,
       onUsernameChange,
       onPasswordChange,
-      onTogglePassword,
       onRememberChange,
     } = this.props;
     const themeTokens = new LoginFormTheme(theme);
