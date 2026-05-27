@@ -77,6 +77,8 @@ type ConsultantUser = {
   active?: boolean | null;
 };
 
+const DEFAULT_LEAD_SOURCE_NAMES = ["Meta India Page", "Meta UAE Page"] as const;
+
 const defaultFilters: LeadFilterState = {
   fromDate: "",
   toDate: "",
@@ -206,10 +208,15 @@ const Leads: React.FC = () => {
   );
 
   const leadSourceOptions = useMemo(
-    () => [
-      { value: "", label: "All lead sources" },
-      ...leadSourceNames.map((name) => ({ value: name, label: name })),
-    ],
+    () => {
+      const names = Array.from(
+        new Set([...DEFAULT_LEAD_SOURCE_NAMES, ...leadSourceNames]),
+      ).sort((left, right) => left.localeCompare(right));
+      return [
+        { value: "", label: "All lead sources" },
+        ...names.map((name) => ({ value: name, label: name })),
+      ];
+    },
     [leadSourceNames],
   );
 

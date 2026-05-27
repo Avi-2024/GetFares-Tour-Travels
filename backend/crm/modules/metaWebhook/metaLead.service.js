@@ -8,7 +8,6 @@ import {
 } from "../../core/datetime/timezone.js";
 import { getWebhookFileLogger } from "./webhookFileLogger.js";
 import { LeadFieldsUtils } from "../leads/leadFields.utils.js";
-import { resolveMetaLeadRoutingRule } from "./metaLeadRouting.rules.js";
 
 const META_SOURCE = "Meta Lead Ads";
 
@@ -171,13 +170,6 @@ async function buildLeadPayload(
   const metaFormId = normalizeMetaId(metaLead.form_id || event.formId || null);
   const metaAdId = normalizeMetaId(metaLead.ad_id || event.adId || null);
 
-  const routingRule = resolveMetaLeadRoutingRule({
-    metaPageId,
-    metaFormId,
-    metaAdId,
-  });
-  const legacyAssign = routingRule?.assign || {};
-
   const scope = {
     metaAdId,
     metaFormId,
@@ -243,13 +235,11 @@ async function buildLeadPayload(
       normalizeValue(metaLead.ad_name ?? metaLead.adName ?? null),
     source:
       profileAssign.sourceLabel ||
-      legacyAssign.source ||
       pageConfig.sourceLabel ||
       META_SOURCE,
     leadType:
       profileAssign.leadType ||
       mappedPayload.leadType ||
-      legacyAssign.leadType ||
       null,
     leadCountry,
     country: leadCountry,
@@ -651,7 +641,7 @@ function createMetaLeadService({
       return {
         id: normalizedId,
         created_time: new Date().toISOString(),
-        form_id: isUae ? "1424002562747237" : "1424002562747236",
+        form_id: null,
         page_id: pageConfig.pageId || null,
         field_data: [
           {

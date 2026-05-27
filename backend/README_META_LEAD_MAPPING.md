@@ -6,8 +6,10 @@ Configurable mapping from Meta Lead Ads `field_data` to CRM `leads` columns, sco
 
 ```bash
 mysql ... < backend/database/migrations/064_meta_lead_mapping.mysql.sql
-mysql ... < backend/database/migrations/065_meta_lead_mapping_seed.mysql.sql
+mysql ... < backend/database/migrations/068_disable_legacy_meta_lead_mapping_seed.mysql.sql
 ```
+
+No default business rules are seeded. Create profiles and question maps from Settings.
 
 ## API (super admin only)
 
@@ -30,9 +32,9 @@ Base: `/api/meta-lead-mappings`
 
 ```json
 {
-  "metaFormId": "964456066326392",
+  "metaFormId": "FORM_ID_FROM_META",
   "fieldData": [
-    { "name": "what_is_your_nationality?", "values": ["Bangladesh"] },
+    { "name": "field_key_from_meta", "values": ["Sample value"] },
     { "name": "full_name", "values": ["Test User"] },
     { "name": "email", "values": ["test@example.com"] },
     { "name": "phone_number", "values": ["+971501234567"] }

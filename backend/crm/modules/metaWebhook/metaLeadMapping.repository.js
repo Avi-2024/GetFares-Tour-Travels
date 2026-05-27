@@ -56,6 +56,10 @@ function createMetaLeadMappingRepository({ db, logger }) {
     return String(error?.code || "").toUpperCase() === "ER_NO_SUCH_TABLE";
   }
 
+  function activeMapQuery(profileId) {
+    return { profile_id: profileId, is_active: true };
+  }
+
   async function listActiveProfilesWithMaps() {
     try {
       const profiles = await db.findMany(profilesTable, { is_active: true });
@@ -65,10 +69,7 @@ function createMetaLeadMappingRepository({ db, logger }) {
 
       const mapped = profiles.map(mapProfileRow).filter(Boolean);
       for (const profile of mapped) {
-        const maps = await db.findMany(mapsTable, {
-          profile_id: profile.id,
-          is_active: true,
-        });
+        const maps = await db.findMany(mapsTable, activeMapQuery(profile.id));
         profile.fieldMaps = (Array.isArray(maps) ? maps : [])
           .map(mapFieldMapRow)
           .filter(Boolean)
@@ -97,7 +98,7 @@ function createMetaLeadMappingRepository({ db, logger }) {
         .filter(Boolean);
 
       for (const profile of profiles) {
-        const maps = await db.findMany(mapsTable, { profile_id: profile.id });
+        const maps = await db.findMany(mapsTable, activeMapQuery(profile.id));
         profile.fieldMaps = (Array.isArray(maps) ? maps : [])
           .map(mapFieldMapRow)
           .filter(Boolean)
@@ -122,7 +123,7 @@ function createMetaLeadMappingRepository({ db, logger }) {
       const row = await db.findById(profilesTable, id);
       const profile = mapProfileRow(row);
       if (!profile) return null;
-      const maps = await db.findMany(mapsTable, { profile_id: id });
+      const maps = await db.findMany(mapsTable, activeMapQuery(id));
       profile.fieldMaps = (Array.isArray(maps) ? maps : [])
         .map(mapFieldMapRow)
         .filter(Boolean)

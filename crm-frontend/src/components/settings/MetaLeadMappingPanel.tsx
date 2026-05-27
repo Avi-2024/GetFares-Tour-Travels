@@ -12,9 +12,9 @@ import { toast } from 'sonner'
 import { getApiErrorMessage } from '../../api/apiClient'
 import { useAuth } from '../../context/AuthContext'
 import { getCurrencyOptions } from '../../utils/currency'
+import { metaConnectionApi, type MetaPageConfig } from '../../api/metaConnection'
 import {
   metaLeadMappingsApi,
-  type MetaLeadFieldMap,
   type MetaLeadMappingMetadata,
   type MetaLeadProfile,
   type MetaLeadScopeType
@@ -32,25 +32,25 @@ const SCOPE_INFO: Record<
   ad: {
     label: 'Specific ad',
     idLabel: 'Ad ID',
-    placeholder: '120245301739500369',
+    placeholder: 'Paste Meta ad ID',
     hint: 'Best match — one ad creative.'
   },
   form: {
     label: 'Lead form',
     idLabel: 'Form ID',
-    placeholder: '964456066326392',
+    placeholder: 'Paste Meta form ID',
     hint: 'Use when same form runs on multiple ads.'
   },
   campaign: {
     label: 'Campaign',
     idLabel: 'Campaign ID',
-    placeholder: '120242855833600369',
+    placeholder: 'Paste Meta campaign ID',
     hint: 'Matches all ads in this campaign.'
   },
   page: {
     label: 'Facebook page',
     idLabel: 'Page ID',
-    placeholder: '1021995967663811',
+    placeholder: 'Paste Meta page ID',
     hint: 'Every lead from this Facebook page.'
   },
   default: {
@@ -66,23 +66,13 @@ const LEAD_TYPES = [
   { value: 'VISA', label: 'Visa' }
 ]
 
-const QUESTION_PRESETS = [
-  { value: 'what_is_your_nationality', label: 'Nationality' },
-  { value: 'which_destination_would_you_like_to_visit', label: 'Destination' },
-  { value: 'which_destinations_are_you_interested_in', label: 'Destinations (multi)' },
-  { value: 'what_is_your_budget_per_person', label: 'Budget per person' },
-  { value: 'which_visa_assistance_are_you_looking_for', label: 'Visa type' },
-  { value: 'what_is_the_purpose_of_travel', label: 'Travel purpose' },
-  { value: 'which_maldives_resort_are_you_interested_in', label: 'Maldives resort' },
-  { value: 'which_uae_city_will_you_be_travelling_from', label: 'UAE city' },
-  { value: 'city', label: 'City' }
-]
+const DEFAULT_SOURCE_LABELS = ['Meta India Page', 'Meta UAE Page'] as const
 
 const SAMPLE_JSON = `[
   {"name":"full_name","values":["Test User"]},
   {"name":"email","values":["test@example.com"]},
   {"name":"phone_number","values":["+971501234567"]},
-  {"name":"what_is_your_nationality","values":["India"]}
+  {"name":"field_key","values":["Sample value"]}
 ]`
 
 /* ─── tiny components ───────────────────────────────────────── */
@@ -181,9 +171,9 @@ const emptyForm = (): RuleForm => ({
   name: '',
   scopeType: 'form',
   scopeId: '',
-  leadType: 'HOLIDAY',
+  leadType: '',
   leadCountry: '',
-  currency: 'INR',
+  currency: '',
   sourceLabel: ''
 })
 
@@ -192,9 +182,9 @@ function formFromProfile(p: MetaLeadProfile): RuleForm {
     name: p.name,
     scopeType: p.scopeType,
     scopeId: p.scopeId || '',
-    leadType: p.leadType === 'VISA' ? 'VISA' : 'HOLIDAY',
+    leadType: p.leadType || '',
     leadCountry: p.leadCountry || '',
-    currency: p.clientCurrency || 'INR',
+    currency: p.clientCurrency || '',
     sourceLabel: p.sourceLabel || ''
   }
 }
@@ -208,7 +198,10 @@ const MetaLeadMappingPanel: React.FC = () => {
   /* data */
   const [metadata, setMetadata] = useState<MetaLeadMappingMetadata | null>(null)
   const [profiles, setProfiles] = useState<MetaLeadProfile[]>([])
+  const [metaPages, setMetaPages] = useState<MetaPageConfig[]>([])
+  const [sourceLabelNames, setSourceLabelNames] = useState<string[]>([])
   const [bootstrapping, setBootstrapping] = useState(true)
+  const [hasConnection, setHasConnection] = useState(false)
 
   /* ui states */
   const [saving, setSaving] = useState(false)
@@ -242,6 +235,11 @@ const MetaLeadMappingPanel: React.FC = () => {
     [profiles, selectedId]
   )
 
+  const selectedFieldMaps = useMemo(
+    () => (selected?.fieldMaps ?? []).filter((map) => map.isActive !== false),
+    [selected]
+  )
+
   const formOpen = isNew || selectedId !== ''
 
   const countryOptions = useMemo(
@@ -265,18 +263,101 @@ const MetaLeadMappingPanel: React.FC = () => {
     [metadata]
   )
 
+  const pageOptions = useMemo(
+    () => [
+      { value: '', label: 'Select Meta page' },
+      ...metaPages
+        .filter((page) => page.isActive !== false && page.pageId)
+        .map((page) => ({
+          value: page.pageId,
+          label: page.pageName || page.pageId,
+          selectedLabel: page.pageName || page.pageId,
+          rightLabel: page.pageId,
+          searchText: `${page.pageName || ''} ${page.pageId}`
+        }))
+    ],
+    [metaPages]
+  )
+
+  const applyPageRuleDefaults = useCallback(
+    (pageId: string) => {
+      const page = metaPages.find((item) => item.pageId === pageId)
+      setForm((current) => ({
+        ...current,
+        scopeId: pageId,
+        ...(page ?
+          {
+            name: current.name.trim() ?
+              current.name
+            : `${page.pageName || 'Meta page'} rule`,
+            sourceLabel:
+              current.sourceLabel.trim() ?
+                current.sourceLabel
+              : page.sourceLabel || page.pageName || '',
+            leadCountry: current.leadCountry || page.countryName || ''
+          }
+        : {})
+      }))
+    },
+    [metaPages]
+  )
+
+  const questionOptions = useMemo(() => {
+    const keys = new Set<string>()
+    profiles.forEach((profile) => {
+      const maps = profile.fieldMaps ?? []
+      maps.forEach((map) => {
+        if (map.isActive === false) return
+        map.metaFieldKeys.forEach((key) => {
+          const trimmed = key.trim()
+          if (trimmed) keys.add(trimmed)
+        })
+      })
+    })
+    const customKey = mapQuestion.trim()
+    if (customKey) keys.add(customKey)
+    return [
+      { value: '', label: 'Pick question' },
+      ...Array.from(keys)
+        .sort((a, b) => a.localeCompare(b))
+        .map((key) => ({ value: key, label: key }))
+    ]
+  }, [mapQuestion, profiles])
+
+  const sourceLabelOptions = useMemo(() => {
+    const labels = Array.from(
+      new Set(
+        [...DEFAULT_SOURCE_LABELS, ...sourceLabelNames, form.sourceLabel]
+          .map((label) => label.trim())
+          .filter(Boolean)
+      )
+    ).sort((a, b) => a.localeCompare(b))
+    return [
+      { value: '', label: 'Select source label' },
+      ...labels.map((label) => ({ value: label, label }))
+    ]
+  }, [form.sourceLabel, sourceLabelNames])
+
   /* ── initial load (once) ── */
   useEffect(() => {
     mountedRef.current = true
     const init = async () => {
       try {
-        const [meta, list] = await Promise.all([
+        const [meta, pageList, list] = await Promise.all([
           metaLeadMappingsApi.getMetadata(),
+          metaConnectionApi.listPages({ isActive: true }),
           metaLeadMappingsApi.listProfiles()
         ])
         if (!mountedRef.current) return
+        const connected = pageList.some((page) => page.isActive !== false)
+        const labels = pageList
+          .map((page) => String(page.sourceLabel || '').trim())
+          .filter(Boolean)
         setMetadata(meta)
-        setProfiles(list)
+        setMetaPages(pageList)
+        setSourceLabelNames(labels)
+        setHasConnection(true)
+        setProfiles(connected ? list : [])
       } catch (err) {
         if (!mountedRef.current) return
         toast.error(getApiErrorMessage(err, 'Failed to load rules'))
@@ -464,6 +545,13 @@ const MetaLeadMappingPanel: React.FC = () => {
       </div>
     )
 
+  if (!hasConnection)
+    return (
+      <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-sm text-slate-500">
+        Create Meta connection first.
+      </div>
+    )
+
   const info = SCOPE_INFO[form.scopeType]
 
   /* ─── render ─────────────────────────────────────────────────── */
@@ -526,13 +614,17 @@ const MetaLeadMappingPanel: React.FC = () => {
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <Label>When lead comes from</Label>
+	              <div>
+	                <Label>When lead comes from</Label>
                 <select
                   value={form.scopeType}
                   onChange={(e) => {
-                    setF('scopeType', e.target.value as MetaLeadScopeType)
+                    const nextScope = e.target.value as MetaLeadScopeType
+                    setF('scopeType', nextScope)
                     setF('scopeId', '')
+                    if (nextScope === 'page' && !form.name.trim()) {
+                      setF('name', 'Facebook page rule')
+                    }
                   }}
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
@@ -545,7 +637,20 @@ const MetaLeadMappingPanel: React.FC = () => {
                 <Hint>{info.hint}</Hint>
               </div>
 
-              {form.scopeType !== 'default' && (
+              {form.scopeType === 'page' && (
+                <div>
+                  <Label>Facebook page</Label>
+                  <SearchableDropdown
+                    value={form.scopeId}
+                    options={pageOptions}
+                    searchPlaceholder="Search Meta page..."
+                    onChange={applyPageRuleDefaults}
+                  />
+                  <Hint>Uses Page ID from Meta connection.</Hint>
+                </div>
+              )}
+
+              {form.scopeType !== 'default' && form.scopeType !== 'page' && (
                 <div>
                   <Label>{info.idLabel}</Label>
                   <TextInput
@@ -592,10 +697,15 @@ const MetaLeadMappingPanel: React.FC = () => {
                 </div>
                 <div>
                   <Label>Source label</Label>
-                  <TextInput
+                  <SearchableDropdown
                     value={form.sourceLabel}
+                    options={sourceLabelOptions}
                     onChange={(v) => setF('sourceLabel', v)}
                     placeholder="Meta Ads India"
+                    searchPlaceholder="Search source label..."
+                    creatable
+                    onCreatePick={(v) => setF('sourceLabel', v)}
+                    createPrompt="Use source"
                   />
                   <Hint>Shown as "Lead source" on the lead card.</Hint>
                 </div>
@@ -634,7 +744,7 @@ const MetaLeadMappingPanel: React.FC = () => {
                 <span>
                   Question → CRM field mapping
                   <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-normal text-slate-500">
-                    {selected.fieldMaps?.length ?? 0} mapped
+                    {selectedFieldMaps.length} mapped
                   </span>
                 </span>
                 {showMaps ? (
@@ -652,9 +762,9 @@ const MetaLeadMappingPanel: React.FC = () => {
                   </p>
 
                   {/* existing maps */}
-                  {(selected.fieldMaps || []).length > 0 && (
+                  {selectedFieldMaps.length > 0 && (
                     <div className="space-y-2">
-                      {selected.fieldMaps.map((m) => (
+                      {selectedFieldMaps.map((m) => (
                         <div
                           key={m.id}
                           className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs"
@@ -689,12 +799,12 @@ const MetaLeadMappingPanel: React.FC = () => {
                       <Label>Form question</Label>
                       <SearchableDropdown
                         value={mapQuestion}
-                        options={[
-                          { value: '', label: 'Pick question' },
-                          ...QUESTION_PRESETS
-                        ]}
+                        options={questionOptions}
                         onChange={setMapQuestion}
-                        searchPlaceholder="Search…"
+                        searchPlaceholder="Search or type question key..."
+                        creatable
+                        onCreatePick={setMapQuestion}
+                        createPrompt="Use question"
                       />
                     </div>
                     <div>

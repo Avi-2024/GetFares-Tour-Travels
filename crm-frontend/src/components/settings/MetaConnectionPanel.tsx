@@ -13,7 +13,6 @@ import {
 } from 'react-icons/fa6'
 import { toast } from 'sonner'
 import { getApiErrorMessage } from '../../api/apiClient'
-import { countriesApi, type CountryRecord } from '../../api/countries'
 import {
   metaConnectionApi,
   type MetaIntegrationSettings,
@@ -22,7 +21,6 @@ import {
 } from '../../api/metaConnection'
 import { useAuth } from '../../context/AuthContext'
 import { canManageMetaConfiguration } from '../../utils/roles'
-import SearchableDropdown from '../ui/SearchableDropdown'
 
 /* ─── types ─────────────────────────────────────────────────── */
 type PageFormState = {
@@ -204,7 +202,6 @@ const MetaConnectionPanel: React.FC = () => {
 
   const [integration, setIntegration] = useState<MetaIntegrationSettings | null>(null)
   const [pages, setPages] = useState<MetaPageConfig[]>([])
-  const [countries, setCountries] = useState<CountryRecord[]>([])
 
   /* webhook form (secrets only — never pre-filled) */
   const [appSecret, setAppSecret] = useState('')
@@ -219,11 +216,6 @@ const MetaConnectionPanel: React.FC = () => {
   const apiBase = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')
   const webhookUrl = `${apiBase}/webhook/meta`
 
-  const countryOptions = useMemo(
-    () => countries.map((c) => ({ value: c.id, label: `${c.name} (${c.code})` })),
-    [countries]
-  )
-
   const editingPage = useMemo(
     () => (editingPageId ? pages.find((p) => p.id === editingPageId) ?? null : null),
     [editingPageId, pages]
@@ -236,15 +228,13 @@ const MetaConnectionPanel: React.FC = () => {
     mountedRef.current = true
     const init = async () => {
       try {
-        const [integ, pageList, countryList] = await Promise.all([
+        const [integ, pageList] = await Promise.all([
           metaConnectionApi.getIntegration(),
-          metaConnectionApi.listPages(),
-          countriesApi.list({ includeInactive: false })
+          metaConnectionApi.listPages()
         ])
         if (!mountedRef.current) return
         setIntegration(integ)
         setPages(pageList)
-        setCountries(countryList?.data ?? [])
       } catch (err) {
         if (!mountedRef.current) return
         setError(getApiErrorMessage(err, 'Failed to load Meta connection'))
@@ -542,7 +532,7 @@ const MetaConnectionPanel: React.FC = () => {
                 <TextInput
                   value={pageForm.pageId}
                   onChange={(v) => setPF('pageId', v)}
-                  placeholder="e.g. 1021995967663811"
+                  placeholder="Paste Meta page ID"
                   disabled={!isNewPage}
                   mono
                 />
