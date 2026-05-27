@@ -2,6 +2,45 @@ import { z } from "zod";
 
 const optionalSecret = z.string().trim().max(4096).optional();
 
+function parseBodyCandidate(value) {
+  if (typeof value !== "string") return value;
+  const trimmed = value.trim();
+  if (!trimmed) return value;
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return value;
+  }
+}
+
+function normalizeRequestBody(value) {
+  const parsed = parseBodyCandidate(value);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return parsed;
+  }
+
+  const record = parsed;
+  if (
+    record.body !== undefined &&
+    record.pageId === undefined &&
+    record.sourceLabel === undefined
+  ) {
+    return normalizeRequestBody(record.body);
+  }
+
+  if (
+    record.data !== undefined &&
+    record.pageId === undefined &&
+    record.sourceLabel === undefined
+  ) {
+    return normalizeRequestBody(record.data);
+  }
+
+  return parsed;
+}
+
+const requestBody = (schema) => z.preprocess(normalizeRequestBody, schema);
+
 const pageBody = z.object({
   pageId: z.string().trim().min(5).max(120).optional(),
   pageName: z.string().trim().max(150).nullable().optional(),
@@ -54,22 +93,22 @@ export const MetaPageConfigValidation = {
   }),
 
   createPage: z.object({
-    body: pageBody.extend({
+    body: requestBody(pageBody.extend({
       pageId: z.string().trim().min(5).max(120),
       sourceLabel: z.string().trim().min(2).max(120),
-    }),
+    })),
     params: z.unknown().optional(),
     query: z.unknown().optional(),
   }),
 
   updatePage: z.object({
     params: z.object({ id: z.string().uuid() }),
-    body: pageBody,
+    body: requestBody(pageBody),
     query: z.unknown().optional(),
   }),
 
   updateIntegration: z.object({
-    body: integrationBody,
+    body: requestBody(integrationBody),
     params: z.unknown().optional(),
     query: z.unknown().optional(),
   }),

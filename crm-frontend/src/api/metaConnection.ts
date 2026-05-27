@@ -77,7 +77,7 @@ export const metaConnectionApi = {
     unwrapData<MetaIntegrationSettings>(
       await apiRequest("/api/meta-connection/integration", {
         method: "PATCH",
-        body: JSON.stringify(body),
+        body,
       }),
     ),
 
@@ -100,7 +100,7 @@ export const metaConnectionApi = {
     unwrapData<MetaPageConfig>(
       await apiRequest("/api/meta-connection/pages", {
         method: "POST",
-        body: JSON.stringify(body),
+        body,
       }),
     ),
 
@@ -108,7 +108,7 @@ export const metaConnectionApi = {
     unwrapData<MetaPageConfig>(
       await apiRequest(`/api/meta-connection/pages/${id}`, {
         method: "PATCH",
-        body: JSON.stringify(body),
+        body,
       }),
     ),
 };
