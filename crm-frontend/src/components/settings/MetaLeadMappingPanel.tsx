@@ -356,7 +356,7 @@ const MetaLeadMappingPanel: React.FC = () => {
         setMetadata(meta)
         setMetaPages(pageList)
         setSourceLabelNames(labels)
-        setHasConnection(true)
+        setHasConnection(connected)
         setProfiles(connected ? list : [])
       } catch (err) {
         if (!mountedRef.current) return
