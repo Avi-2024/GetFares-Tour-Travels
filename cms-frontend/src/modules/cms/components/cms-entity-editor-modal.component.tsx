@@ -284,6 +284,117 @@ class CmsEntityEditorModalComponent extends Component<
     return undefined;
   }
 
+  private normalizeScopeValue(value: unknown): string {
+    if (value === null || value === undefined) {
+      return "";
+    }
+    return String(value).trim();
+  }
+
+  private readEntryTextValue(
+    entry: CmsTableEntry | null | undefined,
+    ...keys: string[]
+  ): string {
+    if (!entry) {
+      return "";
+    }
+    for (const key of keys) {
+      const normalized = this.normalizeScopeValue(this.getRawValue(entry, key));
+      if (normalized) {
+        return normalized;
+      }
+    }
+    return "";
+  }
+
+  private getRelationOptionCountry(
+    source: RelationSourceKey,
+    value: unknown,
+  ): string {
+    const normalizedValue = this.normalizeScopeValue(value);
+    if (!normalizedValue) {
+      return "";
+    }
+    const match = this.state.relationOptions[source].find(
+      (option) => this.normalizeScopeValue(option.value) === normalizedValue,
+    );
+    return this.normalizeScopeValue(match?.meta?.country);
+  }
+
+  private findDisplayOrderConflict(pendingOrder: number): CmsTableEntry | null {
+    const allRows = this.props.allRows ?? [];
+    const currentDestinationId =
+      this.normalizeScopeValue(this.state.formValues["destinationId"]) ||
+      this.readEntryTextValue(this.props.entry, "destinationId");
+    const currentMainPackageId =
+      this.normalizeScopeValue(this.state.formValues["mainPackageId"]) ||
+      this.readEntryTextValue(this.props.entry, "mainPackageId");
+    const currentSectionKey =
+      this.normalizeScopeValue(this.state.formValues["sectionKey"]) ||
+      this.readEntryTextValue(this.props.entry, "sectionKey");
+    const relationCountry =
+      this.props.sectionKey === "main-packages" ?
+        this.getRelationOptionCountry("destinations", currentDestinationId)
+      : this.props.sectionKey === "sub-packages" ?
+        this.getRelationOptionCountry("main-packages", currentMainPackageId)
+      : "";
+    const currentCountry =
+      this.normalizeScopeValue(this.state.formValues["country"]) ||
+      this.readEntryTextValue(
+        this.props.entry,
+        "country",
+        "destinationCountry",
+        "destination_country",
+      ) ||
+      relationCountry;
+
+    return (
+      allRows.find((row) => {
+        if (row.id === this.props.entry?.id) {
+          return false;
+        }
+        if (
+          Number(row.raw.display_order ?? row.raw.displayOrder) !== pendingOrder
+        ) {
+          return false;
+        }
+
+        const rowCountry = this.readEntryTextValue(
+          row,
+          "country",
+          "destinationCountry",
+          "destination_country",
+        );
+
+        if (this.props.sectionKey === "main-packages") {
+          const rowDestinationId = this.readEntryTextValue(row, "destinationId");
+          return (
+            rowCountry === currentCountry &&
+            rowDestinationId === currentDestinationId
+          );
+        }
+
+        if (this.props.sectionKey === "sub-packages") {
+          const rowMainPackageId = this.readEntryTextValue(row, "mainPackageId");
+          return (
+            rowCountry === currentCountry &&
+            rowMainPackageId === currentMainPackageId
+          );
+        }
+
+        if (this.props.sectionKey === "creative-toolkit") {
+          const rowSectionKey = this.readEntryTextValue(row, "sectionKey");
+          return (
+            (currentCountry === "" || rowCountry === currentCountry) &&
+            rowSectionKey === currentSectionKey
+          );
+        }
+
+        return currentCountry === "" || rowCountry === currentCountry;
+      }) || null
+    );
+  }
+
   private async loadRelationOptions(
     source: RelationSourceKey,
   ): Promise<CmsFieldOption[]> {
@@ -1072,32 +1183,7 @@ class CmsEntityEditorModalComponent extends Component<
         : null;
       const isDisplayOrderChanged = this.props.mode === "create" || pendingOrder !== originalOrder;
       if (isDisplayOrderChanged && pendingOrder >= 1) {
-        const allRows = this.props.allRows ?? [];
-        const currentCountry = this.toNonEmptyString(
-          this.state.formValues["country"] ??
-            this.props.entry?.raw.country ??
-            this.props.entry?.raw.destination_country ??
-            this.props.entry?.raw.destinationCountry,
-        );
-        const currentSectionKey = this.toNonEmptyString(
-          this.state.formValues["sectionKey"] ??
-            this.props.entry?.raw.section_key ??
-            this.props.entry?.raw.sectionKey,
-        );
-        const conflicting = allRows.find((r) => {
-          const rowCountry = this.toNonEmptyString(
-            r.raw.country ?? r.raw.destination_country ?? r.raw.destinationCountry,
-          );
-          const rowSectionKey = this.toNonEmptyString(
-            r.raw.section_key ?? r.raw.sectionKey,
-          );
-          return (
-            r.id !== this.props.entry?.id &&
-            Number(r.raw.display_order ?? r.raw.displayOrder) === pendingOrder &&
-            (currentCountry === "" || rowCountry === currentCountry) &&
-            currentSectionKey === rowSectionKey
-          );
-        });
+        const conflicting = this.findDisplayOrderConflict(pendingOrder);
         if (conflicting) {
           const conflictingEntryLabel = String(
             conflicting.raw.title ??
