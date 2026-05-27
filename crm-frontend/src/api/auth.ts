@@ -2,6 +2,7 @@ import { apiRequest } from "./apiClient";
 
 type LoginResponse = {
   data: {
+    accessToken?: string;
     user: {
       id: string;
       email: string;
@@ -44,7 +45,9 @@ export const authApi = {
       method: "POST",
     }),
   profile: () =>
-    apiRequest<ProfileResponse>(`/api/auth/me?ts=${Date.now()}`),
+    apiRequest<ProfileResponse>(`/api/auth/me?ts=${Date.now()}`, {
+      skipUnauthorizedRedirect: true,
+    }),
   toggleActive: (active: boolean) =>
     apiRequest<ProfileResponse>("/api/auth/toggle-active", {
       method: "POST",

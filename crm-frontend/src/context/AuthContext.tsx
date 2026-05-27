@@ -26,7 +26,7 @@ type AuthContextValue = {
   permissions: string[];
   loadingPermissions: boolean;
   bootstrappingSession: boolean;
-  setAuthState: (user: AuthUser) => void;
+  setAuthState: (user: AuthUser, accessToken?: string) => void;
   logout: () => void;
   refreshPermissions: (customToken?: string) => Promise<string[]>;
   hasPermission: (permission: string) => boolean;
@@ -179,9 +179,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const nextUser = normalizeAuthUser(response?.data);
         if (!nextUser || cancelled) return;
         localStorage.setItem(STORAGE_USER, JSON.stringify(nextUser));
-        localStorage.setItem(STORAGE_TOKEN, SESSION_MARKER);
+        const storedToken = localStorage.getItem(STORAGE_TOKEN) || SESSION_MARKER;
+        localStorage.setItem(STORAGE_TOKEN, storedToken);
         setUser(nextUser);
-        setToken(SESSION_MARKER);
+        setToken(storedToken);
       } catch {
         if (cancelled) return;
         setToken("");
@@ -199,10 +200,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
   }, []);
 
-  const setAuthState = (nextUser: AuthUser) => {
+  const setAuthState = (nextUser: AuthUser, accessToken?: string) => {
+    const nextToken = accessToken?.trim() || SESSION_MARKER;
     localStorage.setItem(STORAGE_USER, JSON.stringify(nextUser));
-    localStorage.setItem(STORAGE_TOKEN, SESSION_MARKER);
-    setToken(SESSION_MARKER);
+    localStorage.setItem(STORAGE_TOKEN, nextToken);
+    setToken(nextToken);
     setUser(nextUser);
   };
 

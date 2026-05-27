@@ -81,6 +81,7 @@ export const getApiErrorMessage = (
 
 export type ApiRequestConfig = AxiosRequestConfig & {
   skipAuth?: boolean;
+  skipUnauthorizedRedirect?: boolean;
   token?: string;
 };
 
@@ -235,7 +236,14 @@ const attachInterceptors = (
     (response) => response,
     (error) => {
       const apiError = toApiError(error);
-      if (apiError.status === 401 && onUnauthorized) {
+      const requestConfig = axios.isAxiosError(error) ?
+        (error.config as ApiRequestConfig | undefined)
+      : undefined;
+      if (
+        apiError.status === 401 &&
+        onUnauthorized &&
+        !requestConfig?.skipUnauthorizedRedirect
+      ) {
         onUnauthorized();
       }
       return Promise.reject(apiError);
@@ -311,6 +319,7 @@ type LegacyRequestOptions = {
   body?: unknown;
   token?: string;
   skipAuth?: boolean;
+  skipUnauthorizedRedirect?: boolean;
   responseType?: "json" | "blob" | "text";
 };
 
@@ -337,8 +346,14 @@ const handleLegacyUnauthorized = () => {
   }
 };
 
+const getStoredBearerToken = () => {
+  if (typeof localStorage === "undefined") return null;
+  const token = localStorage.getItem(STORAGE_TOKEN);
+  return token && token !== "cookie_session" ? token : null;
+};
+
 const legacyClient = createApiClient({
-  getAuthToken: () => null,
+  getAuthToken: getStoredBearerToken,
   onUnauthorized: handleLegacyUnauthorized,
 });
 
@@ -358,6 +373,7 @@ export async function apiRequest<T>(
     body,
     token,
     skipAuth,
+    skipUnauthorizedRedirect,
     responseType = "json",
   } = options;
 
@@ -366,6 +382,7 @@ export async function apiRequest<T>(
     method,
     responseType: resolveResponseType(responseType),
     skipAuth,
+    skipUnauthorizedRedirect,
   };
 
   if (token) {

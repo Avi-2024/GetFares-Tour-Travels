@@ -179,7 +179,7 @@ const Login = () => {
         isActive:
           normalizeBooleanFlag(data.user.isActive ?? data.user.active) ??
           undefined
-      })
+      }, data.accessToken)
       const normalizedRole = String(userRole || '')
         .trim()
         .toLowerCase()
