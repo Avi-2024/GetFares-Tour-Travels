@@ -52,7 +52,6 @@ import {
   readBookingsCreateModalOpen,
   setCachedQuotationOptions,
   setCachedSupplierOptions,
-  writeBookingsCreateDraft,
   writeBookingsCreateModalOpen,
   type BookingsPageStats,
 } from "../../lib/bookingsPageCache";
@@ -157,10 +156,10 @@ type QuoteOption = {
   id: string;
   label: string;
   value: string;
-  selectedLabel?: string;
-  searchText?: string;
-  leftLabel?: string;
-  rightLabel?: string;
+  selectedLabel: string;
+  searchText: string;
+  leftLabel: string;
+  rightLabel: string;
 };
 
 type SupplierOption = {
@@ -2219,7 +2218,7 @@ const BookingsPage: React.FC = () => {
       patchBookingsPageCache({ items: mapped });
     } catch (err) {
       console.error("Failed to load bookings:", err);
-      const message = reportApiError(err, "Failed to load bookings", setError);
+      reportApiError(err, "Failed to load bookings", setError);
       if (!silent) {
         setBookingItems([]);
         invalidateBookingsPageCache();

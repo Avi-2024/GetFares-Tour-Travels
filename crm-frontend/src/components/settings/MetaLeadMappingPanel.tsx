@@ -66,8 +66,6 @@ const LEAD_TYPES = [
   { value: 'VISA', label: 'Visa' }
 ]
 
-const DEFAULT_SOURCE_LABELS = ['Meta India Page', 'Meta UAE Page'] as const
-
 const SAMPLE_JSON = `[
   {"name":"full_name","values":["Test User"]},
   {"name":"email","values":["test@example.com"]},
@@ -327,7 +325,7 @@ const MetaLeadMappingPanel: React.FC = () => {
   const sourceLabelOptions = useMemo(() => {
     const labels = Array.from(
       new Set(
-        [...DEFAULT_SOURCE_LABELS, ...sourceLabelNames, form.sourceLabel]
+        [...sourceLabelNames, form.sourceLabel]
           .map((label) => label.trim())
           .filter(Boolean)
       )

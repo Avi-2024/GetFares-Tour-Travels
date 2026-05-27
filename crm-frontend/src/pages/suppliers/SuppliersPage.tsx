@@ -207,7 +207,7 @@ const SuppliersPage: React.FC = () => {
 
   const filteredAndSortedSuppliers = useMemo(() => {
     const query = supplierSearch.trim().toLowerCase();
-    let filtered = suppliers.filter((supplier) => {
+    const filtered = suppliers.filter((supplier) => {
       const statusMatch =
         supplierStatusFilter === "ALL" ||
         (supplierStatusFilter === "ACTIVE" && supplier.isActive !== false) ||

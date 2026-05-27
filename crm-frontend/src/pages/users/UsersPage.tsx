@@ -333,12 +333,16 @@ const UserFormModal = ({
   useEffect(() => {
     if (!isOpen) return
 
-    const selected = roles.find(role => role.id === initialFormData.role)
-    setFormData(initialFormData)
-    setSelectedCountryIso2(resolveIso2FromCountryName(initialFormData.country))
-    setRoleSearch(selected?.name ?? '')
-    setCreateRoleName('')
-    setRoleDropdownOpen(false)
+    const timeoutId = window.setTimeout(() => {
+      const selected = roles.find(role => role.id === initialFormData.role)
+      setFormData(initialFormData)
+      setSelectedCountryIso2(resolveIso2FromCountryName(initialFormData.country))
+      setRoleSearch(selected?.name ?? '')
+      setCreateRoleName('')
+      setRoleDropdownOpen(false)
+    }, 0)
+
+    return () => window.clearTimeout(timeoutId)
   }, [initialFormData, isOpen, resolveIso2FromCountryName, roles])
 
   const handleCountryChange = (option: UserCountryOption | null) => {

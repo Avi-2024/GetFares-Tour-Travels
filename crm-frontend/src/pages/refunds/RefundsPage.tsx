@@ -27,7 +27,6 @@ import EmptyState from '../../components/ui/EmptyState'
 import SearchableDropdown from '../../components/ui/SearchableDropdown'
 import { refundsApi } from '../../api/refunds'
 import { bookingsApi } from '../../api/bookings'
-import { paymentsApi } from '../../api/payments'
 import { reportApiError } from '../../lib/notify'
 import { prefetchBookingPickerOptions } from '../../lib/bookingPickerCache'
 import CreateRefundModal from './CreateRefundModal'
@@ -138,17 +137,6 @@ type FinanceUser = {
 }
 
 const MAX_REFUND_PROOF_SIZE = 5 * 1024 * 1024
-
-const formatFileSize = (bytes: number) => {
-  if (!bytes) return '0 B'
-  const units = ['B', 'KB', 'MB', 'GB']
-  const power = Math.min(
-    Math.floor(Math.log(bytes) / Math.log(1024)),
-    units.length - 1
-  )
-  const value = bytes / Math.pow(1024, power)
-  return `${value % 1 === 0 ? value : value.toFixed(1)} ${units[power]}`
-}
 
 // Toast Component
 const Toast = ({
@@ -678,16 +666,6 @@ const unwrapBookingResponse = (res: unknown): any => {
       (outer as { data: unknown }).data
     : outer
   return inner && typeof inner === 'object' ? inner : outer
-}
-
-const unwrapListResponse = (res: unknown): any[] => {
-  const payload = (res as any)?.data ?? res
-  const data =
-    (payload as any)?.data ??
-    (payload as any)?.items ??
-    payload ??
-    []
-  return Array.isArray(data) ? data : []
 }
 
 const mapBookingApiToLookup = (booking: any): BookingLookup | null => {

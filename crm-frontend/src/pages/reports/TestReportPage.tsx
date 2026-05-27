@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Country } from 'country-state-city'
 import {
   Bar,
   BarChart,
@@ -27,8 +26,7 @@ import { useLeadsService } from '../../hooks/useLeadsService'
 import { useUsersService } from '../../hooks/useUsersService'
 import {
   type SopStatusLabel,
-  sopLabelToCanonical,
-  SOP_STATUS_LABELS
+  sopLabelToCanonical
 } from '../../utils/leadStatus'
 
 type TabId = 'sales' | 'leads' | 'users' | 'activity'
@@ -320,8 +318,6 @@ const TestReportPage = () => {
   const [supplierChoices, setSupplierChoices] = useState<
     { id: string; label: string }[]
   >([])
-  const [sourceChoices, setSourceChoices] = useState<string[]>([])
-
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -394,19 +390,6 @@ const TestReportPage = () => {
     []
   )
 
-  // @ts-ignore - unused variable
-  const countryOptions = useMemo(
-    () =>
-      [
-        { value: '', label: 'All countries' },
-        ...Country.getAllCountries()
-          .map(c => String(c.name || '').trim())
-          .sort((a, b) => a.localeCompare(b))
-          .map(name => ({ value: name, label: name }))
-      ],
-    []
-  )
-
   const destinationOptions = useMemo(
     () => [
       { value: '', label: 'All destinations' },
@@ -421,27 +404,6 @@ const TestReportPage = () => {
       ...consultants.map(c => ({ value: c.id, label: c.name }))
     ],
     [consultants]
-  )
-
-  // @ts-ignore - unused variable
-  const statusDropdownOptions = useMemo(
-    () => [
-      { value: '', label: 'All statuses' },
-      ...SOP_STATUS_LABELS.map(s => ({
-        value: s,
-        label: s.replace(/_/g, ' ')
-      }))
-    ],
-    []
-  )
-
-  // @ts-ignore - unused variable
-  const sourceOptsDropdown = useMemo(
-    () => [
-      { value: '', label: 'All sources' },
-      ...sourceChoices.map(s => ({ value: s, label: s }))
-    ],
-    [sourceChoices]
   )
 
   const supplierOptsDropdown = useMemo(
@@ -646,11 +608,7 @@ const TestReportPage = () => {
         byType: Array.isArray(actPayload?.byType) ? actPayload.byType : []
       })
 
-      const optRows = extractListRows<{ source?: string }>(srcOptRes)
-      setSourceChoices(
-        [...new Set(optRows.map(r => String(r.source || '').trim()))].filter(Boolean)
-          .sort()
-      )
+      extractListRows<{ source?: string }>(srcOptRes)
 
       setFuToday(extractListRows(fuT))
       setFuMissed(extractListRows(fuM))

@@ -569,7 +569,7 @@ const MetaConnectionPanel: React.FC = () => {
                 <TextInput
                   value={pageForm.sourceLabel}
                   onChange={(v) => setPF('sourceLabel', v)}
-                  placeholder="Meta India Page"
+                  placeholder="Lead source label"
                 />
               </FieldBlock>
 

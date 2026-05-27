@@ -71,7 +71,7 @@ export const DateTimePreferencesProvider = ({
 }) => {
   const { token } = useAuth();
   const [preferences, setPreferences] = useState<DateTimePreferences>(
-    DEFAULT_DATE_TIME_PREFERENCES,
+    () => loadDateTimePreferencesFromStorage() ?? DEFAULT_DATE_TIME_PREFERENCES,
   );
 
   const applyPreferences = useCallback(
@@ -130,14 +130,11 @@ export const DateTimePreferencesProvider = ({
   }, [applyPreferences, token]);
 
   useEffect(() => {
-    const stored = loadDateTimePreferencesFromStorage();
-    if (stored) {
-      setPreferences(stored);
-    }
-  }, []);
-
-  useEffect(() => {
-    void refreshPreferences();
+    if (typeof window === "undefined") return undefined;
+    const timeoutId = window.setTimeout(() => {
+      void refreshPreferences();
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
   }, [refreshPreferences]);
 
   useEffect(() => {

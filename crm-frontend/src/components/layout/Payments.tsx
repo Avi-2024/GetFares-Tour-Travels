@@ -42,7 +42,8 @@ const quickFilters = [
   { key: "ACTIVE", label: "Active" },
   { key: "COMPLETED", label: "Completed" },
   { key: "PENDING", label: "Pending" },
-  { key: "FAILED", label: "Failed" }
+  { key: "FAILED", label: "Failed" },
+  { key: "REFUNDED", label: "Refunded" }
 ] as const;
 type QuickFilter = (typeof quickFilters)[number]["key"];
 
@@ -613,18 +614,6 @@ async function fetchPaymentBookingOptions(
     }
   }
 }
-
-const pickEntityName = (entity: any) => {
-  const candidate =
-    entity?.fullName ??
-    entity?.full_name ??
-    entity?.name ??
-    entity?.customerName ??
-    entity?.customer_name ??
-    entity?.leadName ??
-    entity?.lead_name;
-  return typeof candidate === "string" && candidate.trim() ? candidate.trim() : "";
-};
 
 // Toast Component
 const Toast = ({
@@ -1759,29 +1748,32 @@ const DetailsModal = ({
   }, [invoiceLink]);
 
   useEffect(() => {
-    if (!isOpen || !transaction) {
-      setVerifiedByDisplay("");
-      return;
-    }
-
-    const preset = String(transaction.verifiedByName ?? "").trim();
-    if (preset && !isUuid(preset)) {
-      setVerifiedByDisplay(preset);
-      return;
-    }
-
     let cancelled = false;
-    void resolveVerifierDisplayName(
-      transaction.verifiedBy,
-      transaction.verifiedByName,
-    ).then((label) => {
-      if (!cancelled) {
-        setVerifiedByDisplay(label || "");
+    const timeoutId = window.setTimeout(() => {
+      if (!isOpen || !transaction) {
+        setVerifiedByDisplay("");
+        return;
       }
-    });
+
+      const preset = String(transaction.verifiedByName ?? "").trim();
+      if (preset && !isUuid(preset)) {
+        setVerifiedByDisplay(preset);
+        return;
+      }
+
+      void resolveVerifierDisplayName(
+        transaction.verifiedBy,
+        transaction.verifiedByName,
+      ).then((label) => {
+        if (!cancelled) {
+          setVerifiedByDisplay(label || "");
+        }
+      });
+    }, 0);
 
     return () => {
       cancelled = true;
+      window.clearTimeout(timeoutId);
     };
   }, [isOpen, transaction?.id, transaction?.verifiedBy, transaction?.verifiedByName]);
 

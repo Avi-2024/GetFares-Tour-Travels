@@ -186,8 +186,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (cancelled) return;
         setToken("");
       } finally {
-        if (cancelled) return;
-        setBootstrappingSession(false);
+        if (!cancelled) {
+          setBootstrappingSession(false);
+        }
       }
     };
 

@@ -21,6 +21,7 @@ import VirtualizedTable from "../../components/ui/VirtualizedTable";
 import { reportApiError } from "../../lib/notify";
 import { useLeadsService } from "../../hooks/useLeadsService";
 import { useUsersService } from "../../hooks/useUsersService";
+import { metaConnectionApi } from "../../api/metaConnection";
 
 import type { LeadListItem, LeadsPagination } from "../../services/leadsService";
 import { sopLabelToCanonical } from "../../utils/leadStatus";
@@ -76,8 +77,6 @@ type ConsultantUser = {
   is_active?: boolean;
   active?: boolean | null;
 };
-
-const DEFAULT_LEAD_SOURCE_NAMES = ["Meta India Page", "Meta UAE Page"] as const;
 
 const defaultFilters: LeadFilterState = {
   fromDate: "",
@@ -209,9 +208,9 @@ const Leads: React.FC = () => {
 
   const leadSourceOptions = useMemo(
     () => {
-      const names = Array.from(
-        new Set([...DEFAULT_LEAD_SOURCE_NAMES, ...leadSourceNames]),
-      ).sort((left, right) => left.localeCompare(right));
+      const names = Array.from(new Set(leadSourceNames)).sort((left, right) =>
+        left.localeCompare(right),
+      );
       return [
         { value: "", label: "All lead sources" },
         ...names.map((name) => ({ value: name, label: name })),
@@ -311,8 +310,16 @@ const Leads: React.FC = () => {
     leadSourcesFetchedRef.current = true
     const run = async () => {
       try {
-        const names = await leadsService.getLeadSources({ limit: 200 })
-        setLeadSourceNames(names)
+        const [names, pages] = await Promise.all([
+          leadsService.getLeadSources({ limit: 200 }).catch(() => []),
+          metaConnectionApi.listPages({ isActive: true }).catch(() => []),
+        ])
+        const pageLabels = pages
+          .map((page) =>
+            String(page.sourceLabel || page.pageName || "").trim(),
+          )
+          .filter(Boolean)
+        setLeadSourceNames([...new Set([...names, ...pageLabels])])
       } catch {
         setLeadSourceNames([])
       }

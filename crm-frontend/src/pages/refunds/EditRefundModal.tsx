@@ -46,6 +46,7 @@ const EditRefundModal = ({
   loadingFinanceUsers = false,
   financeUserOptions,
   currencyOptions,
+  currencyLocked = false,
   proofFile,
   proofUploadError,
   proofInputRef,

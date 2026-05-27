@@ -19,7 +19,17 @@ import {
   FaUsers,
   FaXmark,
 } from "react-icons/fa6";
+import type { IconType } from "react-icons";
 import { useAuth } from "../../context/AuthContext";
+
+type SidebarItem = {
+  label: string;
+  to: string;
+  icon: IconType;
+  permission?: string;
+  roles?: string[];
+  end?: boolean;
+};
 
 const normalizeRole = (role?: string) =>
   String(role ?? "")
@@ -32,7 +42,7 @@ const userHasRole = (userRole: string | undefined, allowed: string[]) => {
   return allowed.some((r) => normalizeRole(r) === normalized);
 };
 
-const sections = [
+const sections: Array<{ title: string; items: SidebarItem[] }> = [
   {
     title: "Pipeline",
     items: [

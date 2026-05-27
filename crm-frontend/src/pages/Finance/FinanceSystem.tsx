@@ -715,8 +715,11 @@ const PaymentModal = ({
 
   useEffect(() => {
     if (!isOpen) return
-    setBookingError('')
-    setFormData(createPaymentFormData())
+    const timeoutId = window.setTimeout(() => {
+      setBookingError('')
+      setFormData(createPaymentFormData())
+    }, 0)
+    return () => window.clearTimeout(timeoutId)
   }, [isOpen])
 
   if (!isOpen) return null
