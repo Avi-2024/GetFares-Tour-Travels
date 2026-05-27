@@ -15,7 +15,7 @@
     "db:migrate": "node database/scripts/migrate.js",
     "db:seed:dummy-followups": "node scripts/seed-dummy-followups.js",
     "db:clear": "node scripts/clear-db.js",
-    "cms-seed": "node scripts/cms-seed.js",
+    "cms-seed": "node database/scripts/cms-seed.js",
     "db:seed:rbac": "node scripts/seed-rbac.js",
     "db:seed:accounts": "node database/scripts/seed-accounts-users.js",
     "db:backup": "node scripts/backup-db.js",

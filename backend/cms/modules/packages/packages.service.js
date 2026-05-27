@@ -337,14 +337,19 @@ function createCmsPackagesService({ repository }) {
     if (normalizedOrder < 0) {
       return normalizedOrder;
     }
+    const normalizedDestinationId = normalizeText(destinationId);
     const rows = await repository.findAllMainPackages({
       includeDeleted: false,
       ...(country ? { country } : {}),
-      ...(destinationId ? { destinationId } : {}),
     });
+    const scopedRows = rows.filter(
+      (row) =>
+        normalizeText(row.destination_id ?? row.destinationId) ===
+        normalizedDestinationId,
+    );
     const duplicate = findDisplayOrderConflict(
       normalizedOrder,
-      rows,
+      scopedRows,
       excludeId,
     );
     if (duplicate) {
@@ -356,19 +361,29 @@ function createCmsPackagesService({ repository }) {
   async function reassignSubPackageDisplayOrder({
     displayOrder,
     country,
+    mainPackageId,
     excludeId = null,
   }) {
     const normalizedOrder = normalizeDisplayOrderInput(displayOrder, -1);
     if (normalizedOrder < 0) {
       return normalizedOrder;
     }
+    const normalizedMainPackageId = normalizeText(mainPackageId);
+    if (!normalizedMainPackageId) {
+      return normalizedOrder;
+    }
     const rows = await repository.findAllSubPackages({
       includeDeleted: false,
       ...(country ? { country } : {}),
     });
+    const scopedRows = rows.filter(
+      (row) =>
+        normalizeText(row.main_package_id ?? row.mainPackageId) ===
+        normalizedMainPackageId,
+    );
     const duplicate = findDisplayOrderConflict(
       normalizedOrder,
-      rows,
+      scopedRows,
       excludeId,
     );
     // if (duplicate) {
@@ -1126,6 +1141,7 @@ function createCmsPackagesService({ repository }) {
         display_order: await reassignSubPackageDisplayOrder({
           displayOrder: data.displayOrder,
           country: mainPackage.country,
+          mainPackageId: data.mainPackageId,
         }),
       });
 
@@ -1259,12 +1275,14 @@ function createCmsPackagesService({ repository }) {
         updates.display_order = await reassignSubPackageDisplayOrder({
           displayOrder: data.displayOrder,
           country: nextMainPackage.country,
+          mainPackageId: nextMainPackageId,
           excludeId: id,
         });
       if (data.displayOrder === undefined && data.mainPackageId !== undefined) {
         updates.display_order = await reassignSubPackageDisplayOrder({
           displayOrder: existing.display_order,
           country: nextMainPackage.country,
+          mainPackageId: nextMainPackageId,
           excludeId: id,
         });
       }
