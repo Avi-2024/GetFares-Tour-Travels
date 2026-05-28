@@ -4,6 +4,9 @@ ALTER TABLE meta_page_configs
   ADD COLUMN graph_fields TEXT DEFAULT NULL AFTER graph_base_url,
   ADD COLUMN secrets_confirmed_at TIMESTAMP NULL DEFAULT NULL AFTER verify_token;
 
+ALTER TABLE meta_page_configs
+  ADD COLUMN graph_version VARCHAR(40) DEFAULT NULL AFTER verify_token;
+
 CREATE TABLE IF NOT EXISTS meta_integration_settings (
   id VARCHAR(40) NOT NULL DEFAULT 'default',
   app_secret TEXT DEFAULT NULL,

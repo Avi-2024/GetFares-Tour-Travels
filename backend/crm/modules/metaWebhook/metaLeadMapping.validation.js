@@ -59,6 +59,11 @@ const testMapBody = z.object({
   metaPageId: z.string().trim().max(120).optional(),
 });
 
+const createTestLeadBody = testMapBody.extend({
+  metaPageId: z.string().trim().min(1).max(120),
+  leadgenId: z.string().trim().max(120).optional(),
+});
+
 export const MetaLeadMappingValidation = {
   listProfiles: z.object({
     query: z
@@ -100,5 +105,9 @@ export const MetaLeadMappingValidation = {
 
   testMap: z.object({
     body: testMapBody,
+  }),
+
+  createTestLead: z.object({
+    body: createTestLeadBody,
   }),
 };

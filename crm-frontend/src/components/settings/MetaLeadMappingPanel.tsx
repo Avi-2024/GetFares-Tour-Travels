@@ -73,6 +73,37 @@ const SAMPLE_JSON = `[
   {"name":"field_key","values":["Sample value"]}
 ]`
 
+function formatQuestionLabel(key: string) {
+  return key
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, (letter) => letter.toUpperCase())
+}
+
+function readSampleQuestionKeys(sampleJson: string) {
+  try {
+    const parsed = JSON.parse(sampleJson)
+    if (!Array.isArray(parsed)) return []
+    return parsed
+      .map((item) => String(item?.name || '').trim())
+      .filter(Boolean)
+  } catch {
+    return []
+  }
+}
+
+function normalizeMetaQuestionKey(input: string) {
+  return String(input || '')
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(/['"`]/g, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .replace(/_+/g, '_')
+}
+
 /* ─── tiny components ───────────────────────────────────────── */
 function Label({ children }: { children: React.ReactNode }) {
   return <p className="mb-1 text-sm font-medium text-slate-700">{children}</p>
@@ -206,6 +237,7 @@ const MetaLeadMappingPanel: React.FC = () => {
   const [addingMap, setAddingMap] = useState(false)
   const [removingMapId, setRemovingMapId] = useState<string | null>(null)
   const [testing, setTesting] = useState(false)
+  const [creatingTestLead, setCreatingTestLead] = useState(false)
 
   /* rule form */
   const [selectedId, setSelectedId] = useState('')
@@ -222,6 +254,7 @@ const MetaLeadMappingPanel: React.FC = () => {
 
   /* test */
   const [testJson, setTestJson] = useState(SAMPLE_JSON)
+  const [testPageId, setTestPageId] = useState('')
   const [testFormId, setTestFormId] = useState('')
   const [testAdId, setTestAdId] = useState('')
   const [testCampaignId, setTestCampaignId] = useState('')
@@ -302,6 +335,11 @@ const MetaLeadMappingPanel: React.FC = () => {
 
   const questionOptions = useMemo(() => {
     const keys = new Set<string>()
+    ;(metadata?.formQuestionFields ?? []).forEach((key) => {
+      const trimmed = key.trim()
+      if (trimmed) keys.add(trimmed)
+    })
+    readSampleQuestionKeys(testJson).forEach((key) => keys.add(key))
     profiles.forEach((profile) => {
       const maps = profile.fieldMaps ?? []
       maps.forEach((map) => {
@@ -318,9 +356,13 @@ const MetaLeadMappingPanel: React.FC = () => {
       { value: '', label: 'Pick question' },
       ...Array.from(keys)
         .sort((a, b) => a.localeCompare(b))
-        .map((key) => ({ value: key, label: key }))
+        .map((key) => ({
+          value: key,
+          label: formatQuestionLabel(key),
+          rightLabel: key
+        }))
     ]
-  }, [mapQuestion, profiles])
+  }, [mapQuestion, metadata, profiles, testJson])
 
   const sourceLabelOptions = useMemo(() => {
     const labels = Array.from(
@@ -335,6 +377,38 @@ const MetaLeadMappingPanel: React.FC = () => {
       ...labels.map((label) => ({ value: label, label }))
     ]
   }, [form.sourceLabel, sourceLabelNames])
+
+  const buildDynamicSampleJson = useCallback(() => {
+    const keys = new Set<string>(['full_name', 'email', 'phone_number'])
+    if (mapQuestion.trim()) keys.add(normalizeMetaQuestionKey(mapQuestion))
+    selectedFieldMaps.forEach((map) => {
+      map.metaFieldKeys.forEach((key) => {
+        const normalized = normalizeMetaQuestionKey(key)
+        if (normalized) keys.add(normalized)
+      })
+    })
+
+    const values: Record<string, string> = {
+      full_name: 'Test User',
+      email: 'test@example.com',
+      phone_number: '+971501234567',
+      nationality: 'Indian',
+      city: 'Dubai',
+      budget: '200000',
+      travel_to: 'Dubai',
+      travel_date: '2026-06-15',
+      visa_required: 'Yes'
+    }
+
+    return JSON.stringify(
+      Array.from(keys).map((key) => ({
+        name: key,
+        values: [values[key] || 'Sample value']
+      })),
+      null,
+      2
+    )
+  }, [mapQuestion, selectedFieldMaps])
 
   /* ── initial load (once) ── */
   useEffect(() => {
@@ -356,6 +430,7 @@ const MetaLeadMappingPanel: React.FC = () => {
         setSourceLabelNames(labels)
         setHasConnection(connected)
         setProfiles(connected ? list : [])
+        setTestPageId(pageList.find((page) => page.isActive !== false)?.pageId || '')
       } catch (err) {
         if (!mountedRef.current) return
         toast.error(getApiErrorMessage(err, 'Failed to load rules'))
@@ -392,9 +467,11 @@ const MetaLeadMappingPanel: React.FC = () => {
     setForm(formFromProfile(p))
     setShowMaps(false)
     setTestResult('')
+    setTestJson(SAMPLE_JSON)
     if (p.scopeType === 'form') setTestFormId(p.scopeId || '')
     else if (p.scopeType === 'ad') setTestAdId(p.scopeId || '')
     else if (p.scopeType === 'campaign') setTestCampaignId(p.scopeId || '')
+    else if (p.scopeType === 'page') setTestPageId(p.scopeId || testPageId)
   }
 
   const closeForm = () => {
@@ -527,6 +604,35 @@ const MetaLeadMappingPanel: React.FC = () => {
       toast.error(getApiErrorMessage(err, 'Test failed'))
     } finally {
       setTesting(false)
+    }
+  }
+
+  const createTestLead = async () => {
+    if (!testPageId.trim()) return toast.error('Select Facebook page')
+    setCreatingTestLead(true)
+    setTestResult('')
+    try {
+      let fieldData: unknown
+      try {
+        fieldData = JSON.parse(testJson)
+      } catch {
+        toast.error('Invalid JSON in sample')
+        return
+      }
+      const result = await metaLeadMappingsApi.createTestLead({
+        fieldData: fieldData as Parameters<typeof metaLeadMappingsApi.createTestLead>[0]['fieldData'],
+        metaPageId: testPageId.trim(),
+        metaFormId: testFormId.trim() || undefined,
+        metaAdId: testAdId.trim() || undefined,
+        metaCampaignId: testCampaignId.trim() || undefined,
+        leadgenId: `crm_ui_test_${Date.now()}`
+      })
+      setTestResult(JSON.stringify(result, null, 2))
+      toast.success(result.duplicate ? 'Existing lead matched' : 'Test lead created')
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Test lead failed'))
+    } finally {
+      setCreatingTestLead(false)
     }
   }
 
@@ -733,7 +839,7 @@ const MetaLeadMappingPanel: React.FC = () => {
 
           {/* ── Question mapping ── */}
           {selected && (
-            <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+            <div className="rounded-xl border border-slate-200 bg-white overflow-visible">
               <button
                 type="button"
                 onClick={() => setShowMaps((s) => !s)}
@@ -795,15 +901,27 @@ const MetaLeadMappingPanel: React.FC = () => {
                   <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] items-end">
                     <div>
                       <Label>Form question</Label>
-                      <SearchableDropdown
+                      <input
+                        list="meta-question-suggestions"
                         value={mapQuestion}
-                        options={questionOptions}
-                        onChange={setMapQuestion}
-                        searchPlaceholder="Search or type question key..."
-                        creatable
-                        onCreatePick={setMapQuestion}
-                        createPrompt="Use question"
+                        onChange={(event) => setMapQuestion(event.target.value)}
+                        placeholder="Paste exact Meta question"
+                        className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 shadow-sm transition-all duration-200 hover:border-gray-300 hover:shadow-md focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-100"
                       />
+                      <datalist id="meta-question-suggestions">
+                        {questionOptions
+                          .filter((option) => option.value)
+                          .map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                      </datalist>
+                      {mapQuestion.trim() ? (
+                        <Hint>Saved key: {normalizeMetaQuestionKey(mapQuestion)}</Hint>
+                      ) : (
+                        <Hint>Paste the same question text used in Meta form.</Hint>
+                      )}
                     </div>
                     <div>
                       <Label>Save into CRM field</Label>
@@ -833,7 +951,7 @@ const MetaLeadMappingPanel: React.FC = () => {
           )}
 
           {/* ── Test rule ── */}
-          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+          <div className="rounded-xl border border-slate-200 bg-white overflow-visible">
             <button
               type="button"
               onClick={() => setShowTest((s) => !s)}
@@ -858,7 +976,26 @@ const MetaLeadMappingPanel: React.FC = () => {
                   Paste IDs and a sample form response to see which rule fires.
                 </p>
 
-                <div className="grid gap-3 sm:grid-cols-3">
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setTestJson(buildDynamicSampleJson())}
+                    className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm hover:bg-slate-50"
+                  >
+                    <FaRotate /> Generate from mappings
+                  </button>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-4">
+                  <div>
+                    <Label>Facebook page</Label>
+                    <SearchableDropdown
+                      value={testPageId}
+                      options={pageOptions}
+                      searchPlaceholder="Search Meta page..."
+                      onChange={setTestPageId}
+                    />
+                  </div>
                   <div>
                     <Label>Form ID</Label>
                     <TextInput
@@ -898,15 +1035,26 @@ const MetaLeadMappingPanel: React.FC = () => {
                   />
                 </div>
 
-                <button
-                  type="button"
-                  disabled={testing}
-                  onClick={() => void runTest()}
-                  className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-700 disabled:opacity-50"
-                >
-                  {testing ? <FaRotate className="animate-spin" /> : null}
-                  Run test
-                </button>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={testing}
+                    onClick={() => void runTest()}
+                    className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    {testing ? <FaRotate className="animate-spin" /> : null}
+                    Test mapping only
+                  </button>
+                  <button
+                    type="button"
+                    disabled={creatingTestLead}
+                    onClick={() => void createTestLead()}
+                    className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-700 disabled:opacity-50"
+                  >
+                    {creatingTestLead ? <FaRotate className="animate-spin" /> : <FaPlus />}
+                    Create lead in CRM
+                  </button>
+                </div>
 
                 {testResult && (
                   <pre className="max-h-56 overflow-auto rounded-lg bg-slate-950 p-4 text-xs text-emerald-300">

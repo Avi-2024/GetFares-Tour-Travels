@@ -1,4 +1,4 @@
-function createMetaLeadMappingController({ service }) {
+function createMetaLeadMappingController({ service, webhookService }) {
   async function getMetadata(_req, res) {
     res.status(200).json({ success: true, data: service.getMetadata() });
   }
@@ -58,6 +58,18 @@ function createMetaLeadMappingController({ service }) {
     res.status(200).json({ success: true, data });
   }
 
+  async function createTestLead(req, res) {
+    const data = await webhookService.createTestLead(
+      req.validated.body,
+      req.context,
+    );
+    res.status(201).json({
+      success: true,
+      message: data.duplicate ? "Test matched existing lead" : "Test lead created",
+      data,
+    });
+  }
+
   async function reloadCache(_req, res) {
     const data = await service.reloadCache();
     res.status(200).json({ success: true, data });
@@ -73,6 +85,7 @@ function createMetaLeadMappingController({ service }) {
     updateFieldMap,
     deleteFieldMap,
     testMapping,
+    createTestLead,
     reloadCache,
   });
 }

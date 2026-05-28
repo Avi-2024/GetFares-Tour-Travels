@@ -42,17 +42,6 @@ function createMetaWebhookModule({ dependencies, leadsService }) {
     logger: dependencies.logger,
   });
 
-  const mappingController = createMetaLeadMappingController({
-    service: mappingService,
-  });
-
-  const mappingRouter = createMetaLeadMappingRoutes({
-    controller: mappingController,
-    validation: MetaLeadMappingValidation,
-    validateRequest: dependencies.middlewares.validateRequest,
-    requireAuth: dependencies.middlewares.requireAuth,
-  });
-
   const pageConfigRepository = createMetaPageConfigRepository({
     db: dependencies.db,
     logger: dependencies.logger,
@@ -91,6 +80,18 @@ function createMetaWebhookModule({ dependencies, leadsService }) {
     config: dependencies.config,
     mappingResolver,
     pageConfigProvider: pageConfigService,
+  });
+
+  const mappingController = createMetaLeadMappingController({
+    service: mappingService,
+    webhookService: service,
+  });
+
+  const mappingRouter = createMetaLeadMappingRoutes({
+    controller: mappingController,
+    validation: MetaLeadMappingValidation,
+    validateRequest: dependencies.middlewares.validateRequest,
+    requireAuth: dependencies.middlewares.requireAuth,
   });
 
   const controller = createMetaWebhookController({

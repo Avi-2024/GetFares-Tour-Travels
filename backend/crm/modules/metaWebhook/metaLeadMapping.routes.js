@@ -76,6 +76,12 @@ function createMetaLeadMappingRoutes({
     asyncHandler(controller.testMapping),
   );
 
+  router.post(
+    "/test/create-lead",
+    validateRequest(validation.createTestLead),
+    asyncHandler(controller.createTestLead),
+  );
+
   router.post("/reload-cache", asyncHandler(controller.reloadCache));
 
   return router;

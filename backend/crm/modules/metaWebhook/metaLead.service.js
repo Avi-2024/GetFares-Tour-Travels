@@ -955,7 +955,9 @@ function createMetaLeadService({
     );
 
     console.log("\n========== FETCHING META LEAD DATA ==========");
-    const metaLead = await fetchLeadWithRetry(event.leadgenId, pageConfig);
+    const metaLead =
+      event.mockMetaLead ||
+      (await fetchLeadWithRetry(event.leadgenId, pageConfig));
     console.log("Meta lead fetched:", JSON.stringify(metaLead, null, 2));
     
     fileLogger.logMetaLeadFetched(event.leadgenId, metaLead);
@@ -1155,9 +1157,44 @@ function createMetaLeadService({
     return summary;
   }
 
+  async function createTestLead(payload, context = {}) {
+    const leadgenId =
+      normalizeLeadgenId(payload.leadgenId) ||
+      `testcrm_ui_${Date.now()}`;
+    const pageId = normalizeMetaId(payload.metaPageId);
+    const formId = normalizeMetaId(payload.metaFormId);
+    const metaLead = {
+      id: leadgenId,
+      created_time: new Date().toISOString(),
+      page_id: pageId,
+      form_id: formId || null,
+      ad_id: normalizeMetaId(payload.metaAdId) || null,
+      campaign_id: normalizeMetaId(payload.metaCampaignId) || null,
+      field_data: payload.fieldData,
+    };
+
+    return processLeadEvent(
+      {
+        pageId,
+        leadgenId,
+        formId,
+        adId: metaLead.ad_id,
+        campaignId: metaLead.campaign_id,
+        eventKey: `${pageId || "unknown"}:${leadgenId}`,
+        mockMetaLead: metaLead,
+      },
+      {
+        user: context?.user || null,
+        requestId: context?.requestId || null,
+        origin: "meta_mapping_test",
+      },
+    );
+  }
+
   return Object.freeze({
     verifyWebhook,
     handleWebhook,
+    createTestLead,
   });
 }
 

@@ -56,6 +56,14 @@ export type MetaLeadTestMapResult = {
   } | null;
 };
 
+export type MetaLeadCreateTestResult = {
+  leadgenId: string;
+  lead: Record<string, unknown> | null;
+  duplicate: boolean;
+  skipped: boolean;
+  reason: string | null;
+};
+
 function unwrapData<T>(response: unknown): T {
   if (response && typeof response === "object" && "data" in response) {
     return (response as { data: T }).data;
@@ -174,6 +182,21 @@ export const metaLeadMappingsApi = {
   }) =>
     unwrapData<MetaLeadTestMapResult>(
       await apiRequest("/api/meta-lead-mappings/test", {
+        method: "POST",
+        body: payload,
+      }),
+    ),
+
+  createTestLead: async (payload: {
+    fieldData: Array<{ name: string; values?: string[]; value?: string }>;
+    metaPageId: string;
+    metaAdId?: string;
+    metaFormId?: string;
+    metaCampaignId?: string;
+    leadgenId?: string;
+  }) =>
+    unwrapData<MetaLeadCreateTestResult>(
+      await apiRequest("/api/meta-lead-mappings/test/create-lead", {
         method: "POST",
         body: payload,
       }),
