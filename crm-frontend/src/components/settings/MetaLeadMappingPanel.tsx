@@ -380,6 +380,7 @@ const MetaLeadMappingPanel: React.FC = () => {
 
   const buildDynamicSampleJson = useCallback(() => {
     const keys = new Set<string>(['full_name', 'email', 'phone_number'])
+    if (selected?.leadType === 'VISA') keys.add('nationality')
     if (mapQuestion.trim()) keys.add(normalizeMetaQuestionKey(mapQuestion))
     selectedFieldMaps.forEach((map) => {
       map.metaFieldKeys.forEach((key) => {
@@ -408,7 +409,7 @@ const MetaLeadMappingPanel: React.FC = () => {
       null,
       2
     )
-  }, [mapQuestion, selectedFieldMaps])
+  }, [mapQuestion, selected?.leadType, selectedFieldMaps])
 
   /* ── initial load (once) ── */
   useEffect(() => {

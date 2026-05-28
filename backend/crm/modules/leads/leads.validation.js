@@ -103,6 +103,7 @@ const basePayload = z.object({
   travelPurpose: z.string().max(50).optional(),
   subStatus: z.string().max(60).optional(),
   respondedPositively: z.boolean().optional(),
+  temperature: z.enum(["HOT", "WARM", "COLD"]).optional(),
   priorityLevel: z.coerce.number().int().nonnegative().optional(),
   isVip: z.boolean().optional(),
   callsDisabled: z.boolean().optional(),

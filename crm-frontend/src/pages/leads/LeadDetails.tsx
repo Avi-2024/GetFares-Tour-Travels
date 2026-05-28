@@ -145,6 +145,57 @@ type QualificationForm = {
   campaignId: string
 }
 
+type LeadDropdownOption = {
+  value: string
+  label: string
+  selectedLabel?: string
+  searchText?: string
+}
+
+const normalizeDropdownLookup = (value: unknown): string =>
+  String(value ?? '').trim().toLowerCase()
+
+const resolveDropdownValue = <T extends LeadDropdownOption>(
+  options: T[],
+  rawValue: unknown
+): string => {
+  const raw = String(rawValue ?? '').trim()
+  if (!raw) return ''
+  const exact = options.find(option => option.value === raw)
+  if (exact) return exact.value
+
+  const normalized = normalizeDropdownLookup(raw)
+  const loose = options.find(option => {
+    return (
+      normalizeDropdownLookup(option.value) === normalized ||
+      normalizeDropdownLookup(option.label) === normalized ||
+      normalizeDropdownLookup(option.selectedLabel) === normalized
+    )
+  })
+
+  return loose?.value ?? raw
+}
+
+const withSelectedDropdownValue = <T extends LeadDropdownOption>(
+  options: T[],
+  rawValue: unknown
+): T[] => {
+  const resolved = resolveDropdownValue(options, rawValue)
+  if (!resolved || options.some(option => option.value === resolved)) {
+    return options
+  }
+
+  return [
+    ...options,
+    {
+      value: resolved,
+      label: `${resolved} (saved)`,
+      selectedLabel: resolved,
+      searchText: `${resolved} saved`
+    } as T
+  ]
+}
+
 const emptyQualification: QualificationForm = {
   leadType: '',
   panNumber: '',
@@ -224,6 +275,7 @@ const LeadDetails: React.FC = () => {
   const [workflowFollowupType, setWorkflowFollowupType] = useState<
     'CALL' | 'WHATSAPP' | 'FINAL_REMINDER'
   >('CALL')
+  const [leadTemperature, setLeadTemperature] = useState<'HOT' | 'WARM' | 'COLD'>('COLD')
   const [statusNotes, setStatusNotes] = useState('')
   const [closedReason, setClosedReason] = useState('')
   const [qualification, setQualification] =
@@ -474,8 +526,15 @@ const LeadDetails: React.FC = () => {
       leadCountry: toLeadCountryFormValue(
         item?.leadCountry ?? item?.lead_country ?? item?.country ?? ''
       ),
-      nationality: item?.nationality ?? '',
-      clientCurrency: item?.clientCurrency ?? item?.client_currency ?? 'INR',
+      nationality: resolveDropdownValue(
+        getNationalityOptions(),
+        item?.nationality ?? ''
+      ),
+      clientCurrency:
+        resolveDropdownValue(
+          getCurrencyOptions(false),
+          item?.clientCurrency ?? item?.client_currency ?? 'INR'
+        ) || 'INR',
       destinationName:
         (typeof item?.destination === 'object'
           ? item?.destination?.name
@@ -555,6 +614,12 @@ const LeadDetails: React.FC = () => {
                 data.subStatus,
                 data.statusLabel
               )
+        )
+        const rawTemperature = String(data.temperature || '').toUpperCase()
+        setLeadTemperature(
+          rawTemperature === 'HOT' || rawTemperature === 'WARM' || rawTemperature === 'COLD'
+            ? rawTemperature
+            : 'COLD'
         )
         hydrateQualification(data)
       }
@@ -917,7 +982,14 @@ const LeadDetails: React.FC = () => {
     return [placeholder, ...rows]
   }, [leadQuotations, formatDate])
 
-  const currencyOptions = useMemo(() => getCurrencyOptions(false), [])
+  const currencyOptions = useMemo(
+    () =>
+      withSelectedDropdownValue(
+        getCurrencyOptions(false),
+        qualification.clientCurrency
+      ),
+    [qualification.clientCurrency]
+  )
 
   const visaOptions = useMemo(
     () => [
@@ -929,47 +1001,61 @@ const LeadDetails: React.FC = () => {
   )
 
   const leadTypeOptions = useMemo(
-    () => [
-  
-      { value: 'HOLIDAY', label: 'Holidays' },
-      { value: 'VISA', label: 'Visa' },
-
-    ],
-    []
+    () =>
+      withSelectedDropdownValue(
+        [
+          { value: 'HOLIDAY', label: 'Holidays' },
+          { value: 'VISA', label: 'Visa' }
+        ],
+        qualification.leadType
+      ),
+    [qualification.leadType]
   )
 
   const hotelCategoryOptions = useMemo(
-    () => [
-      { value: '', label: 'Select hotel category' },
-      { value: '3_STAR', label: '3 Star' },
-      { value: '4_STAR', label: '4 Star' },
-      { value: '5_STAR', label: '5 Star' },
-      { value: 'ANY', label: 'Any' }
-    ],
-    []
+    () =>
+      withSelectedDropdownValue(
+        [
+          { value: '', label: 'Select hotel category' },
+          { value: '3_STAR', label: '3 Star' },
+          { value: '4_STAR', label: '4 Star' },
+          { value: '5_STAR', label: '5 Star' },
+          { value: 'ANY', label: 'Any' }
+        ],
+        qualification.preferredHotelCategory
+      ),
+    [qualification.preferredHotelCategory]
   )
 
   const travelPurposeOptions = useMemo(
-    () => [
-      { value: '', label: 'Select purpose' },
-      { value: 'LEISURE', label: 'Leisure' },
-      { value: 'BUSINESS', label: 'Business' },
-      { value: 'HONEYMOON', label: 'Honeymoon' },
-      { value: 'FAMILY', label: 'Family' },
-      { value: 'ADVENTURE', label: 'Adventure' }
-    ],
-    []
+    () =>
+      withSelectedDropdownValue(
+        [
+          { value: '', label: 'Select purpose' },
+          { value: 'LEISURE', label: 'Leisure' },
+          { value: 'BUSINESS', label: 'Business' },
+          { value: 'HONEYMOON', label: 'Honeymoon' },
+          { value: 'FAMILY', label: 'Family' },
+          { value: 'ADVENTURE', label: 'Adventure' }
+        ],
+        qualification.travelPurpose
+      ),
+    [qualification.travelPurpose]
   )
 
   const leadSourceOptions = useMemo(
-    () => [
-      { value: 'Website', label: 'Website' },
-      { value: 'Phone', label: 'Phone' },
-      { value: 'Referral', label: 'Referral' },
-      { value: 'Social', label: 'Social' },
-      { value: 'WalkIn', label: 'WalkIn' }
-    ],
-    []
+    () =>
+      withSelectedDropdownValue(
+        [
+          { value: 'Website', label: 'Website' },
+          { value: 'Phone', label: 'Phone' },
+          { value: 'Referral', label: 'Referral' },
+          { value: 'Social', label: 'Social' },
+          { value: 'WalkIn', label: 'WalkIn' }
+        ],
+        qualification.leadSource
+      ),
+    [qualification.leadSource]
   )
 
   const campaignOptions = useMemo(
@@ -1095,21 +1181,32 @@ const LeadDetails: React.FC = () => {
   }, [lead])
 
   const countryOptions = useMemo(
-    () => [
-      { value: '', label: 'Select country' },
-      ...Country.getAllCountries()
-        .map(country => String(country.name || '').trim())
-        .filter(Boolean)
-        .sort((a, b) => a.localeCompare(b))
-        .map(name => ({
-          value: name,
-          label: name
-        }))
-    ],
-    []
+    () =>
+      withSelectedDropdownValue(
+        [
+          { value: '', label: 'Select country' },
+          ...Country.getAllCountries()
+            .map(country => String(country.name || '').trim())
+            .filter(Boolean)
+            .sort((a, b) => a.localeCompare(b))
+            .map(name => ({
+              value: name,
+              label: name
+            }))
+        ],
+        qualification.leadCountry
+      ),
+    [qualification.leadCountry]
   )
 
-  const nationalityOptions = useMemo(() => getNationalityOptions(), [])
+  const nationalityOptions = useMemo(
+    () =>
+      withSelectedDropdownValue(
+        getNationalityOptions(),
+        qualification.nationality
+      ),
+    [qualification.nationality]
+  )
 
   const isCallsDisabled =
     lead?.callsDisabled || lead?.calls_disabled || callsButtonDisabled
@@ -1146,6 +1243,15 @@ const LeadDetails: React.FC = () => {
 
     return options
   }, [isCallsDisabled, pipelineSop])
+
+  const leadTemperatureOptions = useMemo(
+    () => [
+      { value: 'HOT', label: 'Hot lead', rightLabel: 'Ready now' },
+      { value: 'WARM', label: 'Warm lead', rightLabel: 'Interested' },
+      { value: 'COLD', label: 'Cold lead', rightLabel: 'Early query' }
+    ],
+    []
+  )
 
   const selectedWorkflowFollowupType =
     pipelineSop === 'FINAL_REMINDER'
@@ -1309,6 +1415,7 @@ const LeadDetails: React.FC = () => {
       try {
         await leadsService.updateLead(id, {
           customStatusLabel: customLabelTrimmed,
+          temperature: leadTemperature,
           notes: statusNotes.trim() || undefined,
           activityCreatedAt: nowWallClockString(),
           activityTimezone: getBrowserTimeZone()
@@ -1375,6 +1482,7 @@ const LeadDetails: React.FC = () => {
       const isVisaLead = isVisaQualification
       await leadsService.updateLead(id, {
         leadType: activeQualificationLeadType,
+        temperature: leadTemperature,
         status: conversion.canonical,
         subStatus: conversion.subStatus,
         customStatusLabel: null,
@@ -2534,6 +2642,21 @@ const LeadDetails: React.FC = () => {
             />
             <p className='mt-1 text-[11px] text-gray-500 dark:text-gray-400'>
                </p>
+            <label className='mt-2 block text-xs font-medium text-gray-700 dark:text-gray-300'>
+              Lead Temperature
+            </label>
+            <SearchableDropdown
+              className='mt-1'
+              value={leadTemperature}
+              options={leadTemperatureOptions}
+              searchPlaceholder='Search temperature...'
+              onChange={value =>
+                setLeadTemperature(value as 'HOT' | 'WARM' | 'COLD')
+              }
+            />
+            <p className='mt-1 text-[11px] text-gray-500 dark:text-gray-400'>
+              Manual choice only. Backend will not auto calculate when saved.
+            </p>
             <label className='mt-2 block text-xs font-medium text-gray-700 dark:text-gray-300'>
               Follow-up Type
             </label>

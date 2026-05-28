@@ -1184,7 +1184,7 @@ function createMetaLeadService({
         mockMetaLead: metaLead,
       },
       {
-        user: context?.user || null,
+        user: null,
         requestId: context?.requestId || null,
         origin: "meta_mapping_test",
       },

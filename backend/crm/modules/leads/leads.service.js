@@ -1349,6 +1349,15 @@ function createLeadsService({ repository, logger, events }) {
     if (payload.priorityLevel !== undefined) {
       mapped.priority_level = payload.priorityLevel;
     }
+    if (payload.temperature !== undefined) {
+      const nextTemperature = String(payload.temperature || "").trim().toUpperCase();
+      if (Object.values(LEAD_TEMPERATURE).includes(nextTemperature)) {
+        mapped.temperature = nextTemperature;
+        if (payload.priorityLevel === undefined) {
+          mapped.priority_level = mapTemperatureToPriority(nextTemperature);
+        }
+      }
+    }
     if (payload.isVip !== undefined) {
       mapped.is_vip = payload.isVip;
     }
@@ -1418,7 +1427,7 @@ function createLeadsService({ repository, logger, events }) {
       }
     }
 
-    if (payload.priorityLevel === undefined) {
+    if (payload.priorityLevel === undefined && payload.temperature === undefined) {
       const mergedLead = {
         travelDate: payload.travelDate ?? existing.travelDate,
         budget: payload.budget ?? existing.budget,
