@@ -1,3 +1,6 @@
+import { AppError } from "../../core/errors/index.js";
+import { percentage, roundAmount } from "./reporting.metrics.js";
+
 function createReportsRepository({ db, schema, logger }) {
   function getAdapterName() {
     return String(db.adapter || "").toLowerCase();
@@ -104,6 +107,34 @@ function createReportsRepository({ db, schema, logger }) {
     return `COALESCE(NULLIF(COALESCE(b.total_amount, 0), 0), COALESCE(q.final_price, 0), 0)`;
   }
 
+  function appendWhereClause(whereSql, clause) {
+    return whereSql ? `${whereSql} AND ${clause}` : `WHERE ${clause}`;
+  }
+
+  function scopedLeadWhere(columnName, filters = {}, leadAlias = "l") {
+    const range = buildDateRangeClause(columnName, filters);
+    return leadWhereFromRange(range, filters, leadAlias);
+  }
+
+  function scopedBookingLeadWhere(columnName, filters = {}) {
+    const range = buildDateRangeClause(columnName, filters);
+    return bookingLeadWhereFromRange(range, filters);
+  }
+
+  function scopedPaymentLeadWhere(columnName, filters = {}) {
+    const range = buildDateRangeClause(columnName, filters);
+    const clauses = [];
+    const params = [...range.params];
+    if (range.sql) clauses.push(range.sql.replace(/^WHERE\s+/i, ""));
+    const assign = leadAssignmentScope(filters, "l");
+    clauses.push(...assign.clauses);
+    params.push(...assign.params);
+    return {
+      sql: clauses.length ? `WHERE ${clauses.join(" AND ")}` : "",
+      params,
+    };
+  }
+
   /** Optional: limit to bookings touching this supplier (visa case · quotation JSON · supplier_details). */
   function supplierBookingClause(filters = {}) {
     const idRaw = filters.supplierId && String(filters.supplierId).trim();
@@ -153,21 +184,32 @@ function createReportsRepository({ db, schema, logger }) {
 
   async function queryRows(sql, params = []) {
     if (!canUseRawQuery()) {
-      return [];
+      throw new AppError(
+        500,
+        "Reports require a SQL database adapter with raw query support",
+        "REPORTS_SQL_ADAPTER_UNSUPPORTED",
+      );
     }
     try {
       const result = await db.query(sql, params);
       return result.rows;
     } catch (error) {
-      logger?.warn?.(
+      logger?.error?.(
         {
           err: error,
           module: "reports",
           sqlPreview: String(sql || "").replace(/\s+/g, " ").trim().slice(0, 240),
         },
-        "reports raw SQL failed; returning empty rows",
+        "Reports raw SQL failed",
       );
-      return [];
+      throw new AppError(
+        500,
+        "Unable to generate report",
+        "REPORT_QUERY_FAILED",
+        {
+          reason: error.message,
+        },
+      );
     }
   }
 
@@ -243,6 +285,704 @@ function createReportsRepository({ db, schema, logger }) {
           averageResponseMinutes: toNumber(row.avg_response_minutes, 0),
         };
       });
+    },
+
+    async getPeoplePerformance(filters = {}) {
+      const leadScope = scopedLeadWhere("l.created_at", filters, "l");
+      const leadWhereSql = appendWhereClause(
+        leadScope.sql,
+        "l.assigned_to IS NOT NULL",
+      );
+
+      const quoteScope = scopedLeadWhere("q.created_at", filters, "l");
+      const quoteWhereSql = appendWhereClause(
+        quoteScope.sql,
+        "l.assigned_to IS NOT NULL",
+      );
+
+      const bookingScope = scopedBookingLeadWhere("b.created_at", filters);
+      const bookingWhereSql = appendWhereClause(
+        bookingScope.sql,
+        "l.assigned_to IS NOT NULL",
+      );
+
+      const paymentScope = scopedPaymentLeadWhere("p.created_at", filters);
+      const paymentWhereSql = appendWhereClause(
+        paymentScope.sql,
+        "l.assigned_to IS NOT NULL",
+      );
+
+      const refundScope = scopedPaymentLeadWhere("r.created_at", filters);
+      const refundWhereSql = appendWhereClause(
+        refundScope.sql,
+        "l.assigned_to IS NOT NULL",
+      );
+
+      const followupScope = scopedLeadWhere("f.created_at", filters, "l");
+      const followupWhereSql = appendWhereClause(
+        followupScope.sql,
+        "COALESCE(f.user_id, l.assigned_to) IS NOT NULL",
+      );
+
+      const activityScope = scopedLeadWhere("a.created_at", filters, "l");
+      const activityWhereSql = appendWhereClause(
+        activityScope.sql,
+        "COALESCE(a.user_id, l.assigned_to) IS NOT NULL",
+      );
+
+      const userClauses = ["COALESCE(u.is_active, TRUE) = TRUE"];
+      const userParams = [];
+      if (filters.userId) {
+        userClauses.push("u.id = ?");
+        userParams.push(filters.userId);
+      }
+      if (filters.role) {
+        userClauses.push("LOWER(COALESCE(r.name, '')) = LOWER(?)");
+        userParams.push(String(filters.role).trim());
+      }
+      const userWhereSql = `WHERE ${userClauses.join(" AND ")}`;
+      const sell = bookingSellAmountSql();
+
+      const rows = await queryRows(
+        `
+          SELECT
+            u.id AS user_id,
+            u.full_name AS full_name,
+            u.email AS email,
+            COALESCE(r.name, '') AS role_name,
+            COALESCE(u.target_amount, 0) AS target_amount,
+            COALESCE(lead_stats.assigned_leads, 0) AS assigned_leads,
+            COALESCE(lead_stats.open_leads, 0) AS open_leads,
+            COALESCE(lead_stats.converted_leads, 0) AS converted_leads,
+            COALESCE(lead_stats.lost_leads, 0) AS lost_leads,
+            COALESCE(lead_stats.stale_leads, 0) AS stale_leads,
+            COALESCE(lead_stats.unworked_leads, 0) AS unworked_leads,
+            COALESCE(lead_stats.sla_breached_leads, 0) AS sla_breached_leads,
+            COALESCE(lead_stats.avg_first_response_minutes, 0) AS avg_first_response_minutes,
+            COALESCE(quote_stats.quotations_created, 0) AS quotations_created,
+            COALESCE(quote_stats.quotations_sent, 0) AS quotations_sent,
+            COALESCE(quote_stats.quotations_approved, 0) AS quotations_approved,
+            COALESCE(quote_stats.quotation_value, 0) AS quotation_value,
+            COALESCE(booking_stats.bookings, 0) AS bookings,
+            COALESCE(booking_stats.cancelled_bookings, 0) AS cancelled_bookings,
+            COALESCE(booking_stats.booking_value, 0) AS booking_value,
+            COALESCE(booking_stats.booking_cost, 0) AS booking_cost,
+            COALESCE(payment_stats.payments_received, 0) AS payments_received,
+            COALESCE(payment_stats.collected_amount, 0) AS collected_amount,
+            COALESCE(refund_stats.refunds, 0) AS refunds,
+            COALESCE(refund_stats.refund_amount, 0) AS refund_amount,
+            COALESCE(followup_stats.followups_created, 0) AS followups_created,
+            COALESCE(followup_stats.followups_completed, 0) AS followups_completed,
+            COALESCE(followup_stats.missed_followups, 0) AS missed_followups,
+            COALESCE(followup_stats.calls_done, 0) AS calls_done,
+            COALESCE(followup_stats.whatsapp_done, 0) AS whatsapp_done,
+            COALESCE(followup_stats.final_reminders_done, 0) AS final_reminders_done,
+            COALESCE(activity_stats.activities_logged, 0) AS activities_logged
+          FROM ${schema.usersTable} u
+          LEFT JOIN ${schema.rolesTable} r ON r.id = u.role_id
+          LEFT JOIN (
+            SELECT
+              l.assigned_to AS user_id,
+              COUNT(*) AS assigned_leads,
+              SUM(CASE WHEN l.status NOT IN ('CONVERTED', 'LOST') THEN 1 ELSE 0 END) AS open_leads,
+              SUM(CASE WHEN l.status = 'CONVERTED' THEN 1 ELSE 0 END) AS converted_leads,
+              SUM(CASE WHEN l.status = 'LOST' THEN 1 ELSE 0 END) AS lost_leads,
+              SUM(CASE WHEN l.status NOT IN ('CONVERTED', 'LOST') AND l.created_at < (CURRENT_TIMESTAMP - INTERVAL 48 HOUR) THEN 1 ELSE 0 END) AS stale_leads,
+              SUM(CASE WHEN l.status = 'OPEN' AND l.response_at IS NULL AND l.next_followup_date IS NULL THEN 1 ELSE 0 END) AS unworked_leads,
+              SUM(CASE WHEN COALESCE(l.sla_breached, FALSE) = TRUE THEN 1 ELSE 0 END) AS sla_breached_leads,
+              AVG(
+                CASE
+                  WHEN l.response_at IS NOT NULL AND l.created_at IS NOT NULL
+                  THEN TIMESTAMPDIFF(MINUTE, l.created_at, l.response_at)
+                  ELSE NULL
+                END
+              ) AS avg_first_response_minutes
+            FROM ${schema.leadsTable} l
+            ${leadWhereSql}
+            GROUP BY l.assigned_to
+          ) lead_stats ON lead_stats.user_id = u.id
+          LEFT JOIN (
+            SELECT
+              l.assigned_to AS user_id,
+              COUNT(q.id) AS quotations_created,
+              SUM(CASE WHEN q.status IN ('SENT', 'APPROVED') OR q.sent_at IS NOT NULL THEN 1 ELSE 0 END) AS quotations_sent,
+              SUM(CASE WHEN q.status = 'APPROVED' THEN 1 ELSE 0 END) AS quotations_approved,
+              SUM(COALESCE(NULLIF(q.total_sale_value, 0), q.final_price, 0)) AS quotation_value
+            FROM ${schema.quotationsTable} q
+            INNER JOIN ${schema.leadsTable} l ON l.id = q.lead_id
+            ${quoteWhereSql}
+            GROUP BY l.assigned_to
+          ) quote_stats ON quote_stats.user_id = u.id
+          LEFT JOIN (
+            SELECT
+              l.assigned_to AS user_id,
+              COUNT(b.id) AS bookings,
+              SUM(CASE WHEN b.status = 'CANCELLED' THEN 1 ELSE 0 END) AS cancelled_bookings,
+              SUM(${sell}) AS booking_value,
+              SUM(COALESCE(b.cost_amount, 0)) AS booking_cost
+            FROM ${schema.bookingsTable} b
+            INNER JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
+            INNER JOIN ${schema.leadsTable} l ON l.id = q.lead_id
+            ${bookingWhereSql}
+            GROUP BY l.assigned_to
+          ) booking_stats ON booking_stats.user_id = u.id
+          LEFT JOIN (
+            SELECT
+              l.assigned_to AS user_id,
+              COUNT(p.id) AS payments_received,
+              SUM(CASE WHEN COALESCE(p.status, '') <> 'REFUNDED' THEN COALESCE(p.amount, 0) ELSE 0 END) AS collected_amount
+            FROM ${schema.paymentsTable} p
+            INNER JOIN ${schema.bookingsTable} b ON b.id = p.booking_id
+            INNER JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
+            INNER JOIN ${schema.leadsTable} l ON l.id = q.lead_id
+            ${paymentWhereSql}
+            GROUP BY l.assigned_to
+          ) payment_stats ON payment_stats.user_id = u.id
+          LEFT JOIN (
+            SELECT
+              l.assigned_to AS user_id,
+              COUNT(r.id) AS refunds,
+              SUM(COALESCE(r.refund_amount, 0)) AS refund_amount
+            FROM ${schema.refundsTable} r
+            INNER JOIN ${schema.bookingsTable} b ON b.id = r.booking_id
+            INNER JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
+            INNER JOIN ${schema.leadsTable} l ON l.id = q.lead_id
+            ${refundWhereSql}
+            GROUP BY l.assigned_to
+          ) refund_stats ON refund_stats.user_id = u.id
+          LEFT JOIN (
+            SELECT
+              COALESCE(f.user_id, l.assigned_to) AS user_id,
+              COUNT(f.id) AS followups_created,
+              SUM(CASE WHEN COALESCE(f.is_completed, FALSE) = TRUE THEN 1 ELSE 0 END) AS followups_completed,
+              SUM(CASE WHEN COALESCE(f.is_completed, FALSE) = FALSE AND f.followup_date < CURRENT_TIMESTAMP THEN 1 ELSE 0 END) AS missed_followups,
+              SUM(CASE WHEN f.followup_type = 'CALL' THEN 1 ELSE 0 END) AS calls_done,
+              SUM(CASE WHEN f.followup_type = 'WHATSAPP' THEN 1 ELSE 0 END) AS whatsapp_done,
+              SUM(CASE WHEN f.followup_type = 'FINAL_REMINDER' THEN 1 ELSE 0 END) AS final_reminders_done
+            FROM ${schema.followupsTable} f
+            INNER JOIN ${schema.leadsTable} l ON l.id = f.lead_id
+            ${followupWhereSql}
+            GROUP BY COALESCE(f.user_id, l.assigned_to)
+          ) followup_stats ON followup_stats.user_id = u.id
+          LEFT JOIN (
+            SELECT
+              COALESCE(a.user_id, l.assigned_to) AS user_id,
+              COUNT(a.id) AS activities_logged
+            FROM ${schema.leadActivitiesTable} a
+            INNER JOIN ${schema.leadsTable} l ON l.id = a.lead_id
+            ${activityWhereSql}
+            GROUP BY COALESCE(a.user_id, l.assigned_to)
+          ) activity_stats ON activity_stats.user_id = u.id
+          ${userWhereSql}
+          ORDER BY COALESCE(booking_stats.booking_value, 0) DESC,
+                   COALESCE(lead_stats.converted_leads, 0) DESC,
+                   COALESCE(lead_stats.assigned_leads, 0) DESC
+        `,
+        [
+          ...leadScope.params,
+          ...quoteScope.params,
+          ...bookingScope.params,
+          ...paymentScope.params,
+          ...refundScope.params,
+          ...followupScope.params,
+          ...activityScope.params,
+          ...userParams,
+        ],
+      );
+
+      return rows.map((row) => {
+        const assignedLeads = toNumber(row.assigned_leads, 0);
+        const convertedLeads = toNumber(row.converted_leads, 0);
+        const quotationsCreated = toNumber(row.quotations_created, 0);
+        const quotationsApproved = toNumber(row.quotations_approved, 0);
+        const bookings = toNumber(row.bookings, 0);
+        const bookingValue = toNumber(row.booking_value, 0);
+        const bookingCost = toNumber(row.booking_cost, 0);
+        const collectedAmount = toNumber(row.collected_amount, 0);
+        const refundAmount = toNumber(row.refund_amount, 0);
+        const followupsCreated = toNumber(row.followups_created, 0);
+        const followupsCompleted = toNumber(row.followups_completed, 0);
+        const profit = roundAmount(bookingValue - bookingCost - refundAmount);
+
+        return {
+          userId: row.user_id,
+          name: row.full_name,
+          email: row.email,
+          role: row.role_name || null,
+          targetAmount: toNumber(row.target_amount, 0),
+          assignedLeads,
+          openLeads: toNumber(row.open_leads, 0),
+          convertedLeads,
+          lostLeads: toNumber(row.lost_leads, 0),
+          staleLeads: toNumber(row.stale_leads, 0),
+          unworkedLeads: toNumber(row.unworked_leads, 0),
+          slaBreachedLeads: toNumber(row.sla_breached_leads, 0),
+          conversionRatePercent: percentage(convertedLeads, assignedLeads),
+          averageFirstResponseMinutes: Number(
+            toNumber(row.avg_first_response_minutes, 0).toFixed(2),
+          ),
+          quotationsCreated,
+          quotationsSent: toNumber(row.quotations_sent, 0),
+          quotationsApproved,
+          quotationApprovalRatePercent: percentage(
+            quotationsApproved,
+            quotationsCreated,
+          ),
+          quotationValue: toNumber(row.quotation_value, 0),
+          bookings,
+          cancelledBookings: toNumber(row.cancelled_bookings, 0),
+          bookingConversionRatePercent: percentage(bookings, assignedLeads),
+          bookingValue,
+          averageBookingValue:
+            bookings > 0 ? Number((bookingValue / bookings).toFixed(2)) : 0,
+          bookingCost,
+          collectedAmount,
+          outstandingAmount: Number(
+            Math.max(bookingValue - collectedAmount - refundAmount, 0).toFixed(2),
+          ),
+          paymentsReceived: toNumber(row.payments_received, 0),
+          refunds: toNumber(row.refunds, 0),
+          refundAmount,
+          profit,
+          averageMarginPercent:
+            bookingValue > 0
+              ? Number(((profit / bookingValue) * 100).toFixed(2))
+              : 0,
+          followupsCreated,
+          followupsCompleted,
+          missedFollowups: toNumber(row.missed_followups, 0),
+          followupCompletionRatePercent: percentage(
+            followupsCompleted,
+            followupsCreated,
+          ),
+          callsDone: toNumber(row.calls_done, 0),
+          whatsappDone: toNumber(row.whatsapp_done, 0),
+          finalRemindersDone: toNumber(row.final_reminders_done, 0),
+          activitiesLogged: toNumber(row.activities_logged, 0),
+        };
+      });
+    },
+
+    async getQuotationPerformance(filters = {}) {
+      const range = buildDateRangeClause("q.created_at", filters);
+      const { sql: scopedWhereSql, params } = leadWhereFromRange(
+        range,
+        filters,
+        "l",
+      );
+      const quotedParams = [...params];
+      const sell = "COALESCE(NULLIF(q.total_sale_value, 0), q.final_price, 0)";
+
+      const rows = await queryRows(
+        `
+          SELECT
+            COUNT(q.id) AS total_quotations,
+            SUM(CASE WHEN q.status = 'DRAFT' THEN 1 ELSE 0 END) AS draft_quotations,
+            SUM(CASE WHEN q.status = 'SENT' OR q.sent_at IS NOT NULL THEN 1 ELSE 0 END) AS sent_quotations,
+            SUM(CASE WHEN q.status = 'APPROVED' THEN 1 ELSE 0 END) AS approved_quotations,
+            SUM(CASE WHEN q.status = 'REJECTED' THEN 1 ELSE 0 END) AS rejected_quotations,
+            SUM(CASE WHEN b.id IS NOT NULL THEN 1 ELSE 0 END) AS booked_quotations,
+            SUM(${sell}) AS quotation_value,
+            AVG(
+              CASE
+                WHEN q.created_at IS NOT NULL AND l.created_at IS NOT NULL
+                THEN TIMESTAMPDIFF(MINUTE, l.created_at, q.created_at)
+                ELSE NULL
+              END
+            ) AS avg_lead_to_quote_minutes,
+            AVG(
+              CASE
+                WHEN q.sent_at IS NOT NULL AND q.created_at IS NOT NULL
+                THEN TIMESTAMPDIFF(MINUTE, q.created_at, q.sent_at)
+                ELSE NULL
+              END
+            ) AS avg_quote_to_send_minutes
+          FROM ${schema.quotationsTable} q
+          LEFT JOIN ${schema.leadsTable} l ON l.id = q.lead_id
+          LEFT JOIN ${schema.bookingsTable} b ON b.quotation_id = q.id
+          ${scopedWhereSql}
+        `,
+        quotedParams,
+      );
+
+      const destinationRows = await queryRows(
+        `
+          SELECT
+            COALESCE(d.name, l.destination, 'UNKNOWN') AS destination,
+            COUNT(q.id) AS quotations,
+            SUM(CASE WHEN q.status = 'APPROVED' THEN 1 ELSE 0 END) AS approved,
+            SUM(CASE WHEN b.id IS NOT NULL THEN 1 ELSE 0 END) AS bookings,
+            SUM(${sell}) AS value
+          FROM ${schema.quotationsTable} q
+          LEFT JOIN ${schema.leadsTable} l ON l.id = q.lead_id
+          LEFT JOIN ${schema.destinationsTable} d ON d.id = l.destination_id
+          LEFT JOIN ${schema.bookingsTable} b ON b.quotation_id = q.id
+          ${scopedWhereSql}
+          GROUP BY COALESCE(d.name, l.destination, 'UNKNOWN')
+          ORDER BY value DESC
+          LIMIT 25
+        `,
+        quotedParams,
+      );
+
+      const statusRows = await queryRows(
+        `
+          SELECT
+            COALESCE(q.status, 'UNKNOWN') AS status,
+            COUNT(q.id) AS total,
+            SUM(${sell}) AS value
+          FROM ${schema.quotationsTable} q
+          LEFT JOIN ${schema.leadsTable} l ON l.id = q.lead_id
+          ${scopedWhereSql}
+          GROUP BY COALESCE(q.status, 'UNKNOWN')
+          ORDER BY total DESC
+        `,
+        quotedParams,
+      );
+
+      const row = rows[0] || {};
+      const total = toNumber(row.total_quotations, 0);
+      const approved = toNumber(row.approved_quotations, 0);
+      const booked = toNumber(row.booked_quotations, 0);
+
+      return {
+        summary: {
+          totalQuotations: total,
+          draftQuotations: toNumber(row.draft_quotations, 0),
+          sentQuotations: toNumber(row.sent_quotations, 0),
+          approvedQuotations: approved,
+          rejectedQuotations: toNumber(row.rejected_quotations, 0),
+          bookedQuotations: booked,
+          quotationValue: toNumber(row.quotation_value, 0),
+          approvalRatePercent: percentage(approved, total),
+          bookingRatePercent: percentage(booked, total),
+          averageLeadToQuoteMinutes: Number(
+            toNumber(row.avg_lead_to_quote_minutes, 0).toFixed(2),
+          ),
+          averageQuoteToSendMinutes: Number(
+            toNumber(row.avg_quote_to_send_minutes, 0).toFixed(2),
+          ),
+        },
+        byDestination: destinationRows.map((item) => {
+          const quotations = toNumber(item.quotations, 0);
+          const itemApproved = toNumber(item.approved, 0);
+          return {
+            destination: item.destination,
+            quotations,
+            approved: itemApproved,
+            bookings: toNumber(item.bookings, 0),
+            value: toNumber(item.value, 0),
+            approvalRatePercent: percentage(itemApproved, quotations),
+          };
+        }),
+        byStatus: statusRows.map((item) => ({
+          status: item.status,
+          total: toNumber(item.total, 0),
+          value: toNumber(item.value, 0),
+        })),
+      };
+    },
+
+    async getBookingPerformance(filters = {}) {
+      const range = buildDateRangeClause("b.created_at", filters);
+      const { sql: whereSql, params } = bookingLeadWhereFromRange(range, filters);
+      const sell = bookingSellAmountSql();
+
+      const rows = await queryRows(
+        `
+          SELECT
+            COUNT(b.id) AS total_bookings,
+            SUM(CASE WHEN b.status = 'CONFIRMED' THEN 1 ELSE 0 END) AS confirmed_bookings,
+            SUM(CASE WHEN b.status = 'PENDING' THEN 1 ELSE 0 END) AS pending_bookings,
+            SUM(CASE WHEN b.status = 'CANCELLED' THEN 1 ELSE 0 END) AS cancelled_bookings,
+            SUM(${sell}) AS booking_value,
+            SUM(COALESCE(b.cost_amount, 0)) AS booking_cost,
+            SUM(COALESCE(b.advance_received, 0)) AS advance_received,
+            AVG(${sell}) AS avg_booking_value
+          FROM ${schema.bookingsTable} b
+          LEFT JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
+          LEFT JOIN ${schema.leadsTable} l ON l.id = q.lead_id
+          ${whereSql}
+        `,
+        params,
+      );
+
+      const monthRows = await queryRows(
+        `
+          SELECT
+            DATE_FORMAT(b.created_at, '%Y-%m') AS month,
+            COUNT(b.id) AS bookings,
+            SUM(${sell}) AS value,
+            SUM(COALESCE(b.cost_amount, 0)) AS cost
+          FROM ${schema.bookingsTable} b
+          LEFT JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
+          LEFT JOIN ${schema.leadsTable} l ON l.id = q.lead_id
+          ${whereSql}
+          GROUP BY DATE_FORMAT(b.created_at, '%Y-%m')
+          ORDER BY month
+        `,
+        params,
+      );
+
+      const destinationRows = await queryRows(
+        `
+          SELECT
+            COALESCE(d.name, l.destination, 'UNKNOWN') AS destination,
+            COUNT(b.id) AS bookings,
+            SUM(${sell}) AS value,
+            SUM(COALESCE(b.cost_amount, 0)) AS cost
+          FROM ${schema.bookingsTable} b
+          LEFT JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
+          LEFT JOIN ${schema.leadsTable} l ON l.id = q.lead_id
+          LEFT JOIN ${schema.destinationsTable} d ON d.id = l.destination_id
+          ${whereSql}
+          GROUP BY COALESCE(d.name, l.destination, 'UNKNOWN')
+          ORDER BY value DESC
+          LIMIT 25
+        `,
+        params,
+      );
+
+      const row = rows[0] || {};
+      const total = toNumber(row.total_bookings, 0);
+      const cancelled = toNumber(row.cancelled_bookings, 0);
+      const value = toNumber(row.booking_value, 0);
+      const cost = toNumber(row.booking_cost, 0);
+      const profit = roundAmount(value - cost);
+
+      return {
+        summary: {
+          totalBookings: total,
+          confirmedBookings: toNumber(row.confirmed_bookings, 0),
+          pendingBookings: toNumber(row.pending_bookings, 0),
+          cancelledBookings: cancelled,
+          bookingValue: value,
+          bookingCost: cost,
+          profit,
+          advanceReceived: toNumber(row.advance_received, 0),
+          averageBookingValue: toNumber(row.avg_booking_value, 0),
+          cancellationRatePercent: percentage(cancelled, total),
+          marginPercent: percentage(profit, value),
+        },
+        byMonth: monthRows.map((item) => {
+          const monthValue = toNumber(item.value, 0);
+          const monthCost = toNumber(item.cost, 0);
+          const monthProfit = roundAmount(monthValue - monthCost);
+          return {
+            month: item.month,
+            bookings: toNumber(item.bookings, 0),
+            value: monthValue,
+            cost: monthCost,
+            profit: monthProfit,
+          };
+        }),
+        byDestination: destinationRows.map((item) => {
+          const destValue = toNumber(item.value, 0);
+          const destCost = toNumber(item.cost, 0);
+          return {
+            destination: item.destination,
+            bookings: toNumber(item.bookings, 0),
+            value: destValue,
+            cost: destCost,
+            profit: roundAmount(destValue - destCost),
+          };
+        }),
+      };
+    },
+
+    async getFinanceSummary(filters = {}) {
+      const bookingRange = buildDateRangeClause("b.created_at", filters);
+      const { sql: bookingWhereSql, params: bookingParams } =
+        bookingLeadWhereFromRange(bookingRange, filters);
+      const paymentScope = scopedPaymentLeadWhere("p.created_at", filters);
+      const refundScope = scopedPaymentLeadWhere("r.created_at", filters);
+      const sell = bookingSellAmountSql();
+
+      const bookingRows = await queryRows(
+        `
+          SELECT
+            COUNT(b.id) AS total_bookings,
+            SUM(${sell}) AS booked_amount,
+            SUM(COALESCE(b.cost_amount, 0)) AS cost_amount,
+            SUM(CASE WHEN b.payment_status IN ('PENDING', 'PARTIAL') THEN ${sell} - COALESCE(b.advance_received, 0) ELSE 0 END) AS booking_outstanding
+          FROM ${schema.bookingsTable} b
+          LEFT JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
+          LEFT JOIN ${schema.leadsTable} l ON l.id = q.lead_id
+          ${bookingWhereSql}
+        `,
+        bookingParams,
+      );
+
+      const paymentRows = await queryRows(
+        `
+          SELECT
+            COUNT(p.id) AS payments,
+            SUM(CASE WHEN COALESCE(p.status, '') <> 'REFUNDED' THEN COALESCE(p.amount, 0) ELSE 0 END) AS collected_amount,
+            SUM(CASE WHEN COALESCE(p.is_verified, FALSE) = FALSE THEN COALESCE(p.amount, 0) ELSE 0 END) AS unverified_amount
+          FROM ${schema.paymentsTable} p
+          INNER JOIN ${schema.bookingsTable} b ON b.id = p.booking_id
+          INNER JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
+          INNER JOIN ${schema.leadsTable} l ON l.id = q.lead_id
+          ${paymentScope.sql}
+        `,
+        paymentScope.params,
+      );
+
+      const refundRows = await queryRows(
+        `
+          SELECT
+            COUNT(r.id) AS refunds,
+            SUM(COALESCE(r.refund_amount, 0)) AS refund_amount,
+            SUM(CASE WHEN r.status <> 'PROCESSED' THEN COALESCE(r.refund_amount, 0) ELSE 0 END) AS pending_refund_amount
+          FROM ${schema.refundsTable} r
+          INNER JOIN ${schema.bookingsTable} b ON b.id = r.booking_id
+          INNER JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
+          INNER JOIN ${schema.leadsTable} l ON l.id = q.lead_id
+          ${refundScope.sql}
+        `,
+        refundScope.params,
+      );
+
+      const modeRows = await queryRows(
+        `
+          SELECT
+            COALESCE(p.payment_mode, 'UNKNOWN') AS payment_mode,
+            COUNT(p.id) AS payments,
+            SUM(COALESCE(p.amount, 0)) AS amount
+          FROM ${schema.paymentsTable} p
+          INNER JOIN ${schema.bookingsTable} b ON b.id = p.booking_id
+          INNER JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
+          INNER JOIN ${schema.leadsTable} l ON l.id = q.lead_id
+          ${paymentScope.sql}
+          GROUP BY COALESCE(p.payment_mode, 'UNKNOWN')
+          ORDER BY amount DESC
+        `,
+        paymentScope.params,
+      );
+
+      const booking = bookingRows[0] || {};
+      const payment = paymentRows[0] || {};
+      const refund = refundRows[0] || {};
+      const bookedAmount = toNumber(booking.booked_amount, 0);
+      const costAmount = toNumber(booking.cost_amount, 0);
+      const collectedAmount = toNumber(payment.collected_amount, 0);
+      const refundAmount = toNumber(refund.refund_amount, 0);
+      const profit = roundAmount(bookedAmount - costAmount - refundAmount);
+
+      return {
+        summary: {
+          totalBookings: toNumber(booking.total_bookings, 0),
+          bookedAmount,
+          costAmount,
+          collectedAmount,
+          outstandingAmount: Number(
+            Math.max(bookedAmount - collectedAmount - refundAmount, 0).toFixed(2),
+          ),
+          bookingOutstandingAmount: toNumber(booking.booking_outstanding, 0),
+          unverifiedAmount: toNumber(payment.unverified_amount, 0),
+          refunds: toNumber(refund.refunds, 0),
+          refundAmount,
+          pendingRefundAmount: toNumber(refund.pending_refund_amount, 0),
+          profit,
+          marginPercent: percentage(profit, bookedAmount),
+          collectionRatePercent: percentage(collectedAmount, bookedAmount),
+        },
+        byPaymentMode: modeRows.map((item) => ({
+          paymentMode: item.payment_mode,
+          payments: toNumber(item.payments, 0),
+          amount: toNumber(item.amount, 0),
+        })),
+      };
+    },
+
+    async getOperationsPerformance(filters = {}) {
+      const followupScope = scopedLeadWhere("f.created_at", filters, "l");
+      const complaintRange = buildDateRangeClause("c.created_at", filters);
+      const complaintWhere = bookingLeadWhereFromRange(complaintRange, filters);
+      const visaRange = buildDateRangeClause("vc.created_at", filters);
+      const visaWhere = bookingLeadWhereFromRange(visaRange, filters);
+
+      const followupRows = await queryRows(
+        `
+          SELECT
+            COUNT(f.id) AS total_followups,
+            SUM(CASE WHEN COALESCE(f.is_completed, FALSE) = TRUE THEN 1 ELSE 0 END) AS completed_followups,
+            SUM(CASE WHEN COALESCE(f.is_completed, FALSE) = FALSE AND f.followup_date < CURRENT_TIMESTAMP THEN 1 ELSE 0 END) AS missed_followups,
+            SUM(CASE WHEN COALESCE(f.is_completed, FALSE) = FALSE AND f.followup_date >= CURRENT_TIMESTAMP THEN 1 ELSE 0 END) AS upcoming_followups
+          FROM ${schema.followupsTable} f
+          INNER JOIN ${schema.leadsTable} l ON l.id = f.lead_id
+          ${followupScope.sql}
+        `,
+        followupScope.params,
+      );
+
+      const complaintRows = await queryRows(
+        `
+          SELECT
+            COUNT(c.id) AS total_complaints,
+            SUM(CASE WHEN c.status = 'OPEN' THEN 1 ELSE 0 END) AS open_complaints,
+            SUM(CASE WHEN c.status = 'IN_PROGRESS' THEN 1 ELSE 0 END) AS in_progress_complaints,
+            SUM(CASE WHEN c.status = 'RESOLVED' THEN 1 ELSE 0 END) AS resolved_complaints
+          FROM ${schema.complaintsTable} c
+          LEFT JOIN ${schema.bookingsTable} b ON b.id = c.booking_id
+          LEFT JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
+          LEFT JOIN ${schema.leadsTable} l ON l.id = q.lead_id
+          ${complaintWhere.sql}
+        `,
+        complaintWhere.params,
+      );
+
+      const visaRows = await queryRows(
+        `
+          SELECT
+            COUNT(vc.id) AS total_visa_cases,
+            SUM(CASE WHEN vc.status = 'APPROVED' THEN 1 ELSE 0 END) AS approved_visa_cases,
+            SUM(CASE WHEN vc.status = 'REJECTED' THEN 1 ELSE 0 END) AS rejected_visa_cases,
+            SUM(CASE WHEN vc.status = 'DOCUMENT_PENDING' THEN 1 ELSE 0 END) AS document_pending_cases,
+            SUM(CASE WHEN vc.status = 'SUBMITTED' THEN 1 ELSE 0 END) AS submitted_cases
+          FROM ${schema.visaCasesTable} vc
+          LEFT JOIN ${schema.bookingsTable} b ON b.id = vc.booking_id
+          LEFT JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
+          LEFT JOIN ${schema.leadsTable} l ON l.id = q.lead_id
+          ${visaWhere.sql}
+        `,
+        visaWhere.params,
+      );
+
+      const followups = followupRows[0] || {};
+      const complaints = complaintRows[0] || {};
+      const visa = visaRows[0] || {};
+      const totalFollowups = toNumber(followups.total_followups, 0);
+      const completedFollowups = toNumber(followups.completed_followups, 0);
+      const totalComplaints = toNumber(complaints.total_complaints, 0);
+      const resolvedComplaints = toNumber(complaints.resolved_complaints, 0);
+      const totalVisaCases = toNumber(visa.total_visa_cases, 0);
+      const approvedVisaCases = toNumber(visa.approved_visa_cases, 0);
+
+      return {
+        followups: {
+          totalFollowups,
+          completedFollowups,
+          missedFollowups: toNumber(followups.missed_followups, 0),
+          upcomingFollowups: toNumber(followups.upcoming_followups, 0),
+          completionRatePercent: percentage(completedFollowups, totalFollowups),
+        },
+        complaints: {
+          totalComplaints,
+          openComplaints: toNumber(complaints.open_complaints, 0),
+          inProgressComplaints: toNumber(complaints.in_progress_complaints, 0),
+          resolvedComplaints,
+          resolutionRatePercent: percentage(resolvedComplaints, totalComplaints),
+        },
+        visa: {
+          totalVisaCases,
+          approvedVisaCases,
+          rejectedVisaCases: toNumber(visa.rejected_visa_cases, 0),
+          documentPendingCases: toNumber(visa.document_pending_cases, 0),
+          submittedCases: toNumber(visa.submitted_cases, 0),
+          approvalRatePercent: percentage(approvedVisaCases, totalVisaCases),
+        },
+      };
     },
 
     async getDealLinesReport(filters = {}) {
@@ -632,7 +1372,8 @@ function createReportsRepository({ db, schema, logger }) {
         where.push(`q.created_by = ?`);
       }
       if (filters.currency) {
-        params.push(String(filters.currency).trim().toUpperCase());
+        const currency = String(filters.currency).trim().toUpperCase();
+        params.push(currency, currency, currency);
         where.push(`(
           UPPER(COALESCE(NULLIF(q.cost_currency, ''), '')) = ?
           OR UPPER(COALESCE(NULLIF(q.client_currency, ''), '')) = ?

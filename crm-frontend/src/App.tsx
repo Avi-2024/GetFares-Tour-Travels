@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "sonner";
 import Login from "./pages/auth/Login";
 import ForgotPassword from "./pages/auth/ForgotPassword";
@@ -26,7 +26,6 @@ import VisaDetailPage from "./pages/visa/VisaDetailPage";
 import VisaCreatePage from "./pages/visa/VisaCreatePage";
 import ComplaintsPage from "./pages/complaints/ComplaintsPage";
 import ReportsHubPage from "./pages/reports/ReportsHubPage";
-import TestReportPage from "./pages/reports/TestReportPage";
 import QuotationTemplatesPage from "./pages/Quotation/QuotationTemplatesPage";
 import BookingDetailPage from "./pages/Booking/BookingDetailPage";
 import CampaignsPage from "./pages/campaigns/CampaignsPage";
@@ -147,7 +146,7 @@ function App() {
 
             <Route element={<PermissionRoute permission="reports:read" />}>
               <Route path="/reports" element={<ReportsHubPage />} />
-              <Route path="/reports/test" element={<TestReportPage />} />
+              <Route path="/reports/test" element={<Navigate to="/reports" replace />} />
               <Route path="/finance-system" element={<FinanceSystem />} />
             </Route>
 

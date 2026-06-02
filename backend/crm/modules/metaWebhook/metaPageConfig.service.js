@@ -9,6 +9,7 @@ import {
   getEncryptionKey,
   shouldUpdateSecret,
 } from "./metaPageConfig.secrets.js";
+import { normalizeMetaSourceLabel } from "./metaLeadMapping.constants.js";
 
 function toPublicPageConfig(row, country = null) {
   if (!row) {
@@ -19,6 +20,7 @@ function toPublicPageConfig(row, country = null) {
     id: row.id,
     pageId: row.page_id ?? row.pageId,
     pageName: row.page_name ?? row.pageName ?? null,
+    accountName: row.account_name ?? row.accountName ?? null,
     countryId: row.country_id ?? row.countryId ?? null,
     countryCode:
       country?.code ?? row.country_code ?? row.countryCode ?? null,
@@ -60,6 +62,15 @@ function toPublicIntegration(row, envFallback = {}) {
     secrets: buildIntegrationSecretPublic(row),
     configSource: row ? "database" : "environment",
   };
+}
+
+function resolveSourceLabel(body = {}, pageId = "") {
+  return (
+    String(body.sourceLabel || "").trim() ||
+    String(body.pageName || "").trim() ||
+    String(body.accountName || "").trim() ||
+    `Meta Page ${pageId}`
+  ).slice(0, 120);
 }
 
 function createMetaPageConfigService({ repository, config, logger }) {
@@ -133,10 +144,11 @@ function createMetaPageConfigService({ repository, config, logger }) {
     const row = await repository.insertPageConfig({
       pageId,
       pageName: body.pageName,
+      accountName: body.accountName,
       countryId: body.countryId,
       countryCode: body.countryCode,
       countryName: body.countryName,
-      sourceLabel: body.sourceLabel,
+      sourceLabel: resolveSourceLabel(body, pageId),
       graphVersion: body.graphVersion,
       graphBaseUrl: body.graphBaseUrl,
       graphFields: body.graphFields,
@@ -181,10 +193,14 @@ function createMetaPageConfigService({ repository, config, logger }) {
 
     const row = await repository.updatePageConfig(id, {
       pageName: body.pageName,
+      accountName: body.accountName,
       countryId: body.countryId,
       countryCode: body.countryCode,
       countryName: body.countryName,
-      sourceLabel: body.sourceLabel,
+      sourceLabel:
+        body.sourceLabel !== undefined || body.pageName !== undefined || body.accountName !== undefined
+          ? resolveSourceLabel({ ...existing, ...body }, existing.page_id ?? existing.pageId)
+          : undefined,
       graphVersion: body.graphVersion,
       graphBaseUrl: body.graphBaseUrl,
       graphFields: body.graphFields,
@@ -202,6 +218,15 @@ function createMetaPageConfigService({ repository, config, logger }) {
       row?.country_id ?? existing.country_id,
     );
     return toPublicPageConfig(row, country);
+  }
+
+  async function deletePage(id) {
+    const existing = await repository.findPageConfigById(id);
+    if (!existing) {
+      throw new AppError(404, "Meta page config not found", "META_PAGE_NOT_FOUND");
+    }
+    await repository.deletePageConfig(id);
+    return { deleted: true, id };
   }
 
   async function getIntegration() {
@@ -286,12 +311,13 @@ function createMetaPageConfigService({ repository, config, logger }) {
       id: row.id,
       pageId: row.page_id ?? row.pageId,
       pageName: row.page_name ?? row.pageName,
+      accountName: row.account_name ?? row.accountName,
       countryId: row.country_id ?? row.countryId,
       countryCode:
         country?.code ?? row.country_code ?? row.countryCode ?? null,
       countryName:
         country?.name ?? row.country_name ?? row.countryName ?? null,
-      sourceLabel: row.source_label ?? row.sourceLabel,
+      sourceLabel: normalizeMetaSourceLabel(row.source_label ?? row.sourceLabel),
       accessToken: secrets.accessToken,
       appSecret: secrets.appSecret,
       verifyToken: secrets.verifyToken,
@@ -331,6 +357,7 @@ function createMetaPageConfigService({ repository, config, logger }) {
     getPageById,
     createPage,
     updatePage,
+    deletePage,
     getIntegration,
     updateIntegration,
     getResolvedIntegrationForWebhook,

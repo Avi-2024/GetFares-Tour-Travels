@@ -800,12 +800,6 @@ function createLeadsService({ repository, logger, events }) {
 
     const leadType = normalizeLeadType(input.leadType ?? input.type ?? "HOLIDAY");
     if (leadType === "HOLIDAY") {
-      if (!normalizeHotelCategory(input.preferredHotelCategory)) {
-        missing.push("preferredHotelCategory");
-      }
-      if (!String(input.travelPurpose || "").trim()) {
-        missing.push("travelPurpose");
-      }
       if (input.budget === undefined || input.budget === null || input.budget === "") {
         missing.push("budget");
       }
@@ -3207,10 +3201,7 @@ function createLeadsService({ repository, logger, events }) {
         hasExplicitStatus ? normalizeLeadStatus(payload.status) : existing.status;
       payload.status = nextStatus;
 
-      if (
-        payload.qualificationCompleted === true ||
-        STATUS_REQUIRING_QUALIFICATION.has(nextStatus)
-      ) {
+      if (payload.qualificationCompleted === true) {
         assertQualificationCaptured({
           leadType: payload.leadType ?? payload.type ?? existing.leadType,
           leadCountry: payload.leadCountry ?? existing.leadCountry ?? existing.country,

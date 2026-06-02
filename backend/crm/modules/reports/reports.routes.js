@@ -25,6 +25,41 @@ function createReportsRoutes({
     asyncHandler(controller.leadsByConsultant),
   );
   router.get(
+    "/people/performance",
+    requireAuth,
+    authorize("reports:read"),
+    validateRequest(validation.peoplePerformance),
+    asyncHandler(controller.peoplePerformance),
+  );
+  router.get(
+    "/quotations/performance",
+    requireAuth,
+    authorize("reports:read"),
+    validateRequest(validation.quotationPerformance),
+    asyncHandler(controller.quotationPerformance),
+  );
+  router.get(
+    "/bookings/performance",
+    requireAuth,
+    authorize("reports:read"),
+    validateRequest(validation.bookingPerformance),
+    asyncHandler(controller.bookingPerformance),
+  );
+  router.get(
+    "/finance/summary",
+    requireAuth,
+    authorize("reports:read"),
+    validateRequest(validation.financeSummary),
+    asyncHandler(controller.financeSummary),
+  );
+  router.get(
+    "/operations/performance",
+    requireAuth,
+    authorize("reports:read"),
+    validateRequest(validation.operationsPerformance),
+    asyncHandler(controller.operationsPerformance),
+  );
+  router.get(
     "/leads/deal-lines",
     requireAuth,
     authorize("reports:read"),

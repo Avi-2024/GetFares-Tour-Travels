@@ -71,6 +71,7 @@ function createMetaPageConfigRepository({ db, logger }) {
       id,
       page_id: payload.pageId,
       page_name: payload.pageName ?? null,
+      account_name: payload.accountName ?? null,
       country_id: payload.countryId ?? null,
       country_code: payload.countryCode ?? null,
       country_name: payload.countryName ?? null,
@@ -93,6 +94,7 @@ function createMetaPageConfigRepository({ db, logger }) {
     }
     const patch = {};
     if (payload.pageName !== undefined) patch.page_name = payload.pageName;
+    if (payload.accountName !== undefined) patch.account_name = payload.accountName;
     if (payload.countryId !== undefined) patch.country_id = payload.countryId;
     if (payload.countryCode !== undefined) patch.country_code = payload.countryCode;
     if (payload.countryName !== undefined) patch.country_name = payload.countryName;
@@ -111,6 +113,18 @@ function createMetaPageConfigRepository({ db, logger }) {
       return findPageConfigById(id);
     }
     return db.update(pageTable, id, patch);
+  }
+
+  async function deletePageConfig(id) {
+    if (!id) {
+      return null;
+    }
+    const existing = await findPageConfigById(id);
+    if (!existing) {
+      return null;
+    }
+    await db.query(`DELETE FROM ${pageTable} WHERE id = ?`, [id]);
+    return existing;
   }
 
   async function getIntegrationRow() {
@@ -171,6 +185,7 @@ function createMetaPageConfigRepository({ db, logger }) {
     findPageConfigByPageId,
     insertPageConfig,
     updatePageConfig,
+    deletePageConfig,
     getIntegrationRow,
     upsertIntegrationSettings,
   });

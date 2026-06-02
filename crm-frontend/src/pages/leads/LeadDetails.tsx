@@ -20,7 +20,6 @@ import { useAuth } from '../../context/AuthContext'
 import { useDateTimePreferences } from '../../context/DateTimePreferencesContext'
 import {
   SOP_STATUS_LABELS,
-  STATUS_REQUIRING_QUALIFICATION,
   decodeCustomStatusComboValue,
   deriveSopStatusLabel,
   encodeCustomStatusComboValue,
@@ -1293,12 +1292,6 @@ const LeadDetails: React.FC = () => {
       missing.push('travelDateRange')
     }
 
-    if (isHolidayQualification && !qualification.preferredHotelCategory) {
-      missing.push('preferredHotelCategory')
-    }
-    if (isHolidayQualification && !qualification.travelPurpose.trim()) {
-      missing.push('travelPurpose')
-    }
     if (isVisaQualification && !String(qualification.salary || '').trim()) {
       missing.push('salary')
     }
@@ -1439,14 +1432,6 @@ const LeadDetails: React.FC = () => {
 
     const conversion = sopLabelToCanonical(pipelineSop)
 
-    if (
-      STATUS_REQUIRING_QUALIFICATION.has(conversion.canonical) &&
-      qualificationMissing.length
-    ) {
-      setStatusSaving(false)
-      toast.error(`Missing required fields: ${qualificationMissing.join(', ')}`)
-      return
-    }
     if (conversion.canonical === 'LOST' && !closedReason.trim()) {
       setStatusSaving(false)
       toast.error('Closed reason is required for LOST.')
@@ -1479,9 +1464,7 @@ const LeadDetails: React.FC = () => {
     }
 
     try {
-      const isVisaLead = isVisaQualification
       await leadsService.updateLead(id, {
-        leadType: activeQualificationLeadType,
         temperature: leadTemperature,
         status: conversion.canonical,
         subStatus: conversion.subStatus,
@@ -1493,38 +1476,7 @@ const LeadDetails: React.FC = () => {
         closedReason:
           conversion.canonical === 'LOST' || conversion.canonical === 'NON_RESPONSIVE'
             ? closedReason.trim() || undefined
-            : undefined,
-        panNumber: qualification.panNumber.trim() || undefined,
-        addressLine: qualification.addressLine.trim() || undefined,
-        leadCountry:
-          toLeadCountryFormValue(qualification.leadCountry) || undefined,
-        nationality: qualification.nationality.trim() || undefined,
-        clientCurrency: qualification.clientCurrency.trim() || undefined,
-        destinationName: qualification.destinationName.trim() || undefined,
-        travelDate: qualification.travelDate.trim() || undefined,
-        travelEndDate: qualification.travelEndDate.trim() || undefined,
-        adultsCount: Number(qualification.adultsCount),
-        childrenCount: Number(qualification.childrenCount),
-        childAges: cleanChildAges,
-        ...(isVisaLead
-          ? { salary: Number(qualification.salary) }
-          : { budget: Number(qualification.budget) }),
-        visaRequired: qualification.visaRequired === 'YES',
-        ...(isHolidayQualification && qualification.preferredHotelCategory
-          ? {
-              preferredHotelCategory: qualification.preferredHotelCategory
-            }
-          : {}),
-        ...(isHolidayQualification
-          ? { travelPurpose: qualification.travelPurpose.trim() || undefined }
-          : {}),
-        source: qualification.leadSource.trim() || undefined,
-        campaignId: qualification.campaignId || undefined,
-        qualificationCompleted: STATUS_REQUIRING_QUALIFICATION.has(
-          conversion.canonical
-        )
-          ? true
-          : undefined
+            : undefined
       })
       console.log('Status updated successfully')
 

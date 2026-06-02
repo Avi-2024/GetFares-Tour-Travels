@@ -1,35 +1,28 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   FaCheck,
-  FaChevronDown,
-  FaChevronUp,
   FaCopy,
   FaFacebook,
-  FaFloppyDisk,
   FaLock,
   FaPencil,
   FaPlus,
-  FaRotate
+  FaRotate,
+  FaTrash
 } from 'react-icons/fa6'
 import { toast } from 'sonner'
 import { getApiErrorMessage } from '../../api/apiClient'
 import {
   metaConnectionApi,
-  type MetaIntegrationSettings,
   type MetaPageConfig,
   type SecretFieldStatus
 } from '../../api/metaConnection'
 import { useAuth } from '../../context/AuthContext'
 import { canManageMetaConfiguration } from '../../utils/roles'
 
-/* ─── types ─────────────────────────────────────────────────── */
 type PageFormState = {
   pageId: string
   pageName: string
-  countryCode: string
-  countryName: string
-  countryId: string
-  sourceLabel: string
+  accountName: string
   accessToken: string
   appSecret: string
   verifyToken: string
@@ -37,7 +30,6 @@ type PageFormState = {
   isActive: boolean
 }
 
-/* ─── helpers ────────────────────────────────────────────────── */
 function copyText(text: string) {
   navigator.clipboard
     .writeText(text)
@@ -46,8 +38,10 @@ function copyText(text: string) {
 }
 
 function SecretBadge({ status }: { status?: SecretFieldStatus }) {
-  if (!status?.configured)
+  if (!status?.configured) {
     return <span className="text-xs text-slate-400">Not set</span>
+  }
+
   return (
     <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
       <FaLock className="text-[9px]" /> Saved
@@ -119,7 +113,7 @@ function SecretField({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={
-            status?.configured ? '••••••  (leave blank to keep)' : 'Paste value'
+            status?.configured ? 'Saved value (leave blank to keep)' : 'Paste value'
           }
           className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm transition focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
@@ -132,10 +126,7 @@ function SecretField({
 const emptyPage = (): PageFormState => ({
   pageId: '',
   pageName: '',
-  countryCode: '',
-  countryName: '',
-  countryId: '',
-  sourceLabel: '',
+  accountName: '',
   accessToken: '',
   appSecret: '',
   verifyToken: '',
@@ -143,15 +134,18 @@ const emptyPage = (): PageFormState => ({
   isActive: true
 })
 
-/* ─── PageCard ────────────────────────────────────────────────── */
 function PageCard({
   page,
   active,
-  onEdit
+  onEdit,
+  onDelete,
+  deleting
 }: {
   page: MetaPageConfig
   active: boolean
   onEdit: () => void
+  onDelete: () => void
+  deleting: boolean
 }) {
   return (
     <div
@@ -170,7 +164,10 @@ function PageCard({
             {page.pageName || page.pageId}
           </p>
           <p className="text-xs text-slate-500">
-            {page.countryCode || '—'} · ID: {page.pageId}
+            {page.accountName || 'No account'}
+          </p>
+          <p className="text-xs text-slate-500">
+            ID: {page.pageId}
           </p>
         </div>
       </div>
@@ -184,12 +181,24 @@ function PageCard({
         >
           <FaPencil className="text-xs" />
         </button>
+        <button
+          type="button"
+          onClick={onDelete}
+          disabled={deleting}
+          className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
+          title="Delete account"
+        >
+          {deleting ? (
+            <FaRotate className="animate-spin text-xs" />
+          ) : (
+            <FaTrash className="text-xs" />
+          )}
+        </button>
       </div>
     </div>
   )
 }
 
-/* ─── MetaConnectionPanel ─────────────────────────────────────── */
 const MetaConnectionPanel: React.FC = () => {
   const { user } = useAuth()
   const canManage = canManageMetaConfiguration(user?.role)
@@ -197,21 +206,12 @@ const MetaConnectionPanel: React.FC = () => {
 
   const [bootstrapping, setBootstrapping] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [savingWebhook, setSavingWebhook] = useState(false)
   const [savingPage, setSavingPage] = useState(false)
-
-  const [integration, setIntegration] = useState<MetaIntegrationSettings | null>(null)
+  const [deletingPageId, setDeletingPageId] = useState<string | null>(null)
   const [pages, setPages] = useState<MetaPageConfig[]>([])
-
-  /* webhook form (secrets only — never pre-filled) */
-  const [appSecret, setAppSecret] = useState('')
-  const [verifyToken, setVerifyToken] = useState('')
-
-  /* page form */
   const [editingPageId, setEditingPageId] = useState<string | null>(null)
   const [isNewPage, setIsNewPage] = useState(false)
   const [pageForm, setPageForm] = useState<PageFormState>(emptyPage())
-  const [showAdvanced, setShowAdvanced] = useState(false)
 
   const apiBase = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')
   const webhookUrl = `${apiBase}/webhook/meta`
@@ -221,20 +221,32 @@ const MetaConnectionPanel: React.FC = () => {
     [editingPageId, pages]
   )
 
+  const accountGroups = useMemo(() => {
+    const groups = new Map<string, MetaPageConfig[]>()
+    pages.forEach((page) => {
+      const accountName = page.accountName?.trim() || 'Unassigned account'
+      groups.set(accountName, [...(groups.get(accountName) ?? []), page])
+    })
+    return Array.from(groups.entries()).map(([accountName, accountPages]) => ({
+      accountName,
+      pages: accountPages
+    }))
+  }, [pages])
+
   const formOpen = isNewPage || editingPageId !== null
 
-  /* ── initial load (once) ── */
+  const loadPages = useCallback(async () => {
+    const pageList = await metaConnectionApi.listPages()
+    if (mountedRef.current) {
+      setPages(pageList)
+    }
+  }, [])
+
   useEffect(() => {
     mountedRef.current = true
     const init = async () => {
       try {
-        const [integ, pageList] = await Promise.all([
-          metaConnectionApi.getIntegration(),
-          metaConnectionApi.listPages()
-        ])
-        if (!mountedRef.current) return
-        setIntegration(integ)
-        setPages(pageList)
+        await loadPages()
       } catch (err) {
         if (!mountedRef.current) return
         setError(getApiErrorMessage(err, 'Failed to load Meta connection'))
@@ -242,14 +254,15 @@ const MetaConnectionPanel: React.FC = () => {
         if (mountedRef.current) setBootstrapping(false)
       }
     }
+
     if (canManage) void init()
     else setBootstrapping(false)
+
     return () => {
       mountedRef.current = false
     }
-  }, [canManage])
+  }, [canManage, loadPages])
 
-  /* ── page form helpers ── */
   const setPF = useCallback(
     <K extends keyof PageFormState>(key: K, value: PageFormState[K]) =>
       setPageForm((f) => ({ ...f, [key]: value })),
@@ -260,7 +273,6 @@ const MetaConnectionPanel: React.FC = () => {
     setEditingPageId(null)
     setIsNewPage(true)
     setPageForm(emptyPage())
-    setShowAdvanced(false)
   }
 
   const openEdit = (page: MetaPageConfig) => {
@@ -269,17 +281,13 @@ const MetaConnectionPanel: React.FC = () => {
     setPageForm({
       pageId: page.pageId,
       pageName: page.pageName ?? '',
-      countryCode: page.countryCode ?? '',
-      countryName: page.countryName ?? '',
-      countryId: page.countryId ?? '',
-      sourceLabel: page.sourceLabel,
+      accountName: page.accountName ?? '',
       accessToken: '',
       appSecret: '',
       verifyToken: '',
       graphVersion: page.graphVersion ?? 'v20.0',
       isActive: page.isActive
     })
-    setShowAdvanced(false)
   }
 
   const closeForm = () => {
@@ -287,42 +295,22 @@ const MetaConnectionPanel: React.FC = () => {
     setIsNewPage(false)
   }
 
-  /* ── save webhook ── */
-  const saveWebhook = async () => {
-    if (!appSecret.trim() && !verifyToken.trim()) {
-      toast.error('Enter at least one value to save')
-      return
-    }
-    setSavingWebhook(true)
-    try {
-      const body: Record<string, unknown> = { confirmSecrets: true }
-      if (verifyToken.trim()) body.verifyToken = verifyToken.trim()
-      if (appSecret.trim()) body.appSecret = appSecret.trim()
-      const updated = await metaConnectionApi.updateIntegration(body)
-      setIntegration(updated)
-      setAppSecret('')
-      setVerifyToken('')
-      toast.success('Webhook settings saved')
-    } catch (err) {
-      toast.error(getApiErrorMessage(err, 'Failed to save webhook settings'))
-    } finally {
-      setSavingWebhook(false)
-    }
-  }
-
-  /* ── save page ── */
   const handleSavePage = async () => {
+    if (!pageForm.accountName.trim()) return toast.error('Account name is required')
     if (!pageForm.pageId.trim()) return toast.error('Page ID is required')
-    if (!pageForm.sourceLabel.trim()) return toast.error('Source label is required')
 
     setSavingPage(true)
     try {
+      const pageName = pageForm.pageName.trim()
+      const accountName = pageForm.accountName.trim()
+      const sourceLabel = pageName || accountName
       const body: Record<string, unknown> = {
-        pageName: pageForm.pageName.trim() || null,
-        sourceLabel: pageForm.sourceLabel.trim(),
-        countryCode: pageForm.countryCode.trim() || null,
-        countryName: pageForm.countryName.trim() || null,
-        countryId: pageForm.countryId || null,
+        accountName,
+        pageName: pageName || null,
+        sourceLabel,
+        countryCode: null,
+        countryName: null,
+        countryId: null,
         graphVersion: pageForm.graphVersion.trim() || null,
         isActive: pageForm.isActive,
         confirmSecrets: true
@@ -334,47 +322,67 @@ const MetaConnectionPanel: React.FC = () => {
       if (isNewPage) {
         const created = await metaConnectionApi.createPage({
           pageId: pageForm.pageId.trim(),
-          sourceLabel: pageForm.sourceLabel.trim(),
+          sourceLabel,
           ...body
         } as Parameters<typeof metaConnectionApi.createPage>[0])
-        /* append to list — no reload */
         setPages((prev) => [...prev, created])
         setEditingPageId(created.id)
         setIsNewPage(false)
         setPageForm((f) => ({ ...f, accessToken: '', appSecret: '', verifyToken: '' }))
-        toast.success('Page added')
+        toast.success('Meta account saved')
       } else if (editingPageId) {
         const updated = await metaConnectionApi.updatePage(editingPageId, body)
-        /* patch in list — no reload */
         setPages((prev) =>
           prev.map((p) => (p.id === editingPageId ? updated : p))
         )
         setPageForm((f) => ({ ...f, accessToken: '', appSecret: '', verifyToken: '' }))
-        toast.success('Page updated')
+        toast.success('Meta account updated')
       }
     } catch (err) {
-      toast.error(getApiErrorMessage(err, 'Failed to save page'))
+      toast.error(getApiErrorMessage(err, 'Failed to save Meta account'))
     } finally {
       setSavingPage(false)
     }
   }
 
-  /* ─── guards ── */
-  if (!canManage)
+  const handleDeletePage = async (page: MetaPageConfig) => {
+    const label = page.pageName || page.pageId
+    if (!window.confirm(`Delete ${label}? This removes saved tokens for this page.`)) {
+      return
+    }
+
+    setDeletingPageId(page.id)
+    try {
+      await metaConnectionApi.deletePage(page.id)
+      setPages((prev) => prev.filter((item) => item.id !== page.id))
+      if (editingPageId === page.id) {
+        closeForm()
+      }
+      toast.success('Meta account deleted')
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Failed to delete Meta account'))
+    } finally {
+      setDeletingPageId(null)
+    }
+  }
+
+  if (!canManage) {
     return (
       <p className="text-sm text-slate-500">
         Admin or super admin access required.
       </p>
     )
+  }
 
-  if (bootstrapping)
+  if (bootstrapping) {
     return (
       <div className="flex items-center gap-2 text-sm text-slate-500">
-        <FaRotate className="animate-spin" /> Loading…
+        <FaRotate className="animate-spin" /> Loading...
       </div>
     )
+  }
 
-  if (error)
+  if (error) {
     return (
       <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
         {error}
@@ -383,30 +391,40 @@ const MetaConnectionPanel: React.FC = () => {
           onClick={() => {
             setError(null)
             setBootstrapping(true)
-            metaConnectionApi.getIntegration().then(setIntegration).catch(() => {})
-            metaConnectionApi.listPages().then(setPages).catch(() => {})
-            setBootstrapping(false)
+            loadPages()
+              .catch(() => {})
+              .finally(() => setBootstrapping(false))
           }}
         >
           Retry
         </button>
       </div>
     )
+  }
 
-  /* ─── render ─────────────────────────────────────────────────── */
   return (
-    <div className="max-w-3xl space-y-8">
-
-      {/* ── Step 1: Webhook ── */}
+    <div className="max-w-3xl space-y-6">
       <section className="space-y-4">
-        <div className="flex items-center gap-2">
-          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">
-            1
-          </span>
-          <h2 className="text-base font-semibold text-slate-900">Webhook setup</h2>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">
+              1
+            </span>
+            <h2 className="text-base font-semibold text-slate-900">
+              Meta accounts and pages
+            </h2>
+          </div>
+          {!formOpen && (
+            <button
+              type="button"
+              onClick={openAdd}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50"
+            >
+              <FaPlus /> Add account
+            </button>
+          )}
         </div>
 
-        {/* webhook URL */}
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
           <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
             Your webhook URL
@@ -426,108 +444,67 @@ const MetaConnectionPanel: React.FC = () => {
             </button>
           </div>
           <p className="mt-2 text-xs text-slate-500">
-            Paste in Meta App → Webhooks → Callback URL. Subscribe to{' '}
-            <strong>leadgen</strong>.
+            Use this same callback URL in Meta. Save each account with its own app secret, verify token, and page token.
           </p>
         </div>
 
-        {/* secrets */}
-        <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <SecretField
-              label="Verify token"
-              hint="Any string you choose — paste same value in Meta Webhooks."
-              status={integration?.secrets.verifyToken}
-              value={verifyToken}
-              onChange={setVerifyToken}
-            />
-            <SecretField
-              label="App secret"
-              hint="Meta App → Settings → Basic → App secret."
-              status={integration?.secrets.appSecret}
-              value={appSecret}
-              onChange={setAppSecret}
-            />
-          </div>
-          <div className="flex items-center justify-between border-t border-slate-100 pt-4">
-            {integration?.secretsConfirmedAt && (
-              <p className="text-xs text-slate-400">
-                Last saved:{' '}
-                {new Date(integration.secretsConfirmedAt).toLocaleString()}
-              </p>
-            )}
-            <button
-              type="button"
-              disabled={savingWebhook}
-              onClick={() => void saveWebhook()}
-              className="ml-auto inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
-            >
-              {savingWebhook ? (
-                <FaRotate className="animate-spin" />
-              ) : (
-                <FaFloppyDisk />
-              )}
-              Save webhook settings
-            </button>
-          </div>
-        </div>
-      </section>
-
-      {/* ── Step 2: Pages ── */}
-      <section className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">
-              2
-            </span>
-            <h2 className="text-base font-semibold text-slate-900">Facebook pages</h2>
-          </div>
-          {!formOpen && (
-            <button
-              type="button"
-              onClick={openAdd}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50"
-            >
-              <FaPlus /> Add page
-            </button>
-          )}
-        </div>
-
         <p className="text-xs text-slate-500">
-          One row per Facebook page. Each token is encrypted and never shown again
-          after save.
+          Each token is encrypted and never shown again after save.
         </p>
 
-        {/* page list */}
         {pages.length === 0 && !formOpen ? (
           <div className="rounded-xl border border-dashed border-slate-300 py-10 text-center text-sm text-slate-400">
-            No pages yet — click <strong>Add page</strong>
+            No accounts yet. Click <strong>Add account</strong>.
           </div>
         ) : (
-          <div className="space-y-2">
-            {pages.map((p) => (
-              <PageCard
-                key={p.id}
-                page={p}
-                active={editingPageId === p.id}
-                onEdit={() =>
-                  editingPageId === p.id ? closeForm() : openEdit(p)
-                }
-              />
+          <div className="space-y-4">
+            {accountGroups.map((group) => (
+              <div key={group.accountName} className="space-y-2">
+                <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
+                  <p className="text-sm font-semibold text-slate-800">
+                    {group.accountName}
+                  </p>
+                  <span className="text-xs text-slate-500">
+                    {group.pages.length} page{group.pages.length === 1 ? '' : 's'}
+                  </span>
+                </div>
+                {group.pages.map((p) => (
+                  <PageCard
+                    key={p.id}
+                    page={p}
+                    active={editingPageId === p.id}
+                    onEdit={() =>
+                      editingPageId === p.id ? closeForm() : openEdit(p)
+                    }
+                    onDelete={() => void handleDeletePage(p)}
+                    deleting={deletingPageId === p.id}
+                  />
+                ))}
+              </div>
             ))}
           </div>
         )}
 
-        {/* inline form */}
         {formOpen && (
-          <div className="rounded-xl border border-blue-200 bg-blue-50/40 p-5 space-y-5">
+          <div className="space-y-5 rounded-xl border border-blue-200 bg-blue-50/40 p-5">
             <p className="text-sm font-semibold text-slate-800">
               {isNewPage
-                ? 'New Facebook page'
+                ? 'New Meta account'
                 : `Edit: ${editingPage?.pageName || editingPage?.pageId}`}
             </p>
 
             <div className="grid gap-4 sm:grid-cols-2">
+              <FieldBlock
+                label="Meta account name *"
+                hint="Business/app account label for grouping connected pages."
+              >
+                <TextInput
+                  value={pageForm.accountName}
+                  onChange={(v) => setPF('accountName', v)}
+                  placeholder="e.g. India Ads Account"
+                />
+              </FieldBlock>
+
               <FieldBlock label="Page ID *" hint="Numeric ID from Facebook page / About.">
                 <TextInput
                   value={pageForm.pageId}
@@ -546,33 +523,6 @@ const MetaConnectionPanel: React.FC = () => {
                 />
               </FieldBlock>
 
-              <FieldBlock label="Country code" hint="2-letter ISO e.g. IN, AE, GB">
-                <TextInput
-                  value={pageForm.countryCode}
-                  onChange={(v) => setPF('countryCode', v.toUpperCase())}
-                  placeholder="IN"
-                />
-              </FieldBlock>
-
-              <FieldBlock label="Country name">
-                <TextInput
-                  value={pageForm.countryName}
-                  onChange={(v) => setPF('countryName', v)}
-                  placeholder="India"
-                />
-              </FieldBlock>
-
-              <FieldBlock
-                label="Source label *"
-                hint="Appears as 'Lead source' in CRM."
-              >
-                <TextInput
-                  value={pageForm.sourceLabel}
-                  onChange={(v) => setPF('sourceLabel', v)}
-                  placeholder="Lead source label"
-                />
-              </FieldBlock>
-
               <FieldBlock
                 label="Graph API version"
                 hint="Leave v20.0 unless Meta instructs otherwise."
@@ -585,47 +535,33 @@ const MetaConnectionPanel: React.FC = () => {
               </FieldBlock>
             </div>
 
-            {/* access token */}
-            <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-4">
+            <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                 Tokens
               </p>
               <SecretField
                 label="Page access token *"
-                hint="Long-lived token with leads_retrieval + pages_read_engagement."
+                hint="Long-lived token with leads_retrieval and pages_read_engagement."
                 status={editingPage?.secrets.accessToken}
                 value={pageForm.accessToken}
                 onChange={(v) => setPF('accessToken', v)}
               />
-
-              <button
-                type="button"
-                onClick={() => setShowAdvanced((s) => !s)}
-                className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-800"
-              >
-                {showAdvanced ? <FaChevronUp /> : <FaChevronDown />}
-                {showAdvanced ? 'Hide' : 'Show'} per-page app secret & verify token
-                (optional)
-              </button>
-
-              {showAdvanced && (
-                <div className="grid gap-4 sm:grid-cols-2 pt-1">
-                  <SecretField
-                    label="App secret (per page)"
-                    hint="Only if different from global app secret."
-                    status={editingPage?.secrets.appSecret}
-                    value={pageForm.appSecret}
-                    onChange={(v) => setPF('appSecret', v)}
-                  />
-                  <SecretField
-                    label="Verify token (per page)"
-                    hint="Only if different from global verify token."
-                    status={editingPage?.secrets.verifyToken}
-                    value={pageForm.verifyToken}
-                    onChange={(v) => setPF('verifyToken', v)}
-                  />
-                </div>
-              )}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <SecretField
+                  label="App secret *"
+                  hint="Meta App settings secret for this account."
+                  status={editingPage?.secrets.appSecret}
+                  value={pageForm.appSecret}
+                  onChange={(v) => setPF('appSecret', v)}
+                />
+                <SecretField
+                  label="Verify token *"
+                  hint="Paste same value in Meta Webhooks for this account."
+                  status={editingPage?.secrets.verifyToken}
+                  value={pageForm.verifyToken}
+                  onChange={(v) => setPF('verifyToken', v)}
+                />
+              </div>
             </div>
 
             <label className="flex items-center gap-2 text-sm text-slate-700">
@@ -658,7 +594,7 @@ const MetaConnectionPanel: React.FC = () => {
                 ) : (
                   <FaCheck />
                 )}
-                {isNewPage ? 'Add page' : 'Save changes'}
+                {isNewPage ? 'Save account' : 'Save changes'}
               </button>
             </div>
           </div>

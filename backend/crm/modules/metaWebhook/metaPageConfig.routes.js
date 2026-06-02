@@ -53,6 +53,11 @@ function createMetaPageConfigRoutes({
     validateRequest(validation.updatePage),
     asyncHandler(controller.updatePage),
   );
+  router.delete(
+    "/pages/:id",
+    validateRequest(validation.deletePage),
+    asyncHandler(controller.deletePage),
+  );
 
   return router;
 }

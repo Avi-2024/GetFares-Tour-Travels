@@ -73,6 +73,8 @@ const META_LEAD_TRANSFORMS = Object.freeze([
   "normalize_lead_type",
 ]);
 
+const META_SOURCE_LABELS = Object.freeze(["Meta India Page", "Meta UAE Page"]);
+
 const MAPPABLE_COLUMN_SET = new Set(
   META_LEAD_MAPPABLE_COLUMNS.map((item) => item.column),
 );
@@ -91,6 +93,15 @@ function payloadKeyForColumn(column) {
   return COLUMN_TO_PAYLOAD[String(column || "").trim()] || null;
 }
 
+function normalizeMetaSourceLabel(value) {
+  const normalized = String(value || "").trim();
+  return META_SOURCE_LABELS.includes(normalized) ? normalized : null;
+}
+
+function isAllowedMetaSourceLabel(value) {
+  return normalizeMetaSourceLabel(value) !== null;
+}
+
 export {
   META_LEAD_MAPPABLE_COLUMNS,
   META_LEAD_PROFILE_DEFAULT_FIELDS,
@@ -98,6 +109,9 @@ export {
   META_LEAD_SCOPE_TYPES,
   META_LEAD_SCOPE_RANK,
   META_LEAD_TRANSFORMS,
+  META_SOURCE_LABELS,
   isAllowedTargetColumn,
+  isAllowedMetaSourceLabel,
+  normalizeMetaSourceLabel,
   payloadKeyForColumn,
 };

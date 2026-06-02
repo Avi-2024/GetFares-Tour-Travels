@@ -15,6 +15,7 @@ export type MetaPageConfig = {
   id: string;
   pageId: string;
   pageName: string | null;
+  accountName: string | null;
   countryId: string | null;
   countryCode: string | null;
   countryName: string | null;
@@ -44,6 +45,7 @@ export type MetaIntegrationSettings = {
 export type MetaPageConfigInput = {
   pageId?: string;
   pageName?: string | null;
+  accountName?: string | null;
   countryId?: string | null;
   countryCode?: string | null;
   countryName?: string | null;
@@ -109,6 +111,13 @@ export const metaConnectionApi = {
       await apiRequest(`/api/meta-connection/pages/${id}`, {
         method: "PATCH",
         body,
+      }),
+    ),
+
+  deletePage: async (id: string) =>
+    unwrapData<{ deleted: boolean; id: string }>(
+      await apiRequest(`/api/meta-connection/pages/${id}`, {
+        method: "DELETE",
       }),
     ),
 };

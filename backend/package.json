@@ -28,7 +28,8 @@
     "test:sprint6": "node scripts/test-sprint6.js",
     "test:sprint7": "node scripts/test-sprint7.js",
     "test:sprint8": "node scripts/test-sprint8.js",
-    "test:quotation-detail": "node scripts/test-quotation-by-id.js"
+    "test:quotation-detail": "node scripts/test-quotation-by-id.js",
+    "test:reports": "node scripts/verify-reports-backend.js"
   },
   "dependencies": {
     "@azure/storage-blob": "^12.31.0",

@@ -74,6 +74,10 @@ assert(result.payload.nationality === "Bangladesh", "nationality mapped");
 assert(result.payload.travelTo === "uk_tourist_visa", "travel_to mapped");
 assert(result.profileAssign.leadType === "VISA", "lead type from profile");
 assert(
+  result.profileAssign.sourceLabel === null,
+  "invalid stored source label ignored",
+);
+assert(
   result.dynamic.what_is_your_nationality === undefined,
   "stripped from dynamic",
 );

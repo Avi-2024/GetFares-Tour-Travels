@@ -1,6 +1,10 @@
 import { LeadFieldsUtils } from "../leads/leadFields.utils.js";
 import { normalizeMetaId } from "./metaLeadRouting.rules.js";
-import { META_LEAD_SCOPE_RANK, payloadKeyForColumn } from "./metaLeadMapping.constants.js";
+import {
+  META_LEAD_SCOPE_RANK,
+  normalizeMetaSourceLabel,
+  payloadKeyForColumn,
+} from "./metaLeadMapping.constants.js";
 import {
   applyMetaFieldTransform,
   normalizeMetaFieldKeyAliases,
@@ -217,7 +221,7 @@ function createMetaLeadMappingResolver({ repository, logger }) {
               leadType: profile.leadType || null,
               leadCountry: profile.leadCountry || null,
               clientCurrency: profile.clientCurrency || null,
-              sourceLabel: profile.sourceLabel || null,
+              sourceLabel: normalizeMetaSourceLabel(profile.sourceLabel),
             }
           : null,
       };
@@ -270,7 +274,7 @@ function createMetaLeadMappingResolver({ repository, logger }) {
         leadType: profile.leadType || null,
         leadCountry: profile.leadCountry || null,
         clientCurrency: profile.clientCurrency || null,
-        sourceLabel: profile.sourceLabel || null,
+        sourceLabel: normalizeMetaSourceLabel(profile.sourceLabel),
       },
     };
   }

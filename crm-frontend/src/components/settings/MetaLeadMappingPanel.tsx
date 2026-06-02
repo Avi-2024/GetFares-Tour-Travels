@@ -6,7 +6,8 @@ import {
   FaChevronUp,
   FaPlus,
   FaRotate,
-  FaTrash
+  FaTrash,
+  FaXmark
 } from 'react-icons/fa6'
 import { toast } from 'sonner'
 import { getApiErrorMessage } from '../../api/apiClient'
@@ -64,6 +65,12 @@ const SCOPE_INFO: Record<
 const LEAD_TYPES = [
   { value: 'HOLIDAY', label: 'Holidays' },
   { value: 'VISA', label: 'Visa' }
+]
+
+const SOURCE_LABEL_OPTIONS = [
+  { value: '', label: 'Select source label' },
+  { value: 'Meta India Page', label: 'Meta India Page' },
+  { value: 'Meta UAE Page', label: 'Meta UAE Page' }
 ]
 
 const SAMPLE_JSON = `[
@@ -228,7 +235,6 @@ const MetaLeadMappingPanel: React.FC = () => {
   const [metadata, setMetadata] = useState<MetaLeadMappingMetadata | null>(null)
   const [profiles, setProfiles] = useState<MetaLeadProfile[]>([])
   const [metaPages, setMetaPages] = useState<MetaPageConfig[]>([])
-  const [sourceLabelNames, setSourceLabelNames] = useState<string[]>([])
   const [bootstrapping, setBootstrapping] = useState(true)
   const [hasConnection, setHasConnection] = useState(false)
 
@@ -364,19 +370,7 @@ const MetaLeadMappingPanel: React.FC = () => {
     ]
   }, [mapQuestion, metadata, profiles, testJson])
 
-  const sourceLabelOptions = useMemo(() => {
-    const labels = Array.from(
-      new Set(
-        [...sourceLabelNames, form.sourceLabel]
-          .map((label) => label.trim())
-          .filter(Boolean)
-      )
-    ).sort((a, b) => a.localeCompare(b))
-    return [
-      { value: '', label: 'Select source label' },
-      ...labels.map((label) => ({ value: label, label }))
-    ]
-  }, [form.sourceLabel, sourceLabelNames])
+  const sourceLabelOptions = SOURCE_LABEL_OPTIONS
 
   const buildDynamicSampleJson = useCallback(() => {
     const keys = new Set<string>(['full_name', 'email', 'phone_number'])
@@ -423,12 +417,8 @@ const MetaLeadMappingPanel: React.FC = () => {
         ])
         if (!mountedRef.current) return
         const connected = pageList.some((page) => page.isActive !== false)
-        const labels = pageList
-          .map((page) => String(page.sourceLabel || '').trim())
-          .filter(Boolean)
         setMetadata(meta)
         setMetaPages(pageList)
-        setSourceLabelNames(labels)
         setHasConnection(connected)
         setProfiles(connected ? list : [])
         setTestPageId(pageList.find((page) => page.isActive !== false)?.pageId || '')
@@ -806,11 +796,8 @@ const MetaLeadMappingPanel: React.FC = () => {
                     value={form.sourceLabel}
                     options={sourceLabelOptions}
                     onChange={(v) => setF('sourceLabel', v)}
-                    placeholder="Meta Ads India"
+                    placeholder="Select source label"
                     searchPlaceholder="Search source label..."
-                    creatable
-                    onCreatePick={(v) => setF('sourceLabel', v)}
-                    createPrompt="Use source"
                   />
                   <Hint>Shown as "Lead source" on the lead card.</Hint>
                 </div>
@@ -955,7 +942,7 @@ const MetaLeadMappingPanel: React.FC = () => {
           <div className="rounded-xl border border-slate-200 bg-white overflow-visible">
             <button
               type="button"
-              onClick={() => setShowTest((s) => !s)}
+	              onClick={() => setShowTest(true)}
               className="flex w-full items-center justify-between px-5 py-4 text-sm font-semibold text-slate-800 hover:bg-slate-50"
             >
               <span>
@@ -971,109 +958,133 @@ const MetaLeadMappingPanel: React.FC = () => {
               )}
             </button>
 
-            {showTest && (
-              <div className="border-t border-slate-100 p-5 space-y-3">
-                <p className="text-xs text-slate-500">
-                  Paste IDs and a sample form response to see which rule fires.
-                </p>
-
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setTestJson(buildDynamicSampleJson())}
-                    className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm hover:bg-slate-50"
-                  >
-                    <FaRotate /> Generate from mappings
-                  </button>
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-4">
-                  <div>
-                    <Label>Facebook page</Label>
-                    <SearchableDropdown
-                      value={testPageId}
-                      options={pageOptions}
-                      searchPlaceholder="Search Meta page..."
-                      onChange={setTestPageId}
-                    />
-                  </div>
-                  <div>
-                    <Label>Form ID</Label>
-                    <TextInput
-                      value={testFormId}
-                      onChange={setTestFormId}
-                      placeholder="optional"
-                      mono
-                    />
-                  </div>
-                  <div>
-                    <Label>Ad ID</Label>
-                    <TextInput
-                      value={testAdId}
-                      onChange={setTestAdId}
-                      placeholder="optional"
-                      mono
-                    />
-                  </div>
-                  <div>
-                    <Label>Campaign ID</Label>
-                    <TextInput
-                      value={testCampaignId}
-                      onChange={setTestCampaignId}
-                      placeholder="optional"
-                      mono
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <Label>Sample lead JSON</Label>
-                  <textarea
-                    rows={5}
-                    value={testJson}
-                    onChange={(e) => setTestJson(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    disabled={testing}
-                    onClick={() => void runTest()}
-                    className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm hover:bg-slate-50 disabled:opacity-50"
-                  >
-                    {testing ? <FaRotate className="animate-spin" /> : null}
-                    Test mapping only
-                  </button>
-                  <button
-                    type="button"
-                    disabled={creatingTestLead}
-                    onClick={() => void createTestLead()}
-                    className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-700 disabled:opacity-50"
-                  >
-                    {creatingTestLead ? <FaRotate className="animate-spin" /> : <FaPlus />}
-                    Create lead in CRM
-                  </button>
-                </div>
-
-                {testResult && (
-                  <pre className="max-h-56 overflow-auto rounded-lg bg-slate-950 p-4 text-xs text-emerald-300">
-                    {testResult}
-                  </pre>
-                )}
-              </div>
-            )}
           </div>
         </div>
-      ) : (
-        <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-slate-300 text-sm text-slate-400">
-          Select a rule to edit, or click{' '}
-          <strong className="mx-1">New</strong> to create one.
-        </div>
-      )}
-    </div>
-  )
-}
+	      ) : (
+	        <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-slate-300 text-sm text-slate-400">
+	          Select a rule to edit, or click{' '}
+	          <strong className="mx-1">New</strong> to create one.
+	        </div>
+	      )}
+	      {showTest && (
+	        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+	          <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
+	            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white px-5 py-4">
+	              <div>
+	                <h3 className="text-sm font-semibold text-slate-900">Test rule</h3>
+	                <p className="mt-1 text-xs text-slate-500">
+	                  Paste IDs and sample form response to see which rule fires.
+	                </p>
+	              </div>
+	              <button
+	                type="button"
+	                onClick={() => setShowTest(false)}
+	                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+	                aria-label="Close test rule"
+	              >
+	                <FaXmark />
+	              </button>
+	            </div>
+
+	            <div className="space-y-4 p-5">
+	              <div className="flex flex-wrap gap-2">
+	                <button
+	                  type="button"
+	                  onClick={() => setTestJson(buildDynamicSampleJson())}
+	                  className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm hover:bg-slate-50"
+	                >
+	                  <FaRotate /> Generate from mappings
+	                </button>
+	              </div>
+
+	              <div className="grid gap-3 sm:grid-cols-4">
+	                <div>
+	                  <Label>Facebook page</Label>
+	                  <SearchableDropdown
+	                    value={testPageId}
+	                    options={pageOptions}
+	                    searchPlaceholder="Search Meta page..."
+	                    onChange={setTestPageId}
+	                  />
+	                </div>
+	                <div>
+	                  <Label>Form ID</Label>
+	                  <TextInput
+	                    value={testFormId}
+	                    onChange={setTestFormId}
+	                    placeholder="optional"
+	                    mono
+	                  />
+	                </div>
+	                <div>
+	                  <Label>Ad ID</Label>
+	                  <TextInput
+	                    value={testAdId}
+	                    onChange={setTestAdId}
+	                    placeholder="optional"
+	                    mono
+	                  />
+	                </div>
+	                <div>
+	                  <Label>Campaign ID</Label>
+	                  <TextInput
+	                    value={testCampaignId}
+	                    onChange={setTestCampaignId}
+	                    placeholder="optional"
+	                    mono
+	                  />
+	                </div>
+	              </div>
+
+	              <div>
+	                <Label>Sample lead JSON</Label>
+	                <textarea
+	                  rows={8}
+	                  value={testJson}
+	                  onChange={(e) => setTestJson(e.target.value)}
+	                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+	                />
+	              </div>
+
+	              <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-4">
+	                <button
+	                  type="button"
+	                  onClick={() => setShowTest(false)}
+	                  className="rounded-lg px-4 py-2 text-sm text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+	                >
+	                  Cancel
+	                </button>
+	                <button
+	                  type="button"
+	                  disabled={testing}
+	                  onClick={() => void runTest()}
+	                  className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm hover:bg-slate-50 disabled:opacity-50"
+	                >
+	                  {testing ? <FaRotate className="animate-spin" /> : null}
+	                  Test mapping only
+	                </button>
+	                <button
+	                  type="button"
+	                  disabled={creatingTestLead}
+	                  onClick={() => void createTestLead()}
+	                  className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-700 disabled:opacity-50"
+	                >
+	                  {creatingTestLead ? <FaRotate className="animate-spin" /> : <FaPlus />}
+	                  Create lead in CRM
+	                </button>
+	              </div>
+
+	              {testResult && (
+	                <pre className="max-h-56 overflow-auto rounded-lg bg-slate-950 p-4 text-xs text-emerald-300">
+	                  {testResult}
+	                </pre>
+	              )}
+	            </div>
+	          </div>
+	        </div>
+	      )}
+	    </div>
+	  )
+	}
 
 export default MetaLeadMappingPanel

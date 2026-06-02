@@ -7,6 +7,7 @@ import {
   toUtc,
 } from "../../core/datetime/timezone.js";
 import { getWebhookFileLogger } from "./webhookFileLogger.js";
+import { normalizeMetaSourceLabel } from "./metaLeadMapping.constants.js";
 import { LeadFieldsUtils } from "../leads/leadFields.utils.js";
 
 const META_SOURCE = "Meta Lead Ads";
@@ -234,8 +235,8 @@ async function buildLeadPayload(
       mappedPayload.adName ||
       normalizeValue(metaLead.ad_name ?? metaLead.adName ?? null),
     source:
-      profileAssign.sourceLabel ||
-      pageConfig.sourceLabel ||
+      normalizeMetaSourceLabel(profileAssign.sourceLabel) ||
+      normalizeMetaSourceLabel(pageConfig.sourceLabel) ||
       META_SOURCE,
     leadType:
       profileAssign.leadType ||
@@ -667,6 +668,14 @@ function createMetaLeadService({
           {
             name: "city",
             values: [isUae ? "Dubai" : "Mumbai"],
+          },
+          {
+            name: "what_is_your_nationality?",
+            values: [isUae ? "Indian" : "Indian"],
+          },
+          {
+            name: "which_destination_would_you_like_to_visit?",
+            values: [isUae ? "Maldives" : "Dubai"],
           },
         ],
       };

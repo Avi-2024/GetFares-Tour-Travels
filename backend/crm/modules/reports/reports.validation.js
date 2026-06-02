@@ -7,6 +7,7 @@ const baseDateRangeQuery = z.object({
 
 const queryWithOptionalUser = baseDateRangeQuery.extend({
   userId: z.string().uuid().optional(),
+  role: z.string().trim().min(1).max(80).optional(),
   supplierId: z.string().uuid().optional(),
   destination: z.string().trim().min(1).optional(),
   country: z.string().trim().min(1).max(160).optional(),
@@ -22,6 +23,44 @@ const bySource = z.object({
 });
 
 const byConsultant = z.object({
+  body: z.object({}).optional(),
+  params: z.object({}).optional(),
+  query: queryWithOptionalUser.optional(),
+});
+
+const peoplePerformance = z.object({
+  body: z.object({}).optional(),
+  params: z.object({}).optional(),
+  query: queryWithOptionalUser
+    .extend({
+      currency: z.string().trim().min(3).max(10).optional(),
+    })
+    .optional(),
+});
+
+const quotationPerformance = z.object({
+  body: z.object({}).optional(),
+  params: z.object({}).optional(),
+  query: queryWithOptionalUser.optional(),
+});
+
+const bookingPerformance = z.object({
+  body: z.object({}).optional(),
+  params: z.object({}).optional(),
+  query: queryWithOptionalUser.optional(),
+});
+
+const financeSummary = z.object({
+  body: z.object({}).optional(),
+  params: z.object({}).optional(),
+  query: queryWithOptionalUser
+    .extend({
+      currency: z.string().trim().min(3).max(10).optional(),
+    })
+    .optional(),
+});
+
+const operationsPerformance = z.object({
   body: z.object({}).optional(),
   params: z.object({}).optional(),
   query: queryWithOptionalUser.optional(),
@@ -212,6 +251,11 @@ const financeSupplierServices = z.object({
 const ReportsValidation = {
   bySource,
   byConsultant,
+  peoplePerformance,
+  quotationPerformance,
+  bookingPerformance,
+  financeSummary,
+  operationsPerformance,
   dealLines,
   leadAging,
   lostLeads,

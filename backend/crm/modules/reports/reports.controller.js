@@ -16,6 +16,46 @@ function createReportsController({ service }) {
       res.status(200).json({ data: result });
     },
 
+    async peoplePerformance(req, res) {
+      const result = await service.peoplePerformance(
+        req.validated?.query || req.query,
+        req.context,
+      );
+      res.status(200).json({ data: result });
+    },
+
+    async quotationPerformance(req, res) {
+      const result = await service.quotationPerformance(
+        req.validated?.query || req.query,
+        req.context,
+      );
+      res.status(200).json({ data: result });
+    },
+
+    async bookingPerformance(req, res) {
+      const result = await service.bookingPerformance(
+        req.validated?.query || req.query,
+        req.context,
+      );
+      res.status(200).json({ data: result });
+    },
+
+    async financeSummary(req, res) {
+      const result = await service.financeSummary(
+        req.validated?.query || req.query,
+        req.context,
+      );
+      res.status(200).json({ data: result });
+    },
+
+    async operationsPerformance(req, res) {
+      const result = await service.operationsPerformance(
+        req.validated?.query || req.query,
+        req.context,
+      );
+      res.status(200).json({ data: result });
+    },
+
     async dealLines(req, res) {
       const result = await service.dealLines(
         req.validated?.query || req.query,

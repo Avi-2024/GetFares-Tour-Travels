@@ -101,6 +101,51 @@ function createReportsService({ repository, logger, currencyService }) {
       return repository.getLeadsByConsultant(scoped);
     },
 
+    async peoplePerformance(filters = {}, context = {}) {
+      const scoped = mergeConsultantScope(filters, context);
+      logger.debug(
+        { module: "reports", requestId: context.requestId, filters: scoped },
+        "People performance report",
+      );
+      return repository.getPeoplePerformance(scoped);
+    },
+
+    async quotationPerformance(filters = {}, context = {}) {
+      const scoped = mergeConsultantScope(filters, context);
+      logger.debug(
+        { module: "reports", requestId: context.requestId, filters: scoped },
+        "Quotation performance report",
+      );
+      return repository.getQuotationPerformance(scoped);
+    },
+
+    async bookingPerformance(filters = {}, context = {}) {
+      const scoped = mergeConsultantScope(filters, context);
+      logger.debug(
+        { module: "reports", requestId: context.requestId, filters: scoped },
+        "Booking performance report",
+      );
+      return repository.getBookingPerformance(scoped);
+    },
+
+    async financeSummary(filters = {}, context = {}) {
+      const scoped = mergeConsultantScope(filters, context);
+      logger.debug(
+        { module: "reports", requestId: context.requestId, filters: scoped },
+        "Finance summary report",
+      );
+      return repository.getFinanceSummary(scoped);
+    },
+
+    async operationsPerformance(filters = {}, context = {}) {
+      const scoped = mergeConsultantScope(filters, context);
+      logger.debug(
+        { module: "reports", requestId: context.requestId, filters: scoped },
+        "Operations performance report",
+      );
+      return repository.getOperationsPerformance(scoped);
+    },
+
     async dealLines(filters = {}, context = {}) {
       const scoped = mergeConsultantScope(filters, context);
       logger.debug(

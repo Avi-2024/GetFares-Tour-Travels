@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { currencyService } from '../services/currencyService';
 import type { CurrencyRatesResponse } from '../services/currencyService';
 
@@ -7,7 +7,7 @@ export const useCurrency = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const loadRates = async () => {
+  const loadRates = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -18,23 +18,23 @@ export const useCurrency = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadRates();
-  }, []);
+  }, [loadRates]);
 
-  const convert = async (amount: number, from: string, to: string): Promise<number> => {
+  const convert = useCallback(async (amount: number, from: string, to: string): Promise<number> => {
     try {
       return await currencyService.convert(amount, from, to);
     } catch (err: any) {
       throw new Error(err.message || 'Conversion failed');
     }
-  };
+  }, []);
 
-  const formatAmount = (amount: number, currency: string): string => {
+  const formatAmount = useCallback((amount: number, currency: string): string => {
     return currencyService.formatAmount(amount, currency);
-  };
+  }, []);
 
   return {
     rates,

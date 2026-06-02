@@ -2,12 +2,21 @@ import { z } from "zod";
 import {
   META_LEAD_SCOPE_TYPES,
   META_LEAD_TRANSFORMS,
+  isAllowedMetaSourceLabel,
   isAllowedTargetColumn,
 } from "./metaLeadMapping.constants.js";
 
 const scopeType = z.enum(META_LEAD_SCOPE_TYPES);
 const transform = z.enum(META_LEAD_TRANSFORMS);
 const leadType = z.enum(["HOLIDAY", "VISA", "BOTH"]).optional();
+const sourceLabel = z
+  .string()
+  .trim()
+  .refine((value) => isAllowedMetaSourceLabel(value), {
+    message: "sourceLabel must be Meta India Page or Meta UAE Page",
+  })
+  .nullable()
+  .optional();
 
 const metaFieldKeys = z
   .array(z.string().trim().min(1).max(120))
@@ -30,7 +39,7 @@ const profileBody = z.object({
   leadType: leadType.nullable().optional(),
   leadCountry: z.string().trim().max(100).nullable().optional(),
   clientCurrency: z.string().trim().min(3).max(10).nullable().optional(),
-  sourceLabel: z.string().trim().max(120).nullable().optional(),
+  sourceLabel,
   isActive: z.boolean().optional(),
 });
 

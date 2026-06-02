@@ -44,10 +44,11 @@ const requestBody = (schema) => z.preprocess(normalizeRequestBody, schema);
 const pageBody = z.object({
   pageId: z.string().trim().min(5).max(120).optional(),
   pageName: z.string().trim().max(150).nullable().optional(),
+  accountName: z.string().trim().max(150).nullable().optional(),
   countryId: z.string().uuid().nullable().optional(),
   countryCode: z.string().trim().max(20).nullable().optional(),
   countryName: z.string().trim().max(150).nullable().optional(),
-  sourceLabel: z.string().trim().min(2).max(120).optional(),
+  sourceLabel: z.string().trim().max(120).optional(),
   accessToken: optionalSecret,
   appSecret: optionalSecret,
   verifyToken: optionalSecret,
@@ -95,7 +96,6 @@ export const MetaPageConfigValidation = {
   createPage: z.object({
     body: requestBody(pageBody.extend({
       pageId: z.string().trim().min(5).max(120),
-      sourceLabel: z.string().trim().min(2).max(120),
     })),
     params: z.unknown().optional(),
     query: z.unknown().optional(),
@@ -104,6 +104,12 @@ export const MetaPageConfigValidation = {
   updatePage: z.object({
     params: z.object({ id: z.string().uuid() }),
     body: requestBody(pageBody),
+    query: z.unknown().optional(),
+  }),
+
+  deletePage: z.object({
+    params: z.object({ id: z.string().uuid() }),
+    body: z.unknown().optional(),
     query: z.unknown().optional(),
   }),
 

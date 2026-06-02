@@ -93,6 +93,63 @@ const defaultFilters: LeadFilterState = {
   sortBy: "CREATED_AT_DESC",
 };
 
+const LEADS_VIEW_STATE_KEY = "leads:view_state:v1";
+
+type LeadsViewState = {
+  quickFilter: QuickFilter;
+  leadSourceFilter: LeadSourceFilter;
+  search: string;
+  page: number;
+  pageSize: number;
+  draftFilters: LeadFilterState;
+  appliedFilters: LeadFilterState;
+};
+
+const parseLeadViewState = (): LeadsViewState | null => {
+  try {
+    const raw = sessionStorage.getItem(LEADS_VIEW_STATE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<LeadsViewState>;
+    if (!parsed || typeof parsed !== "object") return null;
+    return {
+      quickFilter:
+        parsed.quickFilter && quickFilters.some((q) => q.key === parsed.quickFilter)
+          ? parsed.quickFilter
+          : "ALL",
+      leadSourceFilter:
+        parsed.leadSourceFilter === "ALL" ||
+        parsed.leadSourceFilter === "INDIA" ||
+        parsed.leadSourceFilter === "UAE" ||
+        parsed.leadSourceFilter === "WALKIN"
+          ? parsed.leadSourceFilter
+          : "ALL",
+      search: typeof parsed.search === "string" ? parsed.search : "",
+      page:
+        Number.isInteger(parsed.page) && Number(parsed.page) > 0
+          ? Number(parsed.page)
+          : 1,
+      pageSize:
+        Number.isInteger(parsed.pageSize) && Number(parsed.pageSize) > 0
+          ? Number(parsed.pageSize)
+          : 25,
+      draftFilters: {
+        ...defaultFilters,
+        ...(parsed.draftFilters && typeof parsed.draftFilters === "object"
+          ? parsed.draftFilters
+          : {}),
+      },
+      appliedFilters: {
+        ...defaultFilters,
+        ...(parsed.appliedFilters && typeof parsed.appliedFilters === "object"
+          ? parsed.appliedFilters
+          : {}),
+      },
+    };
+  } catch {
+    return null;
+  }
+};
+
 const formatPaxSummary = (lead: LeadListItem) => {
   const adults = Math.max(lead.adultsCount ?? 0, 0);
   const children = Math.max(lead.childrenCount ?? 0, 0);
@@ -134,10 +191,15 @@ const extractRows = <T,>(response: unknown): T[] => {
 };
 
 const Leads: React.FC = () => {
-  const [quickFilter, setQuickFilter] = useState<QuickFilter>("ALL");
-  const [leadSourceFilter, setLeadSourceFilter] = useState<LeadSourceFilter>("ALL");
-  const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
+  const initialViewState = useMemo(() => parseLeadViewState(), []);
+  const [quickFilter, setQuickFilter] = useState<QuickFilter>(
+    initialViewState?.quickFilter ?? "ALL",
+  );
+  const [leadSourceFilter, setLeadSourceFilter] = useState<LeadSourceFilter>(
+    initialViewState?.leadSourceFilter ?? "ALL",
+  );
+  const [search, setSearch] = useState(initialViewState?.search ?? "");
+  const [page, setPage] = useState(initialViewState?.page ?? 1);
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState("");
@@ -150,10 +212,16 @@ const Leads: React.FC = () => {
   const leadSourcesFetchedRef = React.useRef(false);
   const [consultantUsers, setConsultantUsers] = useState<Array<{ id: string; name: string }>>([]);
   const consultantsFetchedRef = React.useRef(false);
-  const [pageSize, setPageSize] = useState(25);
-  const [draftFilters, setDraftFilters] = useState<LeadFilterState>(defaultFilters);
-  const [appliedFilters, setAppliedFilters] = useState<LeadFilterState>(defaultFilters);
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [pageSize, setPageSize] = useState(initialViewState?.pageSize ?? 25);
+  const [draftFilters, setDraftFilters] = useState<LeadFilterState>(
+    initialViewState?.draftFilters ?? defaultFilters,
+  );
+  const [appliedFilters, setAppliedFilters] = useState<LeadFilterState>(
+    initialViewState?.appliedFilters ?? defaultFilters,
+  );
+  const [debouncedSearch, setDebouncedSearch] = useState(
+    initialViewState?.search?.trim() ?? "",
+  );
   const nav = useNavigate();
   const leadsService = useLeadsService();
   const usersService = useUsersService();
@@ -472,6 +540,31 @@ const Leads: React.FC = () => {
     return () => window.clearTimeout(timer);
   }, [draftFilters]);
 
+  useEffect(() => {
+    const state: LeadsViewState = {
+      quickFilter,
+      leadSourceFilter,
+      search,
+      page,
+      pageSize,
+      draftFilters,
+      appliedFilters,
+    };
+    try {
+      sessionStorage.setItem(LEADS_VIEW_STATE_KEY, JSON.stringify(state));
+    } catch {
+      // no-op
+    }
+  }, [
+    appliedFilters,
+    draftFilters,
+    leadSourceFilter,
+    page,
+    pageSize,
+    quickFilter,
+    search,
+  ]);
+
   const handleResetFilters = () => {
     setError("");
     setDraftFilters(defaultFilters);
@@ -480,6 +573,11 @@ const Leads: React.FC = () => {
     setLeadSourceFilter("ALL");
     setSearch("");
     setPage(1);
+    try {
+      sessionStorage.removeItem(LEADS_VIEW_STATE_KEY);
+    } catch {
+      // no-op
+    }
   };
 
   const handleViewLead = (lead: LeadListItem) => {
@@ -578,9 +676,7 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
     if (!value) return null
     return { label: 'Salary', value: formatMoney(value, currency) }
   }
-  const value = Number(lead.budget ?? 0)
-  if (!value) return null
-  return { label: 'Budget', value: formatMoney(value, currency) }
+ 
 }
 
   const tableColumns = useMemo(

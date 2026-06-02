@@ -25,6 +25,11 @@ function createMetaPageConfigController({ service }) {
     res.status(200).json({ success: true, data });
   }
 
+  async function deletePage(req, res) {
+    const data = await service.deletePage(req.validated.params.id);
+    res.status(200).json({ success: true, data });
+  }
+
   async function getIntegration(_req, res) {
     const data = await service.getIntegration();
     res.status(200).json({ success: true, data });
@@ -40,6 +45,7 @@ function createMetaPageConfigController({ service }) {
     getPage,
     createPage,
     updatePage,
+    deletePage,
     getIntegration,
     updateIntegration,
   });
