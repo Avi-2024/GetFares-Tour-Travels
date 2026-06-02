@@ -2368,6 +2368,8 @@ function createLeadsService({ repository, logger, events }) {
       await repository.ensureCustomStatusPreset(trimmed, context.user?.id || null);
       return repository.listCustomStatusPresets();
     },
+
+    getById,
     create,
     assignLead,
 

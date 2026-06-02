@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: get2vacationsprd
+  namespace: prd
+spec:
+  selector:
+    matchLabels:
+      app: get2vacationsprd
+
+  template:
+    metadata:
+      labels:
+        app: get2vacationsprd
+
+    spec:
+      serviceAccountName: workload-identity-sa-prd
+
+      containers:
+      - name: backend
+        image: crprdenv.azurecr.io/get2vacationsprd:latest
+        imagePullPolicy: Always
+
+        ports:
+        - containerPort: 3000
+
+        envFrom:
+          - secretRef:
+              name: get2vacations-secret
+          - secretRef:
+              name: meta-whatsapp-secret
+
+        resources:
+          requests:
+            cpu: "2000m"
+            memory: "5Gi"
+          limits:
+            cpu: "2500m"
+            memory: "6Gi"
+
+      imagePullSecrets:
+        - name: cr-secret
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: get2vacationsprd-service
+  namespace: prd
+spec:
+  type: ClusterIP
+  selector:
+    app: get2vacationsprd
+
+  ports:
+    - port: 80
+      targetPort: 3000

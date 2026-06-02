@@ -1,0 +1,63 @@
+trigger:
+- main
+
+variables:
+  dockerRegistryServiceConnection: 'dscprd'
+  imageRepository: 'get2vacationsprd'
+  containerRegistry: 'crprdenv.azurecr.io'
+  dockerfilePath: 'backend/Dockerfile'
+  tag: '$(Build.BuildId)'
+  imagePullSecret: 'cr-secret'
+  selfHostedPool: 'selfpool'
+
+stages:
+
+# ---------- BUILD ----------
+- stage: Build
+  jobs:
+  - job: Build
+    pool:
+      name: $(selfHostedPool)
+
+    steps:
+    - task: Docker@2
+      displayName: Build and Push Image
+      inputs:
+        command: buildAndPush
+        repository: $(imageRepository)
+        dockerfile: $(dockerfilePath)
+        containerRegistry: $(dockerRegistryServiceConnection)
+        buildContext: backend
+        tags: |
+          $(tag)
+
+# ---------- DEPLOY ----------
+- stage: Deploy
+  dependsOn: Build
+  jobs:
+  - deployment: Deploy
+    pool:
+      name: $(selfHostedPool)
+    environment: 'env.default'
+
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+
+          # ✅ Optional debug (remove later)
+          - script: dir backend\files
+            displayName: Verify manifest exists
+
+          - task: KubernetesManifest@0
+            displayName: Deploy to AKS
+            inputs:
+              action: deploy
+              kubernetesServiceConnection: 'scprd'
+              namespace: 'prd'
+              manifests: |
+                backend/files/prdk8.yaml
+              containers: |
+                $(containerRegistry)/$(imageRepository):$(tag)
+              imagePullSecrets: |
+                $(imagePullSecret)

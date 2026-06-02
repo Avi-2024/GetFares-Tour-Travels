@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: crmfrontendprd-deployment
+  namespace: prd
+spec:
+  selector:
+    matchLabels:
+      app: crmfrontendprd
+  template:
+    metadata:
+      labels:
+        app: crmfrontendprd
+    spec:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: agentpool
+                    operator: In
+                    values:
+                      - userpool
+      containers:
+        - name: crmfrontendprd
+          image: crprdenv.azurecr.io/crmfrontendprd:latest
+          imagePullPolicy: IfNotPresent
+          resources:
+            requests:
+              memory: "5000Mi"
+              cpu: "2000m"
+            limits:
+              memory: "5100Mi"
+              cpu: "2512m"
+          ports:
+            - containerPort: 80
+      imagePullSecrets:
+        - name: cr-secret
+
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: crmfrontendprd
+spec:
+  type: ClusterIP
+  selector:
+    app: crmfrontendprd
+  ports:
+    - port: 80
+      targetPort: 80
