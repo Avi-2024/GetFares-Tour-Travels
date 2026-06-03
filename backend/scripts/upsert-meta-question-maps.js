@@ -24,12 +24,38 @@ const REQUIRED_MAPS = [
     aliases: [
       "which_destination_would_you_like_to_visit",
       "which_destination_would_you_like_to_visit?",
+      "which_maldives_resort_are_you_interested_in",
+      "which_maldives_resort_are_you_interested_in?",
       "which_destinations_are_you_interested_in_you_can_mention_multiple",
       "which_destinations_are_you_interested_in_you_can_mention_multiple?",
       "destination",
       "travel_to",
       "preferred_destination",
       "where_do_you_want_to_travel",
+    ],
+  },
+  {
+    targetColumn: "city",
+    transform: "truncate_150",
+    aliases: [
+      "which_uae_city_will_you_be_travelling_from",
+      "which_uae_city_will_you_be_travelling_from?",
+      "city",
+      "city_name",
+      "departure_city",
+      "from_city",
+    ],
+  },
+  {
+    targetColumn: "budget",
+    transform: "parse_budget",
+    aliases: [
+      "what_is_your_budget_per_person_for_your_maldives_vacation",
+      "what_is_your_budget_per_person_for_your_maldives_vacation?",
+      "what_is_your_approximate_all_inclusive_budget_per_person",
+      "what_is_your_approximate_all_inclusive_budget_per_person?",
+      "budget",
+      "travel_budget",
     ],
   },
 ];
@@ -129,7 +155,11 @@ async function main() {
             targetColumn: rule.targetColumn,
             transform: rule.transform,
             stripFromDynamic: true,
-            sortOrder: rule.targetColumn === "nationality" ? 10 : 20,
+            sortOrder:
+              rule.targetColumn === "nationality" ? 10
+              : rule.targetColumn === "travel_to" ? 20
+              : rule.targetColumn === "city" ? 30
+              : 40,
           });
           changed.push({
             profile: profile.name,
