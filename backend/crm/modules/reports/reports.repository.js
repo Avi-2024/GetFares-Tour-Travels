@@ -59,7 +59,7 @@ function createReportsRepository({ db, schema, logger }) {
     }
     if (filters.country) {
       clauses.push(
-        `LOWER(TRIM(COALESCE(${leadAlias}.lead_country, ${leadAlias}.country, ''))) = LOWER(TRIM(?))`,
+        `LOWER(TRIM(COALESCE(${leadAlias}.lead_country, ''))) = LOWER(TRIM(?))`,
       );
       params.push(String(filters.country).trim());
     }
@@ -96,6 +96,10 @@ function createReportsRepository({ db, schema, logger }) {
       clauses.push("q.created_by = ?");
       params.push(filters.userId);
     }
+    const { userId: _ignoredUserId, ...leadAttributeFilters } = filters;
+    const assign = leadAssignmentScope(leadAttributeFilters, "l");
+    assign.clauses.forEach((c) => clauses.push(c));
+    params.push(...assign.params);
     return {
       sql: clauses.length ? `WHERE ${clauses.join(" AND ")}` : "",
       params,
@@ -214,6 +218,31 @@ function createReportsRepository({ db, schema, logger }) {
   }
 
   return Object.freeze({
+    async getLeadFilterOptions() {
+      const countryRows = await queryRows(
+        `
+          SELECT DISTINCT
+            TRIM(COALESCE(NULLIF(l.lead_country, ''), '')) AS country
+          FROM ${schema.leadsTable} l
+          WHERE TRIM(COALESCE(NULLIF(l.lead_country, ''), '')) <> ''
+          ORDER BY country ASC
+        `,
+      );
+      const sourceRows = await queryRows(
+        `
+          SELECT DISTINCT COALESCE(NULLIF(TRIM(l.source), ''), 'UNKNOWN') AS source
+          FROM ${schema.leadsTable} l
+          WHERE COALESCE(NULLIF(TRIM(l.source), ''), 'UNKNOWN') <> ''
+          ORDER BY source ASC
+        `,
+      );
+
+      return {
+        countries: countryRows.map((row) => String(row.country || "").trim()).filter(Boolean),
+        sources: sourceRows.map((row) => String(row.source || "").trim()).filter(Boolean),
+      };
+    },
+
     async getLeadsBySource(filters = {}) {
       const range = buildDateRangeClause("l.created_at", filters);
       const { sql: whereSql, params } = leadWhereFromRange(range, filters);
@@ -1223,6 +1252,10 @@ function createReportsRepository({ db, schema, logger }) {
         params.push(filters.userId);
         where.push(`u.id = ?`);
       }
+      const { userId: _ignoredUserId, ...leadAttributeFilters } = filters;
+      const assign = leadAssignmentScope(leadAttributeFilters, "l");
+      where.push(...assign.clauses);
+      params.push(...assign.params);
       const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
 
       const rows = await queryRows(
@@ -1235,6 +1268,7 @@ function createReportsRepository({ db, schema, logger }) {
           FROM ${schema.usersTable} u
           LEFT JOIN ${schema.quotationsTable} q ON q.created_by = u.id
           LEFT JOIN ${schema.bookingsTable} b ON b.quotation_id = q.id
+          LEFT JOIN ${schema.leadsTable} l ON l.id = q.lead_id
           ${whereSql}
           GROUP BY u.id, u.full_name, u.target_amount
           ORDER BY achieved_amount DESC
@@ -1270,6 +1304,7 @@ function createReportsRepository({ db, schema, logger }) {
             b.payment_status
           FROM ${schema.bookingsTable} b
           LEFT JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
+          LEFT JOIN ${schema.leadsTable} l ON l.id = q.lead_id
           ${whereSql}
           ORDER BY outstanding_amount DESC
         `,
@@ -1307,6 +1342,7 @@ function createReportsRepository({ db, schema, logger }) {
           FROM ${schema.paymentsTable} p
           INNER JOIN ${schema.bookingsTable} b ON b.id = p.booking_id
           LEFT JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
+          LEFT JOIN ${schema.leadsTable} l ON l.id = q.lead_id
           ${whereSql}
           GROUP BY p.payment_mode
           ORDER BY total_amount DESC
@@ -1333,6 +1369,7 @@ function createReportsRepository({ db, schema, logger }) {
             SUM(COALESCE(b.total_amount, 0) - COALESCE(b.cost_amount, 0)) AS total_profit
           FROM ${schema.bookingsTable} b
           LEFT JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
+          LEFT JOIN ${schema.leadsTable} l ON l.id = q.lead_id
           ${whereSql}
         `,
         params,
@@ -1371,6 +1408,10 @@ function createReportsRepository({ db, schema, logger }) {
         params.push(filters.userId);
         where.push(`q.created_by = ?`);
       }
+      const { userId: _ignoredUserId, ...leadAttributeFilters } = filters;
+      const assign = leadAssignmentScope(leadAttributeFilters, "l");
+      where.push(...assign.clauses);
+      params.push(...assign.params);
       if (filters.currency) {
         const currency = String(filters.currency).trim().toUpperCase();
         params.push(currency, currency, currency);
@@ -1395,6 +1436,7 @@ function createReportsRepository({ db, schema, logger }) {
             SUM(COALESCE(q.tcs_amount, 0)) AS tcs_amount,
             SUM(COALESCE(q.total_sale_value, 0)) AS total_sale_value
           FROM ${schema.quotationsTable} q
+          LEFT JOIN ${schema.leadsTable} l ON l.id = q.lead_id
           ${whereSql}
         `,
         params,
@@ -1418,6 +1460,7 @@ function createReportsRepository({ db, schema, logger }) {
             SUM(COALESCE(q.tcs_amount, 0)) AS tcs_amount,
             SUM(COALESCE(q.total_sale_value, 0)) AS total_sale_value
           FROM ${schema.quotationsTable} q
+          LEFT JOIN ${schema.leadsTable} l ON l.id = q.lead_id
           ${whereSql}
           GROUP BY 1
           ORDER BY 1 ASC
@@ -1785,11 +1828,11 @@ function createReportsRepository({ db, schema, logger }) {
     async getTodayFollowups(filters = {}) {
       const date = filters.date || new Date().toISOString().slice(0, 10);
       const params = [date];
-      let extra = "";
-      if (filters.userId) {
-        extra = " AND l.assigned_to = ?";
-        params.push(filters.userId);
-      }
+      const assign = leadAssignmentScope(filters, "l");
+      const extra = assign.clauses.length
+        ? ` AND ${assign.clauses.join(" AND ")}`
+        : "";
+      params.push(...assign.params);
       const rows = await queryRows(
         `
           SELECT
@@ -1821,11 +1864,11 @@ function createReportsRepository({ db, schema, logger }) {
     async getMissedFollowups(filters = {}) {
       const date = filters.date || new Date().toISOString().slice(0, 10);
       const params = [date];
-      let extra = "";
-      if (filters.userId) {
-        extra = " AND l.assigned_to = ?";
-        params.push(filters.userId);
-      }
+      const assign = leadAssignmentScope(filters, "l");
+      const extra = assign.clauses.length
+        ? ` AND ${assign.clauses.join(" AND ")}`
+        : "";
+      params.push(...assign.params);
       const rows = await queryRows(
         `
           SELECT
@@ -1979,21 +2022,27 @@ function createReportsRepository({ db, schema, logger }) {
 
     async getMonthlySummary(filters = {}) {
       const range = buildDateRangeClause("b.created_at", filters);
-      const bookingClauses = [];
-      const bookingParams = [...range.params];
-      if (range.sql) bookingClauses.push(range.sql.replace(/^WHERE\s+/i, ""));
-      if (filters.userId) {
-        bookingClauses.push("q.created_by = ?");
-        bookingParams.push(filters.userId);
-      }
-      const bookingWhere =
-        bookingClauses.length ?
-          `WHERE ${bookingClauses.join(" AND ")}`
-        : "";
+      const { sql: bookingWhere, params: bookingParams } =
+        bookingLeadWhereFromRange(range, filters);
 
       const leadParams = [];
-      const leadWhere = filters.userId ? `WHERE assigned_to = ?` : "";
-      if (filters.userId) leadParams.push(filters.userId);
+      const leadClauses = [];
+      if (filters.userId) {
+        leadClauses.push("assigned_to = ?");
+        leadParams.push(filters.userId);
+      }
+      if (filters.country) {
+        leadClauses.push(
+          "LOWER(TRIM(COALESCE(lead_country, country, ''))) = LOWER(TRIM(?))",
+        );
+        leadParams.push(String(filters.country).trim());
+      }
+      const src = String(filters.source || filters.leadSource || "").trim();
+      if (src) {
+        leadClauses.push("COALESCE(source, 'UNKNOWN') = ?");
+        leadParams.push(src);
+      }
+      const leadWhere = leadClauses.length ? `WHERE ${leadClauses.join(" AND ")}` : "";
 
       const rows = await queryRows(
         `
@@ -2011,6 +2060,7 @@ function createReportsRepository({ db, schema, logger }) {
               SUM(COALESCE(cost_amount, 0)) AS cost
             FROM ${schema.bookingsTable} b
             LEFT JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
+            LEFT JOIN ${schema.leadsTable} l ON l.id = q.lead_id
             ${bookingWhere}
           )
           SELECT
@@ -2282,6 +2332,48 @@ function createReportsRepository({ db, schema, logger }) {
                 NULLIF(TRIM(l.client_currency), ''),
                 NULLIF(TRIM(q.cost_currency), ''),
                 NULLIF(TRIM(q.supplier_currency), ''),
+                'AED'
+              )
+            )
+        `,
+        bookingParams,
+      );
+    },
+
+    async getExecutiveBookingCostByCurrency(filters = {}) {
+      const bookingRange = buildDateRangeClause("b.created_at", filters);
+      const {
+        sql: bookingWhereSql,
+        params: bookingParams,
+      } = bookingLeadWhereFromRange(bookingRange, filters);
+      return queryRows(
+        `
+          SELECT
+            UPPER(
+              COALESCE(
+                NULLIF(TRIM(b.supplier_currency), ''),
+                NULLIF(TRIM(q.supplier_currency), ''),
+                NULLIF(TRIM(q.cost_currency), ''),
+                NULLIF(TRIM(b.client_currency), ''),
+                NULLIF(TRIM(q.client_currency), ''),
+                NULLIF(TRIM(l.client_currency), ''),
+                'AED'
+              )
+            ) AS currency,
+            SUM(COALESCE(b.cost_amount, 0)) AS cost
+          FROM ${schema.bookingsTable} b
+          LEFT JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
+          LEFT JOIN ${schema.leadsTable} l ON l.id = q.lead_id
+          ${bookingWhereSql}
+          GROUP BY
+            UPPER(
+              COALESCE(
+                NULLIF(TRIM(b.supplier_currency), ''),
+                NULLIF(TRIM(q.supplier_currency), ''),
+                NULLIF(TRIM(q.cost_currency), ''),
+                NULLIF(TRIM(b.client_currency), ''),
+                NULLIF(TRIM(q.client_currency), ''),
+                NULLIF(TRIM(l.client_currency), ''),
                 'AED'
               )
             )

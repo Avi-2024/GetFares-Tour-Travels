@@ -83,6 +83,14 @@ function createReportsService({ repository, logger, currencyService }) {
   }
 
   return Object.freeze({
+    async leadFilterOptions(filters = {}, context = {}) {
+      logger.debug(
+        { module: "reports", requestId: context.requestId, filters },
+        "Report lead filter options",
+      );
+      return repository.getLeadFilterOptions(filters);
+    },
+
     async leadsBySource(filters = {}, context = {}) {
       const scoped = mergeConsultantScope(filters, context);
       logger.debug(
@@ -319,6 +327,16 @@ function createReportsService({ repository, logger, currencyService }) {
           reportingCurrency,
         );
 
+        const bookingCostRows =
+          (await repository.getExecutiveBookingCostByCurrency(scoped)) || [];
+
+        const convertedCost = await sumConvertedAmounts(
+          bookingCostRows,
+          "cost",
+          "currency",
+          reportingCurrency,
+        );
+
         const serviceCurrencyRows =
           (await repository.getExecutiveServiceRevenueByCurrency(scoped)) || [];
 
@@ -332,12 +350,6 @@ function createReportsService({ repository, logger, currencyService }) {
           serviceCurrencyRows.filter((row) => row.service_type === "VISA"),
           "revenue",
           "currency",
-          reportingCurrency,
-        );
-
-        const convertedCost = await convertAmountToCurrency(
-          toNumber(result?.cost, 0),
-          normalizeCurrency(result?.currency, reportingCurrency),
           reportingCurrency,
         );
 

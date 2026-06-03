@@ -2,6 +2,8 @@ import { apiRequest } from "./apiClient";
 import { withQuery } from "./query";
 
 export const reportsApi = {
+  leadFilterOptions: (params?: Record<string, string | number | boolean>) =>
+    apiRequest(withQuery("/api/reports/filters/lead-options", params)),
   getExecutiveKpis: (params?: Record<string, string | number | boolean>) =>
     apiRequest(withQuery("/api/reports/dashboard/executive-kpis", params)),
   dashboardExecutiveKpis: (

@@ -33,7 +33,12 @@ async function main() {
     logger,
   });
 
+  assert.deepEqual(await repository.getLeadFilterOptions({}), {
+    countries: [],
+    sources: [],
+  });
   assert.deepEqual(await repository.getPeoplePerformance({}), []);
+  assert.deepEqual(await repository.getExecutiveBookingCostByCurrency({}), []);
 
   const quotation = await repository.getQuotationPerformance({});
   assert.equal(quotation.summary.totalQuotations, 0);

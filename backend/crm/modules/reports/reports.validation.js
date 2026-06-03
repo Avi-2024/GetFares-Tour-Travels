@@ -22,6 +22,12 @@ const bySource = z.object({
   query: queryWithOptionalUser.optional(),
 });
 
+const leadFilterOptions = z.object({
+  body: z.object({}).optional(),
+  params: z.object({}).optional(),
+  query: baseDateRangeQuery.optional(),
+});
+
 const byConsultant = z.object({
   body: z.object({}).optional(),
   params: z.object({}).optional(),
@@ -145,10 +151,9 @@ const visaSummary = z.object({
 const followupsToday = z.object({
   body: z.object({}).optional(),
   params: z.object({}).optional(),
-  query: z
-    .object({
+  query: queryWithOptionalUser
+    .extend({
       date: z.string().optional(),
-      userId: z.string().uuid().optional(),
     })
     .optional(),
 });
@@ -156,10 +161,9 @@ const followupsToday = z.object({
 const followupsMissed = z.object({
   body: z.object({}).optional(),
   params: z.object({}).optional(),
-  query: z
-    .object({
+  query: queryWithOptionalUser
+    .extend({
       date: z.string().optional(),
-      userId: z.string().uuid().optional(),
     })
     .optional(),
 });
@@ -191,7 +195,7 @@ const marketingPerformance = z.object({
 const supplierPerformance = z.object({
   body: z.object({}).optional(),
   params: z.object({}).optional(),
-  query: baseDateRangeQuery
+  query: queryWithOptionalUser
     .extend({
       supplierId: z.string().uuid().optional(),
     })
@@ -249,6 +253,7 @@ const financeSupplierServices = z.object({
 });
 
 const ReportsValidation = {
+  leadFilterOptions,
   bySource,
   byConsultant,
   peoplePerformance,

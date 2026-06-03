@@ -11,6 +11,14 @@ function createReportsRoutes({
   const router = Router();
 
   router.get(
+    "/filters/lead-options",
+    requireAuth,
+    authorize("reports:read"),
+    validateRequest(validation.leadFilterOptions),
+    asyncHandler(controller.leadFilterOptions),
+  );
+
+  router.get(
     "/leads/by-source",
     requireAuth,
     authorize("reports:read"),
