@@ -1,15 +1,28 @@
 import { AppError } from "../../core/errors/index.js";
 
-function normalizeFields(value) {
+const REQUIRED_LEAD_FIELDS = Object.freeze([
+  "created_time",
+  "field_data",
+  "ad_id",
+  "adset_id",
+  "campaign_id",
+  "form_id",
+]);
+
+function normalizeFields(value, requiredFields = []) {
   const rawFields =
     Array.isArray(value) ? value
     : typeof value === "string" ? value.split(",")
     : [];
 
-  return rawFields
-    .map((item) => String(item).trim())
-    .filter(Boolean)
-    .filter((item) => item !== "page_id");
+  return Array.from(
+    new Set(
+      [...rawFields, ...requiredFields]
+        .map((item) => String(item).trim())
+        .filter(Boolean)
+        .filter((item) => item !== "page_id"),
+    ),
+  );
 }
 
 function normalizeBaseUrl(value) {
@@ -60,7 +73,7 @@ function createMetaApi({
 } = {}) {
   const baseUrl = normalizeBaseUrl(graphBaseUrl);
   const version = normalizeVersion(graphVersion);
-  const fields = normalizeFields(graphFields);
+  const fields = normalizeFields(graphFields, REQUIRED_LEAD_FIELDS);
 
   if (!baseUrl) {
     throw new AppError(
@@ -91,7 +104,7 @@ function createMetaApi({
       accessToken: options.accessToken || accessToken || null,
       baseUrl: normalizeBaseUrl(options.graphBaseUrl || baseUrl || null),
       version: normalizeVersion(options.graphVersion || version || null),
-      fields: normalizeFields(options.graphFields || fields),
+      fields: normalizeFields(options.graphFields || fields, REQUIRED_LEAD_FIELDS),
     };
   }
 
