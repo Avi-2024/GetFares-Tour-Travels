@@ -20,6 +20,28 @@ class CurrencyController {
     }
   };
 
+  updateRates = async (req, res) => {
+    try {
+      const result = await this.currencyService.updateManagedRates({
+        rates: req.body?.rates,
+      });
+      return res.status(200).json({
+        success: true,
+        message: "Currency rates updated",
+        data: result,
+      });
+    } catch (error) {
+      this.logger.error(
+        { module: "currency", error: error.message },
+        "Failed to update currency rates",
+      );
+      return res.status(400).json({
+        success: false,
+        error: error.message || "Failed to update currency rates",
+      });
+    }
+  };
+
   convert = async (req, res) => {
     try {
       const { amount, from, to } = req.query;

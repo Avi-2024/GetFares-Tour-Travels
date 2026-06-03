@@ -3,11 +3,14 @@ import { CurrencyController } from "./currency.controller.js";
 import { createCurrencyRoutes } from "./currency.routes.js";
 
 function registerCurrencyModule(app, dependencies) {
-  const { db, logger, config } = dependencies;
+  const { db, logger, config, middlewares = {} } = dependencies;
 
   const currencyService = new CurrencyService({ db, logger, config });
   const currencyController = new CurrencyController({ currencyService, logger });
-  const currencyRoutes = createCurrencyRoutes({ controller: currencyController });
+  const currencyRoutes = createCurrencyRoutes({
+    controller: currencyController,
+    requireAuth: middlewares.requireAuth,
+  });
 
   app.use("/api/currency", currencyRoutes);
   logger?.info?.(

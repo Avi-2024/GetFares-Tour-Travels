@@ -177,8 +177,6 @@ const envSchema = z.object({
   SMTP_PASSWORD: z.string().optional(),
   SMTP_FROM_EMAIL: z.string().email().optional(),
   SMTP_FROM_NAME: z.string().default("Get2Vacations"),
-  CURRENCY_API_KEY: z.string().optional(),
-  CURRENCY_USE_MOCK: z.string().optional(),
   CURRENCY_BASE: z.string().default("AED"),
   CURRENCY_SUPPORTED: z.string().default("AED,USD,EUR,GBP,INR,SAR"),
 

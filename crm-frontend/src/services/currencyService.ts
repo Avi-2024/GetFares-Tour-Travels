@@ -19,14 +19,6 @@ export interface CurrencyRate {
 export interface CurrencyRatesResponse {
   baseCurrency: string;
   rates: Record<string, CurrencyRate>;
-  source:
-    | "currencyapi"
-    | "frankfurter"
-    | "mock"
-    | "db_cache"
-    | "db_cache_fallback"
-    | "memory_cache"
-    | "memory_cache_fallback";
   updatedAt: string;
 }
 
@@ -133,6 +125,16 @@ class CurrencyService {
     const payload = response.data;
     this.writeBrowserCache(payload);
     return payload;
+  }
+
+  async updateRates(rates: Record<string, CurrencyRate | number>): Promise<CurrencyRatesResponse> {
+    const response = await apiRequest<{ success: boolean; data: CurrencyRatesResponse }>(
+      "/api/currency/rates",
+      { method: "PATCH", body: { rates } },
+    );
+    this.clearCache();
+    this.writeBrowserCache(response.data);
+    return response.data;
   }
 
   private convertWithRates(

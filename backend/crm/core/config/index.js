@@ -228,8 +228,6 @@ const config = Object.freeze({
     maxFileSizeMb: env.UPLOAD_MAX_SIZE_MB || 1024,
   },
   currency: {
-    apiKey: env.CURRENCY_API_KEY,
-    useMock: env.CURRENCY_USE_MOCK === "true",
     baseCurrency: env.CURRENCY_BASE,
     supportedCurrencies: env.CURRENCY_SUPPORTED.split(",")
       .map((currency) =>

@@ -27,6 +27,7 @@ import SurfaceCard from "../ui/SurfaceCard";
 import SearchableDropdown from "../ui/SearchableDropdown";
 import DestinationPricingManager from "../settings/DestinationPricingManager";
 import CountryManagementPanel from "../settings/CountryManagementPanel";
+import CurrencyRatesPanel from "../settings/CurrencyRatesPanel";
 import { buildAdminCountryOptions, type CountryOption } from "../../utils/countries";
 
 import UsersPage from "../../pages/users/UsersPage";
@@ -43,6 +44,7 @@ type Tab =
   | 'user-management'
   | 'roles-permissions'
   | 'system-settings'
+  | 'currency-rates'
   | 'country-management'
   | 'destinations-pricing'
   | 'pdf-templates'
@@ -124,6 +126,7 @@ const tabs: Array<{ id: Tab; label: string }> = [
   { id: 'roles-permissions', label: 'Roles & Permissions' },
   // { id: 'country-management', label: 'Country Management' },
   { id: 'system-settings', label: 'System Settings' },
+  { id: 'currency-rates', label: 'Currency Rates' },
   // { id: 'destinations-pricing', label: 'Destinations & Pricing' },
   // { id: 'pdf-templates', label: 'PDF Templates' }
   // { id: "integrations", label: "Integrations" },
@@ -2152,6 +2155,12 @@ const Settings: React.FC = () => {
             >
               {savingSystem ? 'Saving...' : 'Save Settings'}
             </button>
+          </SurfaceCard>
+        ) : null}
+
+        {activeTab === 'currency-rates' ? (
+          <SurfaceCard>
+            <CurrencyRatesPanel canManage={isSuperAdmin} />
           </SurfaceCard>
         ) : null}
 
