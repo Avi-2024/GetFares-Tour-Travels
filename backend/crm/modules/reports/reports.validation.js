@@ -14,6 +14,7 @@ const queryWithOptionalUser = baseDateRangeQuery.extend({
   status: z.string().trim().min(1).max(40).optional(),
   source: z.string().trim().min(1).max(120).optional(),
   leadSource: z.string().trim().min(1).max(120).optional(),
+  currency: z.string().trim().min(3).max(10).optional(),
 });
 
 const bySource = z.object({
@@ -78,6 +79,7 @@ const dealLines = z.object({
   query: queryWithOptionalUser
     .extend({
       limit: z.coerce.number().int().min(1).max(2500).optional(),
+      page: z.coerce.number().int().min(1).optional(),
     })
     .optional(),
 });
@@ -85,7 +87,11 @@ const dealLines = z.object({
 const leadAging = z.object({
   body: z.object({}).optional(),
   params: z.object({}).optional(),
-  query: queryWithOptionalUser.optional(),
+  query: queryWithOptionalUser
+    .extend({
+      limit: z.coerce.number().int().min(1).max(2500).optional(),
+    })
+    .optional(),
 });
 
 const lostLeads = z.object({
@@ -97,19 +103,31 @@ const lostLeads = z.object({
 const monthlyRevenue = z.object({
   body: z.object({}).optional(),
   params: z.object({}).optional(),
-  query: queryWithOptionalUser.optional(),
+  query: queryWithOptionalUser
+    .extend({
+      currency: z.string().trim().min(3).max(10).optional(),
+    })
+    .optional(),
 });
 
 const byServiceType = z.object({
   body: z.object({}).optional(),
   params: z.object({}).optional(),
-  query: queryWithOptionalUser.optional(),
+  query: queryWithOptionalUser
+    .extend({
+      currency: z.string().trim().min(3).max(10).optional(),
+    })
+    .optional(),
 });
 
 const byDestination = z.object({
   body: z.object({}).optional(),
   params: z.object({}).optional(),
-  query: queryWithOptionalUser.optional(),
+  query: queryWithOptionalUser
+    .extend({
+      currency: z.string().trim().min(3).max(10).optional(),
+    })
+    .optional(),
 });
 
 const targetVsAchievement = z.object({
@@ -213,7 +231,7 @@ const activityFeed = z.object({
   params: z.object({}).optional(),
   query: queryWithOptionalUser
     .extend({
-      limit: z.coerce.number().int().min(1).max(500).optional(),
+      limit: z.coerce.number().int().min(1).max(2500).optional(),
     })
     .optional(),
 });

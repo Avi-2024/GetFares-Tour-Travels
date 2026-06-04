@@ -182,9 +182,21 @@ class DashboardRepository {
     return normalized || fallback;
   }
 
-  getBookingCurrency(row) {
+  getBookingLeadId(row, quoteLeadMap = new Map()) {
+    const directLeadId = row?.lead_id ?? row?.leadId ?? null;
+    if (directLeadId) return directLeadId;
+    const quotationId = row?.quotation_id ?? row?.quotationId ?? null;
+    return quotationId ? quoteLeadMap.get(String(quotationId)) || null : null;
+  }
+
+  getBookingCurrency(row, leadCurrencyMap = new Map(), quoteLeadMap = new Map()) {
+    const leadId = this.getBookingLeadId(row, quoteLeadMap);
+    const leadCurrency = leadId ? leadCurrencyMap.get(String(leadId)) : null;
     return this.normalizeCurrency(
-      row?.client_currency ??
+      leadCurrency ??
+        row?.lead_currency ??
+        row?.leadCurrency ??
+        row?.client_currency ??
         row?.clientCurrency ??
         row?.currency ??
         row?.supplier_currency ??
@@ -239,11 +251,17 @@ class DashboardRepository {
     }
   }
 
-  async sumBucketRevenueInBase(rows, predicate, baseCurrency) {
+  async sumBucketRevenueInBase(
+    rows,
+    predicate,
+    baseCurrency,
+    leadCurrencyMap = new Map(),
+    quoteLeadMap = new Map(),
+  ) {
     const byCurrency = new Map();
     rows.forEach((row) => {
       if (!predicate(row)) return;
-      const currency = this.getBookingCurrency(row);
+      const currency = this.getBookingCurrency(row, leadCurrencyMap, quoteLeadMap);
       const amount = this.getRevenueFromBooking(row);
       byCurrency.set(currency, (byCurrency.get(currency) || 0) + amount);
     });
@@ -253,6 +271,35 @@ class DashboardRepository {
       total += await this.convertSumToBase(sum, currency, baseCurrency);
     }
     return total;
+  }
+
+  buildQuotationLeadMap(quotations = []) {
+    const map = new Map();
+    (Array.isArray(quotations) ? quotations : []).forEach((row) => {
+      const id = row?.id;
+      const leadId = row?.lead_id ?? row?.leadId ?? null;
+      if (id && leadId) {
+        map.set(String(id), String(leadId));
+      }
+    });
+    return map;
+  }
+
+  buildLeadCurrencyMap(leads = []) {
+    const map = new Map();
+    (Array.isArray(leads) ? leads : []).forEach((row) => {
+      const id = row?.id;
+      if (!id) return;
+      const currency = this.normalizeCurrency(
+        row?.client_currency ??
+          row?.clientCurrency ??
+          row?.currency ??
+          "AED",
+        "AED",
+      );
+      map.set(String(id), currency);
+    });
+    return map;
   }
 
   async sumBucketPaymentsInBase(rows, predicate, baseCurrency) {
@@ -305,6 +352,9 @@ class DashboardRepository {
       (row) => !this.isSoftDeleted(row),
     );
     const bookingRows = Array.isArray(bookings) ? bookings : [];
+    const quoteLeadMap = this.buildQuotationLeadMap(quotationRows);
+    const leadCurrencyMap = this.buildLeadCurrencyMap(leadRows);
+    const targetCurrency = "USD";
 
     const inWindow = (date, start, end) =>
       date && date.getTime() >= start.getTime() && date.getTime() < end.getTime();
@@ -327,9 +377,13 @@ class DashboardRepository {
       }).length;
     };
 
-    const currentRevenue = bookingRows
-      .filter((row) => String(row.status || '').toUpperCase() !== 'CANCELLED')
-      .filter((row) =>
+    const activeBookingRows = bookingRows.filter(
+      (row) => String(row.status || '').toUpperCase() !== 'CANCELLED',
+    );
+
+    const currentRevenue = await this.sumBucketRevenueInBase(
+      activeBookingRows,
+      (row) =>
         inWindow(
           this.parseDate(
             row.created_at ??
@@ -340,12 +394,14 @@ class DashboardRepository {
           currentStart,
           currentEnd,
         ),
-      )
-      .reduce((sum, row) => sum + this.getRevenueFromBooking(row), 0);
+      targetCurrency,
+      leadCurrencyMap,
+      quoteLeadMap,
+    );
 
-    const previousRevenue = bookingRows
-      .filter((row) => String(row.status || '').toUpperCase() !== 'CANCELLED')
-      .filter((row) =>
+    const previousRevenue = await this.sumBucketRevenueInBase(
+      activeBookingRows,
+      (row) =>
         inWindow(
           this.parseDate(
             row.created_at ??
@@ -356,8 +412,10 @@ class DashboardRepository {
           previousStart,
           currentStart,
         ),
-      )
-      .reduce((sum, row) => sum + this.getRevenueFromBooking(row), 0);
+      targetCurrency,
+      leadCurrencyMap,
+      quoteLeadMap,
+    );
 
     const currentLeads = leadRows.filter((row) =>
       inWindow(this.parseDate(row.created_at ?? row.createdAt), currentStart, currentEnd),
@@ -379,12 +437,14 @@ class DashboardRepository {
       current: {
         totalLeads: currentLeads,
         revenue: Number(currentRevenue.toFixed(2)),
+        currency: targetCurrency,
         pendingCalls: pendingCallCount(leadRows, currentStart, currentEnd, false),
         bookings: currentBookings,
       },
       previous: {
         totalLeads: previousLeads,
         revenue: Number(previousRevenue.toFixed(2)),
+        currency: targetCurrency,
         pendingCalls: pendingCallCount(leadRows, previousStart, currentStart, true),
         bookings: previousBookings,
       },
@@ -393,14 +453,26 @@ class DashboardRepository {
 
   async getRevenueFallback(range = 'week', currency) {
     const normalizedRange = this.normalizeRange(range);
-    const bookings = await this.db.findMany(this.tables.bookings, {});
+    const [leads, quotations, bookings] = await Promise.all([
+      this.db.findMany(this.tables.leads, {}),
+      this.db.findMany(this.tables.quotations, {}),
+      this.db.findMany(this.tables.bookings, {}),
+    ]);
+    const leadRows = (Array.isArray(leads) ? leads : []).filter(
+      (row) => !this.isSoftDeleted(row),
+    );
+    const quoteRows = (Array.isArray(quotations) ? quotations : []).filter(
+      (row) => !this.isSoftDeleted(row),
+    );
+    const leadCurrencyMap = this.buildLeadCurrencyMap(leadRows);
+    const quoteLeadMap = this.buildQuotationLeadMap(quoteRows);
     const rows = (Array.isArray(bookings) ? bookings : []).filter((row) => {
       const status = String(row?.status || 'PENDING').trim().toUpperCase();
       return status !== 'CANCELLED' && !this.isSoftDeleted(row);
     });
     const targetCurrency = this.normalizeCurrency(
-      currency || this.currencyService?.baseCurrency || "AED",
-      "AED",
+      currency || "USD",
+      "USD",
     );
 
     const now = new Date();
@@ -466,6 +538,8 @@ class DashboardRepository {
           );
         },
         targetCurrency,
+        leadCurrencyMap,
+        quoteLeadMap,
       );
 
       const last = await this.sumBucketRevenueInBase(
@@ -479,6 +553,8 @@ class DashboardRepository {
           );
         },
         targetCurrency,
+        leadCurrencyMap,
+        quoteLeadMap,
       );
 
       results.push({

@@ -15,6 +15,7 @@ const ReportsSchema = Object.freeze({
   visaDocumentsTable: "visa_documents",
   complaintsTable: "complaints",
   complaintActivitiesTable: "complaint_activities",
+  metaPageConfigsTable: "meta_page_configs",
 });
 
 export { ReportsSchema };

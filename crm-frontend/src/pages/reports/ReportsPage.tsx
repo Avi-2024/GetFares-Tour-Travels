@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { FaRotate, FaTriangleExclamation } from "react-icons/fa6";
-import CurrencySelector from "../../components/ui/CurrencySelector";
+
 import SurfaceCard from "../../components/ui/SurfaceCard";
 import { reportsApi } from "../../api/reports";
 import { useCurrency } from "../../hooks/useCurrency";
@@ -13,8 +13,11 @@ type ReportPayload = unknown;
 type ReportColumn = {
   key: string;
   label: string;
-  type?: "amount" | "number" | "percent" | "date" | "text";
+  type?: "amount" | "number" | "percent" | "date" | "dateOnly" | "time" | "text";
   currencyKey?: string;
+  width?: string;
+  wrap?: boolean;
+  truncate?: boolean;
 };
 
 type SummaryMetric = {
@@ -32,6 +35,7 @@ type ReportDefinition = {
   columns: ReportColumn[];
   rows: (payload: ReportPayload) => ReportRow[];
   summary?: (payload: ReportPayload) => SummaryMetric[];
+  serverPaginated?: boolean;
 };
 
 type ReportResult = {
@@ -44,6 +48,13 @@ type ReportResult = {
 type LeadFilterOptions = {
   countries: string[];
   sources: string[];
+};
+
+type ReportPagination = {
+  page: number;
+  pageSize: number;
+  totalRows: number;
+  totalPages: number;
 };
 
 type ExportFormat = "csv" | "xlsx";
@@ -89,7 +100,10 @@ const nestedArray = (path: string) => (payload: ReportPayload) => {
   return asArray(current);
 };
 
-const dataArray = (payload: ReportPayload) => asArray(unwrapData(payload));
+const dataArray = (payload: ReportPayload) => {
+  const data = unwrapData(payload);
+  return Array.isArray(data) ? asArray(data) : asArray(asObject(data).rows);
+};
 const dataAsRow = (payload: ReportPayload) => {
   const row = asObject(unwrapData(payload));
   return Object.keys(row).length ? [row] : [];
@@ -127,6 +141,36 @@ const objectSummary =
 const toNumber = (value: unknown) => {
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const normalizeReportDateTime = (value: unknown) => {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  const match =
+    /^(\d{4}-\d{2}-\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?/.exec(raw);
+  if (!match) return raw;
+  return `${match[1]} ${String(match[2] || "00").padStart(2, "0")}:${String(
+    match[3] || "00",
+  ).padStart(2, "0")}:${String(match[4] || "00").padStart(2, "0")}`;
+};
+
+const buildTimestampWithTimezone = (value: unknown, timezone: unknown) => {
+  const normalized = normalizeReportDateTime(value);
+  const tz = String(timezone ?? "").trim();
+  return normalized && tz ? `${normalized} ${tz}` : normalized || tz;
+};
+
+const getReportPagination = (payload: ReportPayload): ReportPagination | null => {
+  const pagination = asObject(asObject(unwrapData(payload)).pagination);
+  const totalRows = toNumber(pagination.totalRows);
+  if (!totalRows) return null;
+  const pageSize = Math.max(toNumber(pagination.pageSize), 1);
+  return {
+    page: Math.max(toNumber(pagination.page), 1),
+    pageSize,
+    totalRows,
+    totalPages: Math.max(toNumber(pagination.totalPages), 1),
+  };
 };
 
 const getErrorMessage = (error: unknown) =>
@@ -326,11 +370,11 @@ const exportRows = ({
   rows: ReportRow[];
   columns: ReportColumn[];
   format: ExportFormat;
-  formatValue: (value: unknown, column?: ReportColumn) => string;
+  formatValue: (value: unknown, column?: ReportColumn, row?: ReportRow) => string;
 }) => {
   const headers = columns.map((column) => column.label);
   const body = rows.map((row) =>
-    columns.map((column) => formatValue(row[column.key], column)),
+    columns.map((column) => formatValue(row[column.key], column, row)),
   );
 
   if (format === "csv") {
@@ -387,8 +431,8 @@ const reportDefinitions: ReportDefinition[] = [
       { key: "totalLeads", label: "Leads", type: "number" },
       { key: "convertedLeads", label: "Converted", type: "number" },
       { key: "totalBookings", label: "Bookings", type: "number" },
-      { key: "revenue", label: "Revenue", type: "amount" },
-      { key: "profit", label: "Profit", type: "amount" },
+      { key: "revenue", label: "Revenue", type: "amount", currencyKey: "currency" },
+      { key: "profit", label: "Profit", type: "amount", currencyKey: "currency" },
       { key: "pendingFollowups", label: "Pending Follow-ups", type: "number" },
       { key: "overdueFollowups", label: "Overdue Follow-ups", type: "number" },
     ],
@@ -396,8 +440,8 @@ const reportDefinitions: ReportDefinition[] = [
       { key: "totalLeads", label: "Total Leads", type: "number" },
       { key: "convertedLeads", label: "Converted Leads", type: "number" },
       { key: "totalBookings", label: "Bookings", type: "number" },
-      { key: "revenue", label: "Revenue", type: "amount" },
-      { key: "profit", label: "Profit", type: "amount" },
+      { key: "revenue", label: "Revenue", type: "amount", currency: "row" },
+      { key: "profit", label: "Profit", type: "amount", currency: "row" },
       { key: "avgMarginPercent", label: "Margin", type: "percent" },
     ]),
   },
@@ -406,15 +450,47 @@ const reportDefinitions: ReportDefinition[] = [
     group: "Overview",
     title: "Monthly Summary",
     request: reportsApi.monthlySummary,
-    rows: dataAsRow,
+    rows: dataArray,
     columns: [
+      { key: "month", label: "Month" },
       { key: "totalLeads", label: "Leads", type: "number" },
       { key: "convertedLeads", label: "Converted", type: "number" },
       { key: "conversionRatePercent", label: "Conversion", type: "percent" },
       { key: "totalBookings", label: "Bookings", type: "number" },
-      { key: "revenue", label: "Revenue", type: "amount" },
-      { key: "profit", label: "Profit", type: "amount" },
+      { key: "revenue", label: "Revenue", type: "amount", currencyKey: "currency" },
+      { key: "profit", label: "Profit", type: "amount", currencyKey: "currency" },
     ],
+    summary: (payload) => {
+      const rows = dataArray(payload);
+      const totals = rows.reduce(
+        (accumulator, row) => ({
+          totalLeads: accumulator.totalLeads + toNumber(row.totalLeads),
+          convertedLeads: accumulator.convertedLeads + toNumber(row.convertedLeads),
+          totalBookings: accumulator.totalBookings + toNumber(row.totalBookings),
+          revenue: accumulator.revenue + toNumber(row.revenue),
+          profit: accumulator.profit + toNumber(row.profit),
+        }),
+        { totalLeads: 0, convertedLeads: 0, totalBookings: 0, revenue: 0, profit: 0 },
+      );
+      return [
+        { label: "Months", value: rows.length, type: "number" },
+        { label: "Leads", value: totals.totalLeads, type: "number" },
+        { label: "Converted", value: totals.convertedLeads, type: "number" },
+        { label: "Bookings", value: totals.totalBookings, type: "number" },
+        {
+          label: "Revenue",
+          value: totals.revenue,
+          type: "amount",
+          currency: String(rows[0]?.currency || ""),
+        },
+        {
+          label: "Profit",
+          value: totals.profit,
+          type: "amount",
+          currency: String(rows[0]?.currency || ""),
+        },
+      ];
+    },
   },
   {
     id: "conversion-funnel",
@@ -458,7 +534,6 @@ const reportDefinitions: ReportDefinition[] = [
       { key: "totalLeads", label: "Leads", type: "number" },
       { key: "convertedLeads", label: "Converted", type: "number" },
       { key: "conversionRatePercent", label: "Conversion", type: "percent" },
-      { key: "averageResponseMinutes", label: "Avg Response", type: "number" },
     ],
   },
   {
@@ -466,12 +541,18 @@ const reportDefinitions: ReportDefinition[] = [
     group: "Leads",
     title: "Lead Aging",
     request: reportsApi.getLeadsAging,
-    rows: dataArray,
+    rows: (payload) =>
+      dataArray(payload).map((row, index) => ({
+        ...row,
+        rowNumber: index + 1,
+      })),
     columns: [
+      { key: "rowNumber", label: "S.No.", type: "number" },
       { key: "fullName", label: "Lead" },
       { key: "consultantName", label: "Consultant" },
-      { key: "status", label: "Status" },
-      { key: "createdAt", label: "Created", type: "date" },
+      { key: "stage", label: "Stage" },
+      { key: "source", label: "Source" },
+      { key: "leadCountry", label: "Lead Country" },
       { key: "ageHours", label: "Age Hours", type: "number" },
     ],
   },
@@ -480,12 +561,17 @@ const reportDefinitions: ReportDefinition[] = [
     group: "Leads",
     title: "Lost Leads",
     request: reportsApi.getLeadsLost,
-    rows: dataArray,
+    rows: (payload) =>
+      dataArray(payload).map((row, index) => ({
+        ...row,
+        rowNumber: index + 1,
+      })),
     columns: [
+      { key: "rowNumber", label: "S.No.", type: "number" },
       { key: "fullName", label: "Lead" },
       { key: "source", label: "Source" },
       { key: "closedReason", label: "Reason" },
-      { key: "lostAt", label: "Lost At", type: "date" },
+      { key: "lostAt", label: "Lost At", type: "dateOnly" },
     ],
   },
   {
@@ -493,13 +579,29 @@ const reportDefinitions: ReportDefinition[] = [
     group: "Leads",
     title: "Lead Deal Lines",
     request: reportsApi.leadsDealLines,
-    rows: dataArray,
+    serverPaginated: true,
+    rows: (payload) => {
+      const pagination = getReportPagination(payload);
+      const offset = pagination ? (pagination.page - 1) * pagination.pageSize : 0;
+      return dataArray(payload).map((row, index) => ({
+        ...row,
+        rowNumber: offset + index + 1,
+      }));
+    },
     columns: [
+      { key: "rowNumber", label: "S.No.", type: "number" },
       { key: "leadName", label: "Lead" },
       { key: "source", label: "Source" },
+      { key: "leadCountry", label: "Lead Country" },
       { key: "status", label: "Status" },
       { key: "assignedUser", label: "Consultant" },
-      { key: "dealAmount", label: "Deal Amount", type: "amount" },
+      { key: "clientCurrency", label: "Client Currency" },
+      {
+        key: "dealAmount",
+        label: "Deal Amount",
+        type: "amount",
+        currencyKey: "clientCurrency",
+      },
       { key: "bookingCount", label: "Bookings", type: "number" },
     ],
   },
@@ -511,49 +613,55 @@ const reportDefinitions: ReportDefinition[] = [
     rows: dataArray,
     columns: [
       { key: "name", label: "Name" },
+      { key: "role", label: "Role" },
       { key: "assignedLeads", label: "Leads", type: "number" },
+      { key: "openLeads", label: "Open", type: "number" },
       { key: "convertedLeads", label: "Converted", type: "number" },
+      { key: "lostLeads", label: "Lost", type: "number" },
+      { key: "slaBreachedLeads", label: "SLA Breached", type: "number" },
+      { key: "conversionRatePercent", label: "Conversion", type: "percent" },
+      { key: "quotationsCreated", label: "Quotations", type: "number" },
+      {
+        key: "quotationValue",
+        label: "Quote Value",
+        type: "amount",
+        currencyKey: "currency",
+      },
       { key: "bookings", label: "Bookings", type: "number" },
-      { key: "bookingValue", label: "Booking Value", type: "amount" },
-      { key: "profit", label: "Profit", type: "amount" },
+      { key: "currency", label: "Currency" },
+      {
+        key: "bookingValue",
+        label: "Booking Value",
+        type: "amount",
+        currencyKey: "currency",
+      },
+      {
+        key: "averageBookingValue",
+        label: "Avg Booking",
+        type: "amount",
+        currencyKey: "currency",
+      },
+      {
+        key: "collectedAmount",
+        label: "Collected",
+        type: "amount",
+        currencyKey: "currency",
+      },
+      {
+        key: "outstandingAmount",
+        label: "Outstanding",
+        type: "amount",
+        currencyKey: "currency",
+      },
+      { key: "profit", label: "Profit", type: "amount", currencyKey: "currency" },
+      { key: "averageMarginPercent", label: "Margin", type: "percent" },
+      { key: "followupsCreated", label: "Follow-ups", type: "number" },
       { key: "missedFollowups", label: "Missed Follow-ups", type: "number" },
+      { key: "callsDone", label: "Calls", type: "number" },
+      { key: "whatsappDone", label: "WhatsApp", type: "number" },
     ],
   },
-  {
-    id: "target-vs-achievement",
-    group: "Sales",
-    title: "Target Vs Achievement",
-    request: reportsApi.targetVsAchievement,
-    rows: dataArray,
-    columns: [
-      { key: "fullName", label: "Name" },
-      { key: "targetAmount", label: "Target", type: "amount" },
-      { key: "achievedAmount", label: "Achieved", type: "amount" },
-      { key: "achievementPercent", label: "Achievement", type: "percent" },
-    ],
-  },
-  {
-    id: "quotation-performance",
-    group: "Sales",
-    title: "Quotation Performance",
-    request: reportsApi.quotationPerformance,
-    rows: nestedArray("byDestination"),
-    columns: [
-      { key: "destination", label: "Destination" },
-      { key: "quotations", label: "Quotations", type: "number" },
-      { key: "approved", label: "Approved", type: "number" },
-      { key: "bookings", label: "Bookings", type: "number" },
-      { key: "value", label: "Value", type: "amount" },
-    ],
-    summary: nestedSummary("summary", [
-      { key: "totalQuotations", label: "Quotations", type: "number" },
-      { key: "sentQuotations", label: "Sent", type: "number" },
-      { key: "approvedQuotations", label: "Approved", type: "number" },
-      { key: "bookedQuotations", label: "Booked", type: "number" },
-      { key: "quotationValue", label: "Value", type: "amount" },
-      { key: "approvalRatePercent", label: "Approval", type: "percent" },
-    ]),
-  },
+
   {
     id: "booking-performance",
     group: "Sales",
@@ -563,15 +671,15 @@ const reportDefinitions: ReportDefinition[] = [
     columns: [
       { key: "month", label: "Month" },
       { key: "bookings", label: "Bookings", type: "number" },
-      { key: "value", label: "Value", type: "amount" },
-      { key: "cost", label: "Cost", type: "amount" },
-      { key: "profit", label: "Profit", type: "amount" },
+      { key: "value", label: "Value", type: "amount", currencyKey: "currency" },
+      { key: "cost", label: "Cost", type: "amount", currencyKey: "currency" },
+      { key: "profit", label: "Profit", type: "amount", currencyKey: "currency" },
     ],
     summary: nestedSummary("summary", [
       { key: "totalBookings", label: "Bookings", type: "number" },
       { key: "confirmedBookings", label: "Confirmed", type: "number" },
-      { key: "bookingValue", label: "Value", type: "amount" },
-      { key: "profit", label: "Profit", type: "amount" },
+      { key: "bookingValue", label: "Value", type: "amount", currencyKey: "currency" },
+      { key: "profit", label: "Profit", type: "amount", currencyKey: "currency" },
       { key: "marginPercent", label: "Margin", type: "percent" },
     ]),
   },
@@ -583,9 +691,9 @@ const reportDefinitions: ReportDefinition[] = [
     rows: dataArray,
     columns: [
       { key: "month", label: "Month" },
-      { key: "revenue", label: "Revenue", type: "amount" },
-      { key: "cost", label: "Cost", type: "amount" },
-      { key: "profit", label: "Profit", type: "amount" },
+      { key: "revenue", label: "Revenue", type: "amount", currencyKey: "currency" },
+      { key: "cost", label: "Cost", type: "amount", currencyKey: "currency" },
+      { key: "profit", label: "Profit", type: "amount", currencyKey: "currency" },
     ],
   },
   {
@@ -597,7 +705,7 @@ const reportDefinitions: ReportDefinition[] = [
     columns: [
       { key: "serviceType", label: "Service" },
       { key: "totalBookings", label: "Bookings", type: "number" },
-      { key: "revenue", label: "Revenue", type: "amount" },
+      { key: "revenue", label: "Revenue", type: "amount", currencyKey: "currency" },
     ],
   },
   {
@@ -609,106 +717,106 @@ const reportDefinitions: ReportDefinition[] = [
     columns: [
       { key: "destination", label: "Destination" },
       { key: "totalBookings", label: "Bookings", type: "number" },
-      { key: "revenue", label: "Revenue", type: "amount" },
+      { key: "revenue", label: "Revenue", type: "amount", currencyKey: "currency" },
     ],
   },
-  {
-    id: "finance-summary",
-    group: "Finance",
-    title: "Finance Summary",
-    request: reportsApi.financeSummary,
-    rows: nestedArray("byPaymentMode"),
-    columns: [
-      { key: "paymentMode", label: "Payment Mode" },
-      { key: "payments", label: "Payments", type: "number" },
-      { key: "amount", label: "Amount", type: "amount" },
-    ],
-    summary: nestedSummary("summary", [
-      { key: "bookedAmount", label: "Booked", type: "amount" },
-      { key: "collectedAmount", label: "Collected", type: "amount" },
-      { key: "outstandingAmount", label: "Outstanding", type: "amount" },
-      { key: "refundAmount", label: "Refunds", type: "amount" },
-      { key: "profit", label: "Profit", type: "amount" },
-    ]),
-  },
-  {
-    id: "finance-cost-breakup",
-    group: "Finance",
-    title: "Finance Cost Breakup",
-    request: reportsApi.financeCostBreakup,
-    rows: nestedArray("rows"),
-    columns: [
-      { key: "quoteNumber", label: "Quote" },
-      { key: "leadName", label: "Lead" },
-      { key: "status", label: "Status" },
-      { key: "supplierCost", label: "Supplier Cost", type: "amount" },
-      { key: "markupAmount", label: "Markup", type: "amount" },
-      { key: "totalSaleValue", label: "Sale Value", type: "amount" },
-      { key: "effectiveCurrency", label: "Currency" },
-    ],
-    summary: nestedSummary("summary", [
-      { key: "totalQuotes", label: "Quotes", type: "number" },
-      { key: "supplierCost", label: "Supplier Cost", type: "amount" },
-      { key: "markupAmount", label: "Markup", type: "amount" },
-      { key: "totalSaleValue", label: "Sale Value", type: "amount" },
-    ]),
-  },
-  {
-    id: "supplier-services",
-    group: "Finance",
-    title: "Supplier Services",
-    request: reportsApi.financeSupplierServices,
-    rows: nestedArray("rows"),
-    columns: [
-      { key: "quoteNumber", label: "Quote" },
-      { key: "bookingNumber", label: "Booking" },
-      { key: "customerName", label: "Customer" },
-      { key: "serviceLabel", label: "Service" },
-      { key: "supplierName", label: "Supplier" },
-      { key: "basePrice", label: "Base Price", type: "amount" },
-      { key: "currency", label: "Currency" },
-    ],
-  },
-  {
-    id: "outstanding-payments",
-    group: "Finance",
-    title: "Outstanding Payments",
-    request: reportsApi.outstandingPayments,
-    rows: dataArray,
-    columns: [
-      { key: "bookingNumber", label: "Booking" },
-      { key: "totalAmount", label: "Total", type: "amount" },
-      { key: "advanceReceived", label: "Advance", type: "amount" },
-      { key: "outstandingAmount", label: "Outstanding", type: "amount" },
-      { key: "paymentStatus", label: "Status" },
-    ],
-  },
-  {
-    id: "payment-mode",
-    group: "Finance",
-    title: "Payment Mode",
-    request: reportsApi.paymentMode,
-    rows: dataArray,
-    columns: [
-      { key: "paymentMode", label: "Mode" },
-      { key: "totalPayments", label: "Payments", type: "number" },
-      { key: "totalAmount", label: "Amount", type: "amount" },
-    ],
-  },
-  {
-    id: "profit-margin",
-    group: "Finance",
-    title: "Profit Margin",
-    request: reportsApi.profitMargin,
-    rows: dataAsRow,
-    columns: [
-      { key: "totalBookings", label: "Bookings", type: "number" },
-      { key: "totalRevenue", label: "Revenue", type: "amount" },
-      { key: "totalCost", label: "Cost", type: "amount" },
-      { key: "totalProfit", label: "Profit", type: "amount" },
-      { key: "marginPercent", label: "Margin", type: "percent" },
-    ],
-  },
+  // {
+  //   id: "finance-summary",
+  //   group: "Finance",
+  //   title: "Finance Summary",
+  //   request: reportsApi.financeSummary,
+  //   rows: nestedArray("byPaymentMode"),
+  //   columns: [
+  //     { key: "paymentMode", label: "Payment Mode" },
+  //     { key: "payments", label: "Payments", type: "number" },
+  //     { key: "amount", label: "Amount", type: "amount" },
+  //   ],
+  //   summary: nestedSummary("summary", [
+  //     { key: "bookedAmount", label: "Booked", type: "amount" },
+  //     { key: "collectedAmount", label: "Collected", type: "amount" },
+  //     { key: "outstandingAmount", label: "Outstanding", type: "amount" },
+  //     { key: "refundAmount", label: "Refunds", type: "amount" },
+  //     { key: "profit", label: "Profit", type: "amount" },
+  //   ]),
+  // },
+  // {
+  //   id: "finance-cost-breakup",
+  //   group: "Finance",
+  //   title: "Finance Cost Breakup",
+  //   request: reportsApi.financeCostBreakup,
+  //   rows: nestedArray("rows"),
+  //   columns: [
+  //     { key: "quoteNumber", label: "Quote" },
+  //     { key: "leadName", label: "Lead" },
+  //     { key: "status", label: "Status" },
+  //     { key: "supplierCost", label: "Supplier Cost", type: "amount" },
+  //     { key: "markupAmount", label: "Markup", type: "amount" },
+  //     { key: "totalSaleValue", label: "Sale Value", type: "amount" },
+  //     { key: "effectiveCurrency", label: "Currency" },
+  //   ],
+  //   summary: nestedSummary("summary", [
+  //     { key: "totalQuotes", label: "Quotes", type: "number" },
+  //     { key: "supplierCost", label: "Supplier Cost", type: "amount" },
+  //     { key: "markupAmount", label: "Markup", type: "amount" },
+  //     { key: "totalSaleValue", label: "Sale Value", type: "amount" },
+  //   ]),
+  // },
+  // {
+  //   id: "supplier-services",
+  //   group: "Finance",
+  //   title: "Supplier Services",
+  //   request: reportsApi.financeSupplierServices,
+  //   rows: nestedArray("rows"),
+  //   columns: [
+  //     { key: "quoteNumber", label: "Quote" },
+  //     { key: "bookingNumber", label: "Booking" },
+  //     { key: "customerName", label: "Customer" },
+  //     { key: "serviceLabel", label: "Service" },
+  //     { key: "supplierName", label: "Supplier" },
+  //     { key: "basePrice", label: "Base Price", type: "amount" },
+  //     { key: "currency", label: "Currency" },
+  //   ],
+  // },
+  // {
+  //   id: "outstanding-payments",
+  //   group: "Finance",
+  //   title: "Outstanding Payments",
+  //   request: reportsApi.outstandingPayments,
+  //   rows: dataArray,
+  //   columns: [
+  //     { key: "bookingNumber", label: "Booking" },
+  //     { key: "totalAmount", label: "Total", type: "amount" },
+  //     { key: "advanceReceived", label: "Advance", type: "amount" },
+  //     { key: "outstandingAmount", label: "Outstanding", type: "amount" },
+  //     { key: "paymentStatus", label: "Status" },
+  //   ],
+  // },
+  // {
+  //   id: "payment-mode",
+  //   group: "Finance",
+  //   title: "Payment Mode",
+  //   request: reportsApi.paymentMode,
+  //   rows: dataArray,
+  //   columns: [
+  //     { key: "paymentMode", label: "Mode" },
+  //     { key: "totalPayments", label: "Payments", type: "number" },
+  //     { key: "totalAmount", label: "Amount", type: "amount" },
+  //   ],
+  // },
+  // {
+  //   id: "profit-margin",
+  //   group: "Finance",
+  //   title: "Profit Margin",
+  //   request: reportsApi.profitMargin,
+  //   rows: dataAsRow,
+  //   columns: [
+  //     { key: "totalBookings", label: "Bookings", type: "number" },
+  //     { key: "totalRevenue", label: "Revenue", type: "amount" },
+  //     { key: "totalCost", label: "Cost", type: "amount" },
+  //     { key: "totalProfit", label: "Profit", type: "amount" },
+  //     { key: "marginPercent", label: "Margin", type: "percent" },
+  //   ],
+  // },
   {
     id: "operations",
     group: "Operations",
@@ -755,7 +863,6 @@ const reportDefinitions: ReportDefinition[] = [
     columns: [
       { key: "fullName", label: "Lead" },
       { key: "followupType", label: "Type" },
-      { key: "followupDate", label: "Date", type: "date" },
       { key: "isCompleted", label: "Done" },
     ],
   },
@@ -764,11 +871,21 @@ const reportDefinitions: ReportDefinition[] = [
     group: "Operations",
     title: "Missed Follow-ups",
     request: reportsApi.followupsMissed,
-    rows: dataArray,
+    rows: (payload) =>
+      dataArray(payload).map((row) => ({
+        ...row,
+        followupDisplayAt: row.followupLocalAt || row.followupDate,
+        followupTime: row.followupLocalAt || row.followupDate,
+        followupTimezone: row.clientTimezone,
+        followupTimestamp: buildTimestampWithTimezone(
+          row.followupLocalAt || row.followupDate,
+          row.clientTimezone,
+        ),
+      })),
     columns: [
       { key: "fullName", label: "Lead" },
       { key: "followupType", label: "Type" },
-      { key: "followupDate", label: "Date", type: "date" },
+      { key: "followupTimestamp", label: "Timestamp", type: "date" },
     ],
   },
   {
@@ -791,11 +908,11 @@ const reportDefinitions: ReportDefinition[] = [
     request: reportsApi.activityFeed,
     rows: nestedArray("items"),
     columns: [
-      { key: "leadName", label: "Lead" },
-      { key: "consultantName", label: "Consultant" },
-      { key: "activityType", label: "Activity" },
-      { key: "notes", label: "Notes" },
-      { key: "createdAt", label: "Created", type: "date" },
+      { key: "leadName", label: "Lead", width: "180px", truncate: true },
+      { key: "consultantName", label: "Consultant", width: "140px", truncate: true },
+      { key: "activityType", label: "Activity", width: "170px", truncate: true },
+      { key: "notes", label: "Notes", width: "420px", wrap: true },
+      { key: "createdAt", label: "Created", type: "date", width: "180px" },
     ],
     summary: (payload) =>
       nestedArray("byType")(payload).slice(0, 4).map((row) => ({
@@ -835,33 +952,48 @@ const reportDefinitions: ReportDefinition[] = [
       { key: "averageVisaFee", label: "Avg Fee", type: "amount" },
     ],
   },
-  {
-    id: "pipeline-forecast",
-    group: "Marketing",
-    title: "Pipeline Forecast",
-    request: reportsApi.pipelineForecast,
-    rows: (payload) => {
-      const data = asObject(unwrapData(payload));
-      return [
-        { bucket: "Open Pipeline", ...asObject(data.openPipeline) },
-        ...asArray(data.forecastByMonth),
-      ];
-    },
-    columns: [
-      { key: "bucket", label: "Bucket" },
-      { key: "month", label: "Month" },
-      { key: "leadCount", label: "Leads", type: "number" },
-      { key: "estimatedRevenue", label: "Estimated Revenue", type: "amount" },
-      { key: "weightedRevenue", label: "Weighted Revenue", type: "amount" },
-    ],
-    summary: nestedSummary("summary", [
-      { key: "openLeads", label: "Open Leads", type: "number" },
-      { key: "quotedLeads", label: "Quoted Leads", type: "number" },
-      { key: "forecastRevenue", label: "Forecast", type: "amount" },
-      { key: "weightedForecastRevenue", label: "Weighted", type: "amount" },
-    ]),
-  },
+  // {
+  //   id: "pipeline-forecast",
+  //   group: "Marketing",
+  //   title: "Pipeline Forecast",
+  //   request: reportsApi.pipelineForecast,
+  //   rows: (payload) => {
+  //     const data = asObject(unwrapData(payload));
+  //     return [
+  //       { bucket: "Open Pipeline", ...asObject(data.openPipeline) },
+  //       ...asArray(data.forecastByMonth),
+  //     ];
+  //   },
+  //   columns: [
+  //     { key: "bucket", label: "Bucket" },
+  //     { key: "month", label: "Month" },
+  //     { key: "leadCount", label: "Leads", type: "number" },
+  //     { key: "estimatedRevenue", label: "Estimated Revenue", type: "amount" },
+  //     { key: "weightedRevenue", label: "Weighted Revenue", type: "amount" },
+  //   ],
+  //   summary: nestedSummary("summary", [
+  //     { key: "openLeads", label: "Open Leads", type: "number" },
+  //     { key: "quotedLeads", label: "Quoted Leads", type: "number" },
+  //     { key: "forecastRevenue", label: "Forecast", type: "amount" },
+  //     { key: "weightedForecastRevenue", label: "Weighted", type: "amount" },
+  //   ]),
+  // },
 ];
+
+const REPORT_ROW_LIMITS: Record<string, number> = {
+  "activity-feed": 2500,
+  "lead-aging": 2500,
+};
+
+const REPORT_CURRENCY_IDS = new Set([
+  "executive",
+  "monthly-summary",
+  "people-performance",
+  "booking-performance",
+  "revenue-monthly",
+  "revenue-service",
+  "revenue-destination",
+]);
 
 const ReportsPage = () => {
   const [from, setFrom] = useState(getMonthStart);
@@ -885,6 +1017,10 @@ const ReportsPage = () => {
     reportDefinitions.find((report) => report.id === activeId) ||
     reportDefinitions[0];
   const activeResult = results[activeReport.id];
+  const activePagination =
+    activeReport.serverPaginated && activeResult?.ok ?
+      getReportPagination(activeResult.data)
+    : null;
 
   const groups = useMemo(
     () => Array.from(new Set(reportDefinitions.map((report) => report.group))),
@@ -895,7 +1031,13 @@ const ReportsPage = () => {
     const params = {
       from,
       to,
-      limit: 100,
+      limit: activeReport.serverPaginated ?
+        pageSize
+      : REPORT_ROW_LIMITS[activeReport.id] ?? 100,
+      ...(activeReport.serverPaginated ? { page: tablePage } : {}),
+      ...(REPORT_CURRENCY_IDS.has(activeReport.id) ?
+        { currency: selectedCurrency }
+      : {}),
       ...(filters.country ? { country: filters.country } : {}),
       ...(filters.source ? { source: filters.source } : {}),
     };
@@ -918,7 +1060,7 @@ const ReportsPage = () => {
       }));
     }
     setLastUpdated(new Date().toLocaleString("en-IN"));
-  }, [activeReport, filters.country, filters.source, from, to]);
+  }, [activeReport, filters.country, filters.source, from, pageSize, selectedCurrency, tablePage, to]);
 
   const loadFilterOptions = useCallback(async () => {
     setFilterOptionsLoading(true);
@@ -967,10 +1109,25 @@ const ReportsPage = () => {
     (results.executive?.data as ExecutiveKpis | null)?.currency || "AED",
   ).toUpperCase();
 
-  const formatValue = (value: unknown, column?: ReportColumn | SummaryMetric) => {
+  const formatValue = (
+    value: unknown,
+    column?: ReportColumn | SummaryMetric,
+    row?: ReportRow,
+  ) => {
     if (value === null || value === undefined || value === "") return "-";
     if (column?.type === "amount") {
-      return formatAmount(toNumber(value), selectedCurrency || baseCurrency);
+      const rowCurrency =
+        "currencyKey" in column && column.currencyKey && row ?
+          String(row[column.currencyKey] || "").trim()
+        : "";
+      const metricCurrency =
+        "currency" in column && column.currency && column.currency !== "row" ?
+          String(column.currency).trim()
+        : "";
+      return formatAmount(
+        toNumber(value),
+        rowCurrency || metricCurrency || baseCurrency || selectedCurrency,
+      );
     }
     if (column?.type === "number") {
       return toNumber(value).toLocaleString("en-IN", { maximumFractionDigits: 2 });
@@ -981,6 +1138,25 @@ const ReportsPage = () => {
     if (column?.type === "date") {
       const date = new Date(String(value));
       return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString("en-IN");
+    }
+    if (column?.type === "dateOnly") {
+      const normalized = normalizeReportDateTime(value);
+      if (/^\d{4}-\d{2}-\d{2}/.test(normalized)) {
+        return normalized.slice(0, 10);
+      }
+      const date = new Date(String(value));
+      return Number.isNaN(date.getTime()) ?
+          String(value).slice(0, 10)
+        : date.toLocaleDateString("en-IN");
+    }
+    if (column?.type === "time") {
+      const normalized = normalizeReportDateTime(value);
+      const match = /\d{4}-\d{2}-\d{2} (\d{2}:\d{2}:\d{2})/.exec(normalized);
+      if (match) return match[1];
+      const date = new Date(String(value));
+      return Number.isNaN(date.getTime()) ?
+          String(value)
+        : date.toLocaleTimeString("en-IN");
     }
     return String(value);
   };
@@ -1084,12 +1260,7 @@ const ReportsPage = () => {
               ))}
             </select>
           </label>
-          <div>
-            <p className="mb-1 text-xs font-medium text-gray-600 dark:text-gray-300">
-              Currency
-            </p>
-            <CurrencySelector value={selectedCurrency} onChange={setSelectedCurrency} />
-          </div>
+
           <button
             type="button"
             onClick={() => void loadReports()}
@@ -1235,6 +1406,7 @@ const ReportsPage = () => {
             formatValue={formatValue}
             page={tablePage}
             pageSize={pageSize}
+            serverPagination={activePagination}
             onPageChange={setTablePage}
             onPageSizeChange={setPageSize}
           />
@@ -1251,31 +1423,38 @@ const ReportTable = ({
   formatValue,
   page,
   pageSize,
+  serverPagination,
   onPageChange,
   onPageSizeChange,
 }: {
   columns: ReportColumn[];
   rows: ReportRow[];
   loading: boolean;
-  formatValue: (value: unknown, column?: ReportColumn) => string;
+  formatValue: (value: unknown, column?: ReportColumn, row?: ReportRow) => string;
   page: number;
   pageSize: number;
+  serverPagination?: ReportPagination | null;
   onPageChange: (page: number) => void;
   onPageSizeChange: (pageSize: number) => void;
 }) => {
-  const totalRows = rows.length;
-  const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
+  const isServerPaginated = Boolean(serverPagination);
+  const totalRows = serverPagination?.totalRows ?? rows.length;
+  const totalPages =
+    serverPagination?.totalPages ?? Math.max(1, Math.ceil(totalRows / pageSize));
   const safePage = Math.min(Math.max(page, 1), totalPages);
-  const start = (safePage - 1) * pageSize;
-  const visibleRows = rows.slice(start, start + pageSize);
+  const activePageSize = serverPagination?.pageSize ?? pageSize;
+  const start = (safePage - 1) * activePageSize;
+  const visibleRows =
+    isServerPaginated ? rows : rows.slice(start, start + activePageSize);
   const firstRow = totalRows ? start + 1 : 0;
-  const lastRow = Math.min(start + pageSize, totalRows);
+  const lastRow = Math.min(start + visibleRows.length, totalRows);
+  const hasSerialColumn = columns.some((column) => column.key === "rowNumber");
 
   useEffect(() => {
-    if (safePage !== page) {
+    if (!loading && safePage !== page) {
       onPageChange(safePage);
     }
-  }, [onPageChange, page, safePage]);
+  }, [loading, onPageChange, page, safePage]);
 
   return (
     <SurfaceCard className="overflow-hidden border border-gray-200 p-0 dark:border-gray-800">
@@ -1324,10 +1503,16 @@ const ReportTable = ({
             <table className="min-w-[920px] w-full table-fixed">
               <thead className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-900">
                 <tr>
+                  {!hasSerialColumn ? (
+                    <th className="w-16 px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      S.No.
+                    </th>
+                  ) : null}
                   {columns.map((column) => (
                     <th
                       key={column.key}
-                      className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-gray-500"
+                      style={column.width ? { width: column.width } : undefined}
+                      className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-gray-500"
                     >
                       {column.label}
                     </th>
@@ -1340,15 +1525,28 @@ const ReportTable = ({
                     key={String(row.id || row.userId || row.bookingId || start + index)}
                     className="border-b border-gray-100 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-900/60"
                   >
+                    {!hasSerialColumn ? (
+                      <td className="px-3 py-2.5 text-sm text-gray-800 dark:text-gray-200">
+                        {start + index + 1}
+                      </td>
+                    ) : null}
                     {columns.map((column) => {
                       const value = row[column.key];
+                      const textClass =
+                        column.wrap
+                          ? "whitespace-normal break-words leading-snug"
+                          : column.truncate
+                            ? "truncate whitespace-nowrap"
+                            : "truncate whitespace-nowrap";
                       return (
                         <td
                           key={column.key}
-                          className="truncate px-3 py-2.5 text-sm text-gray-800 dark:text-gray-200"
+                          className="px-3 py-2.5 align-top text-sm text-gray-800 dark:text-gray-200"
                           title={String(value ?? "")}
                         >
-                          {formatValue(value, column)}
+                          <div className={textClass}>
+                            {formatValue(value, column, row)}
+                          </div>
                         </td>
                       );
                     })}
