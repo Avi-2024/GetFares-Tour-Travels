@@ -993,6 +993,8 @@ const REPORT_ROW_LIMITS: Record<string, number> = {
   "lead-aging": 2500,
 };
 
+const REPORT_COUNTRY_FILTER_IDS = new Set(["lead-aging", "deal-lines"]);
+
 const REPORT_CURRENCY_IDS = new Set([
   "executive",
   "monthly-summary",
@@ -1011,11 +1013,11 @@ const ReportsPage = () => {
   const [tablePage, setTablePage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [filters, setFilters] = useState(loadStoredFilters);
-  const [, setFilterOptions] = useState<LeadFilterOptions>({
+  const [filterOptions, setFilterOptions] = useState<LeadFilterOptions>({
     countries: [],
     sources: [],
   });
-  const [, setFilterOptionsLoading] = useState(true);
+  const [filterOptionsLoading, setFilterOptionsLoading] = useState(true);
   const [exporting, setExporting] = useState<ExportFormat | null>(null);
   const [results, setResults] = useState(() => makeInitialResults(reportDefinitions));
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
@@ -1046,7 +1048,9 @@ const ReportsPage = () => {
       ...(REPORT_CURRENCY_IDS.has(activeReport.id) ?
         { currency: selectedCurrency }
       : {}),
-      ...(filters.country ? { country: filters.country } : {}),
+      ...(REPORT_COUNTRY_FILTER_IDS.has(activeReport.id) && filters.country ?
+        { country: filters.country }
+      : {}),
       ...(filters.source ? { source: filters.source } : {}),
     };
     setResults((current) => setReportLoading(current, activeReport.id));
@@ -1232,42 +1236,26 @@ const ReportsPage = () => {
               className="mt-1 h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-900"
             />
           </label>
-          {/* <label className="text-xs font-medium text-gray-600 dark:text-gray-300">
-            Lead Country
-            <select
-              value={filters.country}
-              onChange={(event) =>
-                setFilters((current) => ({ ...current, country: event.target.value }))
-              }
-              disabled={filterOptionsLoading}
-              className="mt-1 h-10 min-w-[150px] rounded-lg border border-gray-200 bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-900"
-            >
-              <option value="">All countries</option>
-              {filterOptions.countries.map((country) => (
-                <option key={country} value={country}>
-                  {country}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="text-xs font-medium text-gray-600 dark:text-gray-300">
-            Lead Source
-            <select
-              value={filters.source}
-              onChange={(event) =>
-                setFilters((current) => ({ ...current, source: event.target.value }))
-              }
-              disabled={filterOptionsLoading}
-              className="mt-1 h-10 min-w-[150px] rounded-lg border border-gray-200 bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-900"
-            >
-              <option value="">All sources</option>
-              {filterOptions.sources.map((source) => (
-                <option key={source} value={source}>
-                  {source}
-                </option>
-              ))}
-            </select>
-          </label> */}
+          {REPORT_COUNTRY_FILTER_IDS.has(activeReport.id) ? (
+            <label className="text-xs font-medium text-gray-600 dark:text-gray-300">
+              Lead Country
+              <select
+                value={filters.country}
+                onChange={(event) =>
+                  setFilters((current) => ({ ...current, country: event.target.value }))
+                }
+                disabled={filterOptionsLoading}
+                className="mt-1 h-10 min-w-[150px] rounded-lg border border-gray-200 bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-900"
+              >
+                <option value="">All countries</option>
+                {filterOptions.countries.map((country) => (
+                  <option key={country} value={country}>
+                    {country}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
 
           <button
             type="button"
