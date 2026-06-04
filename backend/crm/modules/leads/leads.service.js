@@ -799,11 +799,6 @@ function createLeadsService({ repository, logger, events }) {
     }
 
     const leadType = normalizeLeadType(input.leadType ?? input.type ?? "HOLIDAY");
-    if (leadType === "HOLIDAY") {
-      if (input.budget === undefined || input.budget === null || input.budget === "") {
-        missing.push("budget");
-      }
-    }
     if (leadType === "VISA") {
       if (input.salary === undefined || input.salary === null || input.salary === "") {
         missing.push("salary");
@@ -2632,7 +2627,7 @@ function createLeadsService({ repository, logger, events }) {
             clientTimezone: tzNorm,
             followupLocalAt: wall,
             isScheduleOnly: true,
-            countsTowardCompliance: true,
+            countsTowardCompliance: false,
           },
           { fallbackTimezone: prefs.timezone },
         ),
@@ -3370,7 +3365,7 @@ function createLeadsService({ repository, logger, events }) {
               notes: payload.notes || null,
               isCompleted: true,
               isScheduleOnly: false,
-              countsTowardCompliance: false,
+              countsTowardCompliance: shouldTrackWorkflowFollowup,
             },
             { fallbackTimezone: wfTz },
           ),

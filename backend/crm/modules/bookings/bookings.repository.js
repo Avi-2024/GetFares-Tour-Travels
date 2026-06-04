@@ -132,7 +132,7 @@ function createBookingsRepository({ db, logger, schema }) {
     };
   }
 
-  function toBooking(row, userMap = new Map(), leadIdMap = new Map()) {
+  function toBooking(row, userMap = new Map(), leadIdMap = new Map(), leadCurrencyMap = new Map()) {
     if (!row) {
       return null;
     }
@@ -161,7 +161,11 @@ function createBookingsRepository({ db, logger, schema }) {
       paymentStatus: row.payment_status ?? row.paymentStatus ?? "PENDING",
       advanceRequired: toNumber(row.advance_required ?? row.advanceRequired, 0),
       advanceReceived: toNumber(row.advance_received ?? row.advanceReceived, 0),
-      clientCurrency: row.client_currency ?? row.clientCurrency ?? null,
+      clientCurrency:
+        (derivedLeadId ? leadCurrencyMap.get(derivedLeadId) : null) ??
+        row.client_currency ??
+        row.clientCurrency ??
+        null,
       supplierCurrency: row.supplier_currency ?? row.supplierCurrency ?? null,
       exchangeRate:
         row.exchange_rate !== undefined
@@ -414,6 +418,30 @@ function createBookingsRepository({ db, logger, schema }) {
     return leadIdMap;
   }
 
+  async function loadLeadCurrenciesByIds(leadIds = []) {
+    const ids = Array.from(
+      new Set(
+        leadIds
+          .filter(Boolean)
+          .map((id) => String(id)),
+      ),
+    );
+    if (!ids.length) {
+      return new Map();
+    }
+
+    const rows = await Promise.all(ids.map((id) => db.findById(schema.leadsTable, id)));
+    const currencyMap = new Map();
+    rows.filter(Boolean).forEach((row) => {
+      const id = row.id;
+      const currency = row.client_currency ?? row.clientCurrency ?? null;
+      if (id && currency) {
+        currencyMap.set(String(id), String(currency).toUpperCase());
+      }
+    });
+    return currencyMap;
+  }
+
   async function mapRowsToDomain(rows = []) {
     const [userMap, leadIdMap] = await Promise.all([
       loadUsersByIds(rows.map((row) => row.created_by ?? row.createdBy)),
@@ -421,8 +449,9 @@ function createBookingsRepository({ db, logger, schema }) {
         rows.map((row) => row.quotation_id ?? row.quotationId),
       ),
     ]);
+    const leadCurrencyMap = await loadLeadCurrenciesByIds(Array.from(leadIdMap.values()));
     return rows
-      .map((row) => toBooking(row, userMap, leadIdMap))
+      .map((row) => toBooking(row, userMap, leadIdMap, leadCurrencyMap))
       .filter(Boolean);
   }
 
@@ -434,7 +463,8 @@ function createBookingsRepository({ db, logger, schema }) {
       loadUsersByIds([row.created_by ?? row.createdBy]),
       loadLeadIdsByQuotationIds([row.quotation_id ?? row.quotationId]),
     ]);
-    return toBooking(row, userMap, leadIdMap);
+    const leadCurrencyMap = await loadLeadCurrenciesByIds(Array.from(leadIdMap.values()));
+    return toBooking(row, userMap, leadIdMap, leadCurrencyMap);
   }
 
   function normalizeReminderType(value) {
@@ -1114,14 +1144,15 @@ function createBookingsRepository({ db, logger, schema }) {
           );
         }
 
-        const currencyExpression =
+        const bookingCurrencyExpression =
           hasClientCurrency && hasCurrencyColumn
-            ? "COALESCE(NULLIF(b.client_currency, ''), NULLIF(b.currency, ''), 'INR')"
+            ? "NULLIF(b.client_currency, ''), NULLIF(b.currency, '')"
             : hasClientCurrency
-              ? "COALESCE(NULLIF(b.client_currency, ''), 'INR')"
+              ? "NULLIF(b.client_currency, '')"
               : hasCurrencyColumn
-                ? "COALESCE(NULLIF(b.currency, ''), 'INR')"
-                : "'INR'";
+                ? "NULLIF(b.currency, '')"
+                : "";
+        const currencyExpression = `COALESCE(NULLIF(l.client_currency, ''), ${bookingCurrencyExpression ? `${bookingCurrencyExpression}, ` : ""}'INR')`;
 
         const runPickerQuery = (currencyExpr) =>
           db.query(

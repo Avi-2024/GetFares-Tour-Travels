@@ -547,9 +547,9 @@ const mapApiBookingToPaymentOption = (booking: any): PaymentBookingOption | null
     ).trim(),
     customer: pickCustomerName(booking) || undefined,
     currency: String(
-      booking?.currency ??
-        booking?.clientCurrency ??
+      booking?.clientCurrency ??
         booking?.client_currency ??
+        booking?.currency ??
         "INR",
     ).toUpperCase(),
     totalAmount: Number(totalRaw) || 0,
