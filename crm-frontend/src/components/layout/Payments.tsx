@@ -18,7 +18,6 @@ import {
   FaXmark,
   FaFilter,
   FaEye,
-  FaTrash,
   FaReceipt,
 } from "react-icons/fa6";
 import { FaEdit } from "react-icons/fa";
@@ -547,9 +546,9 @@ const mapApiBookingToPaymentOption = (booking: any): PaymentBookingOption | null
     ).trim(),
     customer: pickCustomerName(booking) || undefined,
     currency: String(
-      booking?.currency ??
-        booking?.clientCurrency ??
+      booking?.clientCurrency ??
         booking?.client_currency ??
+        booking?.currency ??
         "INR",
     ).toUpperCase(),
     totalAmount: Number(totalRaw) || 0,
@@ -651,59 +650,6 @@ const Toast = ({
     </div>
   </div>
 );
-
-// Confirm Modal
-const ConfirmModal = ({
-  isOpen,
-  title,
-  message,
-  onConfirm,
-  onCancel,
-  confirmLoading = false,
-}: {
-  isOpen: boolean;
-  title: string;
-  message: string;
-  onConfirm: () => void;
-  onCancel: () => void;
-  confirmLoading?: boolean;
-}) => {
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl max-w-md w-full p-6 animate-fadeIn">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/20 flex items-center justify-center">
-            <FaEye className="text-amber-600 dark:text-amber-400" />
-          </div>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-            {title}
-          </h3>
-        </div>
-        <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-          {message}
-        </p>
-        <div className="flex justify-end gap-3">
-          <button
-            onClick={onCancel}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700"
-          >
-            Cancel
-          </button>
-          <LoadingButton
-            onClick={onConfirm}
-            loading={confirmLoading}
-            loadingLabel="Working..."
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
-          >
-            Confirm
-          </LoadingButton>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 // Verify Modal - Complete as per document specs
 const VerifyModal = ({
@@ -2088,7 +2034,6 @@ const Payments: React.FC = () => {
   const [showDetails, setShowDetails] = useState(false);
   const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedCurrency, setSelectedCurrency] = useState('AED');
 
   const pageSize = 15;
@@ -2599,9 +2544,10 @@ const Payments: React.FC = () => {
       if (hasAttachment) {
         const formData = new FormData();
         formData.append("amount", String(toNumber(data.amount, 0)));
-        formData.append("currency", String(data.currency || "INR"));
-        formData.append("paymentMode", mapTxModeToApi(data.mode));
-        formData.append("status", mapTxStatusToApi(data.status));
+	        formData.append("currency", String(data.currency || "INR"));
+	        formData.append("paymentMode", mapTxModeToApi(data.mode));
+	        formData.append("status", mapTxStatusToApi(data.status));
+	        formData.append("isVerified", String(data.status === "completed"));
         if (data.paymentReference) {
           formData.append("paymentReference", data.paymentReference);
         }
@@ -2644,11 +2590,12 @@ const Payments: React.FC = () => {
           gatewayPaymentId: data.gatewayPaymentId || undefined,
           gatewaySignature: data.gatewaySignature || undefined,
           proofUrl: data.proofUrl || undefined,
-          invoiceUrl: data.invoiceUrl || undefined,
-          status: mapTxStatusToApi(data.status),
-          paidAt: toIsoDate(data.paidAt ?? data.date) || undefined,
-          notes: data.notes || undefined,
-        });
+	          invoiceUrl: data.invoiceUrl || undefined,
+	          status: mapTxStatusToApi(data.status),
+	          paidAt: toIsoDate(data.paidAt ?? data.date) || undefined,
+	          isVerified: data.status === "completed",
+	          notes: data.notes || undefined,
+	        });
       }
       let refreshedTx: Transaction | null = null;
       try {
@@ -2788,17 +2735,6 @@ const Payments: React.FC = () => {
     }
   };
 
-  const handleDelete = (id: string) => {
-    setSelectedTransaction(transactions.find((tx) => tx.id === id) || null);
-    setShowDeleteConfirm(true);
-  };
-
-  const confirmDelete = () => {
-    setShowDeleteConfirm(false);
-    setSelectedTransaction(null);
-    showToast("Delete is not available for payments yet", "info");
-  };
-
   return (
     <div className="space-y-4 sm:space-y-6 px-0 sm:px-0 max-w-9xl mx-auto">
       {/* Toast */}
@@ -2812,17 +2748,6 @@ const Payments: React.FC = () => {
         />
       )}
       {/* Modals */}
-      <ConfirmModal
-        isOpen={showDeleteConfirm}
-        title="Delete Payment"
-        message="Are you sure you want to delete this payment? This action cannot be undone."
-        onConfirm={confirmDelete}
-        onCancel={() => {
-          setShowDeleteConfirm(false);
-          setSelectedTransaction(null);
-        }}
-      />
-
       <VerifyModal
         isOpen={showVerifyModal}
         transaction={selectedTransaction}
@@ -2928,7 +2853,7 @@ const Payments: React.FC = () => {
           title="Outstanding"
           value={statsLoading ? "Loading..." : formatAmount(stats.outstandingAmount)}
           subtitle={
-            statsLoading ? "Loading..." : `${stats.outstandingCount} pending`
+            statsLoading ? "Loading..." : `${stats.outstandingCount} pending payments`
           }
           icon={<FaClockRotateLeft className="text-amber-500" />}
         />
@@ -2936,7 +2861,7 @@ const Payments: React.FC = () => {
           title="Overdue"
           value={statsLoading ? "Loading..." : formatAmount(stats.overdueAmount)}
           subtitle={
-            statsLoading ? "Loading..." : `${stats.overdueCount} invoices`
+            statsLoading ? "Loading..." : `${stats.overdueCount} overdue payments`
           }
           icon={<FaRotateRight className="text-red-500" />}
         />
@@ -3357,13 +3282,6 @@ const Payments: React.FC = () => {
                     >
                       <FaEdit />
                     </button>
-                    <button
-                      onClick={() => handleDelete(tx.id)}
-                      className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg"
-                      title="Delete"
-                    >
-                      <FaTrash />
-                    </button>
                   </div>
                 </div>
               ))}
@@ -3495,13 +3413,6 @@ const Payments: React.FC = () => {
                             title="Edit"
                           >
                             <FaEdit />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(tx.id)}
-                            className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg"
-                            title="Delete"
-                          >
-                            <FaTrash />
                           </button>
                         </div>
                       </td>

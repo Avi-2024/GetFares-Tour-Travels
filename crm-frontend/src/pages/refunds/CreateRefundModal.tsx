@@ -28,6 +28,17 @@ const formatFileSize = (bytes: number) => {
   return `${value % 1 === 0 ? value : value.toFixed(1)} ${units[power]}`
 }
 
+const formatPaymentStateLabel = (
+  payment: Pick<PaymentOption, 'isVerified' | 'status'>,
+) => {
+  if (payment.isVerified) return 'Verified'
+  const normalizedStatus = String(payment.status || 'PENDING')
+    .trim()
+    .replace(/_/g, ' ')
+    .toLowerCase()
+  return normalizedStatus.charAt(0).toUpperCase() + normalizedStatus.slice(1)
+}
+
 type BookingOption = {
   id: string
   bookingNumber: string
@@ -40,6 +51,8 @@ type PaymentOption = {
   referenceId: string
   amount: number
   currency: string
+  isVerified: boolean
+  status: string
   paymentMode?: string
   paidAt?: string
   createdAt?: string
@@ -189,23 +202,21 @@ const CreateRefundModal = ({
         })
         .filter(
           payment =>
-            payment.isVerified &&
             payment.status !== 'REFUNDED' &&
             Boolean(payment.id),
         )
-        .map(({ isVerified: _ignored, status: _status, ...rest }) => rest)
 
       setPayments(mapped)
 
-      const latest = mapped[0]
-      if (latest) {
+      const defaultPayment = mapped.find(payment => payment.isVerified) ?? null
+      if (defaultPayment) {
         setForm(current => {
           if (current.bookingId !== normalized) return current
           if (current.paymentId) return current
           return {
             ...current,
-            paymentId: latest.id,
-            refundAmount: latest.amount,
+            paymentId: defaultPayment.id,
+            refundAmount: defaultPayment.amount,
           }
         })
       }
@@ -318,7 +329,7 @@ const CreateRefundModal = ({
           : !selectedBookingId
             ? 'Select booking first'
             : payments.length === 0
-              ? 'No verified payments for this booking'
+              ? 'No payments for this booking'
               : 'Select payment...',
       },
       ...payments.map(payment => {
@@ -328,15 +339,19 @@ const CreateRefundModal = ({
         const modeLabel = payment.paymentMode
           ? payment.paymentMode.replace(/_/g, ' ')
           : ''
+        const paymentState = formatPaymentStateLabel(payment)
+        const paymentMeta = [amountLabel, modeLabel, paymentState]
+          .filter(Boolean)
+          .join(' · ')
         return {
           value: payment.id,
           label: `${customerName} ${payment.referenceId} ${amountLabel}`,
           leftLabel: customerName,
           rightLabel: payment.referenceId,
-          rightSubLabel: modeLabel ? `${amountLabel} · ${modeLabel}` : amountLabel,
-          rightSubEmphasis: true,
+          rightSubLabel: paymentMeta,
+          rightSubEmphasis: payment.isVerified,
           selectedLabel: `${customerName} · ${payment.referenceId} · ${amountLabel}`,
-          searchText: `${customerName} ${payment.referenceId} ${amountLabel} ${modeLabel}`,
+          searchText: `${customerName} ${payment.referenceId} ${amountLabel} ${modeLabel} ${paymentState} ${payment.status}`,
         }
       }),
     ]
@@ -395,6 +410,10 @@ const CreateRefundModal = ({
   const handleSubmit = async () => {
     if (!form.bookingId || !form.paymentId || form.refundAmount === '') {
       setFormError('Select booking, payment, and refund amount.')
+      return
+    }
+    if (selectedPayment && !selectedPayment.isVerified) {
+      setFormError('Only verified payments can be refunded. Choose a verified payment reference.')
       return
     }
     if (!raisedByName) {
@@ -481,6 +500,7 @@ const CreateRefundModal = ({
                     ...current,
                     bookingId: value,
                     paymentId: '',
+                    refundAmount: '',
                     currency:
                       selected?.currency ?
                         String(selected.currency).toUpperCase()
@@ -508,7 +528,7 @@ const CreateRefundModal = ({
                   const payment =
                     payments.find(item => item.id === value) || null
                   if (!payment) {
-                    setForm(current => ({ ...current, paymentId: '' }))
+                    setForm(current => ({ ...current, paymentId: '', refundAmount: '' }))
                     return
                   }
                   setForm(current => ({
@@ -525,7 +545,10 @@ const CreateRefundModal = ({
               {selectedPayment ? (
                 <p className='mt-1 text-xs text-emerald-700 dark:text-emerald-300'>
                   Selected: {formatCurrency(selectedPayment.amount, selectedPayment.currency)}{' '}
-                  ({selectedPayment.paymentMode?.replace(/_/g, ' ') || 'payment'})
+                  ({[
+                    selectedPayment.paymentMode?.replace(/_/g, ' ') || 'payment',
+                    formatPaymentStateLabel(selectedPayment),
+                  ].join(' · ')})
                 </p>
               ) : null}
             </div>

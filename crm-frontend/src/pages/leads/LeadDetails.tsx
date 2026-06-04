@@ -789,12 +789,12 @@ const LeadDetails: React.FC = () => {
     void loadCampaigns()
   }, [loadCampaigns])
 
-  /** Compliance counts: manual Schedule Follow-up rows only. */
+  /** Compliance counts completed workflow history only, not scheduled reminders. */
   const followupsForCompliance = useMemo(
     () =>
       followups.filter(
         item =>
-          isScheduleOnlyFollowup(item) && countsTowardComplianceFollowup(item)
+          !isScheduleOnlyFollowup(item) && countsTowardComplianceFollowup(item)
       ),
     [followups]
   )
@@ -1295,10 +1295,6 @@ const LeadDetails: React.FC = () => {
     if (isVisaQualification && !String(qualification.salary || '').trim()) {
       missing.push('salary')
     }
-    if (isHolidayQualification && !String(qualification.budget || '').trim()) {
-      missing.push('budget')
-    }
-
     const adults = Number(qualification.adultsCount)
     const children = Number(qualification.childrenCount)
     if (
@@ -1371,7 +1367,9 @@ const LeadDetails: React.FC = () => {
         childAges: cleanChildAges,
         ...(isVisaLead
           ? { salary: Number(qualification.salary) }
-          : { budget: Number(qualification.budget) }),
+          : String(qualification.budget || '').trim()
+          ? { budget: Number(qualification.budget) }
+          : {}),
         visaRequired: qualification.visaRequired === 'YES',
         ...(isHolidayQualification && qualification.preferredHotelCategory
           ? {
@@ -1438,31 +1436,6 @@ const LeadDetails: React.FC = () => {
       return
     }
 
-    if (conversion.canonical === 'CONVERTED') {
-      if (loadingSentQuotations) {
-        setStatusSaving(false)
-        toast.error('Loading sent quotations… please wait.')
-        return
-      }
-      if (!eligibleConversionQuotations.length) {
-        setStatusSaving(false)
-        toast.error(
-          sentQuotations.length > 0
-            ? 'Sent quotations need margin approval before conversion. Open the quotation and approve margin, then try again.'
-            : 'No quotations have been sent to this lead yet. Send a quotation first, then convert.'
-        )
-        return
-      }
-      const picked = eligibleConversionQuotations.find(
-        q => q.id === selectedConversionQuotationId
-      )
-      if (!selectedConversionQuotationId || !picked) {
-        setStatusSaving(false)
-        toast.error('Choose the accepted quotation from the dropdown before converting.')
-        return
-      }
-    }
-
     try {
       await leadsService.updateLead(id, {
         temperature: leadTemperature,
@@ -1480,10 +1453,13 @@ const LeadDetails: React.FC = () => {
       })
       console.log('Status updated successfully')
 
-      if (
-        conversion.canonical === 'CONVERTED' &&
-        selectedConversionQuotationId
-      ) {
+      if (conversion.canonical === 'CONVERTED' && !selectedConversionQuotationId) {
+        setConversionFollowUpMessage(
+          'Lead converted without quotation. Create booking manually when quotation is not available.'
+        )
+      }
+
+      if (conversion.canonical === 'CONVERTED' && selectedConversionQuotationId) {
         let followUp = ''
 
         const quoteRes = await quotationsApi.getById(
@@ -2648,18 +2624,18 @@ const LeadDetails: React.FC = () => {
             {pipelineSop === 'CONVERTED' ? (
               <div className='mt-3 rounded-lg border border-gray-200 bg-gray-50/80 p-3 text-sm dark:border-gray-600 dark:bg-gray-800/40'>
                 <p className='font-medium text-gray-900 dark:text-gray-100'>
-                  Sent quotation for this lead
+                  Conversion quotation
                 </p>
                 <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
-                  Searchable list of quotations that were sent to this lead and
-                  are ready to convert. Updating status creates a booking when
-                  one does not exist yet.
+                  Optional. Choose a sent and approved quotation to auto-create
+                  a booking. Leave blank to convert lead only.
                 </p>
                 {loadingSentQuotations ? (
                   <p className='mt-2 text-xs text-gray-500'>Loading…</p>
                 ) : sentQuotations.length === 0 ? (
                   <p className='mt-2 text-xs text-amber-700 dark:text-amber-300'>
-                    No sent quotations yet. Send a quotation to this lead first.
+                    No sent quotations yet. You can still convert lead without
+                    booking.
                   </p>
                 ) : eligibleConversionQuotations.length === 0 ? (
                   <p className='mt-2 text-xs text-amber-700 dark:text-amber-300'>
@@ -3269,3 +3245,4 @@ const LeadDetails: React.FC = () => {
 }
 
 export default LeadDetails
+

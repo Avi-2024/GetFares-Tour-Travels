@@ -72,7 +72,6 @@ function createPaymentsRoutes({
     validateRequest(validation.verify),
     asyncHandler(controller.verify),
   );
-
   return router;
 }
 
