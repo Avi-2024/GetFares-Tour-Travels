@@ -45,16 +45,14 @@ function createPaymentsService({ repository, bookingsRepository, leadsRepository
         const sourceCurrency = normalizeCurrency(row.currency);
         const amount = toNumber(row.amount, 0);
         const count = toNumber(row.count, 0);
-        if (
-          !currencyService ||
-          sourceCurrency === normalizedTarget ||
-          amount === 0
-        ) {
+        if (!currencyService || sourceCurrency === normalizedTarget || amount === 0) {
           return {
-            currency: sourceCurrency,
+            currency: normalizedTarget,
             amount: roundAmount(amount),
             count,
             convertedAmount: roundAmount(amount),
+            sourceCurrency,
+            sourceAmount: roundAmount(amount),
           };
         }
 
@@ -65,10 +63,12 @@ function createPaymentsService({ repository, bookingsRepository, leadsRepository
             normalizedTarget,
           );
           return {
-            currency: sourceCurrency,
-            amount: roundAmount(amount),
+            currency: normalizedTarget,
+            amount: roundAmount(converted),
             count,
             convertedAmount: roundAmount(converted),
+            sourceCurrency,
+            sourceAmount: roundAmount(amount),
           };
         } catch (error) {
           logger?.warn?.(
@@ -81,10 +81,12 @@ function createPaymentsService({ repository, bookingsRepository, leadsRepository
             "Currency conversion failed for payment stats row",
           );
           return {
-            currency: sourceCurrency,
+            currency: normalizedTarget,
             amount: roundAmount(amount),
             count,
             convertedAmount: roundAmount(amount),
+            sourceCurrency,
+            sourceAmount: roundAmount(amount),
           };
         }
       }),
