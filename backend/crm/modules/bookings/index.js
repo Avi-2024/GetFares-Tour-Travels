@@ -24,6 +24,7 @@ function createBookingsModule({ dependencies, leadsRepository }) {
     events,
     config: dependencies.config,
     leadsRepository,
+    currencyService: dependencies.services?.currency,
   });
 
   const controller = createBookingsController({ service });

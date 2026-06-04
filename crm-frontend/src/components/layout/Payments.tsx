@@ -2928,7 +2928,7 @@ const Payments: React.FC = () => {
           title="Outstanding"
           value={statsLoading ? "Loading..." : formatAmount(stats.outstandingAmount)}
           subtitle={
-            statsLoading ? "Loading..." : `${stats.outstandingCount} pending`
+            statsLoading ? "Loading..." : `${stats.outstandingCount} pending payments`
           }
           icon={<FaClockRotateLeft className="text-amber-500" />}
         />
@@ -2936,7 +2936,7 @@ const Payments: React.FC = () => {
           title="Overdue"
           value={statsLoading ? "Loading..." : formatAmount(stats.overdueAmount)}
           subtitle={
-            statsLoading ? "Loading..." : `${stats.overdueCount} invoices`
+            statsLoading ? "Loading..." : `${stats.overdueCount} overdue payments`
           }
           icon={<FaRotateRight className="text-red-500" />}
         />

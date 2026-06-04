@@ -1728,6 +1728,7 @@ const BookingsPage: React.FC = () => {
     totalRevenue: 0,
     pendingPaymentsAmount: 0,
     pendingPaymentsCount: 0,
+    currency: "AED",
   }
 
   const [filterError, setFilterError] = useState('')
@@ -2781,7 +2782,28 @@ const BookingsPage: React.FC = () => {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <SurfaceCard hoverable className="p-3 sm:p-5">
+          <div className="flex items-start justify-between">
+            <div className="min-w-0">
+              <p className="text-[10px] sm:text-xs uppercase tracking-wide text-gray-500 truncate">
+                Total Bookings
+              </p>
+              <p className="text-lg sm:text-2xl font-semibold text-gray-900 dark:text-gray-100 mt-1">
+                {statsLoading ?
+                  <span className="inline-block h-6 w-16 rounded bg-gray-200 animate-pulse" />
+                : stats.totalBookings}
+              </p>
+              <p className="mt-1 text-xs text-gray-500 truncate">
+                Bookings
+              </p>
+              {statsError && (
+                <p className="mt-1 text-xs text-red-500">{statsError}</p>
+              )}
+            </div>
+            <FaClock className="text-slate-600 text-lg sm:text-xl flex-shrink-0" />
+          </div>
+        </SurfaceCard>
         <SurfaceCard hoverable className="p-3 sm:p-5">
           <div className="flex items-start justify-between">
             <div className="min-w-0">
@@ -2833,7 +2855,7 @@ const BookingsPage: React.FC = () => {
 	            <p className="text-lg sm:text-2xl font-semibold text-gray-900 dark:text-gray-100 mt-1">
 	              {statsLoading ?
 	                <span className="inline-block h-6 w-20 rounded bg-gray-200 animate-pulse" />
-	                : stats.pendingPaymentsAmount.toLocaleString("en-IN")}
+	                : `${stats.currency ? `${stats.currency} ` : ""}${stats.pendingPaymentsAmount.toLocaleString("en-IN")}`}
 	            </p>
               <p className="mt-1 text-xs text-gray-500">
                 {statsLoading ?
