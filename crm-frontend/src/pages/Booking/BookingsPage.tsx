@@ -17,6 +17,7 @@ import {
   FaCircleCheck,
   FaCircleExclamation,
   FaClock,
+  FaRotateRight,
   // FaUser,
   // FaGlobe,
   // FaDollarSign,
@@ -1734,6 +1735,7 @@ const BookingsPage: React.FC = () => {
   const [filterError, setFilterError] = useState('')
   const [showMobileFilters, setShowMobileFilters] = useState(false)
   const [loading, setLoading] = useState(!initialPageCache)
+  const [approvingBookingId, setApprovingBookingId] = useState<string | null>(null)
   const [bookingItems, setBookingItems] = useState<Booking[]>(
     () => (initialPageCache?.items as Booking[]) ?? [],
   )
@@ -2267,20 +2269,28 @@ const BookingsPage: React.FC = () => {
       return;
     }
 
-    setLoading(true);
+    setApprovingBookingId(booking.id);
     try {
-      await bookingsService.approve(booking.id);
-      invalidateBookingsPageCache();
-      await Promise.all([
-        fetchBookingStats({ silent: true }),
-        fetchBookings({ silent: true }),
-      ]);
+      const response = await bookingsService.approve(booking.id);
+      const rawUpdated =
+        (response as any)?.data?.data ??
+        (response as any)?.data ??
+        response;
+      const mapped = mapBooking(rawUpdated, 0);
+      setBookingItems((prev) => {
+        const next = prev.map((item) =>
+          item.id === booking.id ? { ...item, ...mapped } : item,
+        );
+        patchBookingsPageCache({ items: next });
+        return next;
+      });
+      void fetchBookingStats({ silent: true });
       showToast("Booking approved successfully", "success");
     } catch (error) {
       console.error("Failed to approve booking:", error);
       reportApiError(error, "Failed to approve booking");
     } finally {
-      setLoading(false);
+      setApprovingBookingId(null);
     }
   };
 
@@ -3263,11 +3273,13 @@ const BookingsPage: React.FC = () => {
                         : "border-gray-200 text-emerald-600 hover:bg-emerald-50 dark:border-gray-700 dark:text-emerald-400 dark:hover:bg-emerald-900/20"
                       }`}
                       onClick={() => handleApproveBooking(booking)}
-                      disabled={loading || isApproved}
-                      title={isApproved ? "Already Approved" : "Approve Booking"}
-                    >
-                      <FaCircleCheck className="text-sm" />
-                    </button>
+	                      disabled={Boolean(approvingBookingId) || isApproved}
+	                      title={isApproved ? "Already Approved" : "Approve Booking"}
+	                    >
+	                      {approvingBookingId === booking.id ?
+	                        <FaRotateRight className="text-sm animate-spin" />
+	                      : <FaCircleCheck className="text-sm" />}
+	                    </button>
                     <button
                       onClick={() => handleSendConfirmation(booking.id)}
                       className="p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
@@ -3417,7 +3429,7 @@ const BookingsPage: React.FC = () => {
                           </button>
                           <button
                             onClick={() => handleApproveBooking(booking)}
-                            disabled={loading || isApproved}
+                            disabled={Boolean(approvingBookingId) || isApproved}
                             className={`rounded-lg border p-2 transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
                               isApproved ?
                                 "border-green-200 bg-green-50 text-green-500 dark:border-green-800 dark:bg-green-900/20 dark:text-green-300"
@@ -3425,7 +3437,9 @@ const BookingsPage: React.FC = () => {
                             }`}
                             title={isApproved ? "Already Approved" : "Approve Booking"}
                           >
-                            <FaCircleCheck />
+                            {approvingBookingId === booking.id ?
+                              <FaRotateRight className="animate-spin" />
+                            : <FaCircleCheck />}
                           </button>
                           <button
                             onClick={() => handleSendConfirmation(booking.id)}
