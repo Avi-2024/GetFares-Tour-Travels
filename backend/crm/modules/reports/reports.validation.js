@@ -89,6 +89,7 @@ const leadAging = z.object({
   params: z.object({}).optional(),
   query: queryWithOptionalUser
     .extend({
+      page: z.coerce.number().int().min(1).optional(),
       limit: z.coerce.number().int().min(1).max(2500).optional(),
     })
     .optional(),

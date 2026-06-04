@@ -25,6 +25,7 @@ type SummaryMetric = {
   value: unknown;
   type?: ReportColumn["type"];
   currency?: string;
+  currencyKey?: string;
 };
 
 type ReportDefinition = {
@@ -121,7 +122,9 @@ const nestedSummary =
     return metrics.map((metric) => ({
       label: metric.label,
       type: metric.type,
-      currency: metric.currency,
+      currency: metric.currencyKey
+        ? String(source[metric.currencyKey] || "")
+        : metric.currency,
       value: source[metric.key],
     }));
   };
@@ -462,7 +465,7 @@ const reportDefinitions: ReportDefinition[] = [
     ],
     summary: (payload) => {
       const rows = dataArray(payload);
-      const totals = rows.reduce(
+      const totals = rows.reduce<{ totalLeads: number; convertedLeads: number; totalBookings: number; revenue: number; profit: number }>(
         (accumulator, row) => ({
           totalLeads: accumulator.totalLeads + toNumber(row.totalLeads),
           convertedLeads: accumulator.convertedLeads + toNumber(row.convertedLeads),
@@ -612,53 +615,58 @@ const reportDefinitions: ReportDefinition[] = [
     request: reportsApi.peoplePerformance,
     rows: dataArray,
     columns: [
-      { key: "name", label: "Name" },
-      { key: "role", label: "Role" },
-      { key: "assignedLeads", label: "Leads", type: "number" },
-      { key: "openLeads", label: "Open", type: "number" },
-      { key: "convertedLeads", label: "Converted", type: "number" },
-      { key: "lostLeads", label: "Lost", type: "number" },
-      { key: "slaBreachedLeads", label: "SLA Breached", type: "number" },
-      { key: "conversionRatePercent", label: "Conversion", type: "percent" },
-      { key: "quotationsCreated", label: "Quotations", type: "number" },
+      { key: "name", label: "Name", width: "180px", truncate: true },
+      { key: "role", label: "Role", width: "150px", truncate: true },
+      { key: "assignedLeads", label: "Leads", type: "number", width: "80px" },
+      { key: "openLeads", label: "Open", type: "number", width: "80px" },
+      { key: "convertedLeads", label: "Converted", type: "number", width: "105px" },
+      { key: "lostLeads", label: "Lost", type: "number", width: "80px" },
+      { key: "slaBreachedLeads", label: "SLA", type: "number", width: "80px" },
+      { key: "conversionRatePercent", label: "Conv. %", type: "percent", width: "90px" },
+      { key: "quotationsCreated", label: "Quotes", type: "number", width: "90px" },
       {
         key: "quotationValue",
         label: "Quote Value",
         type: "amount",
         currencyKey: "currency",
+        width: "140px",
       },
-      { key: "bookings", label: "Bookings", type: "number" },
-      { key: "currency", label: "Currency" },
+      { key: "bookings", label: "Bookings", type: "number", width: "95px" },
+      { key: "currency", label: "Currency", width: "90px" },
       {
         key: "bookingValue",
         label: "Booking Value",
         type: "amount",
         currencyKey: "currency",
+        width: "150px",
       },
       {
         key: "averageBookingValue",
         label: "Avg Booking",
         type: "amount",
         currencyKey: "currency",
+        width: "145px",
       },
       {
         key: "collectedAmount",
         label: "Collected",
         type: "amount",
         currencyKey: "currency",
+        width: "140px",
       },
       {
         key: "outstandingAmount",
         label: "Outstanding",
         type: "amount",
         currencyKey: "currency",
+        width: "145px",
       },
-      { key: "profit", label: "Profit", type: "amount", currencyKey: "currency" },
-      { key: "averageMarginPercent", label: "Margin", type: "percent" },
-      { key: "followupsCreated", label: "Follow-ups", type: "number" },
-      { key: "missedFollowups", label: "Missed Follow-ups", type: "number" },
-      { key: "callsDone", label: "Calls", type: "number" },
-      { key: "whatsappDone", label: "WhatsApp", type: "number" },
+      { key: "profit", label: "Profit", type: "amount", currencyKey: "currency", width: "135px" },
+      { key: "averageMarginPercent", label: "Margin", type: "percent", width: "90px" },
+      { key: "followupsCreated", label: "Follow-ups", type: "number", width: "105px" },
+      { key: "missedFollowups", label: "Missed", type: "number", width: "85px" },
+      { key: "callsDone", label: "Calls", type: "number", width: "80px" },
+      { key: "whatsappDone", label: "WhatsApp", type: "number", width: "95px" },
     ],
   },
 
@@ -906,6 +914,7 @@ const reportDefinitions: ReportDefinition[] = [
     group: "Operations",
     title: "Activity Feed",
     request: reportsApi.activityFeed,
+    serverPaginated: true,
     rows: nestedArray("items"),
     columns: [
       { key: "leadName", label: "Lead", width: "180px", truncate: true },
@@ -981,7 +990,6 @@ const reportDefinitions: ReportDefinition[] = [
 ];
 
 const REPORT_ROW_LIMITS: Record<string, number> = {
-  "activity-feed": 2500,
   "lead-aging": 2500,
 };
 
@@ -998,7 +1006,7 @@ const REPORT_CURRENCY_IDS = new Set([
 const ReportsPage = () => {
   const [from, setFrom] = useState(getMonthStart);
   const [to, setTo] = useState(getToday);
-  const [selectedCurrency, setSelectedCurrency] = useState("AED");
+  const [selectedCurrency] = useState("AED");
   const [activeId, setActiveId] = useState(reportDefinitions[0].id);
   const [tablePage, setTablePage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -1224,7 +1232,7 @@ const ReportsPage = () => {
               className="mt-1 h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-900"
             />
           </label>
-          <label className="text-xs font-medium text-gray-600 dark:text-gray-300">
+          {/* <label className="text-xs font-medium text-gray-600 dark:text-gray-300">
             Lead Country
             <select
               value={filters.country}
@@ -1259,7 +1267,7 @@ const ReportsPage = () => {
                 </option>
               ))}
             </select>
-          </label>
+          </label> */}
 
           <button
             type="button"
@@ -1449,6 +1457,10 @@ const ReportTable = ({
   const firstRow = totalRows ? start + 1 : 0;
   const lastRow = Math.min(start + visibleRows.length, totalRows);
   const hasSerialColumn = columns.some((column) => column.key === "rowNumber");
+  const tableMinWidth = columns.reduce((total, column) => {
+    const width = column.width ? Number.parseInt(column.width, 10) : 120;
+    return total + (Number.isFinite(width) ? width : 120);
+  }, hasSerialColumn ? 0 : 64);
 
   useEffect(() => {
     if (!loading && safePage !== page) {
@@ -1500,7 +1512,10 @@ const ReportTable = ({
             </div>
           </div>
           <div className="max-h-[62vh] overflow-auto">
-            <table className="min-w-[920px] w-full table-fixed">
+            <table
+              className="w-full table-fixed"
+              style={{ minWidth: `${Math.max(tableMinWidth, 920)}px` }}
+            >
               <thead className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-900">
                 <tr>
                   {!hasSerialColumn ? (

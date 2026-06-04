@@ -342,7 +342,7 @@ function createReportsRepository({ db, schema, logger }) {
           SELECT DISTINCT
             TRIM(COALESCE(NULLIF(l.lead_country, ''), '')) AS country
           FROM ${schema.leadsTable} l
-          WHERE TRIM(COALESCE(NULLIF(l.lead_country, ''), '')) <> ''
+          WHERE CHAR_LENGTH(TRIM(CAST(COALESCE(NULLIF(l.lead_country, ''), '') AS CHAR))) > 0
           ORDER BY country ASC
         `,
       );
@@ -352,7 +352,7 @@ function createReportsRepository({ db, schema, logger }) {
           FROM ${schema.leadsTable} l
           LEFT JOIN ${schema.metaPageConfigsTable} mpc
             ON mpc.page_id COLLATE utf8mb4_unicode_ci = l.meta_page_id COLLATE utf8mb4_unicode_ci
-          WHERE ${leadSourceSql("l", "mpc")} <> ''
+          WHERE CHAR_LENGTH(TRIM(CAST(${leadSourceSql("l", "mpc")} AS CHAR))) > 0
           ORDER BY source ASC
         `,
       );
@@ -2619,7 +2619,9 @@ function createReportsRepository({ db, schema, logger }) {
       params.push(...assignLog.params);
 
       const whereSql = `WHERE ${where.join(" AND ")}`;
-      const limit = Math.min(Math.max(toNumber(filters.limit, 250), 1), 2500);
+      const page = Math.max(toNumber(filters.page, 1), 1);
+      const limit = Math.min(Math.max(toNumber(filters.limit, 25), 1), 2500);
+      const offset = (page - 1) * limit;
 
       const typeRows = await queryRows(
         `
@@ -2651,10 +2653,21 @@ function createReportsRepository({ db, schema, logger }) {
           LEFT JOIN ${schema.usersTable} u ON u.id = la.user_id
           ${whereSql}
           ORDER BY la.created_at DESC
-          LIMIT ?
+          LIMIT ? OFFSET ?
         `,
-        [...params, limit],
+        [...params, limit, offset],
       );
+
+      const countRows = await queryRows(
+        `
+          SELECT COUNT(*) AS total_rows
+          FROM ${schema.leadActivitiesTable} la
+          INNER JOIN ${schema.leadsTable} l ON l.id = la.lead_id
+          ${whereSql}
+        `,
+        params,
+      );
+      const totalRows = toNumber(countRows[0]?.total_rows, 0);
 
       return {
         byType: typeRows.map((row) => ({
@@ -2671,6 +2684,12 @@ function createReportsRepository({ db, schema, logger }) {
           notes: row.notes,
           createdAt: row.created_at,
         })),
+        pagination: {
+          page,
+          pageSize: limit,
+          totalRows,
+          totalPages: Math.max(1, Math.ceil(totalRows / limit)),
+        },
       };
     },
 
