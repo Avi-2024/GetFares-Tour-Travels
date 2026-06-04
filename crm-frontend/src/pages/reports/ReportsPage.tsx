@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FaRotate, FaTriangleExclamation } from "react-icons/fa6";
+import { FaCalendarDays, FaRotate, FaTriangleExclamation } from "react-icons/fa6";
 
 import SurfaceCard from "../../components/ui/SurfaceCard";
 import { reportsApi } from "../../api/reports";
@@ -80,6 +80,107 @@ const getMonthStart = () => {
 };
 
 const getToday = () => toDateInput(new Date());
+
+const formatFilterDateValue = (value: string) => {
+  const [year, month, day] = value.split("-");
+  if (!year || !month || !day) return "dd/mm/yyyy";
+  return `${day}/${month}/${year}`;
+};
+
+const formatFilterDateDraft = (value: string) => {
+  const digits = value.replace(/\D/g, "").slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+};
+
+const parseFilterDateValue = (value: string) => {
+  const digits = value.replace(/\D/g, "");
+  if (digits.length !== 6 && digits.length !== 8) return null;
+
+  const day = Number(digits.slice(0, 2));
+  const month = Number(digits.slice(2, 4));
+  const year =
+    digits.length === 6 ?
+      2000 + Number(digits.slice(4, 6))
+    : Number(digits.slice(4, 8));
+
+  const candidate = new Date(year, month - 1, day);
+  if (
+    Number.isNaN(candidate.getTime()) ||
+    candidate.getFullYear() !== year ||
+    candidate.getMonth() !== month - 1 ||
+    candidate.getDate() !== day
+  ) {
+    return null;
+  }
+
+  return toDateInput(candidate);
+};
+
+type DateFilterFieldProps = {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+};
+
+const DateFilterField = ({ label, value, onChange }: DateFilterFieldProps) => {
+  const [draftValue, setDraftValue] = useState(() => formatFilterDateValue(value));
+
+  useEffect(() => {
+    setDraftValue(formatFilterDateValue(value));
+  }, [value]);
+
+  const commitDraftValue = () => {
+    const parsedValue = parseFilterDateValue(draftValue);
+    if (parsedValue) {
+      onChange(parsedValue);
+      setDraftValue(formatFilterDateValue(parsedValue));
+      return;
+    }
+
+    setDraftValue(formatFilterDateValue(value));
+  };
+
+  return (
+    <label className="flex min-w-0 flex-col text-xs font-medium text-gray-600 dark:text-gray-300">
+      <span className="mb-1">{label}</span>
+      <div className="flex h-11 items-center rounded-lg border border-gray-200 bg-white shadow-sm transition focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100 dark:border-gray-700 dark:bg-gray-900 dark:focus-within:border-blue-400 dark:focus-within:ring-blue-950/40">
+        <input
+          type="text"
+          value={draftValue}
+          onChange={(event) => setDraftValue(formatFilterDateDraft(event.target.value))}
+          onBlur={commitDraftValue}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              commitDraftValue();
+            }
+          }}
+          placeholder="dd/mm/yyyy"
+          inputMode="numeric"
+          aria-label={label}
+          className="min-w-0 flex-1 bg-transparent px-3 text-sm text-gray-900 outline-none placeholder:text-gray-400 dark:text-gray-100 dark:placeholder:text-gray-500"
+        />
+        <div className="relative mr-1 h-9 w-9 shrink-0 rounded-md text-gray-400 transition hover:bg-gray-50 dark:hover:bg-gray-800">
+          <div className="pointer-events-none flex h-full w-full items-center justify-center">
+            <FaCalendarDays className="text-base text-gray-400 dark:text-gray-500" />
+          </div>
+          <input
+            type="date"
+            value={value}
+            onChange={(event) => {
+              onChange(event.target.value);
+              setDraftValue(formatFilterDateValue(event.target.value));
+            }}
+            aria-label={`Open ${label} calendar`}
+            className="absolute inset-0 cursor-pointer opacity-0"
+          />
+        </div>
+      </div>
+    </label>
+  );
+};
 
 const unwrapData = (response: unknown) =>
   (response as { data?: unknown })?.data ?? response;
@@ -1026,6 +1127,7 @@ const ReportsPage = () => {
   const activeReport =
     reportDefinitions.find((report) => report.id === activeId) ||
     reportDefinitions[0];
+  const showCountryFilter = REPORT_COUNTRY_FILTER_IDS.has(activeReport.id);
   const activeResult = results[activeReport.id];
   const activePagination =
     activeReport.serverPaginated && activeResult?.ok ?
@@ -1048,7 +1150,7 @@ const ReportsPage = () => {
       ...(REPORT_CURRENCY_IDS.has(activeReport.id) ?
         { currency: selectedCurrency }
       : {}),
-      ...(REPORT_COUNTRY_FILTER_IDS.has(activeReport.id) && filters.country ?
+      ...(showCountryFilter && filters.country ?
         { country: filters.country }
       : {}),
       ...(filters.source ? { source: filters.source } : {}),
@@ -1217,35 +1319,25 @@ const ReportsPage = () => {
             </p>
           ) : null}
         </div>
-        <div className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-3 shadow-sm sm:flex-row sm:items-end dark:border-gray-800 dark:bg-gray-950">
-          <label className="text-xs font-medium text-gray-600 dark:text-gray-300">
-            From
-            <input
-              type="date"
-              value={from}
-              onChange={(event) => setFrom(event.target.value)}
-              className="mt-1 h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-900"
-            />
-          </label>
-          <label className="text-xs font-medium text-gray-600 dark:text-gray-300">
-            To
-            <input
-              type="date"
-              value={to}
-              onChange={(event) => setTo(event.target.value)}
-              className="mt-1 h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-900"
-            />
-          </label>
-          {REPORT_COUNTRY_FILTER_IDS.has(activeReport.id) ? (
-            <label className="text-xs font-medium text-gray-600 dark:text-gray-300">
-              Lead Country
+        <div
+          className={`grid w-full gap-3 rounded-lg border border-gray-200 bg-white p-3 shadow-sm xl:ml-auto xl:max-w-[880px] dark:border-gray-800 dark:bg-gray-950 ${
+            showCountryFilter ?
+              "sm:grid-cols-2 xl:grid-cols-[minmax(0,180px)_minmax(0,180px)_minmax(0,220px)_auto_auto]"
+            : "sm:grid-cols-2 xl:grid-cols-[minmax(0,180px)_minmax(0,180px)_auto_auto]"
+          }`}
+        >
+          <DateFilterField label="From" value={from} onChange={setFrom} />
+          <DateFilterField label="To" value={to} onChange={setTo} />
+          {showCountryFilter ? (
+            <label className="flex min-w-0 flex-col text-xs font-medium text-gray-600 dark:text-gray-300">
+              <span className="mb-1">Lead Country</span>
               <select
                 value={filters.country}
                 onChange={(event) =>
                   setFilters((current) => ({ ...current, country: event.target.value }))
                 }
                 disabled={filterOptionsLoading}
-                className="mt-1 h-10 min-w-[150px] rounded-lg border border-gray-200 bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-900"
+                className="h-11 w-full min-w-0 rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm dark:border-gray-700 dark:bg-gray-900"
               >
                 <option value="">All countries</option>
                 {filterOptions.countries.map((country) => (
@@ -1261,7 +1353,7 @@ const ReportsPage = () => {
             type="button"
             onClick={() => void loadReports()}
             disabled={health.loading > 0}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white disabled:opacity-60"
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white disabled:opacity-60 sm:w-auto xl:self-end"
           >
             <FaRotate className={health.loading ? "animate-spin" : ""} />
             Refresh
@@ -1269,7 +1361,7 @@ const ReportsPage = () => {
           <button
             type="button"
             onClick={() => setFilters({ country: "", source: "" })}
-            className="inline-flex h-10 items-center justify-center rounded-lg border border-gray-200 px-4 text-sm font-semibold text-gray-700 dark:border-gray-700 dark:text-gray-200"
+            className="inline-flex h-11 w-full items-center justify-center rounded-lg border border-gray-200 px-4 text-sm font-semibold text-gray-700 dark:border-gray-700 dark:text-gray-200 sm:w-auto xl:self-end"
           >
             Reset
           </button>
