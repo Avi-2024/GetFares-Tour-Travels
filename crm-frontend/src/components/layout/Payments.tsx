@@ -18,7 +18,6 @@ import {
   FaXmark,
   FaFilter,
   FaEye,
-  FaTrash,
   FaReceipt,
 } from "react-icons/fa6";
 import { FaEdit } from "react-icons/fa";
@@ -2088,7 +2087,6 @@ const Payments: React.FC = () => {
   const [showDetails, setShowDetails] = useState(false);
   const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedCurrency, setSelectedCurrency] = useState('AED');
 
   const pageSize = 15;
@@ -2790,17 +2788,6 @@ const Payments: React.FC = () => {
     }
   };
 
-  const handleDelete = (id: string) => {
-    setSelectedTransaction(transactions.find((tx) => tx.id === id) || null);
-    setShowDeleteConfirm(true);
-  };
-
-  const confirmDelete = () => {
-    setShowDeleteConfirm(false);
-    setSelectedTransaction(null);
-    showToast("Delete is not available for payments yet", "info");
-  };
-
   return (
     <div className="space-y-4 sm:space-y-6 px-0 sm:px-0 max-w-9xl mx-auto">
       {/* Toast */}
@@ -2814,17 +2801,6 @@ const Payments: React.FC = () => {
         />
       )}
       {/* Modals */}
-      <ConfirmModal
-        isOpen={showDeleteConfirm}
-        title="Delete Payment"
-        message="Are you sure you want to delete this payment? This action cannot be undone."
-        onConfirm={confirmDelete}
-        onCancel={() => {
-          setShowDeleteConfirm(false);
-          setSelectedTransaction(null);
-        }}
-      />
-
       <VerifyModal
         isOpen={showVerifyModal}
         transaction={selectedTransaction}
@@ -3359,13 +3335,6 @@ const Payments: React.FC = () => {
                     >
                       <FaEdit />
                     </button>
-                    <button
-                      onClick={() => handleDelete(tx.id)}
-                      className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg"
-                      title="Delete"
-                    >
-                      <FaTrash />
-                    </button>
                   </div>
                 </div>
               ))}
@@ -3497,13 +3466,6 @@ const Payments: React.FC = () => {
                             title="Edit"
                           >
                             <FaEdit />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(tx.id)}
-                            className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg"
-                            title="Delete"
-                          >
-                            <FaTrash />
                           </button>
                         </div>
                       </td>

@@ -1408,7 +1408,10 @@ function createBookingsService({
     async approve(id, context = {}) {
       const booking = await getById(id, context);
 
-      if (booking.isApproved) {
+      if (
+        booking.isApproved &&
+        booking.status === BOOKING_STATUS.CONFIRMED
+      ) {
         throw new AppError(
           409,
           "Booking is already approved",
@@ -1416,12 +1419,38 @@ function createBookingsService({
         );
       }
 
+      if (booking.status !== BOOKING_STATUS.CONFIRMED) {
+        await assertPaymentPolicyForConfirmation(booking);
+      }
+
+      const changedAt = new Date().toISOString();
       const updated = await repository.update(id, {
         is_approved: true,
-        updated_at: new Date().toISOString(),
+        status: BOOKING_STATUS.CONFIRMED,
+        cancellation_reason: null,
+        cancelled_at: null,
+        updated_at: changedAt,
       });
 
       const hydrated = withDeadlineInsights(updated);
+
+      if (booking.status !== hydrated.status) {
+        await appendStatusHistory({
+          bookingId: booking.id,
+          oldStatus: booking.status,
+          newStatus: hydrated.status,
+          changedBy: context.user?.id || null,
+          changedAt,
+        });
+
+        events.emitStatusChanged({
+          id: hydrated.id,
+          oldStatus: booking.status,
+          newStatus: hydrated.status,
+          changedBy: context.user?.id || null,
+        });
+      }
+
       events.emitUpdated(hydrated);
 
       return hydrated;
