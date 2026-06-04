@@ -72,7 +72,7 @@ function createPaymentsRepository({ db, logger, schema }) {
       bookingId: row.booking_id ?? row.bookingId ?? null,
       bookingNumber: row.booking_number ?? row.bookingNumber ?? null,
       amount: toNumber(row.amount, 0),
-      currency: row.currency ?? "INR",
+      currency: row.derived_currency ?? row.derivedCurrency ?? row.currency ?? "AED",
       paymentMode: row.payment_mode ?? row.paymentMode ?? null,
       gatewayProvider: row.gateway_provider ?? row.gatewayProvider ?? null,
       gatewayOrderId: row.gateway_order_id ?? row.gatewayOrderId ?? null,
@@ -272,19 +272,19 @@ function createPaymentsRepository({ db, logger, schema }) {
     }
 
     const currencySources = [];
-    if (hasBookingClientCurrency) {
-      currencySources.push(`NULLIF(TRIM(${bookingAlias}.client_currency), '')`);
-    }
-    if (hasBookingCurrency) {
-      currencySources.push(`NULLIF(TRIM(${bookingAlias}.currency), '')`);
+    if (hasLeadClientCurrency) {
+      currencySources.push(`NULLIF(TRIM(${leadAlias}.client_currency), '')`);
     }
     if (hasQuotationClientCurrency) {
       currencySources.push(
         `NULLIF(TRIM(${quotationAlias}.client_currency), '')`,
       );
     }
-    if (hasLeadClientCurrency) {
-      currencySources.push(`NULLIF(TRIM(${leadAlias}.client_currency), '')`);
+    if (hasBookingClientCurrency) {
+      currencySources.push(`NULLIF(TRIM(${bookingAlias}.client_currency), '')`);
+    }
+    if (hasBookingCurrency) {
+      currencySources.push(`NULLIF(TRIM(${bookingAlias}.currency), '')`);
     }
     currencySources.push("'AED'");
 
@@ -323,8 +323,8 @@ function createPaymentsRepository({ db, logger, schema }) {
     }
 
     return `UPPER(COALESCE(
-      NULLIF(TRIM(${paymentAlias}.currency), ''),
-      ${bookingCurrencyExpression.replace(/^UPPER\(/, "").replace(/\)$/, "")}
+      ${bookingCurrencyExpression.replace(/^UPPER\(/, "").replace(/\)$/, "")},
+      NULLIF(TRIM(${paymentAlias}.currency), '')
     ))`;
   }
 
@@ -445,38 +445,44 @@ function createPaymentsRepository({ db, logger, schema }) {
           ? `
           SELECT
             ${paymentCurrencyExpression} AS currency,
-            COALESCE(SUM(
-              CASE WHEN COALESCE(p.is_verified, FALSE) = TRUE
-                AND COALESCE(p.status, 'PENDING') <> 'REFUNDED'
-                THEN p.amount ELSE 0 END
-            ), 0) AS amount,
-            SUM(
-              CASE WHEN COALESCE(p.is_verified, FALSE) = TRUE
-                AND COALESCE(p.status, 'PENDING') <> 'REFUNDED'
-                THEN 1 ELSE 0 END
-            ) AS count,
-            COALESCE(SUM(
-              CASE WHEN COALESCE(p.is_verified, FALSE) = FALSE
-                AND COALESCE(p.status, 'PENDING') <> 'REFUNDED'
-                THEN p.amount ELSE 0 END
-            ), 0) AS outstanding_amount,
-            SUM(
-              CASE WHEN COALESCE(p.is_verified, FALSE) = FALSE
-                AND COALESCE(p.status, 'PENDING') <> 'REFUNDED'
-                THEN 1 ELSE 0 END
-            ) AS outstanding_count,
-            COALESCE(SUM(
-              CASE WHEN COALESCE(p.is_verified, FALSE) = FALSE
-                AND COALESCE(p.status, 'PENDING') <> 'REFUNDED'
-                AND ${paymentOverdueDatePredicate}
-                THEN p.amount ELSE 0 END
-            ), 0) AS overdue_amount,
-            SUM(
-              CASE WHEN COALESCE(p.is_verified, FALSE) = FALSE
-                AND COALESCE(p.status, 'PENDING') <> 'REFUNDED'
-                AND ${paymentOverdueDatePredicate}
-                THEN 1 ELSE 0 END
-            ) AS overdue_count
+	            COALESCE(SUM(
+	              CASE WHEN (
+	                  COALESCE(p.is_verified, FALSE) = TRUE
+	                  OR COALESCE(p.status, 'PENDING') = 'FULL'
+	                )
+	                AND COALESCE(p.status, 'PENDING') <> 'REFUNDED'
+	                THEN p.amount ELSE 0 END
+	            ), 0) AS amount,
+	            SUM(
+	              CASE WHEN (
+	                  COALESCE(p.is_verified, FALSE) = TRUE
+	                  OR COALESCE(p.status, 'PENDING') = 'FULL'
+	                )
+	                AND COALESCE(p.status, 'PENDING') <> 'REFUNDED'
+	                THEN 1 ELSE 0 END
+	            ) AS count,
+	            COALESCE(SUM(
+	              CASE WHEN COALESCE(p.is_verified, FALSE) = FALSE
+	                AND COALESCE(p.status, 'PENDING') NOT IN ('FULL', 'REFUNDED')
+	                THEN p.amount ELSE 0 END
+	            ), 0) AS outstanding_amount,
+	            SUM(
+	              CASE WHEN COALESCE(p.is_verified, FALSE) = FALSE
+	                AND COALESCE(p.status, 'PENDING') NOT IN ('FULL', 'REFUNDED')
+	                THEN 1 ELSE 0 END
+	            ) AS outstanding_count,
+	            COALESCE(SUM(
+	              CASE WHEN COALESCE(p.is_verified, FALSE) = FALSE
+	                AND COALESCE(p.status, 'PENDING') NOT IN ('FULL', 'REFUNDED')
+	                AND ${paymentOverdueDatePredicate}
+	                THEN p.amount ELSE 0 END
+	            ), 0) AS overdue_amount,
+	            SUM(
+	              CASE WHEN COALESCE(p.is_verified, FALSE) = FALSE
+	                AND COALESCE(p.status, 'PENDING') NOT IN ('FULL', 'REFUNDED')
+	                AND ${paymentOverdueDatePredicate}
+	                THEN 1 ELSE 0 END
+	            ) AS overdue_count
           FROM ${schema.tableName} p
           LEFT JOIN ${schema.bookingsTable} b ON b.id = p.booking_id
           LEFT JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
@@ -486,37 +492,43 @@ function createPaymentsRepository({ db, logger, schema }) {
           : `
           SELECT
             UPPER(COALESCE(NULLIF(currency, ''), 'AED')) AS currency,
-            COALESCE(SUM(
-              CASE WHEN COALESCE(is_verified, FALSE) = TRUE
-                AND COALESCE(status, 'PENDING') <> 'REFUNDED'
-                THEN amount ELSE 0 END
-            ), 0) AS amount,
-            SUM(
-              CASE WHEN COALESCE(is_verified, FALSE) = TRUE
-                AND COALESCE(status, 'PENDING') <> 'REFUNDED'
-                THEN 1 ELSE 0 END
-            ) AS count,
-            COALESCE(SUM(
-              CASE WHEN COALESCE(is_verified, FALSE) = FALSE
-                AND COALESCE(status, 'PENDING') <> 'REFUNDED'
-                THEN amount ELSE 0 END
-            ), 0) AS outstanding_amount,
-            SUM(
-              CASE WHEN COALESCE(is_verified, FALSE) = FALSE
-                AND COALESCE(status, 'PENDING') <> 'REFUNDED'
-                THEN 1 ELSE 0 END
-            ) AS outstanding_count,
-            COALESCE(SUM(
-              CASE WHEN COALESCE(is_verified, FALSE) = FALSE
-                AND COALESCE(status, 'PENDING') <> 'REFUNDED'
-                AND ${paymentOverdueDatePredicate.replaceAll("p.", "")}
-                THEN amount ELSE 0 END
-            ), 0) AS overdue_amount,
-            SUM(
-              CASE WHEN COALESCE(is_verified, FALSE) = FALSE
-                AND COALESCE(status, 'PENDING') <> 'REFUNDED'
-                AND ${paymentOverdueDatePredicate.replaceAll("p.", "")}
-                THEN 1 ELSE 0 END
+	            COALESCE(SUM(
+	              CASE WHEN (
+	                  COALESCE(is_verified, FALSE) = TRUE
+	                  OR COALESCE(status, 'PENDING') = 'FULL'
+	                )
+	                AND COALESCE(status, 'PENDING') <> 'REFUNDED'
+	                THEN amount ELSE 0 END
+	            ), 0) AS amount,
+	            SUM(
+	              CASE WHEN (
+	                  COALESCE(is_verified, FALSE) = TRUE
+	                  OR COALESCE(status, 'PENDING') = 'FULL'
+	                )
+	                AND COALESCE(status, 'PENDING') <> 'REFUNDED'
+	                THEN 1 ELSE 0 END
+	            ) AS count,
+	            COALESCE(SUM(
+	              CASE WHEN COALESCE(is_verified, FALSE) = FALSE
+	                AND COALESCE(status, 'PENDING') NOT IN ('FULL', 'REFUNDED')
+	                THEN amount ELSE 0 END
+	            ), 0) AS outstanding_amount,
+	            SUM(
+	              CASE WHEN COALESCE(is_verified, FALSE) = FALSE
+	                AND COALESCE(status, 'PENDING') NOT IN ('FULL', 'REFUNDED')
+	                THEN 1 ELSE 0 END
+	            ) AS outstanding_count,
+	            COALESCE(SUM(
+	              CASE WHEN COALESCE(is_verified, FALSE) = FALSE
+	                AND COALESCE(status, 'PENDING') NOT IN ('FULL', 'REFUNDED')
+	                AND ${paymentOverdueDatePredicate.replaceAll("p.", "")}
+	                THEN amount ELSE 0 END
+	            ), 0) AS overdue_amount,
+	            SUM(
+	              CASE WHEN COALESCE(is_verified, FALSE) = FALSE
+	                AND COALESCE(status, 'PENDING') NOT IN ('FULL', 'REFUNDED')
+	                AND ${paymentOverdueDatePredicate.replaceAll("p.", "")}
+	                THEN 1 ELSE 0 END
             ) AS overdue_count
           FROM ${schema.tableName}
           GROUP BY UPPER(COALESCE(NULLIF(currency, ''), 'AED'))
@@ -646,13 +658,13 @@ function createPaymentsRepository({ db, logger, schema }) {
               String(quotation?.lead_id ?? quotation?.leadId ?? "")
             ];
           const bookingCurrency =
+            lead?.client_currency ??
+            lead?.clientCurrency ??
+            quotation?.client_currency ??
+            quotation?.clientCurrency ??
             bookingRow?.client_currency ??
             bookingRow?.clientCurrency ??
             bookingRow?.currency ??
-            quotation?.client_currency ??
-            quotation?.clientCurrency ??
-            lead?.client_currency ??
-            lead?.clientCurrency ??
             "AED";
           addToBreakdown(
             refundsMap,
@@ -663,7 +675,13 @@ function createPaymentsRepository({ db, logger, schema }) {
         });
 
       payments
-        .filter((row) => toBoolean(row.is_verified ?? row.isVerified, false))
+        .filter((row) => {
+          const status = String(row.status ?? "PENDING").toUpperCase();
+          return (
+            toBoolean(row.is_verified ?? row.isVerified, false) ||
+            status === "FULL"
+          );
+        })
         .filter((row) => (row.status ?? "PENDING") !== "REFUNDED")
         .forEach((row) => {
           const bookingRow =
@@ -677,14 +695,14 @@ function createPaymentsRepository({ db, logger, schema }) {
               String(quotation?.lead_id ?? quotation?.leadId ?? "")
             ];
           const paymentCurrency =
-            row.currency ??
+            lead?.client_currency ??
+            lead?.clientCurrency ??
+            quotation?.client_currency ??
+            quotation?.clientCurrency ??
             bookingRow?.client_currency ??
             bookingRow?.clientCurrency ??
             bookingRow?.currency ??
-            quotation?.client_currency ??
-            quotation?.clientCurrency ??
-            lead?.client_currency ??
-            lead?.clientCurrency ??
+            row.currency ??
             "AED";
           addToBreakdown(
             collectedMap,
@@ -696,7 +714,10 @@ function createPaymentsRepository({ db, logger, schema }) {
 
       payments
         .filter((row) => !toBoolean(row.is_verified ?? row.isVerified, false))
-        .filter((row) => (row.status ?? "PENDING") !== "REFUNDED")
+        .filter((row) => {
+          const status = String(row.status ?? "PENDING").toUpperCase();
+          return !["FULL", "REFUNDED"].includes(status);
+        })
         .forEach((row) => {
           const bookingRow =
             bookingById[String(row.booking_id ?? row.bookingId ?? "")];
@@ -709,14 +730,14 @@ function createPaymentsRepository({ db, logger, schema }) {
               String(quotation?.lead_id ?? quotation?.leadId ?? "")
             ];
           const paymentCurrency =
-            row.currency ??
+            lead?.client_currency ??
+            lead?.clientCurrency ??
+            quotation?.client_currency ??
+            quotation?.clientCurrency ??
             bookingRow?.client_currency ??
             bookingRow?.clientCurrency ??
             bookingRow?.currency ??
-            quotation?.client_currency ??
-            quotation?.clientCurrency ??
-            lead?.client_currency ??
-            lead?.clientCurrency ??
+            row.currency ??
             "AED";
           const amount = toNumber(row.amount, 0);
           addToBreakdown(
@@ -789,9 +810,17 @@ function createPaymentsRepository({ db, logger, schema }) {
         const page = toPositiveInt(mapped.page) || 1;
         const offset = limit ? (page - 1) * limit : 0;
 
+        const derivedCurrencyExpression = await buildPaymentCurrencyExpression(
+          "p",
+          "b",
+          "q",
+          "l",
+        );
+
         let query = `
           SELECT
             p.*,
+            ${derivedCurrencyExpression} AS derived_currency,
             b.booking_number,
             q.lead_id,
             l.full_name AS lead_full_name,
@@ -885,10 +914,13 @@ function createPaymentsRepository({ db, logger, schema }) {
         const result = await db.query(
           `
             SELECT COALESCE(SUM(amount), 0) AS paid_amount
-            FROM ${schema.tableName}
-            WHERE booking_id = ?
-              AND COALESCE(is_verified, FALSE) = TRUE
-              AND COALESCE(status, 'PENDING') <> 'REFUNDED'
+	            FROM ${schema.tableName}
+	            WHERE booking_id = ?
+	              AND (
+	                COALESCE(is_verified, FALSE) = TRUE
+	                OR COALESCE(status, 'PENDING') = 'FULL'
+	              )
+	              AND COALESCE(status, 'PENDING') <> 'REFUNDED'
           `,
           [bookingId],
         );

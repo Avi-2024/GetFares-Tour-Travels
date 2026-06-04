@@ -2599,9 +2599,10 @@ const Payments: React.FC = () => {
       if (hasAttachment) {
         const formData = new FormData();
         formData.append("amount", String(toNumber(data.amount, 0)));
-        formData.append("currency", String(data.currency || "INR"));
-        formData.append("paymentMode", mapTxModeToApi(data.mode));
-        formData.append("status", mapTxStatusToApi(data.status));
+	        formData.append("currency", String(data.currency || "INR"));
+	        formData.append("paymentMode", mapTxModeToApi(data.mode));
+	        formData.append("status", mapTxStatusToApi(data.status));
+	        formData.append("isVerified", String(data.status === "completed"));
         if (data.paymentReference) {
           formData.append("paymentReference", data.paymentReference);
         }
@@ -2644,11 +2645,12 @@ const Payments: React.FC = () => {
           gatewayPaymentId: data.gatewayPaymentId || undefined,
           gatewaySignature: data.gatewaySignature || undefined,
           proofUrl: data.proofUrl || undefined,
-          invoiceUrl: data.invoiceUrl || undefined,
-          status: mapTxStatusToApi(data.status),
-          paidAt: toIsoDate(data.paidAt ?? data.date) || undefined,
-          notes: data.notes || undefined,
-        });
+	          invoiceUrl: data.invoiceUrl || undefined,
+	          status: mapTxStatusToApi(data.status),
+	          paidAt: toIsoDate(data.paidAt ?? data.date) || undefined,
+	          isVerified: data.status === "completed",
+	          notes: data.notes || undefined,
+	        });
       }
       let refreshedTx: Transaction | null = null;
       try {
