@@ -334,6 +334,62 @@ function createBookingsRepository({ db, logger, schema }) {
     return columns.has(String(columnName).toLowerCase());
   }
 
+  async function buildStatsCurrencyExpression(
+    bookingAlias = "b",
+    quotationAlias = "q",
+    leadAlias = "l",
+  ) {
+    let hasBookingClientCurrency = false;
+    let hasBookingCurrency = false;
+    let hasQuotationClientCurrency = false;
+    let hasLeadClientCurrency = false;
+
+    try {
+      hasBookingClientCurrency = await hasColumn(
+        schema.tableName,
+        "client_currency",
+      );
+      hasBookingCurrency = await hasColumn(schema.tableName, "currency");
+      hasQuotationClientCurrency = await hasColumn(
+        schema.quotationsTable,
+        "client_currency",
+      );
+      hasLeadClientCurrency = await hasColumn(
+        schema.leadsTable,
+        "client_currency",
+      );
+    } catch (error) {
+      logger?.warn?.(
+        {
+          err: error,
+          table: schema.tableName,
+        },
+        "Unable to inspect bookings currency columns for stats",
+      );
+    }
+
+    const currencySources = [];
+    if (hasBookingClientCurrency) {
+      currencySources.push(`NULLIF(TRIM(${bookingAlias}.client_currency), '')`);
+    }
+    if (hasBookingCurrency) {
+      currencySources.push(`NULLIF(TRIM(${bookingAlias}.currency), '')`);
+    }
+    if (hasQuotationClientCurrency) {
+      currencySources.push(
+        `NULLIF(TRIM(${quotationAlias}.client_currency), '')`,
+      );
+    }
+    if (hasLeadClientCurrency) {
+      currencySources.push(`NULLIF(TRIM(${leadAlias}.client_currency), '')`);
+    }
+    currencySources.push("'AED'");
+
+    return `UPPER(COALESCE(
+      ${currencySources.join(",\n      ")}
+    ))`;
+  }
+
   async function sanitizeForTable(tableName, payload = {}) {
     const entries = Object.entries(payload).filter(
       ([, value]) => value !== undefined,
@@ -788,6 +844,131 @@ function createBookingsRepository({ db, logger, schema }) {
         pendingPaymentsCount: pendingPayments.length,
       };
     },
+
+    async getStatsMoneyByCurrency() {
+      const tableExists = await hasTable(schema.tableName);
+      if (!tableExists) {
+        return [];
+      }
+
+      if (canIntrospect()) {
+        let hasSoftDelete = false;
+        try {
+          hasSoftDelete = await hasColumn(schema.tableName, "is_deleted");
+        } catch (error) {
+          logger?.warn?.(
+            { err: error, table: schema.tableName },
+            "Unable to inspect bookings table columns for stats money",
+          );
+        }
+
+        const currencyExpression = await buildStatsCurrencyExpression(
+          "b",
+          "q",
+          "l",
+        );
+        const buildMoneyQuery = (notDeletedPredicate) => `
+            SELECT
+              ${currencyExpression} AS currency,
+              COALESCE(SUM(CASE WHEN b.status <> 'CANCELLED' AND ${notDeletedPredicate} THEN COALESCE(b.total_amount, 0) ELSE 0 END), 0) AS total_revenue_amount,
+              COALESCE(SUM(CASE WHEN b.status <> 'CANCELLED' AND ${notDeletedPredicate} THEN GREATEST(COALESCE(b.total_amount, 0) - COALESCE(b.advance_received, 0), 0) ELSE 0 END), 0) AS pending_payments_amount
+            FROM ${schema.tableName} b
+            LEFT JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
+            LEFT JOIN ${schema.leadsTable} l ON l.id = q.lead_id
+            GROUP BY currency
+          `;
+
+        const predicateWithSoftDelete = hasSoftDelete
+          ? "COALESCE(b.is_deleted, FALSE) = FALSE"
+          : "TRUE";
+
+        let result;
+        try {
+          result = await db.query(buildMoneyQuery(predicateWithSoftDelete));
+        } catch (error) {
+          const message = String(error?.message || "");
+          const code = error?.code;
+          const missingColumn =
+            code === "42703" ||
+            code === "ER_BAD_FIELD_ERROR" ||
+            error?.errno === 1054 ||
+            message.includes("Unknown column") ||
+            message.includes("is_deleted");
+          if (missingColumn && predicateWithSoftDelete !== "TRUE") {
+            result = await db.query(buildMoneyQuery("TRUE"));
+          } else {
+            throw error;
+          }
+        }
+
+        return (result?.rows || []).map((row) => ({
+          currency: String(row.currency || "AED").trim().toUpperCase() || "AED",
+          totalRevenueAmount: toNumber(row.total_revenue_amount, 0),
+          pendingPaymentsAmount: toNumber(row.pending_payments_amount, 0),
+        }));
+      }
+
+      const [bookingRows, quotationRows, leadRows] = await Promise.all([
+        db.findMany(schema.tableName, {}),
+        db.findMany(schema.quotationsTable, {}),
+        db.findMany(schema.leadsTable, {}),
+      ]);
+
+      const quotationMap = new Map(
+        quotationRows.map((row) => [row.id, row]),
+      );
+      const leadMap = new Map(leadRows.map((row) => [row.id, row]));
+      const moneyByCurrency = new Map();
+
+      bookingRows
+        .filter((row) => !toBoolean(row.is_deleted ?? row.isDeleted, false))
+        .filter(
+          (row) => String(row.status ?? "").trim().toUpperCase() !== "CANCELLED",
+        )
+        .forEach((row) => {
+          const quotation =
+            quotationMap.get(row.quotation_id ?? row.quotationId) || null;
+          const lead =
+            leadMap.get(quotation?.lead_id ?? quotation?.leadId) || null;
+          const currency =
+            String(
+              row.client_currency ??
+                row.clientCurrency ??
+                row.currency ??
+                quotation?.client_currency ??
+                quotation?.clientCurrency ??
+                lead?.client_currency ??
+                lead?.clientCurrency ??
+                "AED",
+            )
+              .trim()
+              .toUpperCase() || "AED";
+          const current = moneyByCurrency.get(currency) || {
+            currency,
+            totalRevenueAmount: 0,
+            pendingPaymentsAmount: 0,
+          };
+          const totalAmount = toNumber(row.total_amount ?? row.totalAmount, 0);
+          const advanceReceived = toNumber(
+            row.advance_received ?? row.advanceReceived,
+            0,
+          );
+
+          current.totalRevenueAmount += totalAmount;
+          current.pendingPaymentsAmount += Math.max(
+            totalAmount - advanceReceived,
+            0,
+          );
+          moneyByCurrency.set(currency, current);
+        });
+
+      return Array.from(moneyByCurrency.values()).map((row) => ({
+        currency: row.currency,
+        totalRevenueAmount: toNumber(row.totalRevenueAmount, 0),
+        pendingPaymentsAmount: toNumber(row.pendingPaymentsAmount, 0),
+      }));
+    },
+
     async findAll(filters = {}) {
       const rows = await db.findMany(schema.tableName, mapListFilters(filters));
       let list = await mapRowsToDomain(rows);

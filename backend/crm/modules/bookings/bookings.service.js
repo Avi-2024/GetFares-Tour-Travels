@@ -24,7 +24,14 @@ const DEADLINE_RISK = Object.freeze({
   OVERDUE: "OVERDUE",
 });
 
-function createBookingsService({ repository, logger, events, config, leadsRepository }) {
+function createBookingsService({
+  repository,
+  logger,
+  events,
+  config,
+  leadsRepository,
+  currencyService,
+}) {
   const reminderConfig = {
     preTravelDays: config?.whatsapp?.preTravelDays ?? 2,
     postTravelDays: config?.whatsapp?.postTravelDays ?? 1,
@@ -68,6 +75,35 @@ function createBookingsService({ repository, logger, events, config, leadsReposi
 
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : fallback;
+  }
+
+  function normalizeCurrency(value, fallback = "AED") {
+    const normalized = String(value || "")
+      .trim()
+      .toUpperCase();
+    return normalized || fallback;
+  }
+
+  function roundAmount(value) {
+    return Number(toNumber(value, 0).toFixed(2));
+  }
+
+  async function convertAmountToCurrency(amount, fromCurrency, toCurrency) {
+    const normalizedFrom = normalizeCurrency(fromCurrency);
+    const normalizedTo = normalizeCurrency(toCurrency);
+    const amountNumber = toNumber(amount, 0);
+    if (amountNumber === 0 || normalizedFrom === normalizedTo) {
+      return roundAmount(amountNumber);
+    }
+    if (!currencyService?.convert) {
+      return roundAmount(amountNumber);
+    }
+    const converted = await currencyService.convert(
+      amountNumber,
+      normalizedFrom,
+      normalizedTo,
+    );
+    return roundAmount(converted);
   }
 
   function toUpperText(value) {
@@ -840,7 +876,55 @@ function createBookingsService({ repository, logger, events, config, leadsReposi
         { module: "bookings", requestId: context.requestId },
         "Fetching booking stats",
       );
-      return repository.getStats();
+      const stats = await repository.getStats();
+      const reportingCurrency = normalizeCurrency(
+        currencyService?.baseCurrency || "AED",
+      );
+
+      if (!currencyService?.convert) {
+        return {
+          ...stats,
+          currency: reportingCurrency,
+        };
+      }
+
+      const moneyRows = await repository.getStatsMoneyByCurrency();
+      if (!Array.isArray(moneyRows) || !moneyRows.length) {
+        return {
+          ...stats,
+          currency: reportingCurrency,
+        };
+      }
+
+      let totalRevenue = 0;
+      let pendingPaymentsAmount = 0;
+
+      for (const row of moneyRows) {
+        const sourceCurrency = normalizeCurrency(row.currency, reportingCurrency);
+        totalRevenue = roundAmount(
+          totalRevenue +
+            (await convertAmountToCurrency(
+              row.totalRevenueAmount,
+              sourceCurrency,
+              reportingCurrency,
+            )),
+        );
+        pendingPaymentsAmount = roundAmount(
+          pendingPaymentsAmount +
+            (await convertAmountToCurrency(
+              row.pendingPaymentsAmount,
+              sourceCurrency,
+              reportingCurrency,
+            )),
+        );
+      }
+
+      return {
+        ...stats,
+        totalRevenue,
+        pendingPaymentsAmount,
+        currency: reportingCurrency,
+      };
     },
 
     getById,
