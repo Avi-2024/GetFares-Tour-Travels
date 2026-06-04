@@ -14,12 +14,19 @@ const queryWithOptionalUser = baseDateRangeQuery.extend({
   status: z.string().trim().min(1).max(40).optional(),
   source: z.string().trim().min(1).max(120).optional(),
   leadSource: z.string().trim().min(1).max(120).optional(),
+  currency: z.string().trim().min(3).max(10).optional(),
 });
 
 const bySource = z.object({
   body: z.object({}).optional(),
   params: z.object({}).optional(),
   query: queryWithOptionalUser.optional(),
+});
+
+const leadFilterOptions = z.object({
+  body: z.object({}).optional(),
+  params: z.object({}).optional(),
+  query: baseDateRangeQuery.optional(),
 });
 
 const byConsultant = z.object({
@@ -72,6 +79,7 @@ const dealLines = z.object({
   query: queryWithOptionalUser
     .extend({
       limit: z.coerce.number().int().min(1).max(2500).optional(),
+      page: z.coerce.number().int().min(1).optional(),
     })
     .optional(),
 });
@@ -79,7 +87,12 @@ const dealLines = z.object({
 const leadAging = z.object({
   body: z.object({}).optional(),
   params: z.object({}).optional(),
-  query: queryWithOptionalUser.optional(),
+  query: queryWithOptionalUser
+    .extend({
+      page: z.coerce.number().int().min(1).optional(),
+      limit: z.coerce.number().int().min(1).max(2500).optional(),
+    })
+    .optional(),
 });
 
 const lostLeads = z.object({
@@ -91,19 +104,31 @@ const lostLeads = z.object({
 const monthlyRevenue = z.object({
   body: z.object({}).optional(),
   params: z.object({}).optional(),
-  query: queryWithOptionalUser.optional(),
+  query: queryWithOptionalUser
+    .extend({
+      currency: z.string().trim().min(3).max(10).optional(),
+    })
+    .optional(),
 });
 
 const byServiceType = z.object({
   body: z.object({}).optional(),
   params: z.object({}).optional(),
-  query: queryWithOptionalUser.optional(),
+  query: queryWithOptionalUser
+    .extend({
+      currency: z.string().trim().min(3).max(10).optional(),
+    })
+    .optional(),
 });
 
 const byDestination = z.object({
   body: z.object({}).optional(),
   params: z.object({}).optional(),
-  query: queryWithOptionalUser.optional(),
+  query: queryWithOptionalUser
+    .extend({
+      currency: z.string().trim().min(3).max(10).optional(),
+    })
+    .optional(),
 });
 
 const targetVsAchievement = z.object({
@@ -145,10 +170,9 @@ const visaSummary = z.object({
 const followupsToday = z.object({
   body: z.object({}).optional(),
   params: z.object({}).optional(),
-  query: z
-    .object({
+  query: queryWithOptionalUser
+    .extend({
       date: z.string().optional(),
-      userId: z.string().uuid().optional(),
     })
     .optional(),
 });
@@ -156,10 +180,9 @@ const followupsToday = z.object({
 const followupsMissed = z.object({
   body: z.object({}).optional(),
   params: z.object({}).optional(),
-  query: z
-    .object({
+  query: queryWithOptionalUser
+    .extend({
       date: z.string().optional(),
-      userId: z.string().uuid().optional(),
     })
     .optional(),
 });
@@ -191,7 +214,7 @@ const marketingPerformance = z.object({
 const supplierPerformance = z.object({
   body: z.object({}).optional(),
   params: z.object({}).optional(),
-  query: baseDateRangeQuery
+  query: queryWithOptionalUser
     .extend({
       supplierId: z.string().uuid().optional(),
     })
@@ -209,7 +232,7 @@ const activityFeed = z.object({
   params: z.object({}).optional(),
   query: queryWithOptionalUser
     .extend({
-      limit: z.coerce.number().int().min(1).max(500).optional(),
+      limit: z.coerce.number().int().min(1).max(2500).optional(),
     })
     .optional(),
 });
@@ -249,6 +272,7 @@ const financeSupplierServices = z.object({
 });
 
 const ReportsValidation = {
+  leadFilterOptions,
   bySource,
   byConsultant,
   peoplePerformance,

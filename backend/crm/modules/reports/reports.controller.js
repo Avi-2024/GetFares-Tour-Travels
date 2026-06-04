@@ -1,5 +1,13 @@
 function createReportsController({ service }) {
   return Object.freeze({
+    async leadFilterOptions(req, res) {
+      const result = await service.leadFilterOptions(
+        req.validated?.query || req.query,
+        req.context,
+      );
+      res.status(200).json({ data: result });
+    },
+
     async leadsBySource(req, res) {
       const result = await service.leadsBySource(
         req.validated?.query || req.query,

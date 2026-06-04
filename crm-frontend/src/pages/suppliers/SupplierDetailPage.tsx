@@ -162,7 +162,7 @@ const SupplierDetailPage: React.FC = () => {
   const [fxLoading, setFxLoading] = useState(false)
   const [fxError, setFxError] = useState('')
   const [creatingPayable, setCreatingPayable] = useState(false)
-  const [ratesMeta, setRatesMeta] = useState<{ base: string; source: string } | null>(null)
+  const [ratesMeta, setRatesMeta] = useState<{ base: string } | null>(null)
 
   const ledgerCurrency = (supplier?.supplierCurrency || 'INR').toUpperCase()
 
@@ -275,7 +275,7 @@ const SupplierDetailPage: React.FC = () => {
       try {
         const r = await currencyService.getRates()
         if (!cancelled) {
-          setRatesMeta({ base: r.baseCurrency, source: r.source })
+          setRatesMeta({ base: r.baseCurrency })
         }
       } catch {
         if (!cancelled) setRatesMeta(null)
@@ -647,7 +647,7 @@ const SupplierDetailPage: React.FC = () => {
             <span className='font-mono'>payable_amount</span> is a single number in supplier ledger currency ({ledgerCurrency}). FX is only for this form — convert booking-currency base into {ledgerCurrency}, then save.
             {ratesMeta ? (
               <span className='ml-1'>
-                Live rates: source {ratesMeta.source}, base {ratesMeta.base}.
+                Rates base {ratesMeta.base}.
               </span>
             ) : null}
           </p>

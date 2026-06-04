@@ -23,11 +23,9 @@ import {
   FaUserGroup
 } from 'react-icons/fa6'
 import SurfaceCard from '../../components/ui/SurfaceCard'
-import CurrencySelector from '../../components/ui/CurrencySelector'
 import { dashboardApi } from '../../api/dashboard'
 import { reportsApi } from '../../api/reports'
 import { useAuth } from '../../context/AuthContext'
-import { useCurrency } from '../../hooks/useCurrency'
 
 // Type definitions
 interface DashboardStats {
@@ -78,18 +76,16 @@ const EMPTY_STATS: DashboardStats = {
   bookingsChange: 0
 }
 const colors = ['#2563eb', '#22c55e', '#a855f7', '#f59e0b']
+const DASHBOARD_CURRENCY = 'AED'
 
 const Dashboard: React.FC = () => {
   const { token } = useAuth()
-  const { convert } = useCurrency()
   const [range, setRange] = useState<Range>('Week')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [selectedCurrency, setSelectedCurrency] = useState('AED')
   const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(
     null
   )
-  const [convertedRevenue, setConvertedRevenue] = useState(0)
   const [statsLoaded, setStatsLoaded] = useState(false)
   const [revenueData, setRevenueData] =
     useState<Record<Range, RevenueData[]>>(EMPTY_REVENUE_DATA)
@@ -164,41 +160,14 @@ const Dashboard: React.FC = () => {
     try {
       return new Intl.NumberFormat('en-US', {
         style: 'currency',
-        currency: selectedCurrency,
+        currency: DASHBOARD_CURRENCY,
         minimumFractionDigits: 0,
         maximumFractionDigits: 0
       }).format(value)
     } catch (_error) {
-      return `${selectedCurrency} ${Number(value || 0).toLocaleString('en-US')}`
+      return `${DASHBOARD_CURRENCY} ${Number(value || 0).toLocaleString('en-US')}`
     }
   }
-  // Convert revenue when currency changes
-  useEffect(() => {
-    const convertRevenue = async () => {
-      if (!dashboardStats) {
-        setConvertedRevenue(0)
-        return
-      }
-
-      const baseCurrency = dashboardStats.currency || 'AED'
-      
-      if (selectedCurrency === baseCurrency) {
-        setConvertedRevenue(dashboardStats.revenue)
-        return
-      }
-
-      try {
-        const converted = await convert(dashboardStats.revenue, baseCurrency, selectedCurrency)
-        setConvertedRevenue(converted)
-      } catch (error) {
-        console.error('Currency conversion failed:', error)
-        setSelectedCurrency(baseCurrency)
-        setConvertedRevenue(dashboardStats.revenue)
-      }
-    }
-
-    convertRevenue()
-  }, [dashboardStats, selectedCurrency, convert])
 
   // Load KPI stats and lead sources (not dependent on range)
   useEffect(() => {
@@ -215,7 +184,9 @@ const Dashboard: React.FC = () => {
       setLoading(true)
       try {
         // Load KPI cards from unified executive KPI source.
-        const kpiResponse = (await reportsApi.dashboardExecutiveKpis()) as any
+        const kpiResponse = (await reportsApi.dashboardExecutiveKpis({
+          currency: DASHBOARD_CURRENCY
+        })) as any
         const executive = kpiResponse?.data || kpiResponse
         if (executive) {
           const pendingCalls =
@@ -227,7 +198,8 @@ const Dashboard: React.FC = () => {
           if (!Number.isFinite(revenueValue) || revenueValue <= 0) {
             try {
               const revenueResponse = (await dashboardApi.getRevenue({
-                range: 'week'
+                range: 'week',
+                currency: DASHBOARD_CURRENCY
               })) as any
               const points = revenueResponse?.data || revenueResponse
               if (Array.isArray(points)) {
@@ -247,7 +219,7 @@ const Dashboard: React.FC = () => {
             totalLeads: Number(executive.totalLeads || 0),
             totalLeadsChange: 0,
             revenue: revenueValue,
-            currency: executive.currency || 'AED',
+            currency: executive.currency || DASHBOARD_CURRENCY,
             revenueChange: 0,
             pendingCalls,
             pendingCallsChange: 0,
@@ -309,7 +281,7 @@ const Dashboard: React.FC = () => {
         // Load revenue data
         const revenueResponse = (await dashboardApi.getRevenue({
           range: range.toLowerCase(),
-          currency: selectedCurrency
+          currency: DASHBOARD_CURRENCY
         })) as any
         const revenue = revenueResponse?.data || revenueResponse
         if (Array.isArray(revenue)) {
@@ -327,7 +299,7 @@ const Dashboard: React.FC = () => {
     }
 
     loadRevenueData()
-  }, [token, range, selectedCurrency])
+  }, [token, range])
 
   const kpis = useMemo(() => {
     if (!dashboardStats || !statsLoaded) {
@@ -381,8 +353,8 @@ const Dashboard: React.FC = () => {
       {
         title: 'Revenue',
         value: formatStatNumber(
-          convertedRevenue,
-          num => `${selectedCurrency} ${num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+          dashboardStats.revenue,
+          num => `${DASHBOARD_CURRENCY} ${num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
         ),
         trend: `${dashboardStats.revenueChange >= 0 ? '+' : ''}${
           dashboardStats.revenueChange
@@ -412,7 +384,7 @@ const Dashboard: React.FC = () => {
         bg: 'bg-gray-100 text-gray-700'
       }
     ]
-  }, [dashboardStats, statsLoaded, convertedRevenue, selectedCurrency])
+  }, [dashboardStats, statsLoaded])
 
   return (
     <div className='space-y-6'>
@@ -427,14 +399,9 @@ const Dashboard: React.FC = () => {
           {error && <p className='mt-1 text-sm text-red-500'>{error}</p>}
         </div>
         <div className='flex items-center gap-2'>
-          <div className='text-xs text-gray-500'>
-            Base: {dashboardStats?.currency || 'AED'}
+          <div className='rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200'>
+            AED Dashboard
           </div>
-          <CurrencySelector
-            value={selectedCurrency}
-            onChange={setSelectedCurrency}
-            baseCurrency={dashboardStats?.currency || 'AED'}
-          />
           <div className='flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300'>
             <FaCalendarDays className='text-blue-600' />{' '}
             {new Date().toLocaleDateString('en-US', {

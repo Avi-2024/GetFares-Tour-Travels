@@ -1,5 +1,3 @@
-import axios from "axios";
-
 const DEFAULT_SUPPORTED_CURRENCIES = Object.freeze([
   "AED",
   "USD",
@@ -11,7 +9,7 @@ const DEFAULT_SUPPORTED_CURRENCIES = Object.freeze([
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
-function toSqlDateTime(value) {
+function toSqlDate(value) {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) {
     return null;
@@ -19,8 +17,6 @@ function toSqlDateTime(value) {
   const pad = (number) => String(number).padStart(2, "0");
   return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(
     date.getUTCDate(),
-  )} ${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}:${pad(
-    date.getUTCSeconds(),
   )}`;
 }
 
@@ -28,11 +24,6 @@ class CurrencyService {
   constructor({ db, logger, config }) {
     this.db = db;
     this.logger = logger;
-    this.apiKey = config.currency?.apiKey || process.env.CURRENCY_API_KEY;
-    this.useMock =
-      config.currency?.useMock === true ||
-      process.env.CURRENCY_USE_MOCK === "true";
-    this.apiUrl = "https://api.currencyapi.com/v3/latest";
     this.baseCurrency = this.normalizeCurrency(
       config.currency?.baseCurrency || process.env.CURRENCY_BASE || "AED",
     );
@@ -41,7 +32,7 @@ class CurrencyService {
     );
     this.memoryCache = null;
     this.memoryCacheExpiry = 0;
-    this.mockRates = this.buildMockRates();
+    this.fallbackRates = this.buildFallbackRates();
   }
 
   normalizeCurrency(code, fallback = "AED") {
@@ -63,8 +54,8 @@ class CurrencyService {
     return Array.from(new Set(merged));
   }
 
-  buildMockRates() {
-    const mockByAed = {
+  buildFallbackRates() {
+    const byAed = {
       AED: 1,
       USD: 0.272294,
       EUR: 0.261583,
@@ -75,18 +66,19 @@ class CurrencyService {
 
     if (this.baseCurrency === "AED") {
       return this.supportedCurrencies.reduce((accumulator, currency) => {
-        const value = Number(mockByAed[currency] ?? 1);
-        accumulator[currency] = { code: currency, value };
+        accumulator[currency] = {
+          code: currency,
+          value: Number(byAed[currency] ?? 1),
+        };
         return accumulator;
       }, {});
     }
 
-    const baseRate = Number(mockByAed[this.baseCurrency] ?? 1);
+    const baseRate = Number(byAed[this.baseCurrency] ?? 1);
     return this.supportedCurrencies.reduce((accumulator, currency) => {
-      const targetRate = Number(mockByAed[currency] ?? 1);
       accumulator[currency] = {
         code: currency,
-        value: targetRate / baseRate,
+        value: Number(byAed[currency] ?? 1) / baseRate,
       };
       return accumulator;
     }, {});
@@ -99,7 +91,7 @@ class CurrencyService {
     if (
       rateRow &&
       typeof rateRow === "object" &&
-      Number.isFinite(rateRow.value) &&
+      Number.isFinite(Number(rateRow.value)) &&
       Number(rateRow.value) > 0
     ) {
       return Number(rateRow.value);
@@ -137,134 +129,37 @@ class CurrencyService {
     this.memoryCacheExpiry = Date.now() + SEVEN_DAYS_MS;
   }
 
-  async getRates({ forceRefresh = false } = {}) {
-    if (this.useMock) {
-      const now = new Date().toISOString();
-      this.setMemoryCache(this.mockRates, now);
-      return {
-        baseCurrency: this.baseCurrency,
-        rates: this.mockRates,
-        source: "mock",
-        updatedAt: now,
-      };
-    }
+  clearMemoryCache() {
+    this.memoryCache = null;
+    this.memoryCacheExpiry = 0;
+  }
 
+  async getRates({ forceRefresh = false } = {}) {
     if (!forceRefresh && this.memoryCache && Date.now() < this.memoryCacheExpiry) {
       return {
         baseCurrency: this.baseCurrency,
         rates: this.memoryCache.rates,
-        source: "memory_cache",
         updatedAt: this.memoryCache.updatedAt,
       };
     }
 
     const cached = await this.getCachedRates();
-    if (!forceRefresh && cached && this.isCacheValid(cached.updatedAt)) {
+    if (cached) {
       this.setMemoryCache(cached.rates, cached.updatedAt);
       return {
         baseCurrency: this.baseCurrency,
         rates: cached.rates,
-        source: "db_cache",
         updatedAt: cached.updatedAt,
       };
     }
 
-    try {
-      const apiRates = await this.fetchFromApi();
-      const normalizedRates = this.normalizeRatePayload(apiRates);
-      const updatedAt = new Date().toISOString();
-      await this.saveRates(normalizedRates, updatedAt);
-      this.setMemoryCache(normalizedRates, updatedAt);
-      return {
-        baseCurrency: this.baseCurrency,
-        rates: normalizedRates,
-        source: this.apiKey ? "currencyapi" : "frankfurter",
-        updatedAt,
-      };
-    } catch (error) {
-      this.logger?.error?.(
-        { module: "currency", error: error.message },
-        "Failed to fetch live currency rates",
-      );
-
-      if (this.memoryCache) {
-        return {
-          baseCurrency: this.baseCurrency,
-          rates: this.memoryCache.rates,
-          source: "memory_cache_fallback",
-          updatedAt: this.memoryCache.updatedAt,
-        };
-      }
-
-      if (cached) {
-        this.setMemoryCache(cached.rates, cached.updatedAt);
-        return {
-          baseCurrency: this.baseCurrency,
-          rates: cached.rates,
-          source: "db_cache_fallback",
-          updatedAt: cached.updatedAt,
-        };
-      }
-
-      // Last-resort fallback so dashboards stay usable in production when
-      // upstream providers fail or env vars are missing.
-      const updatedAt = new Date().toISOString();
-      this.setMemoryCache(this.mockRates, updatedAt);
-      return {
-        baseCurrency: this.baseCurrency,
-        rates: this.mockRates,
-        source: "mock",
-        updatedAt,
-      };
-    }
-  }
-
-  async fetchFromApi() {
-    const targets = this.supportedCurrencies.filter(
-      (currency) => currency !== this.baseCurrency,
-    );
-
-    // Primary provider: currencyapi.com (requires API key).
-    if (this.apiKey) {
-      try {
-        const response = await axios.get(this.apiUrl, {
-          params: {
-            apikey: this.apiKey,
-            base_currency: this.baseCurrency,
-            currencies: this.supportedCurrencies.join(","),
-          },
-          timeout: 10000,
-        });
-
-        const payload = response?.data?.data;
-        if (!payload || typeof payload !== "object") {
-          throw new Error("Currency API returned invalid payload");
-        }
-
-        return payload;
-      } catch (error) {
-        this.logger?.warn?.(
-          { module: "currency", error: error.message },
-          "currencyapi provider failed; falling back to frankfurter",
-        );
-      }
-    }
-
-    // Secondary provider: frankfurter.app (no API key).
-    const response = await axios.get(`https://api.frankfurter.app/latest`, {
-      params: {
-        from: this.baseCurrency,
-        to: targets.join(","),
-      },
-      timeout: 10000,
-    });
-
-    const rates = response?.data?.rates;
-    if (!rates || typeof rates !== "object") {
-      throw new Error("Frankfurter API returned invalid payload");
-    }
-
-    return rates;
+    const updatedAt = new Date().toISOString();
+    this.setMemoryCache(this.fallbackRates, updatedAt);
+    return {
+      baseCurrency: this.baseCurrency,
+      rates: this.fallbackRates,
+      updatedAt,
+    };
   }
 
   async getCachedRates() {
@@ -274,73 +169,122 @@ class CurrencyService {
 
     try {
       const result = await this.db.query(
-        `SELECT rates, updated_at
-         FROM currency_rates
-         WHERE base_currency = ?
-         ORDER BY updated_at DESC
-         LIMIT 1`,
-        [this.baseCurrency],
+        `SELECT er.target_currency, er.rate, er.effective_date
+         FROM exchange_rates er
+         INNER JOIN (
+           SELECT target_currency, MAX(effective_date) AS effective_date
+           FROM exchange_rates
+           WHERE base_currency = ?
+           GROUP BY target_currency
+         ) latest
+           ON latest.target_currency = er.target_currency
+          AND latest.effective_date = er.effective_date
+         WHERE er.base_currency = ?`,
+        [this.baseCurrency, this.baseCurrency],
       );
-      const row = result?.rows?.[0];
-      if (!row) {
+
+      const rows = result?.rows || [];
+      if (!rows.length) {
         return null;
       }
 
-      const parsedRates =
-        typeof row.rates === "string" ? JSON.parse(row.rates) : row.rates;
-      if (!parsedRates || typeof parsedRates !== "object") {
-        return null;
-      }
+      const latestDate = rows.reduce((value, row) => {
+        const current = toSqlDate(row.effective_date) || String(row.effective_date || "");
+        return current > value ? current : value;
+      }, "");
+
+      const rateMap = rows.reduce((accumulator, row) => {
+        const code = this.normalizeCurrency(row.target_currency);
+        const value = Number(row.rate);
+        if (Number.isFinite(value) && value > 0) {
+          accumulator[code] = { code, value };
+        }
+        return accumulator;
+      }, {});
 
       return {
-        rates: this.normalizeRatePayload(parsedRates),
-        updatedAt:
-          row.updated_at instanceof Date
-            ? row.updated_at.toISOString()
-            : String(row.updated_at),
+        rates: this.normalizeRatePayload(rateMap),
+        updatedAt: latestDate || new Date().toISOString(),
       };
     } catch (error) {
       this.logger?.warn?.(
         { module: "currency", error: error.message },
-        "Failed to read cached currency rates",
+        "Failed to read exchange rates",
       );
       return null;
     }
   }
 
-  async saveRates(rates, updatedAt) {
-    if (typeof this.db?.query !== "function") {
-      return;
-    }
-
-    const sqlDateTime = toSqlDateTime(updatedAt);
-    if (!sqlDateTime) {
-      return;
-    }
-
-    try {
+  async upsertExchangeRate({ targetCurrency, rate, effectiveDate }) {
+    const existing = await this.db.query(
+      `SELECT id
+       FROM exchange_rates
+       WHERE base_currency = ?
+         AND target_currency = ?
+         AND effective_date = ?
+       LIMIT 1`,
+      [this.baseCurrency, targetCurrency, effectiveDate],
+    );
+    const id = existing?.rows?.[0]?.id;
+    if (id) {
       await this.db.query(
-        `INSERT INTO currency_rates (base_currency, rates, updated_at)
-         VALUES (?, ?, ?)
-         ON DUPLICATE KEY UPDATE
-           rates = VALUES(rates),
-           updated_at = VALUES(updated_at)`,
-        [this.baseCurrency, JSON.stringify(rates), sqlDateTime],
+        `UPDATE exchange_rates
+         SET rate = ?
+         WHERE id = ?`,
+        [rate, id],
       );
-    } catch (error) {
-      this.logger?.warn?.(
-        { module: "currency", error: error.message },
-        "Failed to persist currency rates cache",
-      );
+      return;
     }
+
+    await this.db.query(
+      `INSERT INTO exchange_rates
+         (base_currency, target_currency, rate, effective_date)
+       VALUES (?, ?, ?, ?)`,
+      [this.baseCurrency, targetCurrency, rate, effectiveDate],
+    );
   }
 
-  isCacheValid(updatedAt) {
-    const timestamp = new Date(updatedAt).getTime();
-    if (!Number.isFinite(timestamp)) {
-      return false;
+  validateManagedRates(rawRates) {
+    const normalized = this.normalizeRatePayload(rawRates);
+    const missing = this.supportedCurrencies.filter(
+      (currency) => !normalized[currency],
+    );
+    if (missing.length) {
+      throw new Error(`Missing rates for: ${missing.join(", ")}`);
     }
-    return Date.now() - timestamp < SEVEN_DAYS_MS;
+    return normalized;
+  }
+
+  async updateManagedRates({ rates } = {}) {
+    if (typeof this.db?.query !== "function") {
+      throw new Error("Database connection is required to manage currency rates");
+    }
+
+    const normalizedRates = this.validateManagedRates(rates);
+    const updatedAt = new Date().toISOString();
+    const effectiveDate = toSqlDate(updatedAt);
+    if (!effectiveDate) {
+      throw new Error("Invalid effective date");
+    }
+
+    for (const currency of this.supportedCurrencies) {
+      const value = this.getRateValue(normalizedRates, currency);
+      if (value) {
+        await this.upsertExchangeRate({
+          targetCurrency: currency,
+          rate: value,
+          effectiveDate,
+        });
+      }
+    }
+
+    this.clearMemoryCache();
+    this.setMemoryCache(normalizedRates, updatedAt);
+    return {
+      baseCurrency: this.baseCurrency,
+      rates: normalizedRates,
+      updatedAt,
+    };
   }
 
   getRateValue(rates, currency) {

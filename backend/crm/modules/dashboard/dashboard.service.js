@@ -61,8 +61,14 @@ class DashboardService {
       if (this.reportsService?.executiveKpis) {
         const ranges = this.getWindowRange(period);
         const [current, previous] = await Promise.all([
-          this.reportsService.executiveKpis(ranges.current, {}),
-          this.reportsService.executiveKpis(ranges.previous, {}),
+          this.reportsService.executiveKpis(
+            { ...ranges.current, currency: 'AED' },
+            {},
+          ),
+          this.reportsService.executiveKpis(
+            { ...ranges.previous, currency: 'AED' },
+            {},
+          ),
         ]);
 
         const currentStats = current || {};
@@ -112,7 +118,7 @@ class DashboardService {
           previousPeriodStats.totalLeads,
         ),
         revenue: currentPeriodStats.revenue || 0,
-        currency: 'AED',
+        currency: currentPeriodStats.currency || 'AED',
         revenueChange: this.calculateChange(
           currentPeriodStats.revenue,
           previousPeriodStats.revenue,

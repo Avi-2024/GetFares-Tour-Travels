@@ -82,7 +82,428 @@ function createReportsService({ repository, logger, currencyService }) {
     return roundAmount(total);
   }
 
+  async function buildPeopleMoney(rows = [], reportingCurrency) {
+    const byUser = new Map();
+    const countMetrics = new Set([
+      "assignedLeads",
+      "convertedLeads",
+      "bookings",
+      "missedFollowups",
+    ]);
+    for (const row of rows) {
+      const userId = row?.user_id || row?.userId;
+      const metric = String(row?.metric || "").trim();
+      if (!userId || !metric) continue;
+      const displayCurrency = normalizeCurrency(reportingCurrency, "AED");
+      const amountCurrency = normalizeCurrency(
+        row?.amount_currency || row?.amountCurrency,
+        row?.currency || displayCurrency,
+      );
+      const userBuckets = byUser.get(userId) || new Map();
+      const current = userBuckets.get(displayCurrency) || {
+        currency: displayCurrency,
+      };
+      const amount = countMetrics.has(metric)
+        ? toNumber(row?.amount, 0)
+        : await convertAmountToCurrency(row?.amount, amountCurrency, displayCurrency);
+      current[metric] = roundAmount(toNumber(current[metric], 0) + amount);
+      if (metric === "bookingValue") {
+        current.bookingValueReporting = roundAmount(
+          toNumber(current.bookingValueReporting, 0) + amount,
+        );
+      }
+      userBuckets.set(displayCurrency, current);
+      byUser.set(userId, userBuckets);
+    }
+
+    const normalizedByUser = new Map();
+    for (const [userId, buckets] of byUser.entries()) {
+      normalizedByUser.set(
+        userId,
+        Array.from(buckets.values()).sort(
+          (left, right) =>
+            toNumber(right.bookingValueReporting, right.bookingValue) -
+              toNumber(left.bookingValueReporting, left.bookingValue) ||
+            String(left.currency).localeCompare(String(right.currency)),
+        ),
+      );
+    }
+    return normalizedByUser;
+  }
+
+  function buildPeopleRow(row, money = {}, reportingCurrency = "AED") {
+    const bookingValue = roundAmount(money.bookingValue ?? row.bookingValue);
+    const bookingCost = roundAmount(money.bookingCost ?? row.bookingCost);
+    const refundAmount = roundAmount(money.refundAmount ?? row.refundAmount);
+    const collectedAmount = roundAmount(
+      money.collectedAmount ?? row.collectedAmount,
+    );
+    const quotationValue = roundAmount(
+      money.quotationValue ?? row.quotationValue,
+    );
+    const profit = roundAmount(bookingValue - bookingCost - refundAmount);
+    const bookings = toNumber(money.bookings ?? row.bookings, 0);
+
+    return {
+      ...row,
+      currency: money.currency || reportingCurrency,
+      assignedLeads: toNumber(money.assignedLeads ?? row.assignedLeads, 0),
+      convertedLeads: toNumber(money.convertedLeads ?? row.convertedLeads, 0),
+      bookings,
+      missedFollowups: toNumber(
+        money.missedFollowups ?? row.missedFollowups,
+        0,
+      ),
+      quotationValue,
+      bookingValue,
+      bookingValueReporting: roundAmount(
+        money.bookingValueReporting ?? bookingValue,
+      ),
+      averageBookingValue:
+        bookings > 0 ? Number((bookingValue / bookings).toFixed(2)) : 0,
+      bookingCost,
+      collectedAmount,
+      outstandingAmount: Number(
+        Math.max(bookingValue - collectedAmount - refundAmount, 0).toFixed(2),
+      ),
+      refundAmount,
+      profit,
+      averageMarginPercent:
+        bookingValue > 0 ? Number(((profit / bookingValue) * 100).toFixed(2)) : 0,
+    };
+  }
+
+  async function buildRevenueByMonth(rows = [], reportingCurrency) {
+    const byMonth = new Map();
+    for (const row of rows) {
+      const month = String(row?.month || "").trim();
+      const metric = String(row?.metric || "").trim();
+      if (!month || !["revenue", "cost"].includes(metric)) continue;
+      const converted = await convertAmountToCurrency(
+        row?.amount,
+        row?.currency,
+        reportingCurrency,
+      );
+      const current = byMonth.get(month) || {
+        month,
+        currency: reportingCurrency,
+        revenue: 0,
+        cost: 0,
+      };
+      current[metric] = roundAmount(toNumber(current[metric], 0) + converted);
+      byMonth.set(month, current);
+    }
+
+    return Array.from(byMonth.values())
+      .map((row) => ({
+        ...row,
+        profit: roundAmount(toNumber(row.revenue, 0) - toNumber(row.cost, 0)),
+      }))
+      .sort((left, right) => String(left.month).localeCompare(String(right.month)));
+  }
+
+  async function buildRevenueByService(rows = [], reportingCurrency) {
+    const byService = new Map();
+    for (const row of rows) {
+      const serviceType = String(row?.serviceType || row?.service_type || "UNKNOWN")
+        .trim()
+        .toUpperCase();
+      const convertedRevenue = await convertAmountToCurrency(
+        row?.revenue,
+        row?.currency,
+        reportingCurrency,
+      );
+      const current = byService.get(serviceType) || {
+        serviceType,
+        currency: reportingCurrency,
+        totalBookings: 0,
+        revenue: 0,
+      };
+      current.totalBookings += toNumber(row?.totalBookings ?? row?.total_bookings, 0);
+      current.revenue = roundAmount(current.revenue + convertedRevenue);
+      byService.set(serviceType, current);
+    }
+
+    return Array.from(byService.values()).sort(
+      (left, right) => toNumber(right.revenue, 0) - toNumber(left.revenue, 0),
+    );
+  }
+
+  async function applyBookingPerformanceCurrency(data, moneyRows, reportingCurrency) {
+    const summary = { ...(data?.summary || {}) };
+    for (const metric of ["bookingValue", "bookingCost", "advanceReceived"]) {
+      summary[metric] = await sumConvertedAmounts(
+        (moneyRows?.summary || []).filter((row) => row.metric === metric),
+        "amount",
+        "currency",
+        reportingCurrency,
+      );
+    }
+    summary.profit = roundAmount(
+      toNumber(summary.bookingValue, 0) - toNumber(summary.bookingCost, 0),
+    );
+    summary.averageBookingValue =
+      toNumber(summary.totalBookings, 0) > 0
+        ? roundAmount(toNumber(summary.bookingValue, 0) / toNumber(summary.totalBookings, 0))
+        : 0;
+    summary.marginPercent =
+      toNumber(summary.bookingValue, 0) > 0
+        ? Number(((toNumber(summary.profit, 0) / toNumber(summary.bookingValue, 0)) * 100).toFixed(2))
+        : 0;
+    summary.currency = reportingCurrency;
+
+    const byMonth = new Map(
+      (data?.byMonth || []).map((row) => [
+        String(row.month || ""),
+        { ...row, currency: reportingCurrency, value: 0, cost: 0, profit: 0 },
+      ]),
+    );
+    for (const row of moneyRows?.byMonth || []) {
+      const month = String(row.month || "").trim();
+      if (!month || !["value", "cost"].includes(row.metric)) continue;
+      const current = byMonth.get(month) || {
+        month,
+        bookings: 0,
+        currency: reportingCurrency,
+        value: 0,
+        cost: 0,
+        profit: 0,
+      };
+      current[row.metric] = roundAmount(
+        toNumber(current[row.metric], 0) +
+          (await convertAmountToCurrency(row.amount, row.currency, reportingCurrency)),
+      );
+      byMonth.set(month, current);
+    }
+    const byMonthRows = Array.from(byMonth.values())
+      .map((row) => ({
+        ...row,
+        profit: roundAmount(toNumber(row.value, 0) - toNumber(row.cost, 0)),
+      }))
+      .sort((left, right) => String(left.month).localeCompare(String(right.month)));
+
+    const byDestination = new Map(
+      (data?.byDestination || []).map((row) => [
+        String(row.destination || "UNKNOWN"),
+        { ...row, currency: reportingCurrency, value: 0, cost: 0, profit: 0 },
+      ]),
+    );
+    for (const row of moneyRows?.byDestination || []) {
+      const destination = String(row.destination || "UNKNOWN").trim() || "UNKNOWN";
+      if (!["value", "cost"].includes(row.metric)) continue;
+      const current = byDestination.get(destination) || {
+        destination,
+        bookings: 0,
+        currency: reportingCurrency,
+        value: 0,
+        cost: 0,
+        profit: 0,
+      };
+      current[row.metric] = roundAmount(
+        toNumber(current[row.metric], 0) +
+          (await convertAmountToCurrency(row.amount, row.currency, reportingCurrency)),
+      );
+      byDestination.set(destination, current);
+    }
+
+    return {
+      ...data,
+      summary,
+      byMonth: byMonthRows,
+      byDestination: Array.from(byDestination.values())
+        .map((row) => ({
+          ...row,
+          profit: roundAmount(toNumber(row.value, 0) - toNumber(row.cost, 0)),
+        }))
+        .sort((left, right) => toNumber(right.value, 0) - toNumber(left.value, 0)),
+    };
+  }
+
+  async function buildRevenueByDestination(rows = [], reportingCurrency) {
+    const byDestination = new Map();
+    for (const row of rows) {
+      const destination = String(row?.destination || "UNKNOWN").trim() || "UNKNOWN";
+      const convertedRevenue = await convertAmountToCurrency(
+        row?.revenue,
+        row?.currency,
+        reportingCurrency,
+      );
+      const current = byDestination.get(destination) || {
+        destination,
+        currency: reportingCurrency,
+        totalBookings: 0,
+        revenue: 0,
+      };
+      current.totalBookings += toNumber(row?.totalBookings ?? row?.total_bookings, 0);
+      current.revenue = roundAmount(current.revenue + convertedRevenue);
+      byDestination.set(destination, current);
+    }
+
+    return Array.from(byDestination.values()).sort(
+      (left, right) => toNumber(right.revenue, 0) - toNumber(left.revenue, 0),
+    );
+  }
+
+  async function convertMoneyFields(row = {}, fields = [], targetCurrency = "AED") {
+    const sourceCurrency = normalizeCurrency(
+      row.effectiveCurrency ||
+        row.currency ||
+        row.clientCurrency ||
+        row.leadClientCurrency ||
+        row.costCurrency ||
+        row.supplierCurrency,
+      targetCurrency,
+    );
+    const converted = {
+      ...row,
+      sourceCurrency,
+      currency: targetCurrency,
+    };
+
+    for (const field of fields) {
+      converted[field] = await convertAmountToCurrency(
+        row[field],
+        sourceCurrency,
+        targetCurrency,
+      );
+    }
+
+    return converted;
+  }
+
+  async function convertFinanceCostBreakup(result = {}, targetCurrency = "AED") {
+    const moneyFields = [
+      "supplierCost",
+      "supplierTaxAmount",
+      "markupAmount",
+      "serviceFeeAmount",
+      "gstAmount",
+      "tcsAmount",
+      "totalSaleValue",
+    ];
+    const reportingCurrency = normalizeCurrency(targetCurrency);
+    const breakdown = [];
+
+    for (const row of result.currencyBreakdown || []) {
+      breakdown.push(await convertMoneyFields(row, moneyFields, reportingCurrency));
+    }
+
+    const summary = breakdown.reduce(
+      (accumulator, row) => {
+        accumulator.totalQuotes += toNumber(row.totalQuotes, 0);
+        for (const field of moneyFields) {
+          accumulator[field] = roundAmount(
+            toNumber(accumulator[field], 0) + toNumber(row[field], 0),
+          );
+        }
+        return accumulator;
+      },
+      {
+        totalQuotes: 0,
+        supplierCost: 0,
+        supplierTaxAmount: 0,
+        markupAmount: 0,
+        serviceFeeAmount: 0,
+        gstAmount: 0,
+        tcsAmount: 0,
+        totalSaleValue: 0,
+      },
+    );
+
+    const rows = [];
+    for (const row of result.rows || []) {
+      rows.push(await convertMoneyFields(row, moneyFields, reportingCurrency));
+    }
+
+    return {
+      ...result,
+      summary,
+      currencyBreakdown: breakdown,
+      rows,
+      currency: reportingCurrency,
+    };
+  }
+
+  async function attachMonthlySummaryCurrency(
+    rows = [],
+    moneyRows = [],
+    targetCurrency = "AED",
+  ) {
+    const reportingCurrency = normalizeCurrency(targetCurrency);
+    const byMonth = new Map(
+      rows.map((row) => [
+        String(row.month || ""),
+        {
+          ...row,
+          revenue: 0,
+          cost: 0,
+          profit: 0,
+          avgBookingValue: 0,
+          avgMarginPercent: 0,
+          currency: reportingCurrency,
+        },
+      ]),
+    );
+
+    for (const row of moneyRows) {
+      const month = String(row?.month || "").trim();
+      const metric = String(row?.metric || "").trim();
+      if (!month || !["revenue", "cost"].includes(metric)) continue;
+      const current = byMonth.get(month) || {
+        month,
+        totalLeads: 0,
+        convertedLeads: 0,
+        totalBookings: 0,
+        conversionRatePercent: 0,
+        revenue: 0,
+        cost: 0,
+        profit: 0,
+        avgBookingValue: 0,
+        avgMarginPercent: 0,
+        currency: reportingCurrency,
+      };
+      current[metric] = roundAmount(
+        toNumber(current[metric], 0) +
+          (await convertAmountToCurrency(
+            row.amount,
+            row.currency,
+            reportingCurrency,
+          )),
+      );
+      byMonth.set(month, current);
+    }
+
+    return Array.from(byMonth.values())
+      .sort((left, right) => String(left.month).localeCompare(String(right.month)))
+      .map((row) => {
+        const revenue = roundAmount(row.revenue);
+        const cost = roundAmount(row.cost);
+        const profit = roundAmount(revenue - cost);
+        return {
+          ...row,
+          revenue,
+          cost,
+          profit,
+          avgBookingValue:
+            toNumber(row.totalBookings, 0) > 0
+              ? Number((revenue / row.totalBookings).toFixed(2))
+              : 0,
+          avgMarginPercent:
+            revenue > 0 ? Number(((profit / revenue) * 100).toFixed(2)) : 0,
+          currency: reportingCurrency,
+        };
+      });
+  }
+
   return Object.freeze({
+    async leadFilterOptions(filters = {}, context = {}) {
+      logger.debug(
+        { module: "reports", requestId: context.requestId, filters },
+        "Report lead filter options",
+      );
+      return repository.getLeadFilterOptions(filters);
+    },
+
     async leadsBySource(filters = {}, context = {}) {
       const scoped = mergeConsultantScope(filters, context);
       logger.debug(
@@ -107,7 +528,47 @@ function createReportsService({ repository, logger, currencyService }) {
         { module: "reports", requestId: context.requestId, filters: scoped },
         "People performance report",
       );
-      return repository.getPeoplePerformance(scoped);
+      const rows = await repository.getPeoplePerformance(scoped);
+      const reportingCurrency = normalizeCurrency(
+        scoped.currency || currencyService?.baseCurrency || "AED",
+      );
+      if (!currencyService?.convert) {
+        throw new Error("Currency conversion service is required for People Performance");
+      }
+
+      try {
+        const moneyRows =
+          (await repository.getPeoplePerformanceMoneyByCurrency(scoped)) || [];
+        const moneyByUser = await buildPeopleMoney(
+          moneyRows,
+          reportingCurrency,
+        );
+
+        return rows.flatMap((row) => {
+          const buckets = moneyByUser.get(row.userId) || [];
+          if (!buckets.length) {
+            return [buildPeopleRow(row, {}, reportingCurrency)];
+          }
+          return buckets.map((money) =>
+            buildPeopleRow(row, money, reportingCurrency),
+          );
+        }).sort(
+          (left, right) =>
+            toNumber(right.bookingValueReporting, right.bookingValue) -
+              toNumber(left.bookingValueReporting, left.bookingValue) ||
+            toNumber(right.convertedLeads, 0) - toNumber(left.convertedLeads, 0) ||
+            toNumber(right.assignedLeads, 0) - toNumber(left.assignedLeads, 0),
+        );
+      } catch (error) {
+        logger?.error?.(
+          {
+            module: "reports",
+            error: error.message,
+          },
+          "People performance currency conversion failed",
+        );
+        throw error;
+      }
     },
 
     async quotationPerformance(filters = {}, context = {}) {
@@ -125,7 +586,19 @@ function createReportsService({ repository, logger, currencyService }) {
         { module: "reports", requestId: context.requestId, filters: scoped },
         "Booking performance report",
       );
-      return repository.getBookingPerformance(scoped);
+      const reportingCurrency = normalizeCurrency(
+        scoped.currency || currencyService?.baseCurrency || "AED",
+      );
+      const data = await repository.getBookingPerformance(scoped);
+      if (!currencyService?.convert) {
+        return {
+          ...data,
+          summary: { ...(data?.summary || {}), currency: reportingCurrency },
+        };
+      }
+      const moneyRows =
+        (await repository.getBookingPerformanceMoneyByCurrency(scoped)) || {};
+      return applyBookingPerformanceCurrency(data, moneyRows, reportingCurrency);
     },
 
     async financeSummary(filters = {}, context = {}) {
@@ -179,7 +652,24 @@ function createReportsService({ repository, logger, currencyService }) {
         { module: "reports", requestId: context.requestId, filters: scoped },
         "Revenue by month report",
       );
-      return repository.getRevenueByMonth(scoped);
+      const reportingCurrency = normalizeCurrency(
+        scoped.currency || currencyService?.baseCurrency || "AED",
+      );
+      if (!currencyService?.convert) {
+        return repository.getRevenueByMonth(scoped);
+      }
+
+      try {
+        const currencyRows =
+          (await repository.getRevenueByMonthByCurrency(scoped)) || [];
+        return buildRevenueByMonth(currencyRows, reportingCurrency);
+      } catch (error) {
+        logger?.warn?.(
+          { module: "reports", error: error.message },
+          "Revenue by month currency conversion failed; returning raw totals",
+        );
+        return repository.getRevenueByMonth(scoped);
+      }
     },
 
     async revenueByServiceType(filters = {}, context = {}) {
@@ -188,7 +678,24 @@ function createReportsService({ repository, logger, currencyService }) {
         { module: "reports", requestId: context.requestId, filters: scoped },
         "Revenue by service type report",
       );
-      return repository.getRevenueByServiceType(scoped);
+      const reportingCurrency = normalizeCurrency(
+        scoped.currency || currencyService?.baseCurrency || "AED",
+      );
+      if (!currencyService?.convert) {
+        return repository.getRevenueByServiceType(scoped);
+      }
+
+      try {
+        const currencyRows =
+          (await repository.getRevenueByServiceTypeByCurrency(scoped)) || [];
+        return buildRevenueByService(currencyRows, reportingCurrency);
+      } catch (error) {
+        logger?.warn?.(
+          { module: "reports", error: error.message },
+          "Revenue by service currency conversion failed; returning raw totals",
+        );
+        return repository.getRevenueByServiceType(scoped);
+      }
     },
 
     async revenueByDestination(filters = {}, context = {}) {
@@ -197,7 +704,24 @@ function createReportsService({ repository, logger, currencyService }) {
         { module: "reports", requestId: context.requestId, filters: scoped },
         "Revenue by destination report",
       );
-      return repository.getRevenueByDestination(scoped);
+      const reportingCurrency = normalizeCurrency(
+        scoped.currency || currencyService?.baseCurrency || "AED",
+      );
+      if (!currencyService?.convert) {
+        return repository.getRevenueByDestination(scoped);
+      }
+
+      try {
+        const currencyRows =
+          (await repository.getRevenueByDestinationByCurrency(scoped)) || [];
+        return buildRevenueByDestination(currencyRows, reportingCurrency);
+      } catch (error) {
+        logger?.warn?.(
+          { module: "reports", error: error.message },
+          "Revenue by destination currency conversion failed; returning raw totals",
+        );
+        return repository.getRevenueByDestination(scoped);
+      }
     },
 
     async targetVsAchievement(filters = {}, context = {}) {
@@ -287,7 +811,21 @@ function createReportsService({ repository, logger, currencyService }) {
         { module: "reports", requestId: context.requestId, filters: scoped },
         "Monthly summary report",
       );
-      return repository.getMonthlySummary(scoped);
+      const reportingCurrency = normalizeCurrency(
+        scoped.currency || currencyService?.baseCurrency || "AED",
+      );
+      const rows = await repository.getMonthlySummary(scoped);
+
+      if (!currencyService?.convert) {
+        return rows.map((row) => ({
+          ...row,
+          currency: reportingCurrency,
+        }));
+      }
+
+      const moneyRows =
+        (await repository.getMonthlySummaryMoneyByCurrency(scoped)) || [];
+      return attachMonthlySummaryCurrency(rows, moneyRows, reportingCurrency);
     },
 
     async executiveKpis(filters = {}, context = {}) {
@@ -297,9 +835,7 @@ function createReportsService({ repository, logger, currencyService }) {
         "Executive KPI dashboard pack",
       );
       const result = await repository.getExecutiveKpis(scoped);
-      const reportingCurrency = normalizeCurrency(
-        currencyService?.baseCurrency || result?.currency || "AED",
-      );
+      const reportingCurrency = normalizeCurrency(scoped.currency || "AED");
 
       if (!currencyService?.convert) {
         return {
@@ -319,6 +855,16 @@ function createReportsService({ repository, logger, currencyService }) {
           reportingCurrency,
         );
 
+        const bookingCostRows =
+          (await repository.getExecutiveBookingCostByCurrency(scoped)) || [];
+
+        const convertedCost = await sumConvertedAmounts(
+          bookingCostRows,
+          "cost",
+          "currency",
+          reportingCurrency,
+        );
+
         const serviceCurrencyRows =
           (await repository.getExecutiveServiceRevenueByCurrency(scoped)) || [];
 
@@ -332,12 +878,6 @@ function createReportsService({ repository, logger, currencyService }) {
           serviceCurrencyRows.filter((row) => row.service_type === "VISA"),
           "revenue",
           "currency",
-          reportingCurrency,
-        );
-
-        const convertedCost = await convertAmountToCurrency(
-          toNumber(result?.cost, 0),
-          normalizeCurrency(result?.currency, reportingCurrency),
           reportingCurrency,
         );
 
@@ -421,7 +961,20 @@ function createReportsService({ repository, logger, currencyService }) {
         { module: "reports", requestId: context.requestId, filters: scoped },
         "Finance cost breakup report",
       );
-      return repository.getFinanceCostBreakup(scoped);
+      const reportingCurrency = normalizeCurrency(
+        scoped.currency || currencyService?.baseCurrency || "AED",
+      );
+      const { currency: _targetCurrency, ...repoFilters } = scoped;
+      const result = await repository.getFinanceCostBreakup(repoFilters);
+
+      if (!currencyService?.convert) {
+        return {
+          ...result,
+          currency: reportingCurrency,
+        };
+      }
+
+      return convertFinanceCostBreakup(result, reportingCurrency);
     },
 
     async financeSupplierServices(filters = {}, context = {}) {
