@@ -348,15 +348,10 @@ const CreateRefundModal = ({
           label: `${customerName} ${payment.referenceId} ${amountLabel}`,
           leftLabel: customerName,
           rightLabel: payment.referenceId,
-          rightSubLabel: modeLabel ? `${amountLabel} · ${modeLabel}` : amountLabel,
-          rightSubEmphasis: true,
+          rightSubLabel: paymentMeta,
+          rightSubEmphasis: payment.isVerified,
           selectedLabel: `${customerName} · ${payment.referenceId} · ${amountLabel}`,
-          searchText: `${customerName} ${payment.referenceId} ${amountLabel} ${modeLabel}`,
-          ...{
-            rightSubLabel: paymentMeta,
-            rightSubEmphasis: payment.isVerified,
-            searchText: `${customerName} ${payment.referenceId} ${amountLabel} ${modeLabel} ${paymentState} ${payment.status}`,
-          },
+          searchText: `${customerName} ${payment.referenceId} ${amountLabel} ${modeLabel} ${paymentState} ${payment.status}`,
         }
       }),
     ]
