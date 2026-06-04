@@ -1011,11 +1011,11 @@ const ReportsPage = () => {
   const [tablePage, setTablePage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [filters, setFilters] = useState(loadStoredFilters);
-  const [filterOptions, setFilterOptions] = useState<LeadFilterOptions>({
+  const [, setFilterOptions] = useState<LeadFilterOptions>({
     countries: [],
     sources: [],
   });
-  const [filterOptionsLoading, setFilterOptionsLoading] = useState(true);
+  const [, setFilterOptionsLoading] = useState(true);
   const [exporting, setExporting] = useState<ExportFormat | null>(null);
   const [results, setResults] = useState(() => makeInitialResults(reportDefinitions));
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
