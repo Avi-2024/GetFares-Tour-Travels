@@ -285,7 +285,7 @@ const Dashboard: React.FC = () => {
             revenueChange: Number(executive.revenueChange || 0),
             pendingCalls: Number(executive.pendingCalls || 0),
             pendingCallsChange: Number(executive.pendingCallsChange || 0),
-            bookings: Number(executive.totalBookings || 0),
+            bookings: Number(executive.bookings ?? executive.totalBookings ?? 0),
             bookingsChange: Number(executive.bookingsChange || 0)
           })
           setStatsLoaded(true)
