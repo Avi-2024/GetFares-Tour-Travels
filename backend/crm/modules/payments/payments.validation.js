@@ -114,6 +114,9 @@ const list = z.object({
       status: paymentStatus.optional(),
       paymentMode: paymentMode.optional(),
       isVerified: optionalQueryBoolean,
+      market: z.string().trim().max(50).optional(),
+      country: z.string().trim().max(100).optional(),
+      region: z.string().trim().max(50).optional(),
     })
     .optional(),
 });
@@ -125,6 +128,9 @@ const stats = z.object({
     .object({
       currency: z.string().trim().min(3).max(10).optional(),
       targetCurrency: z.string().trim().min(3).max(10).optional(),
+      market: z.string().trim().max(50).optional(),
+      country: z.string().trim().max(100).optional(),
+      region: z.string().trim().max(50).optional(),
     })
     .optional(),
 });

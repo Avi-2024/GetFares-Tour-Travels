@@ -68,9 +68,10 @@ function createMetaLeadMappingService({ repository, resolver, logger }) {
         scope_id: scopeId,
         priority: body.priority ?? 100,
         lead_type: body.leadType || null,
-      lead_country: body.leadCountry || null,
-      client_currency: body.clientCurrency || null,
-      source_label: body.sourceLabel || null,
+        lead_country: body.leadCountry || null,
+        client_currency: body.clientCurrency || null,
+        source_label: body.sourceLabel || null,
+        destination_name: body.destinationName || null,
         is_active: body.isActive !== false,
         created_by: context.user?.id || null,
         updated_by: context.user?.id || null,
@@ -107,6 +108,9 @@ function createMetaLeadMappingService({ repository, resolver, logger }) {
       patch.client_currency = body.clientCurrency || null;
     }
     if (body.sourceLabel !== undefined) patch.source_label = body.sourceLabel || null;
+    if (body.destinationName !== undefined) {
+      patch.destination_name = body.destinationName || null;
+    }
     if (body.isActive !== undefined) patch.is_active = body.isActive;
 
     await repository.updateProfile(id, patch);

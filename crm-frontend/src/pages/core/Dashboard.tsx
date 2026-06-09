@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react'
+import React, { useMemo, useState, useEffect, useRef } from 'react'
 import {
   Area,
   CartesianGrid,
@@ -52,23 +52,18 @@ interface LeadSource {
 }
 
 type Range = 'Today' | 'Week' | 'Month' | 'Year'
+type Market = 'ALL' | 'INDIA' | 'UAE'
 const EMPTY_REVENUE_DATA: Record<Range, RevenueData[]> = {
   Today: [],
   Week: [],
   Month: [],
   Year: []
 }
-const REVENUE_RANGE_FALLBACK: Record<Range, Range> = {
-  Today: 'Week',
-  Week: 'Month',
-  Month: 'Year',
-  Year: 'Month'
-}
 const EMPTY_STATS: DashboardStats = {
   totalLeads: 0,
   totalLeadsChange: 0,
   revenue: 0,
-  currency: 'AED',
+  currency: 'USD',
   revenueChange: 0,
   pendingCalls: 0,
   pendingCallsChange: 0,
@@ -76,11 +71,62 @@ const EMPTY_STATS: DashboardStats = {
   bookingsChange: 0
 }
 const colors = ['#2563eb', '#22c55e', '#a855f7', '#f59e0b']
-const DASHBOARD_CURRENCY = 'AED'
+const DASHBOARD_CURRENCY = 'USD'
+const MARKET_OPTIONS: Array<{ value: Market; label: string }> = [
+  { value: 'ALL', label: 'All Markets' },
+  { value: 'INDIA', label: 'India' },
+  { value: 'UAE', label: 'UAE' }
+]
+
+const getMarketCurrency = (market: Market) => {
+  if (market === 'INDIA') return 'INR'
+  if (market === 'UAE') return 'AED'
+  return DASHBOARD_CURRENCY
+}
+
+const rangeToPeriod = (range: Range) => {
+  if (range === 'Today') return 'day'
+  return range.toLowerCase()
+}
+
+const toDateInput = (date: Date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+
+const getMonthStart = () => {
+  const now = new Date()
+  return toDateInput(new Date(now.getFullYear(), now.getMonth(), 1))
+}
+
+const parseDateInput = (value: string) => {
+  const [year, month, day] = value.split('-').map(Number)
+  const parsed = new Date(year, (month || 1) - 1, day || 1)
+  return !year || !month || !day || Number.isNaN(parsed.getTime())
+    ? new Date()
+    : parsed
+}
+
+const formatDashboardDate = (value: string) => {
+  if (!value) {
+    return 'Select date'
+  }
+
+  return parseDateInput(value).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  })
+}
 
 const Dashboard: React.FC = () => {
   const { token } = useAuth()
   const [range, setRange] = useState<Range>('Week')
+  const [market, setMarket] = useState<Market>('ALL')
+  const [dateRange, setDateRange] = useState(() => ({
+    from: getMonthStart(),
+    to: toDateInput(new Date())
+  }))
+  const fromDateInputRef = useRef<HTMLInputElement>(null)
+  const toDateInputRef = useRef<HTMLInputElement>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(
@@ -92,29 +138,23 @@ const Dashboard: React.FC = () => {
   const [revenueLoaded, setRevenueLoaded] = useState(false)
   const [leadSources, setLeadSources] = useState<LeadSource[]>([])
   const [leadSourcesLoaded, setLeadSourcesLoaded] = useState(false)
+  const selectedCurrency = getMarketCurrency(market)
+  const marketParams = useMemo(
+    () => ({
+      currency: selectedCurrency,
+      ...(market !== 'ALL' ? { market } : {})
+    }),
+    [market, selectedCurrency]
+  )
+  const rangeDateParams = useMemo(
+    () => ({
+      from: dateRange.from,
+      to: dateRange.to
+    }),
+    [dateRange.from, dateRange.to]
+  )
 
-  const rev = useMemo(
-    () =>
-      revenueData[range].map(point => ({
-        name: String(point?.name ?? ''),
-        revenue: Number(point?.revenue ?? 0),
-        last: Number(point?.last ?? 0)
-      })),
-    [revenueData, range]
-  )
-  const hasRevenueChartData = useMemo(
-    () => rev.some(point => point.revenue > 0 || point.last > 0),
-    [rev]
-  )
-  const effectiveRevenueRange = useMemo(() => {
-    if (hasRevenueChartData) return range
-    const fallbackRange = REVENUE_RANGE_FALLBACK[range]
-    const fallback = revenueData[fallbackRange] ?? []
-    const fallbackHasData = fallback.some(
-      point => Number(point?.revenue ?? 0) > 0 || Number(point?.last ?? 0) > 0
-    )
-    return fallbackHasData ? fallbackRange : range
-  }, [hasRevenueChartData, range, revenueData])
+  const effectiveRevenueRange = range
   const chartRevenueData = useMemo(() => {
     const selected = revenueData[effectiveRevenueRange] ?? []
     return selected.map(point => ({
@@ -160,16 +200,43 @@ const Dashboard: React.FC = () => {
     try {
       return new Intl.NumberFormat('en-US', {
         style: 'currency',
-        currency: DASHBOARD_CURRENCY,
+        currency: selectedCurrency,
         minimumFractionDigits: 0,
         maximumFractionDigits: 0
       }).format(value)
     } catch (_error) {
-      return `${DASHBOARD_CURRENCY} ${Number(value || 0).toLocaleString('en-US')}`
+      return `${selectedCurrency} ${Number(value || 0).toLocaleString('en-US')}`
     }
   }
 
-  // Load KPI stats and lead sources (not dependent on range)
+  const openDashboardCalendar = (
+    inputRef: React.RefObject<HTMLInputElement | null>
+  ) => {
+    const input = inputRef.current
+    if (!input) return
+
+    input.focus()
+    if (typeof input.showPicker === 'function') {
+      input.showPicker()
+      return
+    }
+    input.click()
+  }
+
+  const updateDateRange = (field: 'from' | 'to', value: string) => {
+    if (!value) return
+    setDateRange(current => {
+      if (field === 'from' && value > current.to) {
+        return { from: value, to: value }
+      }
+      if (field === 'to' && value < current.from) {
+        return { from: value, to: value }
+      }
+      return { ...current, [field]: value }
+    })
+  }
+
+  // Load KPI stats and lead sources.
   useEffect(() => {
     const loadStaticData = async () => {
       if (!token) {
@@ -183,48 +250,23 @@ const Dashboard: React.FC = () => {
 
       setLoading(true)
       try {
-        // Load KPI cards from unified executive KPI source.
-        const kpiResponse = (await reportsApi.dashboardExecutiveKpis({
-          currency: DASHBOARD_CURRENCY
+        const kpiResponse = (await dashboardApi.getStats({
+          period: rangeToPeriod(range),
+          ...rangeDateParams,
+          ...marketParams
         })) as any
         const executive = kpiResponse?.data || kpiResponse
         if (executive) {
-          const pendingCalls =
-            Number(executive.pendingFollowups || 0) +
-            Number(executive.overdueFollowups || 0)
-          let revenueValue = Number(executive.revenue || 0)
-          // Fallback: if executive KPI revenue is empty, derive from bookings revenue trend.
-          // This keeps dashboard usable even when reporting revenue backend returns 0.
-          if (!Number.isFinite(revenueValue) || revenueValue <= 0) {
-            try {
-              const revenueResponse = (await dashboardApi.getRevenue({
-                range: 'week',
-                currency: DASHBOARD_CURRENCY
-              })) as any
-              const points = revenueResponse?.data || revenueResponse
-              if (Array.isArray(points)) {
-                const sum = points.reduce(
-                  (total, point) => total + Number(point?.revenue || 0),
-                  0
-                )
-                if (Number.isFinite(sum) && sum > 0) {
-                  revenueValue = sum
-                }
-              }
-            } catch (_error) {
-              // ignore fallback errors; keep executive KPI revenue
-            }
-          }
           setDashboardStats({
             totalLeads: Number(executive.totalLeads || 0),
-            totalLeadsChange: 0,
-            revenue: revenueValue,
-            currency: executive.currency || DASHBOARD_CURRENCY,
-            revenueChange: 0,
-            pendingCalls,
-            pendingCallsChange: 0,
+            totalLeadsChange: Number(executive.totalLeadsChange || 0),
+            revenue: Number(executive.revenue || 0),
+            currency: executive.currency || selectedCurrency,
+            revenueChange: Number(executive.revenueChange || 0),
+            pendingCalls: Number(executive.pendingCalls || 0),
+            pendingCallsChange: Number(executive.pendingCallsChange || 0),
             bookings: Number(executive.totalBookings || 0),
-            bookingsChange: 0
+            bookingsChange: Number(executive.bookingsChange || 0)
           })
           setStatsLoaded(true)
         } else {
@@ -232,10 +274,20 @@ const Dashboard: React.FC = () => {
         }
 
         // Load lead sources
-        const sourcesResponse = (await dashboardApi.getLeadSources()) as any
+        const sourcesResponse = (await reportsApi.leadsBySource(
+          {
+            ...marketParams,
+            ...rangeDateParams
+          }
+        )) as any
         const sources = sourcesResponse?.data || sourcesResponse
         if (Array.isArray(sources)) {
-          setLeadSources(sources)
+          setLeadSources(
+            sources.map((source: any) => ({
+              name: String(source?.source || 'Unknown'),
+              value: Number(source?.totalLeads || 0)
+            }))
+          )
           setLeadSourcesLoaded(true)
         } else {
           setLeadSources([])
@@ -265,7 +317,7 @@ const Dashboard: React.FC = () => {
     }
 
     loadStaticData()
-  }, [token])
+  }, [token, marketParams, range, rangeDateParams, selectedCurrency])
 
   // Load revenue data (dependent on range)
   useEffect(() => {
@@ -281,7 +333,8 @@ const Dashboard: React.FC = () => {
         // Load revenue data
         const revenueResponse = (await dashboardApi.getRevenue({
           range: range.toLowerCase(),
-          currency: DASHBOARD_CURRENCY
+          ...rangeDateParams,
+          ...marketParams
         })) as any
         const revenue = revenueResponse?.data || revenueResponse
         if (Array.isArray(revenue)) {
@@ -299,7 +352,7 @@ const Dashboard: React.FC = () => {
     }
 
     loadRevenueData()
-  }, [token, range])
+  }, [token, range, marketParams, rangeDateParams])
 
   const kpis = useMemo(() => {
     if (!dashboardStats || !statsLoaded) {
@@ -354,7 +407,7 @@ const Dashboard: React.FC = () => {
         title: 'Revenue',
         value: formatStatNumber(
           dashboardStats.revenue,
-          num => `${DASHBOARD_CURRENCY} ${num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+          num => `${dashboardStats.currency || selectedCurrency} ${num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
         ),
         trend: `${dashboardStats.revenueChange >= 0 ? '+' : ''}${
           dashboardStats.revenueChange
@@ -384,7 +437,7 @@ const Dashboard: React.FC = () => {
         bg: 'bg-gray-100 text-gray-700'
       }
     ]
-  }, [dashboardStats, statsLoaded])
+  }, [dashboardStats, selectedCurrency, statsLoaded])
 
   return (
     <div className='space-y-6'>
@@ -398,17 +451,72 @@ const Dashboard: React.FC = () => {
           </p>
           {error && <p className='mt-1 text-sm text-red-500'>{error}</p>}
         </div>
-        <div className='flex items-center gap-2'>
-          <div className='rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200'>
-            AED Dashboard
+        <div className='flex flex-wrap items-center gap-2'>
+          <div className='inline-flex rounded-xl border border-gray-200 bg-white p-1 dark:border-gray-700 dark:bg-gray-900'>
+            {MARKET_OPTIONS.map(option => (
+              <button
+                key={option.value}
+                onClick={() => setMarket(option.value)}
+                className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
+                  market === option.value
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-600 dark:text-gray-300'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
           </div>
-          <div className='flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300'>
-            <FaCalendarDays className='text-blue-600' />{' '}
-            {new Date().toLocaleDateString('en-US', {
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric'
-            })}
+          <div className='rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200'>
+            Base: {selectedCurrency}
+          </div>
+          <div className='flex flex-wrap items-center gap-2'>
+            <button
+              type='button'
+              onClick={() => openDashboardCalendar(fromDateInputRef)}
+              className='relative flex min-w-[170px] cursor-pointer items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-left text-sm text-gray-600 shadow-sm transition hover:border-blue-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300'
+            >
+              <FaCalendarDays className='text-blue-600' />
+              <span className='text-xs font-semibold uppercase text-gray-400'>
+                From
+              </span>
+              <span className='text-sm font-semibold text-gray-700 dark:text-gray-200'>
+                {formatDashboardDate(dateRange.from)}
+              </span>
+              <input
+                ref={fromDateInputRef}
+                type='date'
+                value={dateRange.from}
+                max={dateRange.to}
+                onChange={event => updateDateRange('from', event.target.value)}
+                className='pointer-events-none absolute left-3 top-3 h-px w-px opacity-0'
+                tabIndex={-1}
+                aria-label='Select dashboard from date'
+              />
+            </button>
+            <button
+              type='button'
+              onClick={() => openDashboardCalendar(toDateInputRef)}
+              className='relative flex min-w-[150px] cursor-pointer items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-left text-sm text-gray-600 shadow-sm transition hover:border-blue-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300'
+            >
+              <FaCalendarDays className='text-blue-600' />
+              <span className='text-xs font-semibold uppercase text-gray-400'>
+                To
+              </span>
+              <span className='text-sm font-semibold text-gray-700 dark:text-gray-200'>
+                {formatDashboardDate(dateRange.to)}
+              </span>
+              <input
+                ref={toDateInputRef}
+                type='date'
+                value={dateRange.to}
+                min={dateRange.from}
+                onChange={event => updateDateRange('to', event.target.value)}
+                className='pointer-events-none absolute left-3 top-3 h-px w-px opacity-0'
+                tabIndex={-1}
+                aria-label='Select dashboard to date'
+              />
+            </button>
           </div>
         </div>
       </div>
@@ -474,9 +582,7 @@ const Dashboard: React.FC = () => {
                 Revenue Performance
               </h2>
               <p className='text-sm text-gray-500'>
-                {effectiveRevenueRange === range
-                  ? 'Current period vs previous period.'
-                  : `Showing ${effectiveRevenueRange} data (fallback for ${range}).`}
+                Current period vs previous period.
               </p>
             </div>
             <div className='inline-flex rounded-xl border border-gray-200 bg-gray-50 p-1 dark:border-gray-700 dark:bg-gray-800'>
@@ -581,15 +687,13 @@ const Dashboard: React.FC = () => {
                       </Pie>
                       <Tooltip
                         formatter={(v: number | string | undefined, _name, item) => {
-                          const percentage = Number(v ?? 0)
-                          const actualCount =
-                            leadSourceTotal > 0
-                              ? Math.round((percentage / 100) * leadSourceTotal)
-                              : 0
+                          const count = Number(v ?? 0)
+                          const percentage =
+                            leadSourceTotal > 0 ? (count / leadSourceTotal) * 100 : 0
                           const percentLabel = `${percentage
                             .toFixed(1)
                             .replace(/\.0$/, '')}%`
-                          return [`${actualCount} (${percentLabel})`, item?.name || 'Leads']
+                          return [`${count} (${percentLabel})`, item?.name || 'Leads']
                         }}
                       />
                     </PieChart>

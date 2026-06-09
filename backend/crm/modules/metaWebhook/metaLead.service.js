@@ -206,6 +206,12 @@ async function buildLeadPayload(
     pageDefaults.clientCurrency ||
     null;
 
+  const assignedDestination =
+    profileAssign.destinationName ||
+    mappedPayload.destinationName ||
+    mappedPayload.travelTo ||
+    null;
+
   const leadWallTz = ianaFromLeadCountry(leadCountry || pageConfig.countryName);
   const metaUtc = toUtc(metaLead.created_time);
   const clientCreatedAt =
@@ -223,8 +229,8 @@ async function buildLeadPayload(
     phone,
     city: mappedPayload.city || null,
     nationality: mappedPayload.nationality || null,
-    travelTo: mappedPayload.travelTo || null,
-    destinationName: mappedPayload.destinationName || mappedPayload.travelTo || null,
+    travelTo: assignedDestination,
+    destinationName: assignedDestination,
     travelPurpose: mappedPayload.travelPurpose || null,
     budget: mappedPayload.budget ?? null,
     visaRequired: mappedPayload.visaRequired,

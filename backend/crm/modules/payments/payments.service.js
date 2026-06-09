@@ -38,7 +38,7 @@ function createPaymentsService({ repository, bookingsRepository, leadsRepository
     return Number(toNumber(value, 0).toFixed(2));
   }
 
-  async function convertRowsToCurrency(rows = [], targetCurrency) {
+  async function convertRowsToCurrency(rows = [], targetCurrency, rates = null) {
     const normalizedTarget = normalizeCurrency(targetCurrency);
     const convertedRows = await Promise.all(
       rows.map(async (row) => {
@@ -57,11 +57,19 @@ function createPaymentsService({ repository, bookingsRepository, leadsRepository
         }
 
         try {
-          const converted = await currencyService.convert(
-            amount,
-            sourceCurrency,
-            normalizedTarget,
-          );
+          const converted =
+            rates && typeof currencyService?.convertWithRates === "function"
+              ? currencyService.convertWithRates(
+                  amount,
+                  sourceCurrency,
+                  normalizedTarget,
+                  rates,
+                )
+              : await currencyService.convert(
+                  amount,
+                  sourceCurrency,
+                  normalizedTarget,
+                );
           return {
             currency: normalizedTarget,
             amount: roundAmount(converted),
@@ -271,24 +279,34 @@ function createPaymentsService({ repository, bookingsRepository, leadsRepository
         { module: "payments", requestId: context.requestId, filters },
         "Fetching payment stats",
       );
-      const breakdown = await repository.getStatsBreakdown();
+      const breakdown = await repository.getStatsBreakdown(filters);
       const targetCurrency = normalizeCurrency(
         filters?.currency ||
           filters?.targetCurrency ||
-          currencyService?.baseCurrency ||
-          "INR",
+          "USD",
       );
+      let rates = null;
+      if (currencyService?.getRates) {
+        try {
+          rates = (await currencyService.getRates())?.rates || null;
+        } catch (error) {
+          logger?.warn?.(
+            { module: "payments", error: error.message },
+            "Unable to preload currency rates for payment stats",
+          );
+        }
+      }
 
       const [collected, outstanding, overdue, refunds] = await Promise.all([
-        convertRowsToCurrency(breakdown.collected, targetCurrency),
-        convertRowsToCurrency(breakdown.outstanding, targetCurrency),
-        convertRowsToCurrency(breakdown.overdue, targetCurrency),
-        convertRowsToCurrency(breakdown.refunds, targetCurrency),
+        convertRowsToCurrency(breakdown.collected, targetCurrency, rates),
+        convertRowsToCurrency(breakdown.outstanding, targetCurrency, rates),
+        convertRowsToCurrency(breakdown.overdue, targetCurrency, rates),
+        convertRowsToCurrency(breakdown.refunds, targetCurrency, rates),
       ]);
 
       return {
         currency: targetCurrency,
-        baseCurrency: normalizeCurrency(currencyService?.baseCurrency || "INR"),
+        baseCurrency: targetCurrency,
         collectedAmount: collected.amount,
         collectedCount: collected.count,
         outstandingAmount: outstanding.amount,

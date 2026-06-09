@@ -25,7 +25,8 @@ const toIsoDate = (value?: string) => {
 
 export const createBookingsDatasource = (client: HttpClient) => ({
   list: (params?: BookingsQuery) => client.get("/api/bookings", { params }),
-  stats: () => client.get("/api/bookings/stats"),
+  stats: (params?: BookingsQuery) =>
+    client.get("/api/bookings/stats", { params }),
   create: (payload: unknown) => client.post("/api/bookings", payload),
   getById: (id: string) => client.get(`/api/bookings/${id}`),
   update: (id: string, payload: unknown) =>

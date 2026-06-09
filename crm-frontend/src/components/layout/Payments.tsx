@@ -24,7 +24,6 @@ import { FaEdit } from "react-icons/fa";
 import SurfaceCard from "../ui/SurfaceCard";
 import EmptyState from "../ui/EmptyState";
 import SearchableDropdown from "../ui/SearchableDropdown";
-import CurrencySelector from "../ui/CurrencySelector";
 import { paymentsApi } from "../../api/payments";
 import { bookingsApi } from "../../api/bookings";
 
@@ -94,6 +93,7 @@ interface Transaction {
   bookingLabel?: string;
   amount: number;
   currency?: string;
+  leadCountry?: string | null;
   mode: PaymentMode;
   status: TxStatus;
   paidAt?: string;
@@ -132,6 +132,36 @@ const statusClasses: Record<TxStatus, string> = {
 };
 
 const initialTransactions: Transaction[] = [];
+type PaymentMarket = "ALL" | "INDIA" | "UAE";
+
+const paymentMarketOptions: { key: PaymentMarket; label: string }[] = [
+  { key: "ALL", label: "All Markets" },
+  { key: "INDIA", label: "India" },
+  { key: "UAE", label: "UAE" },
+];
+
+const getPaymentMarketCurrency = (market: PaymentMarket) => {
+  if (market === "INDIA") return "INR";
+  if (market === "UAE") return "AED";
+  return "USD";
+};
+
+const paymentCountryMatchesMarket = (
+  leadCountry: string | null | undefined,
+  market: PaymentMarket,
+) => {
+  if (market === "ALL") return true;
+  const normalized = String(leadCountry || "").trim().toLowerCase();
+  if (market === "INDIA") return ["india", "in", "ind"].includes(normalized);
+  return [
+    "uae",
+    "u.a.e",
+    "ae",
+    "dubai",
+    "united arab emirates",
+    "emirates",
+  ].includes(normalized);
+};
 
 const MAX_INVOICE_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
 
@@ -447,6 +477,12 @@ const mapPaymentToTransaction = (row: any): Transaction => {
     row?.lead?.lead_id ??
     null;
   const leadSnapshot = row?.lead ?? null;
+  const leadCountry =
+    row?.leadCountry ??
+    row?.lead_country ??
+    leadSnapshot?.leadCountry ??
+    leadSnapshot?.lead_country ??
+    null;
   const customerName =
     row?.customerName ??
     row?.customer_name ??
@@ -479,6 +515,7 @@ const mapPaymentToTransaction = (row: any): Transaction => {
     bookingLabel: bookingNumber || bookingId,
     amount: toNumber(row?.amount, 0),
     currency: row?.currency || 'INR',
+    leadCountry,
     mode: mapApiModeToTx(row?.paymentMode ?? row?.payment_mode),
     status: mapApiStatusToTx(row?.status),
     paidAt: paidAt ?? undefined,
@@ -2015,8 +2052,8 @@ const Payments: React.FC = () => {
     type: "success",
   });
   const [stats, setStats] = useState({
-    currency: "AED",
-    baseCurrency: "AED",
+    currency: "USD",
+    baseCurrency: "USD",
     collectedAmount: 0,
     collectedCount: 0,
     outstandingAmount: 0,
@@ -2034,7 +2071,8 @@ const Payments: React.FC = () => {
   const [showDetails, setShowDetails] = useState(false);
   const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [selectedCurrency, setSelectedCurrency] = useState('AED');
+  const [paymentMarket, setPaymentMarket] = useState<PaymentMarket>("ALL");
+  const selectedCurrency = getPaymentMarketCurrency(paymentMarket);
 
   const pageSize = 15;
 
@@ -2142,6 +2180,9 @@ const Payments: React.FC = () => {
 
   const filtered = useMemo(() => {
     return transactions.filter((tx) => {
+      if (!paymentCountryMatchesMarket(tx.leadCountry, paymentMarket)) {
+        return false;
+      }
       if (!matchesQuickFilter(quickFilter, tx)) return false;
       if (
         appliedFilters.status !== "ALL" &&
@@ -2234,7 +2275,7 @@ const Payments: React.FC = () => {
         .toLowerCase();
       return haystack.includes(query);
     });
-  }, [transactions, search, quickFilter, appliedFilters]);
+  }, [transactions, search, quickFilter, appliedFilters, paymentMarket]);
 
   const toTimestamp = (value?: string | null) => {
     if (!value) return 0;
@@ -2349,7 +2390,9 @@ const Payments: React.FC = () => {
     setTransactionsLoading(true);
     setTransactionsError("");
     try {
-      const res = await paymentsApi.list();
+      const res = await paymentsApi.list(
+        paymentMarket !== "ALL" ? { market: paymentMarket } : undefined,
+      );
       const data = unwrapData<any[]>(res) ?? [];
       const paymentRows = Array.isArray(data) ? data : [];
       setTransactions(paymentRows.map((row) => mapPaymentToTransaction(row)));
@@ -2360,17 +2403,20 @@ const Payments: React.FC = () => {
     } finally {
       setTransactionsLoading(false);
     }
-  }, []);
+  }, [paymentMarket]);
 
   const fetchStats = useCallback(async (currencyCode: string) => {
     setStatsLoading(true);
     setStatsError("");
     try {
-      const res = await paymentsApi.stats({ currency: currencyCode });
+      const res = await paymentsApi.stats({
+        currency: currencyCode,
+        ...(paymentMarket !== "ALL" ? { market: paymentMarket } : {}),
+      });
       const data = unwrapData<any>(res) ?? {};
       setStats({
-        currency: String(data?.currency || currencyCode || "AED").toUpperCase(),
-        baseCurrency: String(data?.baseCurrency || "AED").toUpperCase(),
+        currency: String(data?.currency || currencyCode || "USD").toUpperCase(),
+        baseCurrency: String(data?.baseCurrency || currencyCode || "USD").toUpperCase(),
         collectedAmount: Number(data?.collectedAmount ?? 0),
         collectedCount: Number(data?.collectedCount ?? 0),
         outstandingAmount: Number(data?.outstandingAmount ?? 0),
@@ -2386,16 +2432,16 @@ const Payments: React.FC = () => {
     } finally {
       setStatsLoading(false);
     }
-  }, []);
+  }, [paymentMarket]);
 
   useEffect(() => {
     let cancelled = false;
 
     const load = async () => {
-      await fetchTransactions();
-      if (!cancelled) {
-        await fetchStats(selectedCurrency);
-      }
+      const statsPromise = fetchStats(selectedCurrency);
+      const transactionsPromise = fetchTransactions();
+      await Promise.allSettled([statsPromise, transactionsPromise]);
+      if (cancelled) return;
     };
 
     void load();
@@ -2804,13 +2850,27 @@ const Payments: React.FC = () => {
           </p>
         </div>
         <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
-          <CurrencySelector
-            value={selectedCurrency}
-            onChange={setSelectedCurrency}
-            baseCurrency={stats.baseCurrency}
-          />
+          <div className="inline-flex rounded-xl border border-gray-200 bg-white p-1 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+            {paymentMarketOptions.map((option) => (
+              <button
+                key={option.key}
+                type="button"
+                onClick={() => {
+                  setPaymentMarket(option.key);
+                  setPage(1);
+                }}
+                className={`h-8 rounded-lg px-3 text-xs font-semibold transition ${
+                  paymentMarket === option.key
+                    ? "bg-blue-600 text-white shadow-sm"
+                    : "text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800"
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
           <span className="text-xs text-gray-500 dark:text-gray-400">
-            Base: {stats.baseCurrency}
+            Base: {selectedCurrency}
           </span>
           <button
             onClick={() => navigate("/refunds")}

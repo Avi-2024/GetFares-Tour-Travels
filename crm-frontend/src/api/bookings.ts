@@ -6,7 +6,8 @@ export const bookingsApi = {
     apiRequest(withQuery("/api/bookings", params)),
   paymentOptions: (params?: Record<string, string | number | boolean>) =>
     apiRequest(withQuery("/api/bookings/payment-options", params)),
-  stats: () => apiRequest("/api/bookings/stats"),
+  stats: (params?: Record<string, string | number | boolean>) =>
+    apiRequest(withQuery("/api/bookings/stats", params)),
   create: (payload: unknown) =>
     apiRequest("/api/bookings", { method: "POST", body: payload }),
   getById: (id: string) => apiRequest(`/api/bookings/${id}`),

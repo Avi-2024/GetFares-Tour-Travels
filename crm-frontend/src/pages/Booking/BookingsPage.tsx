@@ -60,6 +60,19 @@ import {
 type BookingStatus = 'confirmed' | 'pending' | 'cancelled'
 type PaymentStatus = 'partial' | 'unpaid' | 'paid' | 'refunded'
 type DeadlineRiskLevel = 'SAFE' | 'D2_DUE' | 'DEADLINE_DUE' | 'OVERDUE'
+type BookingMarket = 'ALL' | 'INDIA' | 'UAE'
+
+const bookingMarketOptions: Array<{ key: BookingMarket; label: string }> = [
+  { key: 'ALL', label: 'All Markets' },
+  { key: 'INDIA', label: 'India' },
+  { key: 'UAE', label: 'UAE' }
+]
+
+const getBookingMarketCurrency = (market: BookingMarket) => {
+  if (market === 'INDIA') return 'INR'
+  if (market === 'UAE') return 'AED'
+  return 'USD'
+}
 
 const quickFilters = [
   { key: 'ALL', label: 'All' },
@@ -124,6 +137,7 @@ interface Booking {
   paid: number
   total: number
   currency?: string
+  leadCountry?: string | null
   documentsReady: number
   documentsTotal: number
   deadlineRiskLevel?: DeadlineRiskLevel
@@ -1716,6 +1730,8 @@ const BookingsPage: React.FC = () => {
   const navigate = useNavigate()
   const location = useLocation()
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('ALL')
+  const [bookingMarket, setBookingMarket] = useState<BookingMarket>('ALL')
+  const bookingStatsCurrency = getBookingMarketCurrency(bookingMarket)
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [error, setError] = useState('')
@@ -1729,7 +1745,7 @@ const BookingsPage: React.FC = () => {
     totalRevenue: 0,
     pendingPaymentsAmount: 0,
     pendingPaymentsCount: 0,
-    currency: "AED",
+    currency: bookingStatsCurrency,
   }
 
   const [filterError, setFilterError] = useState('')
@@ -1937,6 +1953,21 @@ const BookingsPage: React.FC = () => {
     const leadEmail =
       lead?.email ?? lead?.primaryEmail ?? lead?.contactEmail ?? "";
     const leadPhone = lead?.phone ?? lead?.mobile ?? lead?.whatsapp ?? "";
+    const leadCountry = String(
+      b.leadCountry ??
+        b.lead_country ??
+        b.country ??
+        b.countryName ??
+        quotation?.leadCountry ??
+        quotation?.lead_country ??
+        quotation?.lead?.leadCountry ??
+        quotation?.lead?.lead_country ??
+        lead?.leadCountry ??
+        lead?.lead_country ??
+        lead?.country ??
+        lead?.countryName ??
+        "",
+    ).trim();
     const consultantName =
       lead?.assignedUser?.fullName ??
       lead?.consultantName ??
@@ -2015,6 +2046,7 @@ const BookingsPage: React.FC = () => {
       currency: normalizeCurrencyCode(
         quotationCurrency ?? leadCurrency ?? storedBookingCurrency,
       ),
+      leadCountry: leadCountry || null,
       documentsReady: Number(b.documentsReady ?? b.documents?.ready ?? 0),
       documentsTotal: Number(b.documentsTotal ?? b.documents?.total ?? 0),
       // deadlineRiskLevel: normalizeDeadlineRisk(
@@ -2066,18 +2098,65 @@ const BookingsPage: React.FC = () => {
   }, [location.state, navigate]);
 
   const fetchBookingStats = useCallback(
-    async (options?: { silent?: boolean }) => {
+    async (
+      options?: {
+        silent?: boolean;
+        filters?: BookingFilterState;
+        quickFilter?: QuickFilter;
+        search?: string;
+      },
+    ) => {
       const cached = getBookingsPageCache();
-      const silent = options?.silent ?? Boolean(cached?.stats);
+      const hasFilterContext = Boolean(
+        options?.filters || options?.quickFilter || options?.search,
+      );
+      const silent = options?.silent ?? (!hasFilterContext && Boolean(cached?.stats));
       if (!silent) {
         setStatsLoading(true);
       }
       try {
-        const res = await bookingsService.stats();
+        const filters = options?.filters ?? defaultFilters;
+        const params: Record<string, string> = {
+          currency: bookingStatsCurrency,
+        };
+        if (bookingMarket !== "ALL") {
+          params.market = bookingMarket;
+        }
+        const quick = options?.quickFilter ?? "ALL";
+        const textSearch = String(options?.search || "").trim();
+        const status =
+          filters.status !== "ALL" ? filters.status.toUpperCase()
+          : quick === "ACTIVE" ? "CONFIRMED"
+          : quick === "PENDING" ? "PENDING"
+          : quick === "CANCELLED" ? "CANCELLED"
+          : "";
+
+        if (status) params.status = status;
+        if (filters.payment !== "ALL") params.payment = filters.payment;
+        if (quick === "PAYMENT_DUE" && filters.payment === "ALL") {
+          params.payment = "DUE";
+        }
+        if (filters.risk !== "ALL") params.risk = filters.risk;
+        if (quick === "OVERDUE" && filters.risk === "ALL") {
+          params.risk = "OVERDUE";
+        }
+        if (filters.bookingId) params.bookingId = filters.bookingId;
+        if (filters.customer) params.customer = filters.customer;
+        if (filters.email) params.email = filters.email;
+        if (filters.phone) params.phone = filters.phone;
+        if (filters.consultant) params.consultant = filters.consultant;
+        if (filters.destination) params.destination = filters.destination;
+        if (filters.fromDate) params.fromDate = filters.fromDate;
+        if (filters.toDate) params.toDate = filters.toDate;
+        if (textSearch) params.search = textSearch;
+
+        const res = await bookingsService.stats(params);
         const nextStats = normalizeBookingApiStats(res);
         setStats(nextStats);
         setStatsError("");
-        patchBookingsPageCache({ stats: nextStats });
+        if (!hasFilterContext) {
+          patchBookingsPageCache({ stats: nextStats });
+        }
       } catch (err) {
         console.error("Failed to load booking stats:", err);
         if (!silent) {
@@ -2087,7 +2166,7 @@ const BookingsPage: React.FC = () => {
         setStatsLoading(false);
       }
     },
-    [bookingsService],
+    [bookingMarket, bookingStatsCurrency, bookingsService],
   );
 
   const fetchBookings = useCallback(async (options?: { silent?: boolean }) => {
@@ -2529,6 +2608,20 @@ const BookingsPage: React.FC = () => {
   const filtered = useMemo(() => {
     return bookingItems.filter(booking => {
       if (!matchesQuickFilter(quickFilter, booking)) return false
+      if (bookingMarket !== 'ALL') {
+        const country = String(booking.leadCountry || '').trim().toLowerCase()
+        const isIndia = ['india', 'in', 'ind'].includes(country)
+        const isUae = [
+          'uae',
+          'u.a.e',
+          'ae',
+          'dubai',
+          'united arab emirates',
+          'emirates'
+        ].includes(country)
+        if (bookingMarket === 'INDIA' && !isIndia) return false
+        if (bookingMarket === 'UAE' && !isUae) return false
+      }
 
       if (appliedFilters.status !== 'ALL' && booking.status !== appliedFilters.status)
         return false
@@ -2620,7 +2713,20 @@ const BookingsPage: React.FC = () => {
         .toLowerCase()
       return haystack.includes(query)
     })
-  }, [search, bookingItems, quickFilter, appliedFilters])
+  }, [search, bookingItems, quickFilter, appliedFilters, bookingMarket])
+
+  const displayStats = stats;
+  const displayStatsLoading = statsLoading;
+  const displayStatsError = statsError;
+
+  useEffect(() => {
+    void fetchBookingStats({
+      silent: true,
+      filters: appliedFilters,
+      quickFilter,
+      search,
+    });
+  }, [appliedFilters, fetchBookingStats, quickFilter, search, bookingMarket]);
 
   const toTimestamp = (value?: string | null) => {
     if (!value) return 0;
@@ -2660,6 +2766,7 @@ const BookingsPage: React.FC = () => {
     setDraftFilters(defaultFilters)
     setAppliedFilters(defaultFilters)
     setQuickFilter('ALL')
+    setBookingMarket('ALL')
     setSearch('')
     setShowMobileFilters(false)
     setPage(1)
@@ -2781,7 +2888,29 @@ const BookingsPage: React.FC = () => {
             Monitor confirmations, payments, and documents from one place.
           </p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto sm:items-center">
+          <div className="inline-flex rounded-xl border border-gray-200 bg-white p-1 dark:border-gray-700 dark:bg-gray-900">
+            {bookingMarketOptions.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => {
+                  setBookingMarket(item.key)
+                  setPage(1)
+                }}
+                className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
+                  bookingMarket === item.key
+                    ? "bg-blue-600 text-white"
+                    : "text-gray-600 dark:text-gray-300"
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+          <div className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
+            Base: {bookingStatsCurrency}
+          </div>
           <button
             onClick={() => setShowCreateModal(true)}
             className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-blue-700 w-full sm:w-auto"
@@ -2800,16 +2929,16 @@ const BookingsPage: React.FC = () => {
                 Total Bookings
               </p>
               <p className="text-lg sm:text-2xl font-semibold text-gray-900 dark:text-gray-100 mt-1">
-                {statsLoading ?
-                  <span className="inline-block h-6 w-16 rounded bg-gray-200 animate-pulse" />
-                : stats.totalBookings}
+	                {displayStatsLoading ?
+	                  <span className="inline-block h-6 w-16 rounded bg-gray-200 animate-pulse" />
+	                : displayStats.totalBookings}
               </p>
               <p className="mt-1 text-xs text-gray-500 truncate">
                 Bookings
               </p>
-              {statsError && (
-                <p className="mt-1 text-xs text-red-500">{statsError}</p>
-              )}
+	              {displayStatsError && (
+	                <p className="mt-1 text-xs text-red-500">{displayStatsError}</p>
+	              )}
             </div>
             <FaClock className="text-slate-600 text-lg sm:text-xl flex-shrink-0" />
           </div>
@@ -2818,19 +2947,19 @@ const BookingsPage: React.FC = () => {
           <div className="flex items-start justify-between">
             <div className="min-w-0">
               <p className="text-[10px] sm:text-xs uppercase tracking-wide text-gray-500 truncate">
-                Upcoming Trips
+                Revenue
               </p>
               <p className="text-lg sm:text-2xl font-semibold text-gray-900 dark:text-gray-100 mt-1">
-                {statsLoading ?
-                  <span className="inline-block h-6 w-16 rounded bg-gray-200 animate-pulse" />
-                : stats.activeBookings}
+	                {displayStatsLoading ?
+	                  <span className="inline-block h-6 w-20 rounded bg-gray-200 animate-pulse" />
+                    : `${displayStats.currency ? `${displayStats.currency} ` : ""}${displayStats.totalRevenue.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`}
               </p>
               <p className="mt-1 text-xs text-green-600 flex items-center">
-                <FaArrowTrendUp className="mr-1 text-xs" /> From bookings
+                <FaArrowTrendUp className="mr-1 text-xs" /> {displayStats.activeBookings} upcoming trips
               </p>
-              {statsError && (
-                <p className="mt-1 text-xs text-red-500">{statsError}</p>
-              )}
+	              {displayStatsError && (
+	                <p className="mt-1 text-xs text-red-500">{displayStatsError}</p>
+	              )}
             </div>
             <FaCalendarDays className="text-blue-600 text-lg sm:text-xl flex-shrink-0" />
           </div>
@@ -2842,16 +2971,16 @@ const BookingsPage: React.FC = () => {
                 Unconfirmed
               </p>
               <p className="text-lg sm:text-2xl font-semibold text-gray-900 dark:text-gray-100 mt-1">
-                {statsLoading ?
-                  <span className="inline-block h-6 w-16 rounded bg-gray-200 animate-pulse" />
-                : stats.pendingBookings}
+	                {displayStatsLoading ?
+	                  <span className="inline-block h-6 w-16 rounded bg-gray-200 animate-pulse" />
+	                : displayStats.pendingBookings}
               </p>
               <p className="mt-1 text-xs text-amber-600 truncate">
                 Pending confirmation
               </p>
-              {statsError && (
-                <p className="mt-1 text-xs text-red-500">{statsError}</p>
-              )}
+	              {displayStatsError && (
+	                <p className="mt-1 text-xs text-red-500">{displayStatsError}</p>
+	              )}
             </div>
             <FaTriangleExclamation className="text-amber-500 text-lg sm:text-xl flex-shrink-0" />
           </div>
@@ -2863,18 +2992,18 @@ const BookingsPage: React.FC = () => {
                 Pending Payments
               </p>
 	            <p className="text-lg sm:text-2xl font-semibold text-gray-900 dark:text-gray-100 mt-1">
-	              {statsLoading ?
-	                <span className="inline-block h-6 w-20 rounded bg-gray-200 animate-pulse" />
-	                : `${stats.currency ? `${stats.currency} ` : ""}${stats.pendingPaymentsAmount.toLocaleString("en-IN")}`}
+		              {displayStatsLoading ?
+		                <span className="inline-block h-6 w-20 rounded bg-gray-200 animate-pulse" />
+		                : `${displayStats.currency ? `${displayStats.currency} ` : ""}${displayStats.pendingPaymentsAmount.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`}
 	            </p>
               <p className="mt-1 text-xs text-gray-500">
-                {statsLoading ?
-                  "Loading..."
-                : `${stats.pendingPaymentsCount} bookings`}
+	                {displayStatsLoading ?
+	                  "Loading..."
+	                : `${displayStats.pendingPaymentsCount} bookings`}
               </p>
-              {statsError && (
-                <p className="mt-1 text-xs text-red-500">{statsError}</p>
-              )}
+	              {displayStatsError && (
+	                <p className="mt-1 text-xs text-red-500">{displayStatsError}</p>
+	              )}
             </div>
             <FaCreditCard className="text-red-500 text-lg sm:text-xl flex-shrink-0" />
           </div>

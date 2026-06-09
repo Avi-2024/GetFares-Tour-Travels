@@ -3,6 +3,8 @@ import {
   normalizeRoleName,
 } from "../../core/constants/index.js";
 
+const DEFAULT_REPORTING_CURRENCY = "USD";
+
 function canReportsScopeConsultantGlobally(role) {
   const name = normalizeRoleName(role);
   return (
@@ -34,7 +36,7 @@ function mergeConsultantScope(filters = {}, context = {}) {
 }
 
 function createReportsService({ repository, logger, currencyService }) {
-  function normalizeCurrency(value, fallback = "AED") {
+  function normalizeCurrency(value, fallback = DEFAULT_REPORTING_CURRENCY) {
     const normalized = String(value || "")
       .trim()
       .toUpperCase();
@@ -53,7 +55,22 @@ function createReportsService({ repository, logger, currencyService }) {
     return Number(toNumber(value, 0).toFixed(2));
   }
 
-  async function convertAmountToCurrency(amount, fromCurrency, toCurrency) {
+  async function loadCurrencyRates() {
+    if (!currencyService?.getRates) {
+      return null;
+    }
+    try {
+      return (await currencyService.getRates())?.rates || null;
+    } catch (error) {
+      logger?.warn?.(
+        { module: "reports", error: error.message },
+        "Unable to preload currency rates for reports",
+      );
+      return null;
+    }
+  }
+
+  async function convertAmountToCurrency(amount, fromCurrency, toCurrency, rates = null) {
     const normalizedFrom = normalizeCurrency(fromCurrency);
     const normalizedTo = normalizeCurrency(toCurrency);
     const amountNumber = toNumber(amount, 0);
@@ -63,22 +80,30 @@ function createReportsService({ repository, logger, currencyService }) {
     if (!currencyService?.convert) {
       throw new Error("currencyService.convert is not available");
     }
-    const converted = await currencyService.convert(
-      amountNumber,
-      normalizedFrom,
-      normalizedTo,
-    );
+    const converted =
+      rates && typeof currencyService.convertWithRates === "function"
+        ? currencyService.convertWithRates(
+            amountNumber,
+            normalizedFrom,
+            normalizedTo,
+            rates,
+          )
+        : await currencyService.convert(
+            amountNumber,
+            normalizedFrom,
+            normalizedTo,
+          );
     return roundAmount(converted);
   }
 
-  async function sumConvertedAmounts(rows = [], amountField, currencyField, targetCurrency) {
+  async function sumConvertedAmounts(rows = [], amountField, currencyField, targetCurrency, rates = null) {
     const normalizedTarget = normalizeCurrency(targetCurrency);
-    let total = 0;
-    for (const row of rows) {
+    const amounts = await Promise.all(rows.map((row) => {
       const amount = toNumber(row?.[amountField], 0);
       const sourceCurrency = normalizeCurrency(row?.[currencyField], normalizedTarget);
-      total += await convertAmountToCurrency(amount, sourceCurrency, normalizedTarget);
-    }
+      return convertAmountToCurrency(amount, sourceCurrency, normalizedTarget, rates);
+    }));
+    const total = amounts.reduce((sum, amount) => sum + amount, 0);
     return roundAmount(total);
   }
 
@@ -94,7 +119,7 @@ function createReportsService({ repository, logger, currencyService }) {
       const userId = row?.user_id || row?.userId;
       const metric = String(row?.metric || "").trim();
       if (!userId || !metric) continue;
-      const displayCurrency = normalizeCurrency(reportingCurrency, "AED");
+      const displayCurrency = normalizeCurrency(reportingCurrency);
       const amountCurrency = normalizeCurrency(
         row?.amount_currency || row?.amountCurrency,
         row?.currency || displayCurrency,
@@ -131,7 +156,7 @@ function createReportsService({ repository, logger, currencyService }) {
     return normalizedByUser;
   }
 
-  function buildPeopleRow(row, money = {}, reportingCurrency = "AED") {
+  function buildPeopleRow(row, money = {}, reportingCurrency = DEFAULT_REPORTING_CURRENCY) {
     const bookingValue = roundAmount(money.bookingValue ?? row.bookingValue);
     const bookingCost = roundAmount(money.bookingCost ?? row.bookingCost);
     const refundAmount = roundAmount(money.refundAmount ?? row.refundAmount);
@@ -344,7 +369,7 @@ function createReportsService({ repository, logger, currencyService }) {
     );
   }
 
-  async function convertMoneyFields(row = {}, fields = [], targetCurrency = "AED") {
+  async function convertMoneyFields(row = {}, fields = [], targetCurrency = DEFAULT_REPORTING_CURRENCY) {
     const sourceCurrency = normalizeCurrency(
       row.effectiveCurrency ||
         row.currency ||
@@ -371,7 +396,7 @@ function createReportsService({ repository, logger, currencyService }) {
     return converted;
   }
 
-  async function convertFinanceCostBreakup(result = {}, targetCurrency = "AED") {
+  async function convertFinanceCostBreakup(result = {}, targetCurrency = DEFAULT_REPORTING_CURRENCY) {
     const moneyFields = [
       "supplierCost",
       "supplierTaxAmount",
@@ -427,7 +452,7 @@ function createReportsService({ repository, logger, currencyService }) {
   async function attachMonthlySummaryCurrency(
     rows = [],
     moneyRows = [],
-    targetCurrency = "AED",
+    targetCurrency = DEFAULT_REPORTING_CURRENCY,
   ) {
     const reportingCurrency = normalizeCurrency(targetCurrency);
     const byMonth = new Map(
@@ -530,7 +555,7 @@ function createReportsService({ repository, logger, currencyService }) {
       );
       const rows = await repository.getPeoplePerformance(scoped);
       const reportingCurrency = normalizeCurrency(
-        scoped.currency || currencyService?.baseCurrency || "AED",
+        scoped.currency || DEFAULT_REPORTING_CURRENCY,
       );
       if (!currencyService?.convert) {
         throw new Error("Currency conversion service is required for People Performance");
@@ -587,7 +612,7 @@ function createReportsService({ repository, logger, currencyService }) {
         "Booking performance report",
       );
       const reportingCurrency = normalizeCurrency(
-        scoped.currency || currencyService?.baseCurrency || "AED",
+        scoped.currency || DEFAULT_REPORTING_CURRENCY,
       );
       const data = await repository.getBookingPerformance(scoped);
       if (!currencyService?.convert) {
@@ -653,7 +678,7 @@ function createReportsService({ repository, logger, currencyService }) {
         "Revenue by month report",
       );
       const reportingCurrency = normalizeCurrency(
-        scoped.currency || currencyService?.baseCurrency || "AED",
+        scoped.currency || DEFAULT_REPORTING_CURRENCY,
       );
       if (!currencyService?.convert) {
         return repository.getRevenueByMonth(scoped);
@@ -679,7 +704,7 @@ function createReportsService({ repository, logger, currencyService }) {
         "Revenue by service type report",
       );
       const reportingCurrency = normalizeCurrency(
-        scoped.currency || currencyService?.baseCurrency || "AED",
+        scoped.currency || DEFAULT_REPORTING_CURRENCY,
       );
       if (!currencyService?.convert) {
         return repository.getRevenueByServiceType(scoped);
@@ -705,7 +730,7 @@ function createReportsService({ repository, logger, currencyService }) {
         "Revenue by destination report",
       );
       const reportingCurrency = normalizeCurrency(
-        scoped.currency || currencyService?.baseCurrency || "AED",
+        scoped.currency || DEFAULT_REPORTING_CURRENCY,
       );
       if (!currencyService?.convert) {
         return repository.getRevenueByDestination(scoped);
@@ -812,7 +837,7 @@ function createReportsService({ repository, logger, currencyService }) {
         "Monthly summary report",
       );
       const reportingCurrency = normalizeCurrency(
-        scoped.currency || currencyService?.baseCurrency || "AED",
+        scoped.currency || DEFAULT_REPORTING_CURRENCY,
       );
       const rows = await repository.getMonthlySummary(scoped);
 
@@ -834,10 +859,10 @@ function createReportsService({ repository, logger, currencyService }) {
         { module: "reports", requestId: context.requestId, filters: scoped },
         "Executive KPI dashboard pack",
       );
-      const result = await repository.getExecutiveKpis(scoped);
-      const reportingCurrency = normalizeCurrency(scoped.currency || "AED");
+      const reportingCurrency = normalizeCurrency(scoped.currency);
 
       if (!currencyService?.convert) {
+        const result = await repository.getExecutiveKpis(scoped);
         return {
           ...result,
           currency: reportingCurrency,
@@ -845,41 +870,51 @@ function createReportsService({ repository, logger, currencyService }) {
       }
 
       try {
-        const bookingCurrencyRows =
-          (await repository.getExecutiveBookingRevenueByCurrency(scoped)) || [];
-
-        const convertedTotalRevenue = await sumConvertedAmounts(
+        const [
+          result,
           bookingCurrencyRows,
-          "revenue",
-          "currency",
-          reportingCurrency,
-        );
-
-        const bookingCostRows =
-          (await repository.getExecutiveBookingCostByCurrency(scoped)) || [];
-
-        const convertedCost = await sumConvertedAmounts(
           bookingCostRows,
-          "cost",
-          "currency",
-          reportingCurrency,
-        );
+          serviceCurrencyRows,
+          rates,
+        ] = await Promise.all([
+          repository.getExecutiveKpis(scoped),
+          repository.getExecutiveBookingRevenueByCurrency(scoped),
+          repository.getExecutiveBookingCostByCurrency(scoped),
+          repository.getExecutiveServiceRevenueByCurrency(scoped),
+          loadCurrencyRates(),
+        ]);
 
-        const serviceCurrencyRows =
-          (await repository.getExecutiveServiceRevenueByCurrency(scoped)) || [];
-
-        const holidayRevenue = await sumConvertedAmounts(
-          serviceCurrencyRows.filter((row) => row.service_type !== "VISA"),
-          "revenue",
-          "currency",
-          reportingCurrency,
-        );
-        const visaRevenue = await sumConvertedAmounts(
-          serviceCurrencyRows.filter((row) => row.service_type === "VISA"),
-          "revenue",
-          "currency",
-          reportingCurrency,
-        );
+        const [convertedTotalRevenue, convertedCost, holidayRevenue, visaRevenue] =
+          await Promise.all([
+            sumConvertedAmounts(
+              bookingCurrencyRows || [],
+              "revenue",
+              "currency",
+              reportingCurrency,
+              rates,
+            ),
+            sumConvertedAmounts(
+              bookingCostRows || [],
+              "cost",
+              "currency",
+              reportingCurrency,
+              rates,
+            ),
+            sumConvertedAmounts(
+              (serviceCurrencyRows || []).filter((row) => row.service_type !== "VISA"),
+              "revenue",
+              "currency",
+              reportingCurrency,
+              rates,
+            ),
+            sumConvertedAmounts(
+              (serviceCurrencyRows || []).filter((row) => row.service_type === "VISA"),
+              "revenue",
+              "currency",
+              reportingCurrency,
+              rates,
+            ),
+          ]);
 
         const convertedProfit = Number(
           (convertedTotalRevenue - convertedCost).toFixed(2),
@@ -912,6 +947,7 @@ function createReportsService({ repository, logger, currencyService }) {
           },
           "Executive KPI currency conversion failed; returning raw totals",
         );
+        const result = await repository.getExecutiveKpis(scoped);
         return {
           ...result,
           currency: reportingCurrency,
@@ -962,7 +998,7 @@ function createReportsService({ repository, logger, currencyService }) {
         "Finance cost breakup report",
       );
       const reportingCurrency = normalizeCurrency(
-        scoped.currency || currencyService?.baseCurrency || "AED",
+        scoped.currency || DEFAULT_REPORTING_CURRENCY,
       );
       const { currency: _targetCurrency, ...repoFilters } = scoped;
       const result = await repository.getFinanceCostBreakup(repoFilters);

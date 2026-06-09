@@ -14,8 +14,57 @@ class DashboardService {
     return 'month';
   }
 
-  getWindowRange(period = 'month') {
-    const now = new Date();
+  parseReferenceDate(value) {
+    if (!value) return new Date();
+    const raw = String(value).trim();
+    const normalized =
+      /^\d{4}-\d{2}-\d{2}$/.test(raw) ? `${raw}T23:59:59` : raw;
+    const parsed = new Date(normalized);
+    return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+  }
+
+  formatDateOnly(value) {
+    const date = new Date(value);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  }
+
+  parseDateOnly(value) {
+    if (!value) return null;
+    const raw = String(value).trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
+    const parsed = new Date(`${raw}T00:00:00`);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  getWindowRange(period = 'month', filters = {}) {
+    const customFrom = this.parseDateOnly(filters.from);
+    const customTo = this.parseDateOnly(filters.to);
+
+    if (customFrom && customTo) {
+      const start = customFrom <= customTo ? customFrom : customTo;
+      const end = customFrom <= customTo ? customTo : customFrom;
+      const days = Math.max(
+        Math.round((end.getTime() - start.getTime()) / 86400000) + 1,
+        1,
+      );
+      const previousEnd = new Date(start);
+      previousEnd.setDate(previousEnd.getDate() - 1);
+      const previousStart = new Date(previousEnd);
+      previousStart.setDate(previousStart.getDate() - days + 1);
+
+      return {
+        current: {
+          from: this.formatDateOnly(start),
+          to: this.formatDateOnly(end),
+        },
+        previous: {
+          from: this.formatDateOnly(previousStart),
+          to: this.formatDateOnly(previousEnd),
+        },
+      };
+    }
+
+    const now = this.parseReferenceDate(filters.to || filters.from || filters.date);
     const end = new Date(now);
     const start = new Date(now);
     const normalized = this.normalizePeriod(period);
@@ -39,12 +88,12 @@ class DashboardService {
 
     return {
       current: {
-        from: start.toISOString(),
-        to: end.toISOString(),
+        from: this.formatDateOnly(start),
+        to: this.formatDateOnly(end),
       },
       previous: {
-        from: previousStart.toISOString(),
-        to: previousEnd.toISOString(),
+        from: this.formatDateOnly(previousStart),
+        to: this.formatDateOnly(previousEnd),
       },
     };
   }
@@ -56,17 +105,22 @@ class DashboardService {
     return Math.round(((currentValue - previousValue) / previousValue) * 100);
   }
 
-  async getStats(period = 'month') {
+  async getStats(period = 'month', filters = {}) {
     try {
       if (this.reportsService?.executiveKpis) {
-        const ranges = this.getWindowRange(period);
+        const ranges = this.getWindowRange(period, filters);
+        const currency = String(filters.currency || 'AED').trim().toUpperCase();
+        const scopedFilters = {
+          ...filters,
+          currency,
+        };
         const [current, previous] = await Promise.all([
           this.reportsService.executiveKpis(
-            { ...ranges.current, currency: 'AED' },
+            { ...scopedFilters, ...ranges.current },
             {},
           ),
           this.reportsService.executiveKpis(
-            { ...ranges.previous, currency: 'AED' },
+            { ...scopedFilters, ...ranges.previous },
             {},
           ),
         ]);
@@ -88,7 +142,7 @@ class DashboardService {
             previousStats.totalLeads,
           ),
           revenue: Number(currentStats.revenue || 0),
-          currency: currentStats.currency || 'AED',
+          currency: currentStats.currency || currency,
           revenueChange: this.calculateChange(
             currentStats.revenue,
             previousStats.revenue,
@@ -107,7 +161,7 @@ class DashboardService {
         };
       }
 
-      const stats = await this.repository.getStats(period);
+      const stats = await this.repository.getStats(period, filters);
       const currentPeriodStats = stats.current || {};
       const previousPeriodStats = stats.previous || {};
 
@@ -141,9 +195,9 @@ class DashboardService {
     }
   }
 
-  async getRevenue(range = 'week', currency) {
+  async getRevenue(range = 'week', currency, filters = {}) {
     try {
-      const revenueData = await this.repository.getRevenue(range, currency);
+      const revenueData = await this.repository.getRevenue(range, currency, filters);
       return revenueData;
     } catch (error) {
       logger.error('Error in dashboard service getRevenue:', error);

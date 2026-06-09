@@ -30,6 +30,7 @@ export type CachedBookingRow = {
   paid: number
   total: number
   currency?: string
+  leadCountry?: string | null
   documentsReady: number
   documentsTotal: number
   deadlineRiskLevel?: 'SAFE' | 'D2_DUE' | 'DEADLINE_DUE' | 'OVERDUE'
@@ -67,7 +68,7 @@ const emptyStats = (): BookingsPageStats => ({
   totalRevenue: 0,
   pendingPaymentsAmount: 0,
   pendingPaymentsCount: 0,
-  currency: "AED",
+  currency: "USD",
 })
 
 export function setBookingsPageCache(items: CachedBookingRow[], stats: BookingsPageStats) {
@@ -115,7 +116,7 @@ export function normalizeBookingApiStats(response: unknown): BookingsPageStats {
     currency:
       typeof data.currency === "string" && data.currency.trim()
         ? data.currency.trim().toUpperCase()
-        : "AED",
+        : "USD",
   }
 }
 

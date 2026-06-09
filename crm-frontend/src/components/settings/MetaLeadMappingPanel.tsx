@@ -11,6 +11,7 @@ import {
 } from 'react-icons/fa6'
 import { toast } from 'sonner'
 import { getApiErrorMessage } from '../../api/apiClient'
+import { destinationsApi, type DestinationRecord } from '../../api/destinations'
 import { useAuth } from '../../context/AuthContext'
 import { getCurrencyOptions } from '../../utils/currency'
 import { metaConnectionApi, type MetaPageConfig } from '../../api/metaConnection'
@@ -187,6 +188,11 @@ function RuleCard({
             {profile.leadCountry}
           </span>
         )}
+        {profile.destinationName && (
+          <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-medium text-sky-700">
+            {profile.destinationName}
+          </span>
+        )}
       </div>
     </button>
   )
@@ -201,6 +207,7 @@ type RuleForm = {
   leadCountry: string
   currency: string
   sourceLabel: string
+  destinationName: string
 }
 
 const emptyForm = (): RuleForm => ({
@@ -210,7 +217,8 @@ const emptyForm = (): RuleForm => ({
   leadType: '',
   leadCountry: '',
   currency: '',
-  sourceLabel: ''
+  sourceLabel: '',
+  destinationName: ''
 })
 
 function formFromProfile(p: MetaLeadProfile): RuleForm {
@@ -221,7 +229,8 @@ function formFromProfile(p: MetaLeadProfile): RuleForm {
     leadType: p.leadType || '',
     leadCountry: p.leadCountry || '',
     currency: p.clientCurrency || '',
-    sourceLabel: p.sourceLabel || ''
+    sourceLabel: p.sourceLabel || '',
+    destinationName: p.destinationName || ''
   }
 }
 
@@ -235,6 +244,7 @@ const MetaLeadMappingPanel: React.FC = () => {
   const [metadata, setMetadata] = useState<MetaLeadMappingMetadata | null>(null)
   const [profiles, setProfiles] = useState<MetaLeadProfile[]>([])
   const [metaPages, setMetaPages] = useState<MetaPageConfig[]>([])
+  const [destinations, setDestinations] = useState<DestinationRecord[]>([])
   const [bootstrapping, setBootstrapping] = useState(true)
   const [hasConnection, setHasConnection] = useState(false)
 
@@ -372,6 +382,30 @@ const MetaLeadMappingPanel: React.FC = () => {
 
   const sourceLabelOptions = SOURCE_LABEL_OPTIONS
 
+  const destinationOptions = useMemo(() => {
+    const seen = new Set<string>()
+    const options = destinations
+      .filter((destination) => destination.isActive !== false && destination.name)
+      .map((destination) => {
+        const name = destination.name.trim()
+        seen.add(name.toLowerCase())
+        return {
+          value: name,
+          label: name,
+          rightLabel: destination.country || undefined,
+          searchText: `${name} ${destination.country || ''}`
+        }
+      })
+      .sort((a, b) => a.label.localeCompare(b.label))
+
+    const current = form.destinationName.trim()
+    if (current && !seen.has(current.toLowerCase())) {
+      options.unshift({ value: current, label: current, searchText: current })
+    }
+
+    return [{ value: '', label: 'Select destination' }, ...options]
+  }, [destinations, form.destinationName])
+
   const buildDynamicSampleJson = useCallback(() => {
     const keys = new Set<string>(['full_name', 'email', 'phone_number'])
     if (selected?.leadType === 'VISA') keys.add('nationality')
@@ -410,15 +444,17 @@ const MetaLeadMappingPanel: React.FC = () => {
     mountedRef.current = true
     const init = async () => {
       try {
-        const [meta, pageList, list] = await Promise.all([
+        const [meta, pageList, list, destinationResponse] = await Promise.all([
           metaLeadMappingsApi.getMetadata(),
           metaConnectionApi.listPages({ isActive: true }),
-          metaLeadMappingsApi.listProfiles()
+          metaLeadMappingsApi.listProfiles(),
+          destinationsApi.list({ isActive: true, limit: 500 })
         ])
         if (!mountedRef.current) return
         const connected = pageList.some((page) => page.isActive !== false)
         setMetadata(meta)
         setMetaPages(pageList)
+        setDestinations(destinationResponse?.data ?? [])
         setHasConnection(connected)
         setProfiles(connected ? list : [])
         setTestPageId(pageList.find((page) => page.isActive !== false)?.pageId || '')
@@ -500,6 +536,7 @@ const MetaLeadMappingPanel: React.FC = () => {
         leadCountry: form.leadCountry || null,
         clientCurrency: form.currency || null,
         sourceLabel: form.sourceLabel.trim() || null,
+        destinationName: form.destinationName.trim() || null,
         isActive: true
       }
 
@@ -800,6 +837,20 @@ const MetaLeadMappingPanel: React.FC = () => {
                     searchPlaceholder="Search source label..."
                   />
                   <Hint>Shown as "Lead source" on the lead card.</Hint>
+                </div>
+                <div className="sm:col-start-2">
+                  <Label>Destination</Label>
+                  <SearchableDropdown
+                    value={form.destinationName}
+                    options={destinationOptions}
+                    onChange={(v) => setF('destinationName', v)}
+                    placeholder="Select destination"
+                    searchPlaceholder="Search destination..."
+                    creatable
+                    createPrompt="Use destination:"
+                    onCreatePick={(v) => setF('destinationName', v)}
+                  />
+                  <Hint>Saved as destination when this rule matches.</Hint>
                 </div>
               </div>
             </div>

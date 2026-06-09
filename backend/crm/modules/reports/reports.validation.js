@@ -11,6 +11,8 @@ const queryWithOptionalUser = baseDateRangeQuery.extend({
   supplierId: z.string().uuid().optional(),
   destination: z.string().trim().min(1).optional(),
   country: z.string().trim().min(1).max(160).optional(),
+  market: z.string().trim().min(1).max(40).optional(),
+  region: z.string().trim().min(1).max(40).optional(),
   status: z.string().trim().min(1).max(40).optional(),
   source: z.string().trim().min(1).max(120).optional(),
   leadSource: z.string().trim().min(1).max(120).optional(),

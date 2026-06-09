@@ -66,6 +66,7 @@ function createPaymentsRepository({ db, logger, schema }) {
     const leadFullName = row.lead_full_name ?? row.leadFullName ?? null;
     const leadEmail = row.lead_email ?? row.leadEmail ?? null;
     const leadPhone = row.lead_phone ?? row.leadPhone ?? row.lead_mobile ?? row.leadMobile ?? null;
+    const leadCountry = row.lead_country ?? row.leadCountry ?? null;
 
     return {
       id: row.id,
@@ -94,17 +95,85 @@ function createPaymentsRepository({ db, logger, schema }) {
       customerName: leadFullName,
       customerEmail: leadEmail,
       customerPhone: leadPhone,
+      leadCountry,
       lead:
-        leadId || leadFullName || leadEmail || leadPhone ?
+        leadId || leadFullName || leadEmail || leadPhone || leadCountry ?
           {
             id: leadId,
             fullName: leadFullName,
             email: leadEmail,
             phone: leadPhone,
             mobile: leadPhone,
+            leadCountry,
           }
         : null,
     };
+  }
+
+  function leadCountryAliases(value) {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (!normalized || normalized === "all") {
+      return [];
+    }
+
+    if (["india", "in", "ind"].includes(normalized)) {
+      return ["India", "INDIA", "india", "IN", "in", "IND", "ind"];
+    }
+
+    if (
+      [
+        "uae",
+        "u.a.e",
+        "ae",
+        "dubai",
+        "united arab emirates",
+        "emirates",
+      ].includes(normalized)
+    ) {
+      return [
+        "UAE",
+        "uae",
+        "U.A.E",
+        "u.a.e",
+        "AE",
+        "ae",
+        "Dubai",
+        "dubai",
+        "United Arab Emirates",
+        "UNITED ARAB EMIRATES",
+        "united arab emirates",
+        "Emirates",
+        "emirates",
+      ];
+    }
+
+    return [normalized];
+  }
+
+  function buildLeadCountryWhere(filters = {}, alias = "l") {
+    const countryScope = String(
+      filters.country || filters.market || filters.region || "",
+    ).trim();
+    const aliases = leadCountryAliases(countryScope);
+
+    if (!aliases.length) {
+      return { condition: "", params: [] };
+    }
+
+    return {
+      condition: `${alias}.lead_country IN (${aliases
+        .map(() => "?")
+        .join(", ")})`,
+      params: aliases,
+    };
+  }
+
+  function appendWhere(baseSql, condition) {
+    if (!condition) {
+      return baseSql;
+    }
+
+    return baseSql ? `${baseSql} AND ${condition}` : `WHERE ${condition}`;
   }
 
   function toPositiveInt(value) {
@@ -134,6 +203,11 @@ function createPaymentsRepository({ db, logger, schema }) {
     if (mapped.is_verified !== undefined) {
       conditions.push("COALESCE(p.is_verified, FALSE) = ?");
       params.push(mapped.is_verified ? 1 : 0);
+    }
+    const leadCountryWhere = buildLeadCountryWhere(mapped, "l");
+    if (leadCountryWhere.condition) {
+      conditions.push(leadCountryWhere.condition);
+      params.push(...leadCountryWhere.params);
     }
 
     return {
@@ -349,6 +423,15 @@ function createPaymentsRepository({ db, logger, schema }) {
     if (filters.limit) {
       mapped.limit = filters.limit;
     }
+    if (filters.market) {
+      mapped.market = filters.market;
+    }
+    if (filters.country) {
+      mapped.country = filters.country;
+    }
+    if (filters.region) {
+      mapped.region = filters.region;
+    }
 
     return mapped;
   }
@@ -385,7 +468,7 @@ function createPaymentsRepository({ db, logger, schema }) {
   }
 
   return Object.freeze({
-    async getStatsBreakdown() {
+    async getStatsBreakdown(filters = {}) {
       const [paymentsTableExists, bookingsTableExists, refundsTableExists] =
         await Promise.all([
           hasTable(schema.tableName),
@@ -441,6 +524,10 @@ function createPaymentsRepository({ db, logger, schema }) {
               : hasPaidAt
                 ? "DATE(p.paid_at) < CURRENT_DATE"
                 : "FALSE";
+        const leadCountryWhere = buildLeadCountryWhere(filters, "l");
+        const paymentStatsWhere = bookingsTableExists
+          ? appendWhere("", leadCountryWhere.condition)
+          : "";
         const paymentStatsQuery = bookingsTableExists
           ? `
           SELECT
@@ -487,6 +574,7 @@ function createPaymentsRepository({ db, logger, schema }) {
           LEFT JOIN ${schema.bookingsTable} b ON b.id = p.booking_id
           LEFT JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
           LEFT JOIN ${schema.leadsTable} l ON l.id = q.lead_id
+          ${paymentStatsWhere}
           GROUP BY ${paymentCurrencyExpression}
         `
           : `
@@ -534,13 +622,13 @@ function createPaymentsRepository({ db, logger, schema }) {
           GROUP BY UPPER(COALESCE(NULLIF(currency, ''), 'AED'))
         `;
 
-        let refundBreakdown = [];
+        let refundPromise = Promise.resolve({ rows: [] });
         if (refundsTableExists) {
           if (bookingsTableExists) {
             const refundsCurrencyExpression =
               await buildBookingCurrencyExpression("b", "q", "l");
 
-            const refundResult = await db.query(
+            refundPromise = db.query(
               `
                 SELECT
                   ${refundsCurrencyExpression} AS currency,
@@ -551,16 +639,13 @@ function createPaymentsRepository({ db, logger, schema }) {
                 LEFT JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
                 LEFT JOIN ${schema.leadsTable} l ON l.id = q.lead_id
                 WHERE r.status = 'PROCESSED'
+                  ${leadCountryWhere.condition ? `AND ${leadCountryWhere.condition}` : ""}
                 GROUP BY ${refundsCurrencyExpression}
               `,
-            );
-            refundBreakdown = normalizeBreakdownRows(
-              refundResult.rows,
-              "amount",
-              "count",
+              leadCountryWhere.params,
             );
           } else {
-            const refundResult = await db.query(
+            refundPromise = db.query(
               `
                 SELECT
                   'AED' AS currency,
@@ -570,17 +655,22 @@ function createPaymentsRepository({ db, logger, schema }) {
                 WHERE status = 'PROCESSED'
               `,
             );
-            refundBreakdown = normalizeBreakdownRows(
-              refundResult.rows,
-              "amount",
-              "count",
-            );
           }
         }
 
-        const collectedResult = paymentsTableExists
-          ? await db.query(paymentStatsQuery)
-          : { rows: [] };
+        const statsParams = bookingsTableExists ? leadCountryWhere.params : [];
+        const collectedPromise = paymentsTableExists
+          ? db.query(paymentStatsQuery, statsParams)
+          : Promise.resolve({ rows: [] });
+        const [collectedResult, refundResult] = await Promise.all([
+          collectedPromise,
+          refundPromise,
+        ]);
+        const refundBreakdown = normalizeBreakdownRows(
+          refundResult.rows,
+          "amount",
+          "count",
+        );
 
         return {
           collected: normalizeBreakdownRows(collectedResult.rows, "amount", "count"),
@@ -644,6 +734,18 @@ function createPaymentsRepository({ db, logger, schema }) {
         }
         return accumulator;
       }, {});
+      const countryAliases = leadCountryAliases(
+        filters.country || filters.market || filters.region || "",
+      );
+      const matchesLeadCountry = (lead) => {
+        if (!countryAliases.length) {
+          return true;
+        }
+        const country = String(
+          lead?.lead_country ?? lead?.leadCountry ?? "",
+        ).trim().toLowerCase();
+        return countryAliases.includes(country);
+      };
       const refundsMap = {};
       refunds
         .filter((row) => (row.status ?? "INITIATED") === "PROCESSED")
@@ -657,6 +759,9 @@ function createPaymentsRepository({ db, logger, schema }) {
             leadById[
               String(quotation?.lead_id ?? quotation?.leadId ?? "")
             ];
+          if (!matchesLeadCountry(lead)) {
+            return;
+          }
           const bookingCurrency =
             lead?.client_currency ??
             lead?.clientCurrency ??
@@ -694,6 +799,9 @@ function createPaymentsRepository({ db, logger, schema }) {
             leadById[
               String(quotation?.lead_id ?? quotation?.leadId ?? "")
             ];
+          if (!matchesLeadCountry(lead)) {
+            return;
+          }
           const paymentCurrency =
             lead?.client_currency ??
             lead?.clientCurrency ??
@@ -729,6 +837,9 @@ function createPaymentsRepository({ db, logger, schema }) {
             leadById[
               String(quotation?.lead_id ?? quotation?.leadId ?? "")
             ];
+          if (!matchesLeadCountry(lead)) {
+            return;
+          }
           const paymentCurrency =
             lead?.client_currency ??
             lead?.clientCurrency ??
@@ -774,8 +885,8 @@ function createPaymentsRepository({ db, logger, schema }) {
         refunds: Object.values(refundsMap),
       };
     },
-    async getStats() {
-      const breakdown = await this.getStatsBreakdown();
+    async getStats(filters = {}) {
+      const breakdown = await this.getStatsBreakdown(filters);
       const sumBucket = (rows = []) =>
         rows.reduce(
           (accumulator, row) => ({
@@ -826,6 +937,7 @@ function createPaymentsRepository({ db, logger, schema }) {
             l.full_name AS lead_full_name,
             l.email AS lead_email,
             l.phone AS lead_phone,
+            l.lead_country AS lead_country,
             u.full_name AS verified_by_name
           FROM ${schema.tableName} p
           LEFT JOIN ${schema.bookingsTable} b ON b.id = p.booking_id

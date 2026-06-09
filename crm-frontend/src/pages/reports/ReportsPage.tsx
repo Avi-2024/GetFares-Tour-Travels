@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FaCalendarDays, FaRotate, FaTriangleExclamation } from "react-icons/fa6";
 
 import SurfaceCard from "../../components/ui/SurfaceCard";
@@ -49,6 +49,14 @@ type ReportResult = {
 type LeadFilterOptions = {
   countries: string[];
   sources: string[];
+};
+
+type ReportMarket = "ALL" | "INDIA" | "UAE";
+
+type StoredReportFilters = {
+  country: string;
+  source: string;
+  market: ReportMarket;
 };
 
 type ReportPagination = {
@@ -125,6 +133,7 @@ type DateFilterFieldProps = {
 };
 
 const DateFilterField = ({ label, value, onChange }: DateFilterFieldProps) => {
+  const dateInputRef = useRef<HTMLInputElement | null>(null);
   const [draftValue, setDraftValue] = useState(() => formatFilterDateValue(value));
 
   useEffect(() => {
@@ -142,10 +151,20 @@ const DateFilterField = ({ label, value, onChange }: DateFilterFieldProps) => {
     setDraftValue(formatFilterDateValue(value));
   };
 
+  const openCalendar = () => {
+    const input = dateInputRef.current;
+    if (!input) return;
+    if (typeof input.showPicker === "function") {
+      input.showPicker();
+      return;
+    }
+    input.click();
+  };
+
   return (
     <label className="flex min-w-0 flex-col text-xs font-medium text-gray-600 dark:text-gray-300">
       <span className="mb-1">{label}</span>
-      <div className="flex h-11 items-center rounded-lg border border-gray-200 bg-white shadow-sm transition focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100 dark:border-gray-700 dark:bg-gray-900 dark:focus-within:border-blue-400 dark:focus-within:ring-blue-950/40">
+      <div className="relative flex h-11 items-center rounded-lg border border-gray-200 bg-white shadow-sm transition focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100 dark:border-gray-700 dark:bg-gray-900 dark:focus-within:border-blue-400 dark:focus-within:ring-blue-950/40">
         <input
           type="text"
           value={draftValue}
@@ -162,21 +181,28 @@ const DateFilterField = ({ label, value, onChange }: DateFilterFieldProps) => {
           aria-label={label}
           className="min-w-0 flex-1 bg-transparent px-3 text-sm text-gray-900 outline-none placeholder:text-gray-400 dark:text-gray-100 dark:placeholder:text-gray-500"
         />
-        <div className="relative mr-1 h-9 w-9 shrink-0 rounded-md text-gray-400 transition hover:bg-gray-50 dark:hover:bg-gray-800">
+        <button
+          type="button"
+          onClick={openCalendar}
+          aria-label={`Open ${label} calendar`}
+          className="relative mr-1 h-9 w-9 shrink-0 rounded-md text-gray-400 transition hover:bg-gray-50 dark:hover:bg-gray-800"
+        >
           <div className="pointer-events-none flex h-full w-full items-center justify-center">
             <FaCalendarDays className="text-base text-gray-400 dark:text-gray-500" />
           </div>
-          <input
-            type="date"
-            value={value}
-            onChange={(event) => {
-              onChange(event.target.value);
-              setDraftValue(formatFilterDateValue(event.target.value));
-            }}
-            aria-label={`Open ${label} calendar`}
-            className="absolute inset-0 cursor-pointer opacity-0"
-          />
-        </div>
+        </button>
+        <input
+          ref={dateInputRef}
+          type="date"
+          value={value}
+          onChange={(event) => {
+            onChange(event.target.value);
+            setDraftValue(formatFilterDateValue(event.target.value));
+          }}
+          aria-label={`Open ${label} calendar`}
+          tabIndex={-1}
+          className="pointer-events-none absolute right-1 top-1 h-9 w-9 opacity-0"
+        />
       </div>
     </label>
   );
@@ -281,6 +307,18 @@ const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "Request failed.";
 
 const REPORT_FILTERS_STORAGE_KEY = "reports.activeFilters.v1";
+const REPORTING_CURRENCY = "USD";
+const MARKET_OPTIONS: Array<{ value: ReportMarket; label: string }> = [
+  { value: "ALL", label: "All Markets" },
+  { value: "INDIA", label: "India" },
+  { value: "UAE", label: "UAE" },
+];
+
+const getReportMarketCurrency = (market: ReportMarket) => {
+  if (market === "INDIA") return "INR";
+  if (market === "UAE") return "AED";
+  return REPORTING_CURRENCY;
+};
 
 const safeFilePart = (value: string) =>
   value
@@ -495,16 +533,21 @@ const exportRows = ({
 
 const loadStoredFilters = () => {
   if (typeof localStorage === "undefined") {
-    return { country: "", source: "" };
+    return { country: "", source: "", market: "ALL" as ReportMarket };
   }
   try {
     const parsed = JSON.parse(localStorage.getItem(REPORT_FILTERS_STORAGE_KEY) || "{}");
+    const market = String(parsed.market || "ALL").toUpperCase();
     return {
       country: typeof parsed.country === "string" ? parsed.country : "",
       source: typeof parsed.source === "string" ? parsed.source : "",
-    };
+      market:
+        market === "INDIA" || market === "UAE" || market === "ALL" ?
+          (market as ReportMarket)
+        : "ALL",
+    } satisfies StoredReportFilters;
   } catch {
-    return { country: "", source: "" };
+    return { country: "", source: "", market: "ALL" as ReportMarket };
   }
 };
 
@@ -1094,7 +1137,11 @@ const REPORT_ROW_LIMITS: Record<string, number> = {
   "lead-aging": 2500,
 };
 
-const REPORT_COUNTRY_FILTER_IDS = new Set(["lead-aging", "deal-lines"]);
+const REPORT_COUNTRY_FILTER_IDS = new Set([
+  "lead-aging",
+  "lost-leads",
+  "deal-lines",
+]);
 
 const REPORT_CURRENCY_IDS = new Set([
   "executive",
@@ -1109,7 +1156,6 @@ const REPORT_CURRENCY_IDS = new Set([
 const ReportsPage = () => {
   const [from, setFrom] = useState(getMonthStart);
   const [to, setTo] = useState(getToday);
-  const [selectedCurrency] = useState("AED");
   const [activeId, setActiveId] = useState(reportDefinitions[0].id);
   const [tablePage, setTablePage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -1123,6 +1169,7 @@ const ReportsPage = () => {
   const [results, setResults] = useState(() => makeInitialResults(reportDefinitions));
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const { formatAmount } = useCurrency();
+  const selectedCurrency = getReportMarketCurrency(filters.market);
 
   const activeReport =
     reportDefinitions.find((report) => report.id === activeId) ||
@@ -1150,6 +1197,7 @@ const ReportsPage = () => {
       ...(REPORT_CURRENCY_IDS.has(activeReport.id) ?
         { currency: selectedCurrency }
       : {}),
+      ...(filters.market !== "ALL" ? { market: filters.market } : {}),
       ...(showCountryFilter && filters.country ?
         { country: filters.country }
       : {}),
@@ -1174,7 +1222,18 @@ const ReportsPage = () => {
       }));
     }
     setLastUpdated(new Date().toLocaleString("en-IN"));
-  }, [activeReport, filters.country, filters.source, from, pageSize, selectedCurrency, tablePage, to]);
+  }, [
+    activeReport,
+    filters.country,
+    filters.market,
+    filters.source,
+    from,
+    pageSize,
+    selectedCurrency,
+    showCountryFilter,
+    tablePage,
+    to,
+  ]);
 
   const loadFilterOptions = useCallback(async () => {
     setFilterOptionsLoading(true);
@@ -1207,7 +1266,7 @@ const ReportsPage = () => {
 
   useEffect(() => {
     setTablePage(1);
-  }, [activeId, filters.country, filters.source, from, to, pageSize]);
+  }, [activeId, filters.country, filters.market, filters.source, from, to, pageSize]);
 
   const health = useMemo(() => {
     const values = Object.values(results);
@@ -1220,7 +1279,7 @@ const ReportsPage = () => {
   }, [results]);
 
   const baseCurrency = String(
-    (results.executive?.data as ExecutiveKpis | null)?.currency || "AED",
+    (results.executive?.data as ExecutiveKpis | null)?.currency || REPORTING_CURRENCY,
   ).toUpperCase();
 
   const formatValue = (
@@ -1322,15 +1381,39 @@ const ReportsPage = () => {
         <div
           className={`grid w-full gap-3 rounded-lg border border-gray-200 bg-white p-3 shadow-sm xl:ml-auto xl:max-w-[880px] dark:border-gray-800 dark:bg-gray-950 ${
             showCountryFilter ?
-              "sm:grid-cols-2 xl:grid-cols-[minmax(0,180px)_minmax(0,180px)_minmax(0,220px)_auto_auto]"
-            : "sm:grid-cols-2 xl:grid-cols-[minmax(0,180px)_minmax(0,180px)_auto_auto]"
+              "sm:grid-cols-2 xl:grid-cols-[minmax(0,160px)_minmax(0,160px)_minmax(0,170px)_minmax(0,190px)_auto_auto]"
+            : "sm:grid-cols-2 xl:grid-cols-[minmax(0,160px)_minmax(0,160px)_minmax(0,170px)_auto_auto]"
           }`}
         >
           <DateFilterField label="From" value={from} onChange={setFrom} />
           <DateFilterField label="To" value={to} onChange={setTo} />
+          <label className="flex min-w-0 flex-col text-xs font-medium text-gray-600 dark:text-gray-300">
+            <span className="mb-1 flex items-center justify-between gap-2">
+              <span>Report Market</span>
+              <span className="font-semibold text-blue-600 dark:text-blue-300">
+                Base: {selectedCurrency}
+              </span>
+            </span>
+            <select
+              value={filters.market}
+              onChange={(event) =>
+                setFilters((current) => ({
+                  ...current,
+                  market: event.target.value as ReportMarket,
+                }))
+              }
+              className="h-11 w-full min-w-0 rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm dark:border-gray-700 dark:bg-gray-900"
+            >
+              {MARKET_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
           {showCountryFilter ? (
             <label className="flex min-w-0 flex-col text-xs font-medium text-gray-600 dark:text-gray-300">
-              <span className="mb-1">Lead Country</span>
+              <span className="mb-1">Exact Country</span>
               <select
                 value={filters.country}
                 onChange={(event) =>
@@ -1360,7 +1443,7 @@ const ReportsPage = () => {
           </button>
           <button
             type="button"
-            onClick={() => setFilters({ country: "", source: "" })}
+            onClick={() => setFilters({ country: "", source: "", market: "ALL" })}
             className="inline-flex h-11 w-full items-center justify-center rounded-lg border border-gray-200 px-4 text-sm font-semibold text-gray-700 dark:border-gray-700 dark:text-gray-200 sm:w-auto xl:self-end"
           >
             Reset

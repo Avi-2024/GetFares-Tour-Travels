@@ -871,14 +871,14 @@ function createBookingsService({
       return repository.findPaymentPickerOptions(filters);
     },
 
-    async stats(context = {}) {
+    async stats(filters = {}, context = {}) {
       logger.debug(
-        { module: "bookings", requestId: context.requestId },
+        { module: "bookings", requestId: context.requestId, filters },
         "Fetching booking stats",
       );
-      const stats = await repository.getStats();
+      const stats = await repository.getStats(filters);
       const reportingCurrency = normalizeCurrency(
-        currencyService?.baseCurrency || "AED",
+        filters.currency || "USD",
       );
 
       if (!currencyService?.convert) {
@@ -888,7 +888,7 @@ function createBookingsService({
         };
       }
 
-      const moneyRows = await repository.getStatsMoneyByCurrency();
+      const moneyRows = await repository.getStatsMoneyByCurrency(filters);
       if (!Array.isArray(moneyRows) || !moneyRows.length) {
         return {
           ...stats,

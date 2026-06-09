@@ -23,6 +23,7 @@ function mapProfileRow(row) {
     leadCountry: row.lead_country ?? row.leadCountry ?? null,
     clientCurrency: row.client_currency ?? row.clientCurrency ?? null,
     sourceLabel: row.source_label ?? row.sourceLabel ?? null,
+    destinationName: row.destination_name ?? row.destinationName ?? null,
     isActive: Boolean(row.is_active ?? row.isActive ?? true),
     createdBy: row.created_by ?? row.createdBy ?? null,
     updatedBy: row.updated_by ?? row.updatedBy ?? null,
@@ -51,6 +52,7 @@ function mapFieldMapRow(row) {
 function createMetaLeadMappingRepository({ db, logger }) {
   const profilesTable = "meta_lead_profiles";
   const mapsTable = "meta_lead_field_maps";
+  const profileColumnCache = new Map();
 
   function isMissingTableError(error) {
     return String(error?.code || "").toUpperCase() === "ER_NO_SUCH_TABLE";
@@ -58,6 +60,51 @@ function createMetaLeadMappingRepository({ db, logger }) {
 
   function activeMapQuery(profileId) {
     return { profile_id: profileId, is_active: true };
+  }
+
+  async function hasProfileColumn(columnName) {
+    if (profileColumnCache.has(columnName)) {
+      return profileColumnCache.get(columnName);
+    }
+    if (typeof db.query !== "function") {
+      profileColumnCache.set(columnName, false);
+      return false;
+    }
+
+    try {
+      const result = await db.query(
+        `
+          SELECT 1 AS found
+          FROM INFORMATION_SCHEMA.COLUMNS
+          WHERE TABLE_SCHEMA = DATABASE()
+            AND TABLE_NAME = ?
+            AND COLUMN_NAME = ?
+          LIMIT 1
+        `,
+        [profilesTable, columnName],
+      );
+      const exists = Boolean(result?.rows?.length || result?.rowCount);
+      profileColumnCache.set(columnName, exists);
+      return exists;
+    } catch (error) {
+      logger?.warn?.(
+        { module: "metaWebhook", columnName, error: error.message },
+        "Unable to inspect meta lead profile column",
+      );
+      profileColumnCache.set(columnName, false);
+      return false;
+    }
+  }
+
+  async function normalizeProfilePayload(payload) {
+    if (!Object.prototype.hasOwnProperty.call(payload, "destination_name")) {
+      return payload;
+    }
+    if (await hasProfileColumn("destination_name")) {
+      return payload;
+    }
+    const { destination_name: _destinationName, ...rest } = payload;
+    return rest;
   }
 
   async function listActiveProfilesWithMaps() {
@@ -136,11 +183,11 @@ function createMetaLeadMappingRepository({ db, logger }) {
   }
 
   async function createProfile(payload) {
-    return db.insert(profilesTable, payload);
+    return db.insert(profilesTable, await normalizeProfilePayload(payload));
   }
 
   async function updateProfile(id, payload) {
-    return db.update(profilesTable, id, payload);
+    return db.update(profilesTable, id, await normalizeProfilePayload(payload));
   }
 
   async function createFieldMap(payload) {

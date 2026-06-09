@@ -7,8 +7,25 @@ class DashboardController {
 
   async getStats(req, res) {
     try {
-      const { period = 'month' } = req.query;
-      const stats = await this.service.getStats(period);
+      const {
+        period = 'month',
+        currency,
+        country,
+        market,
+        region,
+        date,
+        from,
+        to,
+      } = req.query;
+      const stats = await this.service.getStats(period, {
+        currency,
+        country,
+        market,
+        region,
+        date,
+        from,
+        to,
+      });
       
       res.json({
         success: true,
@@ -26,8 +43,24 @@ class DashboardController {
 
   async getRevenue(req, res) {
     try {
-      const { range = 'week', currency } = req.query;
-      const revenueData = await this.service.getRevenue(range, currency);
+      const {
+        range = 'week',
+        currency,
+        country,
+        market,
+        region,
+        date,
+        from,
+        to,
+      } = req.query;
+      const revenueData = await this.service.getRevenue(range, currency, {
+        country,
+        market,
+        region,
+        date,
+        from,
+        to,
+      });
       
       res.json({
         success: true,

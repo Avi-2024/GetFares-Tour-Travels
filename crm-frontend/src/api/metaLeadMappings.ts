@@ -29,6 +29,7 @@ export type MetaLeadProfile = {
   leadCountry: string | null;
   clientCurrency: string | null;
   sourceLabel: string | null;
+  destinationName: string | null;
   isActive: boolean;
   fieldMaps: MetaLeadFieldMap[];
 };
@@ -53,6 +54,7 @@ export type MetaLeadTestMapResult = {
     leadCountry?: string | null;
     clientCurrency?: string | null;
     sourceLabel?: string | null;
+    destinationName?: string | null;
   } | null;
 };
 
@@ -101,6 +103,7 @@ export const metaLeadMappingsApi = {
     leadCountry?: string | null;
     clientCurrency?: string | null;
     sourceLabel?: string | null;
+    destinationName?: string | null;
     isActive?: boolean;
   }) =>
     unwrapData<MetaLeadProfile>(
@@ -121,6 +124,7 @@ export const metaLeadMappingsApi = {
       leadCountry: string | null;
       clientCurrency: string | null;
       sourceLabel: string | null;
+      destinationName: string | null;
       isActive: boolean;
     }>,
   ) =>

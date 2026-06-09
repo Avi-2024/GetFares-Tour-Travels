@@ -154,6 +154,25 @@ class DashboardRepository {
     return date;
   }
 
+  parseReferenceDate(value) {
+    if (!value) return null;
+    const raw = String(value).trim();
+    const normalized =
+      /^\d{4}-\d{2}-\d{2}$/.test(raw) ? `${raw}T23:59:59` : raw;
+    const date = new Date(normalized);
+    if (Number.isNaN(date.getTime())) return null;
+    return date;
+  }
+
+  parseDateOnly(value) {
+    if (!value) return null;
+    const raw = String(value).trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
+    const date = new Date(`${raw}T00:00:00`);
+    if (Number.isNaN(date.getTime())) return null;
+    return date;
+  }
+
   isSoftDeleted(row) {
     return Boolean(row?.is_deleted ?? row?.isDeleted ?? false);
   }
@@ -302,6 +321,43 @@ class DashboardRepository {
     return map;
   }
 
+  leadCountryAliases(value) {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (["india", "in", "ind"].includes(normalized)) {
+      return ["india", "in", "ind"];
+    }
+    if (
+      [
+        "uae",
+        "u.a.e",
+        "ae",
+        "dubai",
+        "united arab emirates",
+        "emirates",
+      ].includes(normalized)
+    ) {
+      return [
+        "uae",
+        "u.a.e",
+        "ae",
+        "dubai",
+        "united arab emirates",
+        "emirates",
+      ];
+    }
+    return [normalized];
+  }
+
+  leadMatchesCountry(row, filters = {}) {
+    const scope = String(filters.country || filters.market || filters.region || "").trim();
+    if (!scope || scope.toUpperCase() === "ALL") return true;
+    const aliases = new Set(this.leadCountryAliases(scope));
+    const country = String(row?.lead_country ?? row?.leadCountry ?? "")
+      .trim()
+      .toLowerCase();
+    return aliases.has(country);
+  }
+
   async sumBucketPaymentsInBase(rows, predicate, baseCurrency) {
     const byCurrency = new Map();
     rows.forEach((row) => {
@@ -332,12 +388,43 @@ class DashboardRepository {
     return date.toLocaleDateString('en-US', { month: 'short' });
   }
 
-  async getStatsFallback(period = 'month') {
+  getCustomDateBounds(filters = {}) {
+    const rawFrom = this.parseDateOnly(filters.from);
+    const rawTo = this.parseDateOnly(filters.to);
+    if (!rawFrom || !rawTo) return null;
+
+    const start = rawFrom <= rawTo ? rawFrom : rawTo;
+    const endInclusive = rawFrom <= rawTo ? rawTo : rawFrom;
+    const end = this.shiftPeriod('day', endInclusive, 1);
+    const days = Math.max(
+      Math.round((end.getTime() - start.getTime()) / 86400000),
+      1,
+    );
+    const previousEnd = new Date(start);
+    const previousStart = this.shiftPeriod('day', previousEnd, -days);
+
+    return {
+      currentStart: start,
+      currentEnd: end,
+      previousStart,
+      previousEnd,
+      reference: endInclusive,
+    };
+  }
+
+  async getStatsFallback(period = 'month', filters = {}) {
     const normalizedPeriod = this.normalizePeriod(period);
-    const now = new Date();
-    const currentStart = this.getPeriodBoundary(normalizedPeriod, now);
-    const previousStart = this.shiftPeriod(normalizedPeriod, currentStart, -1);
-    const currentEnd = this.shiftPeriod(normalizedPeriod, currentStart, 1);
+    const customBounds = this.getCustomDateBounds(filters);
+    const now =
+      customBounds?.reference ||
+      this.parseReferenceDate(filters.to || filters.from || filters.date) ||
+      new Date();
+    const currentStart =
+      customBounds?.currentStart || this.getPeriodBoundary(normalizedPeriod, now);
+    const previousStart =
+      customBounds?.previousStart || this.shiftPeriod(normalizedPeriod, currentStart, -1);
+    const currentEnd =
+      customBounds?.currentEnd || this.shiftPeriod(normalizedPeriod, currentStart, 1);
 
     const [leads, quotations, bookings] = await Promise.all([
       this.db.findMany(this.tables.leads, {}),
@@ -346,15 +433,22 @@ class DashboardRepository {
     ]);
 
     const leadRows = (Array.isArray(leads) ? leads : []).filter(
-      (row) => !this.isSoftDeleted(row),
+      (row) => !this.isSoftDeleted(row) && this.leadMatchesCountry(row, filters),
     );
+    const scopedLeadIds = new Set(leadRows.map((row) => String(row?.id)).filter(Boolean));
     const quotationRows = (Array.isArray(quotations) ? quotations : []).filter(
-      (row) => !this.isSoftDeleted(row),
+      (row) =>
+        !this.isSoftDeleted(row) &&
+        (!scopedLeadIds.size ||
+          scopedLeadIds.has(String(row?.lead_id ?? row?.leadId ?? ""))),
     );
-    const bookingRows = Array.isArray(bookings) ? bookings : [];
     const quoteLeadMap = this.buildQuotationLeadMap(quotationRows);
+    const bookingRows = (Array.isArray(bookings) ? bookings : []).filter((row) => {
+      const leadId = this.getBookingLeadId(row, quoteLeadMap);
+      return !scopedLeadIds.size || (leadId && scopedLeadIds.has(String(leadId)));
+    });
     const leadCurrencyMap = this.buildLeadCurrencyMap(leadRows);
-    const targetCurrency = "USD";
+    const targetCurrency = this.normalizeCurrency(filters.currency || "USD", "USD");
 
     const inWindow = (date, start, end) =>
       date && date.getTime() >= start.getTime() && date.getTime() < end.getTime();
@@ -451,7 +545,7 @@ class DashboardRepository {
     };
   }
 
-  async getRevenueFallback(range = 'week', currency) {
+  async getRevenueFallback(range = 'week', currency, filters = {}) {
     const normalizedRange = this.normalizeRange(range);
     const [leads, quotations, bookings] = await Promise.all([
       this.db.findMany(this.tables.leads, {}),
@@ -459,26 +553,97 @@ class DashboardRepository {
       this.db.findMany(this.tables.bookings, {}),
     ]);
     const leadRows = (Array.isArray(leads) ? leads : []).filter(
-      (row) => !this.isSoftDeleted(row),
+      (row) => !this.isSoftDeleted(row) && this.leadMatchesCountry(row, filters),
     );
+    const scopedLeadIds = new Set(leadRows.map((row) => String(row?.id)).filter(Boolean));
     const quoteRows = (Array.isArray(quotations) ? quotations : []).filter(
-      (row) => !this.isSoftDeleted(row),
+      (row) =>
+        !this.isSoftDeleted(row) &&
+        (!scopedLeadIds.size ||
+          scopedLeadIds.has(String(row?.lead_id ?? row?.leadId ?? ""))),
     );
     const leadCurrencyMap = this.buildLeadCurrencyMap(leadRows);
     const quoteLeadMap = this.buildQuotationLeadMap(quoteRows);
     const rows = (Array.isArray(bookings) ? bookings : []).filter((row) => {
       const status = String(row?.status || 'PENDING').trim().toUpperCase();
-      return status !== 'CANCELLED' && !this.isSoftDeleted(row);
+      const leadId = this.getBookingLeadId(row, quoteLeadMap);
+      const matchesLead =
+        !scopedLeadIds.size || (leadId && scopedLeadIds.has(String(leadId)));
+      return status !== 'CANCELLED' && !this.isSoftDeleted(row) && matchesLead;
     });
     const targetCurrency = this.normalizeCurrency(
       currency || "USD",
       "USD",
     );
 
-    const now = new Date();
+    const customBounds = this.getCustomDateBounds(filters);
+    const now =
+      customBounds?.reference ||
+      this.parseReferenceDate(filters.to || filters.from || filters.date) ||
+      new Date();
     const buckets = [];
+    const customRangeDays = customBounds
+      ? Math.max(
+          Math.round(
+            (customBounds.currentEnd.getTime() - customBounds.currentStart.getTime()) /
+              86400000,
+          ),
+          1,
+        )
+      : 0;
 
-    if (normalizedRange === 'today') {
+    if (customBounds) {
+      const pushCustomBucket = (start, end, index) => {
+        buckets.push({
+          start,
+          end,
+          prevStart: this.shiftPeriod('day', start, -customRangeDays),
+          prevEnd: this.shiftPeriod('day', end, -customRangeDays),
+          index,
+        });
+      };
+
+      if (normalizedRange === 'today' && customRangeDays === 1) {
+        for (let index = 0; index < 24; index += 1) {
+          const start = new Date(
+            customBounds.currentStart.getTime() + index * 60 * 60 * 1000,
+          );
+          const end = new Date(start.getTime() + 60 * 60 * 1000);
+          pushCustomBucket(start, end, index);
+        }
+      } else if (normalizedRange === 'year') {
+        let cursor = new Date(
+          customBounds.currentStart.getFullYear(),
+          customBounds.currentStart.getMonth(),
+          1,
+        );
+        let index = 0;
+        while (cursor.getTime() < customBounds.currentEnd.getTime()) {
+          const start = new Date(cursor);
+          const end = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+          pushCustomBucket(start, end, index);
+          cursor = end;
+          index += 1;
+        }
+      } else {
+        const stepDays = normalizedRange === 'month' ? 7 : 1;
+        let cursor = new Date(customBounds.currentStart);
+        let index = 0;
+        while (cursor.getTime() < customBounds.currentEnd.getTime()) {
+          const start = new Date(cursor);
+          const end = this.shiftPeriod('day', start, stepDays);
+          pushCustomBucket(
+            start,
+            end.getTime() > customBounds.currentEnd.getTime()
+              ? new Date(customBounds.currentEnd)
+              : end,
+            index,
+          );
+          cursor = end;
+          index += 1;
+        }
+      }
+    } else if (normalizedRange === 'today') {
       const dayStart = this.getPeriodBoundary('day', now);
       for (let index = 0; index < 24; index += 1) {
         const start = new Date(dayStart.getTime() + index * 60 * 60 * 1000);
@@ -558,7 +723,13 @@ class DashboardRepository {
       );
 
       results.push({
-        name: this.bucketLabel(bucket.start, normalizedRange, bucket.index),
+        name:
+          customBounds && !(normalizedRange === 'today' && customRangeDays === 1)
+            ? bucket.start.toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+              })
+            : this.bucketLabel(bucket.start, normalizedRange, bucket.index),
         revenue: this.roundAmount(revenue),
         last: this.roundAmount(last),
         currency: targetCurrency,
@@ -676,12 +847,12 @@ class DashboardRepository {
     return rows[0] || null;
   }
 
-  async getStats(period = 'month') {
-    return this.getStatsFallback(period);
+  async getStats(period = 'month', filters = {}) {
+    return this.getStatsFallback(period, filters);
   }
 
-  async getRevenue(range = 'week', currency) {
-    return this.getRevenueFallback(range, currency);
+  async getRevenue(range = 'week', currency, filters = {}) {
+    return this.getRevenueFallback(range, currency, filters);
   }
 
   async getLeadSources(period = 'month') {

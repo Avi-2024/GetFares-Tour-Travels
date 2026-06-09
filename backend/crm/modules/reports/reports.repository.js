@@ -127,11 +127,17 @@ function createReportsRepository({ db, schema, logger }) {
       clauses.push(`LOWER(COALESCE(${leadAlias}.travel_to, '')) = LOWER(?)`);
       params.push(filters.destination);
     }
-    if (filters.country) {
+    const countryScope = String(
+      filters.country || filters.market || filters.region || "",
+    ).trim();
+    if (countryScope && countryScope.toUpperCase() !== "ALL") {
+      const countryAliases = leadCountryAliases(countryScope);
       clauses.push(
-        `LOWER(TRIM(COALESCE(${leadAlias}.lead_country, ''))) = LOWER(TRIM(?))`,
+        `${leadAlias}.lead_country IN (${countryAliases
+          .map(() => "?")
+          .join(", ")})`,
       );
-      params.push(String(filters.country).trim());
+      params.push(...countryAliases);
     }
     if (filters.status && String(filters.status).trim().toUpperCase() !== "ALL") {
       clauses.push(`${leadAlias}.status = ?`);
@@ -143,6 +149,43 @@ function createReportsRepository({ db, schema, logger }) {
       params.push(src);
     }
     return { clauses, params };
+  }
+
+  function leadCountryAliases(value) {
+    const normalized = String(value || "")
+      .trim()
+      .toLowerCase();
+    if (["india", "in", "ind"].includes(normalized)) {
+      return ["India", "INDIA", "india", "IN", "in", "IND", "ind"];
+    }
+    if (
+      [
+        "uae",
+        "u.a.e",
+        "ae",
+        "dubai",
+        "united arab emirates",
+        "emirates",
+      ].includes(normalized)
+    ) {
+      return [
+        "UAE",
+        "uae",
+        "U.A.E",
+        "u.a.e",
+        "AE",
+        "ae",
+        "Dubai",
+        "dubai",
+        "United Arab Emirates",
+        "UNITED ARAB EMIRATES",
+        "united arab emirates",
+        "Emirates",
+        "emirates",
+      ];
+    }
+    const raw = String(value || "").trim();
+    return Array.from(new Set([raw, normalized, raw.toUpperCase()]));
   }
 
   function leadSourceSql(leadAlias = "l", pageAlias = "mpc") {
@@ -1628,10 +1671,9 @@ function createReportsRepository({ db, schema, logger }) {
       const clauses = ["l.status = 'LOST'"];
       const params = [...range.params];
       if (range.sql) clauses.push(range.sql.replace(/^WHERE\s+/i, ""));
-      if (filters.userId) {
-        clauses.push("l.assigned_to = ?");
-        params.push(filters.userId);
-      }
+      const assign = leadAssignmentScope(filters, "l");
+      assign.clauses.forEach((clause) => clauses.push(clause));
+      params.push(...assign.params);
       const rows = await queryRows(
         `
           SELECT
@@ -2853,7 +2895,7 @@ function createReportsRepository({ db, schema, logger }) {
         refundClauses.length ? `WHERE ${refundClauses.join(" AND ")}` : "";
 
       const sellKpi = bookingSellAmountSql();
-      const bookingRows = await queryRows(
+      const bookingRowsPromise = queryRows(
         `
           SELECT
             COUNT(*) AS total_bookings,
@@ -2868,7 +2910,7 @@ function createReportsRepository({ db, schema, logger }) {
         bookingParams,
       );
 
-      const leadRows = await queryRows(
+      const leadRowsPromise = queryRows(
         `
           SELECT
             COUNT(*) AS total_leads,
@@ -2881,7 +2923,7 @@ function createReportsRepository({ db, schema, logger }) {
         leadParams,
       );
 
-      const serviceRevenueRows = await queryRows(
+      const serviceRevenueRowsPromise = queryRows(
         `
           WITH service_revenue AS (
             SELECT
@@ -2910,7 +2952,7 @@ function createReportsRepository({ db, schema, logger }) {
           ? `AND ${assignFollow.clauses.join(" AND ")}`
           : "";
 
-      const followupRows = await queryRows(
+      const followupRowsPromise = queryRows(
         `
           SELECT
             SUM(
@@ -2937,7 +2979,7 @@ function createReportsRepository({ db, schema, logger }) {
         assignFollow.params,
       );
 
-      const activeAgentsRows = await queryRows(
+      const activeAgentsRowsPromise = queryRows(
         `
           SELECT
             COUNT(*) AS active_agents
@@ -2947,7 +2989,7 @@ function createReportsRepository({ db, schema, logger }) {
         `,
       );
 
-      const refundRows = await queryRows(
+      const refundRowsPromise = queryRows(
         `
           SELECT
             AVG(
@@ -2965,6 +3007,21 @@ function createReportsRepository({ db, schema, logger }) {
         `,
         refundParams,
       );
+      const [
+        bookingRows,
+        leadRows,
+        serviceRevenueRows,
+        followupRows,
+        activeAgentsRows,
+        refundRows,
+      ] = await Promise.all([
+        bookingRowsPromise,
+        leadRowsPromise,
+        serviceRevenueRowsPromise,
+        followupRowsPromise,
+        activeAgentsRowsPromise,
+        refundRowsPromise,
+      ]);
 
       const booking = bookingRows[0] || {};
       const leads = leadRows[0] || {};

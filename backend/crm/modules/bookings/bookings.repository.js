@@ -132,7 +132,13 @@ function createBookingsRepository({ db, logger, schema }) {
     };
   }
 
-  function toBooking(row, userMap = new Map(), leadIdMap = new Map(), leadCurrencyMap = new Map()) {
+  function toBooking(
+    row,
+    userMap = new Map(),
+    leadIdMap = new Map(),
+    leadCurrencyMap = new Map(),
+    leadCountryMap = new Map(),
+  ) {
     if (!row) {
       return null;
     }
@@ -165,6 +171,11 @@ function createBookingsRepository({ db, logger, schema }) {
         (derivedLeadId ? leadCurrencyMap.get(derivedLeadId) : null) ??
         row.client_currency ??
         row.clientCurrency ??
+        null,
+      leadCountry:
+        (derivedLeadId ? leadCountryMap.get(String(derivedLeadId)) : null) ??
+        row.lead_country ??
+        row.leadCountry ??
         null,
       supplierCurrency: row.supplier_currency ?? row.supplierCurrency ?? null,
       exchangeRate:
@@ -436,6 +447,175 @@ function createBookingsRepository({ db, logger, schema }) {
     return mapped;
   }
 
+  function buildStatsFilterSql(filters = {}, aliases = {}) {
+    const bookingAlias = aliases.booking || "";
+    const leadAlias = aliases.lead || "";
+    const bookingPrefix = bookingAlias ? `${bookingAlias}.` : "";
+    const leadPrefix = leadAlias ? `${leadAlias}.` : "";
+    const conditions = [];
+    const params = [];
+    const normalizedStatus = String(filters.status || "").trim().toUpperCase();
+    const paymentStatus = String(filters.paymentStatus || "").trim().toUpperCase();
+    const payment = String(filters.payment || "").trim().toUpperCase();
+    const risk = String(filters.risk || "").trim().toUpperCase();
+    const search = String(filters.search || "").trim();
+    const bookingId = String(filters.bookingId || "").trim();
+    const customer = String(filters.customer || "").trim();
+    const email = String(filters.email || "").trim();
+    const phone = String(filters.phone || "").trim();
+    const consultant = String(filters.consultant || "").trim();
+    const destination = String(filters.destination || "").trim();
+    const countryScope = String(
+      filters.country || filters.market || filters.region || "",
+    ).trim();
+    const fromDate = String(filters.fromDate || "").trim();
+    const toDate = String(filters.toDate || "").trim();
+
+    if (normalizedStatus && normalizedStatus !== "ALL") {
+      conditions.push(`${bookingPrefix}status = ?`);
+      params.push(normalizedStatus);
+    }
+
+    if (paymentStatus && paymentStatus !== "ALL") {
+      conditions.push(`${bookingPrefix}payment_status = ?`);
+      params.push(paymentStatus);
+    } else if (payment && payment !== "ALL") {
+      if (payment === "PAID") {
+        conditions.push(`${bookingPrefix}payment_status = 'FULL'`);
+      } else if (payment === "PARTIAL") {
+        conditions.push(`${bookingPrefix}payment_status = 'PARTIAL'`);
+      } else if (payment === "UNPAID") {
+        conditions.push(`${bookingPrefix}payment_status = 'PENDING'`);
+      } else if (payment === "REFUNDED") {
+        conditions.push(`${bookingPrefix}payment_status = 'REFUNDED'`);
+      } else if (payment === "DUE") {
+        conditions.push(
+          `${bookingPrefix}status <> 'CANCELLED' AND COALESCE(${bookingPrefix}advance_received, 0) < COALESCE(${bookingPrefix}total_amount, 0)`,
+        );
+      }
+    }
+
+    if (risk === "OVERDUE") {
+      conditions.push(`(
+        (${bookingPrefix}blocking_deadline_at IS NOT NULL AND ${bookingPrefix}blocking_deadline_at < NOW())
+        OR (${bookingPrefix}supplier_payment_deadline_at IS NOT NULL AND ${bookingPrefix}supplier_payment_deadline_at < NOW())
+        OR (${bookingPrefix}cancellation_deadline_at IS NOT NULL AND ${bookingPrefix}cancellation_deadline_at < NOW())
+      )`);
+    } else if (risk === "D2_DUE") {
+      conditions.push(`(
+        (${bookingPrefix}blocking_deadline_at IS NOT NULL AND ${bookingPrefix}blocking_deadline_at BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 2 DAY))
+        OR (${bookingPrefix}supplier_payment_deadline_at IS NOT NULL AND ${bookingPrefix}supplier_payment_deadline_at BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 2 DAY))
+        OR (${bookingPrefix}cancellation_deadline_at IS NOT NULL AND ${bookingPrefix}cancellation_deadline_at BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 2 DAY))
+      )`);
+    } else if (risk === "DEADLINE_DUE") {
+      conditions.push(`(
+        (${bookingPrefix}blocking_deadline_at IS NOT NULL AND ${bookingPrefix}blocking_deadline_at BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 1 DAY))
+        OR (${bookingPrefix}supplier_payment_deadline_at IS NOT NULL AND ${bookingPrefix}supplier_payment_deadline_at BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 1 DAY))
+        OR (${bookingPrefix}cancellation_deadline_at IS NOT NULL AND ${bookingPrefix}cancellation_deadline_at BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 1 DAY))
+      )`);
+    } else if (risk === "SAFE") {
+      conditions.push(`NOT (
+        (${bookingPrefix}blocking_deadline_at IS NOT NULL AND ${bookingPrefix}blocking_deadline_at < NOW())
+        OR (${bookingPrefix}supplier_payment_deadline_at IS NOT NULL AND ${bookingPrefix}supplier_payment_deadline_at < NOW())
+        OR (${bookingPrefix}cancellation_deadline_at IS NOT NULL AND ${bookingPrefix}cancellation_deadline_at < NOW())
+      )`);
+    }
+
+    if (bookingId) {
+      conditions.push(`(${bookingPrefix}booking_number LIKE ? OR ${bookingPrefix}id LIKE ?)`);
+      params.push(`%${bookingId}%`, `%${bookingId}%`);
+    }
+    if (customer && leadAlias) {
+      conditions.push(`${leadPrefix}full_name LIKE ?`);
+      params.push(`%${customer}%`);
+    }
+    if (email && leadAlias) {
+      conditions.push(`${leadPrefix}email LIKE ?`);
+      params.push(`%${email}%`);
+    }
+    if (phone && leadAlias) {
+      conditions.push(`${leadPrefix}phone LIKE ?`);
+      params.push(`%${phone}%`);
+    }
+    if (consultant && leadAlias) {
+      conditions.push(`${leadPrefix}assigned_to IN (
+        SELECT id FROM ${schema.usersTable} WHERE full_name LIKE ?
+      )`);
+      params.push(`%${consultant}%`);
+    }
+    if (destination && leadAlias) {
+      conditions.push(`(
+        ${leadPrefix}destination_id IN (
+          SELECT id FROM destinations WHERE name = ?
+        )
+        OR ${leadPrefix}travel_to = ?
+      )`);
+      params.push(destination, destination);
+    }
+    if (countryScope && countryScope.toUpperCase() !== "ALL" && leadAlias) {
+      const countryAliases = leadCountryAliases(countryScope);
+      conditions.push(
+        `LOWER(TRIM(COALESCE(${leadPrefix}lead_country, ''))) IN (${countryAliases
+          .map(() => "?")
+          .join(", ")})`,
+      );
+      params.push(...countryAliases);
+    }
+    if (fromDate) {
+      conditions.push(`DATE(${bookingPrefix}created_at) >= ?`);
+      params.push(fromDate);
+    }
+    if (toDate) {
+      conditions.push(`DATE(${bookingPrefix}created_at) <= ?`);
+      params.push(toDate);
+    }
+    if (search) {
+      const like = `%${search}%`;
+      if (leadAlias) {
+        conditions.push(`(
+          ${bookingPrefix}booking_number LIKE ?
+          OR ${bookingPrefix}id LIKE ?
+          OR ${leadPrefix}full_name LIKE ?
+          OR ${leadPrefix}email LIKE ?
+          OR ${leadPrefix}phone LIKE ?
+        )`);
+        params.push(like, like, like, like, like);
+      } else {
+        conditions.push(`(${bookingPrefix}booking_number LIKE ? OR ${bookingPrefix}id LIKE ?)`);
+        params.push(like, like);
+      }
+    }
+
+    return { conditions, params };
+  }
+
+  function leadCountryAliases(value) {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (["india", "in", "ind"].includes(normalized)) {
+      return ["india", "in", "ind"];
+    }
+    if (
+      [
+        "uae",
+        "u.a.e",
+        "ae",
+        "dubai",
+        "united arab emirates",
+        "emirates",
+      ].includes(normalized)
+    ) {
+      return [
+        "uae",
+        "u.a.e",
+        "ae",
+        "dubai",
+        "united arab emirates",
+        "emirates",
+      ];
+    }
+    return [normalized];
+  }
+
   async function loadUsersByIds(userIds = []) {
     const ids = [...new Set(userIds.filter(Boolean))];
     if (!ids.length) {
@@ -498,6 +678,30 @@ function createBookingsRepository({ db, logger, schema }) {
     return currencyMap;
   }
 
+  async function loadLeadCountriesByIds(leadIds = []) {
+    const ids = Array.from(
+      new Set(
+        leadIds
+          .filter(Boolean)
+          .map((id) => String(id)),
+      ),
+    );
+    if (!ids.length) {
+      return new Map();
+    }
+
+    const rows = await Promise.all(ids.map((id) => db.findById(schema.leadsTable, id)));
+    const countryMap = new Map();
+    rows.filter(Boolean).forEach((row) => {
+      const id = row.id;
+      const country = row.lead_country ?? row.leadCountry ?? row.country ?? null;
+      if (id && country) {
+        countryMap.set(String(id), String(country));
+      }
+    });
+    return countryMap;
+  }
+
   async function mapRowsToDomain(rows = []) {
     const [userMap, leadIdMap] = await Promise.all([
       loadUsersByIds(rows.map((row) => row.created_by ?? row.createdBy)),
@@ -505,9 +709,13 @@ function createBookingsRepository({ db, logger, schema }) {
         rows.map((row) => row.quotation_id ?? row.quotationId),
       ),
     ]);
-    const leadCurrencyMap = await loadLeadCurrenciesByIds(Array.from(leadIdMap.values()));
+    const leadIds = Array.from(leadIdMap.values());
+    const [leadCurrencyMap, leadCountryMap] = await Promise.all([
+      loadLeadCurrenciesByIds(leadIds),
+      loadLeadCountriesByIds(leadIds),
+    ]);
     return rows
-      .map((row) => toBooking(row, userMap, leadIdMap, leadCurrencyMap))
+      .map((row) => toBooking(row, userMap, leadIdMap, leadCurrencyMap, leadCountryMap))
       .filter(Boolean);
   }
 
@@ -519,8 +727,12 @@ function createBookingsRepository({ db, logger, schema }) {
       loadUsersByIds([row.created_by ?? row.createdBy]),
       loadLeadIdsByQuotationIds([row.quotation_id ?? row.quotationId]),
     ]);
-    const leadCurrencyMap = await loadLeadCurrenciesByIds(Array.from(leadIdMap.values()));
-    return toBooking(row, userMap, leadIdMap, leadCurrencyMap);
+    const leadIds = Array.from(leadIdMap.values());
+    const [leadCurrencyMap, leadCountryMap] = await Promise.all([
+      loadLeadCurrenciesByIds(leadIds),
+      loadLeadCountriesByIds(leadIds),
+    ]);
+    return toBooking(row, userMap, leadIdMap, leadCurrencyMap, leadCountryMap);
   }
 
   function normalizeReminderType(value) {
@@ -739,7 +951,7 @@ function createBookingsRepository({ db, logger, schema }) {
   }
 
   return Object.freeze({
-    async getStats() {
+    async getStats(filters = {}) {
       const tableExists = await hasTable(schema.tableName);
       if (!tableExists) {
         return {
@@ -765,17 +977,27 @@ function createBookingsRepository({ db, logger, schema }) {
           );
         }
 
-        const buildStatsQuery = (notDeletedPredicate) => `
+        const statsFilters = buildStatsFilterSql(filters, {
+          booking: "b",
+          lead: "l",
+        });
+        const buildWhere = (notDeletedPredicate) =>
+          [notDeletedPredicate, ...statsFilters.conditions].join(" AND ");
+
+        const buildStatsQuery = (wherePredicate) => `
             SELECT
-              SUM(CASE WHEN ${notDeletedPredicate} THEN 1 ELSE 0 END) AS total_bookings,
-              SUM(CASE WHEN status = 'CONFIRMED' AND ${notDeletedPredicate} THEN 1 ELSE 0 END) AS active_bookings,
-              SUM(CASE WHEN status = 'PENDING' AND ${notDeletedPredicate} THEN 1 ELSE 0 END) AS pending_bookings,
-              SUM(CASE WHEN status = 'COMPLETED' AND ${notDeletedPredicate} THEN 1 ELSE 0 END) AS completed_bookings,
-              SUM(CASE WHEN status = 'CANCELLED' AND ${notDeletedPredicate} THEN 1 ELSE 0 END) AS cancelled_bookings,
-              COALESCE(SUM(CASE WHEN status <> 'CANCELLED' AND ${notDeletedPredicate} THEN COALESCE(total_amount, 0) ELSE 0 END), 0) AS total_revenue,
-              COALESCE(SUM(CASE WHEN status <> 'CANCELLED' AND ${notDeletedPredicate} THEN GREATEST(COALESCE(total_amount, 0) - COALESCE(advance_received, 0), 0) ELSE 0 END), 0) AS pending_payments_amount,
-              SUM(CASE WHEN status <> 'CANCELLED' AND ${notDeletedPredicate} AND COALESCE(advance_received, 0) < COALESCE(total_amount, 0) THEN 1 ELSE 0 END) AS pending_payments_count
-            FROM ${schema.tableName}
+              COUNT(*) AS total_bookings,
+              SUM(CASE WHEN b.status = 'CONFIRMED' THEN 1 ELSE 0 END) AS active_bookings,
+              SUM(CASE WHEN b.status = 'PENDING' THEN 1 ELSE 0 END) AS pending_bookings,
+              SUM(CASE WHEN b.status = 'COMPLETED' THEN 1 ELSE 0 END) AS completed_bookings,
+              SUM(CASE WHEN b.status = 'CANCELLED' THEN 1 ELSE 0 END) AS cancelled_bookings,
+              COALESCE(SUM(CASE WHEN b.status <> 'CANCELLED' THEN COALESCE(b.total_amount, 0) ELSE 0 END), 0) AS total_revenue,
+              COALESCE(SUM(CASE WHEN b.status <> 'CANCELLED' THEN GREATEST(COALESCE(b.total_amount, 0) - COALESCE(b.advance_received, 0), 0) ELSE 0 END), 0) AS pending_payments_amount,
+              SUM(CASE WHEN b.status <> 'CANCELLED' AND COALESCE(b.advance_received, 0) < COALESCE(b.total_amount, 0) THEN 1 ELSE 0 END) AS pending_payments_count
+            FROM ${schema.tableName} b
+            LEFT JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
+            LEFT JOIN ${schema.leadsTable} l ON l.id = q.lead_id
+            WHERE ${wherePredicate}
           `;
 
         const predicateWithSoftDelete = hasSoftDelete
@@ -784,14 +1006,20 @@ function createBookingsRepository({ db, logger, schema }) {
 
         let result;
         try {
-          result = await db.query(buildStatsQuery(predicateWithSoftDelete));
+          result = await db.query(
+            buildStatsQuery(buildWhere(predicateWithSoftDelete)),
+            statsFilters.params,
+          );
         } catch (error) {
           const message = String(error?.message || "");
           const code = error?.code;
           const missingColumn =
             code === "42703" || message.includes("is_deleted");
           if (missingColumn && predicateWithSoftDelete !== "TRUE") {
-            result = await db.query(buildStatsQuery("TRUE"));
+            result = await db.query(
+              buildStatsQuery(buildWhere("TRUE")),
+              statsFilters.params,
+            );
           } else {
             throw error;
           }
@@ -845,7 +1073,7 @@ function createBookingsRepository({ db, logger, schema }) {
       };
     },
 
-    async getStatsMoneyByCurrency() {
+    async getStatsMoneyByCurrency(filters = {}) {
       const tableExists = await hasTable(schema.tableName);
       if (!tableExists) {
         return [];
@@ -867,14 +1095,21 @@ function createBookingsRepository({ db, logger, schema }) {
           "q",
           "l",
         );
-        const buildMoneyQuery = (notDeletedPredicate) => `
+        const statsFilters = buildStatsFilterSql(filters, {
+          booking: "b",
+          lead: "l",
+        });
+        const buildWhere = (notDeletedPredicate) =>
+          [notDeletedPredicate, ...statsFilters.conditions].join(" AND ");
+        const buildMoneyQuery = (wherePredicate) => `
             SELECT
               ${currencyExpression} AS currency,
-              COALESCE(SUM(CASE WHEN b.status <> 'CANCELLED' AND ${notDeletedPredicate} THEN COALESCE(b.total_amount, 0) ELSE 0 END), 0) AS total_revenue_amount,
-              COALESCE(SUM(CASE WHEN b.status <> 'CANCELLED' AND ${notDeletedPredicate} THEN GREATEST(COALESCE(b.total_amount, 0) - COALESCE(b.advance_received, 0), 0) ELSE 0 END), 0) AS pending_payments_amount
+              COALESCE(SUM(CASE WHEN b.status <> 'CANCELLED' THEN COALESCE(b.total_amount, 0) ELSE 0 END), 0) AS total_revenue_amount,
+              COALESCE(SUM(CASE WHEN b.status <> 'CANCELLED' THEN GREATEST(COALESCE(b.total_amount, 0) - COALESCE(b.advance_received, 0), 0) ELSE 0 END), 0) AS pending_payments_amount
             FROM ${schema.tableName} b
             LEFT JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
             LEFT JOIN ${schema.leadsTable} l ON l.id = q.lead_id
+            WHERE ${wherePredicate}
             GROUP BY currency
           `;
 
@@ -884,7 +1119,10 @@ function createBookingsRepository({ db, logger, schema }) {
 
         let result;
         try {
-          result = await db.query(buildMoneyQuery(predicateWithSoftDelete));
+          result = await db.query(
+            buildMoneyQuery(buildWhere(predicateWithSoftDelete)),
+            statsFilters.params,
+          );
         } catch (error) {
           const message = String(error?.message || "");
           const code = error?.code;
@@ -895,7 +1133,10 @@ function createBookingsRepository({ db, logger, schema }) {
             message.includes("Unknown column") ||
             message.includes("is_deleted");
           if (missingColumn && predicateWithSoftDelete !== "TRUE") {
-            result = await db.query(buildMoneyQuery("TRUE"));
+            result = await db.query(
+              buildMoneyQuery(buildWhere("TRUE")),
+              statsFilters.params,
+            );
           } else {
             throw error;
           }

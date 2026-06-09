@@ -5,7 +5,7 @@ import type {
 
 export const createBookingsService = (datasource: BookingsDatasource) => ({
   list: (params?: BookingsQuery) => datasource.list(params),
-  stats: () => datasource.stats(),
+  stats: (params?: BookingsQuery) => datasource.stats(params),
   create: (payload: unknown) => datasource.create(payload),
   getById: (id: string) => datasource.getById(id),
   update: (id: string, payload: unknown) => datasource.update(id, payload),

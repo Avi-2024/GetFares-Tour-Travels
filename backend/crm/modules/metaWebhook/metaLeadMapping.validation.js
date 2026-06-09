@@ -40,6 +40,7 @@ const profileBody = z.object({
   leadCountry: z.string().trim().max(100).nullable().optional(),
   clientCurrency: z.string().trim().min(3).max(10).nullable().optional(),
   sourceLabel,
+  destinationName: z.string().trim().max(200).nullable().optional(),
   isActive: z.boolean().optional(),
 });
 

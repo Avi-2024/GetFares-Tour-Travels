@@ -222,6 +222,7 @@ function createMetaLeadMappingResolver({ repository, logger }) {
               leadCountry: profile.leadCountry || null,
               clientCurrency: profile.clientCurrency || null,
               sourceLabel: normalizeMetaSourceLabel(profile.sourceLabel),
+              destinationName: profile.destinationName || null,
             }
           : null,
       };
@@ -254,6 +255,11 @@ function createMetaLeadMappingResolver({ repository, logger }) {
       payload.destinationName = payload.travelTo;
     }
 
+    if (profile.destinationName) {
+      payload.travelTo = profile.destinationName;
+      payload.destinationName = profile.destinationName;
+    }
+
     if (useLegacyFallback && !payload.travelTo) {
       const legacy = applyLegacyDestinationFallback(fields, payload, dynamic, dynamicLabels);
       payload = legacy.payload;
@@ -275,6 +281,7 @@ function createMetaLeadMappingResolver({ repository, logger }) {
         leadCountry: profile.leadCountry || null,
         clientCurrency: profile.clientCurrency || null,
         sourceLabel: normalizeMetaSourceLabel(profile.sourceLabel),
+        destinationName: profile.destinationName || null,
       },
     };
   }
