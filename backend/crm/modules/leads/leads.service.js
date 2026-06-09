@@ -1440,6 +1440,10 @@ function createLeadsService({ repository, logger, events }) {
       return payload.destinationId;
     }
 
+    if (payload.skipDestinationMasterCreate === true) {
+      return null;
+    }
+
     const destinationName =
       payload.destinationName || payload.destination || null;
     if (!destinationName) {

@@ -1,3 +1,4 @@
+-- Active: 1776775794131@@get2vacationsprd.mysql.database.azure.com@3306@g2v
 -- Fixed destination value for Meta lead mapping rules.
 
 SET @column_exists := (

@@ -4,8 +4,6 @@ import {
   CartesianGrid,
   Cell,
   ComposedChart,
-  Legend,
-  Line,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -43,7 +41,6 @@ interface DashboardStats {
 interface RevenueData {
   name: string
   revenue: number
-  last: number
 }
 
 interface LeadSource {
@@ -97,6 +94,28 @@ const getMonthStart = () => {
   return toDateInput(new Date(now.getFullYear(), now.getMonth(), 1))
 }
 
+const getYearStart = () => {
+  const now = new Date()
+  return toDateInput(new Date(now.getFullYear(), 0, 1))
+}
+
+const getWeekStart = () => {
+  const now = new Date()
+  const day = now.getDay()
+  const diff = (day + 6) % 7
+  const start = new Date(now)
+  start.setDate(now.getDate() - diff)
+  return toDateInput(start)
+}
+
+const getRangeDateWindow = (range: Range) => {
+  const today = toDateInput(new Date())
+  if (range === 'Today') return { from: today, to: today }
+  if (range === 'Week') return { from: getWeekStart(), to: today }
+  if (range === 'Month') return { from: getMonthStart(), to: today }
+  return { from: getYearStart(), to: today }
+}
+
 const parseDateInput = (value: string) => {
   const [year, month, day] = value.split('-').map(Number)
   const parsed = new Date(year, (month || 1) - 1, day || 1)
@@ -119,12 +138,9 @@ const formatDashboardDate = (value: string) => {
 
 const Dashboard: React.FC = () => {
   const { token } = useAuth()
-  const [range, setRange] = useState<Range>('Week')
+  const [range, setRange] = useState<Range>('Year')
   const [market, setMarket] = useState<Market>('ALL')
-  const [dateRange, setDateRange] = useState(() => ({
-    from: getMonthStart(),
-    to: toDateInput(new Date())
-  }))
+  const [dateRange, setDateRange] = useState(() => getRangeDateWindow('Year'))
   const fromDateInputRef = useRef<HTMLInputElement>(null)
   const toDateInputRef = useRef<HTMLInputElement>(null)
   const [loading, setLoading] = useState(false)
@@ -159,14 +175,13 @@ const Dashboard: React.FC = () => {
     const selected = revenueData[effectiveRevenueRange] ?? []
     return selected.map(point => ({
       name: String(point?.name ?? ''),
-      revenue: Number(point?.revenue ?? 0),
-      last: Number(point?.last ?? 0)
+      revenue: Number(point?.revenue ?? 0)
     }))
   }, [effectiveRevenueRange, revenueData])
   const hasRenderableRevenueData = useMemo(
     () =>
       chartRevenueData.some(
-        point => point.revenue > 0 || point.last > 0
+        point => point.revenue > 0
       ),
     [chartRevenueData]
   )
@@ -234,6 +249,11 @@ const Dashboard: React.FC = () => {
       }
       return { ...current, [field]: value }
     })
+  }
+
+  const updateRevenueRange = (nextRange: Range) => {
+    setRange(nextRange)
+    setDateRange(getRangeDateWindow(nextRange))
   }
 
   // Load KPI stats and lead sources.
@@ -589,7 +609,7 @@ const Dashboard: React.FC = () => {
               {(['Today', 'Week', 'Month', 'Year'] as Range[]).map(r => (
                 <button
                   key={r}
-                  onClick={() => setRange(r)}
+                  onClick={() => updateRevenueRange(r)}
                   className={`rounded-lg px-3 py-1.5 text-xs font-medium ${
                     range === r ? 'bg-blue-600 text-white' : 'text-gray-600'
                   }`}
@@ -609,9 +629,9 @@ const Dashboard: React.FC = () => {
                 No booked revenue found for this range
               </p>
               <p className='mt-2 max-w-md text-xs text-gray-500 dark:text-gray-400'>
-                This chart updates from non-cancelled bookings. Once bookings
-                are created in the selected period, the revenue trend will
-                appear here.
+                This chart updates from booked revenue using the same revenue
+                basis as the KPI card. Once bookings are created in the selected
+                period, the revenue trend will appear here.
               </p>
             </div>
           ) : (
@@ -628,30 +648,16 @@ const Dashboard: React.FC = () => {
                 <YAxis stroke='#9ca3af' fontSize={12} />
                 <Tooltip
                   formatter={(
-                    v: number | string | undefined,
-                    _name,
-                    item: any
-                  ) => [
-                    formatRevenueValue(Number(v ?? 0)),
-                    item?.dataKey === 'last' ? 'Previous' : 'Current'
-                  ]}
+                    v: number | string | undefined
+                  ) => [formatRevenueValue(Number(v ?? 0)), 'Revenue']}
                 />
-                <Legend />
                 <Area
                   type='linear'
                   dataKey='revenue'
                   fill='url(#g)'
                   stroke='#2563eb'
                   strokeWidth={2}
-                  name='Current'
-                />
-                <Line
-                  type='linear'
-                  dataKey='last'
-                  stroke='#94a3b8'
-                  strokeWidth={2}
-                  dot={false}
-                  name='Previous'
+                  name='Revenue'
                 />
               </ComposedChart>
             </ResponsiveContainer>

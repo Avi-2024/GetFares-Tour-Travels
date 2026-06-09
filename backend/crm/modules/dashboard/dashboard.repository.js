@@ -471,12 +471,8 @@ class DashboardRepository {
       }).length;
     };
 
-    const activeBookingRows = bookingRows.filter(
-      (row) => String(row.status || '').toUpperCase() !== 'CANCELLED',
-    );
-
     const currentRevenue = await this.sumBucketRevenueInBase(
-      activeBookingRows,
+      bookingRows,
       (row) =>
         inWindow(
           this.parseDate(
@@ -494,7 +490,7 @@ class DashboardRepository {
     );
 
     const previousRevenue = await this.sumBucketRevenueInBase(
-      activeBookingRows,
+      bookingRows,
       (row) =>
         inWindow(
           this.parseDate(
@@ -565,11 +561,10 @@ class DashboardRepository {
     const leadCurrencyMap = this.buildLeadCurrencyMap(leadRows);
     const quoteLeadMap = this.buildQuotationLeadMap(quoteRows);
     const rows = (Array.isArray(bookings) ? bookings : []).filter((row) => {
-      const status = String(row?.status || 'PENDING').trim().toUpperCase();
       const leadId = this.getBookingLeadId(row, quoteLeadMap);
       const matchesLead =
         !scopedLeadIds.size || (leadId && scopedLeadIds.has(String(leadId)));
-      return status !== 'CANCELLED' && !this.isSoftDeleted(row) && matchesLead;
+      return !this.isSoftDeleted(row) && matchesLead;
     });
     const targetCurrency = this.normalizeCurrency(
       currency || "USD",

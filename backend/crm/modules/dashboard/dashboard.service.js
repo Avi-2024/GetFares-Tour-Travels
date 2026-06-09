@@ -105,6 +105,90 @@ class DashboardService {
     return Math.round(((currentValue - previousValue) / previousValue) * 100);
   }
 
+  addDays(value, days) {
+    const date = new Date(value);
+    date.setDate(date.getDate() + days);
+    return date;
+  }
+
+  getDashboardRevenueBuckets(range = 'week', filters = {}) {
+    const normalized = this.normalizePeriod(range);
+    const bounds = this.getWindowRange(normalized, filters).current;
+    const start = this.parseDateOnly(bounds.from);
+    const end = this.parseDateOnly(bounds.to);
+
+    if (!start || !end) {
+      return [];
+    }
+
+    const buckets = [];
+    const pushBucket = (bucketStart, bucketEnd, label) => {
+      const safeEnd = bucketEnd > end ? new Date(end) : bucketEnd;
+      if (bucketStart > end || safeEnd < start) return;
+
+      buckets.push({
+        label,
+        from: this.formatDateOnly(bucketStart),
+        to: this.formatDateOnly(safeEnd),
+      });
+    };
+
+    if (normalized === 'day') {
+      pushBucket(start, end, start.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+      }));
+      return buckets;
+    }
+
+    if (normalized === 'week') {
+      let cursor = new Date(start);
+      const showDateLabels =
+        Math.round((end.getTime() - start.getTime()) / 86400000) + 1 > 7;
+      while (cursor <= end) {
+        pushBucket(
+          new Date(cursor),
+          new Date(cursor),
+          cursor.toLocaleDateString(
+            'en-US',
+            showDateLabels
+              ? { month: 'short', day: 'numeric' }
+              : { weekday: 'short' },
+          ),
+        );
+        cursor = this.addDays(cursor, 1);
+      }
+      return buckets;
+    }
+
+    if (normalized === 'month') {
+      let cursor = new Date(start);
+      let index = 1;
+      while (cursor <= end) {
+        const bucketStart = new Date(cursor);
+        const bucketEnd = this.addDays(bucketStart, 6);
+        pushBucket(bucketStart, bucketEnd, `W${index}`);
+        cursor = this.addDays(bucketEnd, 1);
+        index += 1;
+      }
+      return buckets;
+    }
+
+    let cursor = new Date(start.getFullYear(), start.getMonth(), 1);
+    while (cursor <= end) {
+      const bucketStart = cursor < start ? new Date(start) : new Date(cursor);
+      const bucketEnd = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0);
+      pushBucket(
+        bucketStart,
+        bucketEnd,
+        cursor.toLocaleDateString('en-US', { month: 'short' }),
+      );
+      cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+    }
+
+    return buckets;
+  }
+
   async getStats(period = 'month', filters = {}) {
     try {
       if (this.reportsService?.executiveKpis) {
@@ -197,6 +281,36 @@ class DashboardService {
 
   async getRevenue(range = 'week', currency, filters = {}) {
     try {
+      if (this.reportsService?.executiveKpis) {
+        const reportingCurrency = String(currency || filters.currency || 'AED')
+          .trim()
+          .toUpperCase();
+        const scopedFilters = {
+          ...filters,
+          currency: reportingCurrency,
+        };
+        const buckets = this.getDashboardRevenueBuckets(range, scopedFilters);
+
+        return Promise.all(
+          buckets.map(async (bucket) => {
+            const current = await this.reportsService.executiveKpis(
+              {
+                ...scopedFilters,
+                from: bucket.from,
+                to: bucket.to,
+              },
+              {},
+            );
+
+            return {
+              name: bucket.label,
+              revenue: Number(Number(current?.revenue || 0).toFixed(2)),
+              currency: current?.currency || reportingCurrency,
+            };
+          }),
+        );
+      }
+
       const revenueData = await this.repository.getRevenue(range, currency, filters);
       return revenueData;
     } catch (error) {

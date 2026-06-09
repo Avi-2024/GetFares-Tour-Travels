@@ -231,6 +231,7 @@ async function buildLeadPayload(
     nationality: mappedPayload.nationality || null,
     travelTo: assignedDestination,
     destinationName: assignedDestination,
+    skipDestinationMasterCreate: Boolean(assignedDestination),
     travelPurpose: mappedPayload.travelPurpose || null,
     budget: mappedPayload.budget ?? null,
     visaRequired: mappedPayload.visaRequired,

@@ -400,7 +400,12 @@ const MetaLeadMappingPanel: React.FC = () => {
 
     const current = form.destinationName.trim()
     if (current && !seen.has(current.toLowerCase())) {
-      options.unshift({ value: current, label: current, searchText: current })
+      options.unshift({
+        value: current,
+        label: current,
+        rightLabel: 'Custom',
+        searchText: current
+      })
     }
 
     return [{ value: '', label: 'Select destination' }, ...options]
