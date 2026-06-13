@@ -37,6 +37,7 @@ function createRequestLoggingMiddleware({ logger }) {
         functionName: "response.finish",
         requestId,
         userId: req.context?.user?.id || userId,
+        integrationClientId: req.context?.integration?.id || null,
         method,
         url,
         statusCode,

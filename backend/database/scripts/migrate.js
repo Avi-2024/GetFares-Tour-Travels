@@ -33,8 +33,9 @@ function detectDatabaseClient() {
     .trim()
     .toLowerCase();
   if (url.startsWith("mysql://") || url.startsWith("mysql2://")) return "mysql";
+  if (process.env.MYSQL_HOST || process.env.MYSQL_DATABASE) return "mysql";
 
-  return "postgres";
+  return "mysql";
 }
 
 async function getMigrationFiles(dbClient) {

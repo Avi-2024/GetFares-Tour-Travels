@@ -205,9 +205,6 @@ function createAutomationScheduler({
 
   async function runJob(job) {
     const startedAt = Date.now();
-    const runRecord = await createRunRecord(job.name);
-    const lock = await acquireLock(job.name);
-
     const current = state.jobs.get(job.name) || {};
     const next = {
       ...current,
@@ -216,18 +213,86 @@ function createAutomationScheduler({
     };
     state.jobs.set(job.name, next);
 
-    if (!lock.acquired) {
+    try {
+      const runRecord = await createRunRecord(job.name);
+      const lock = await acquireLock(job.name);
+
+      if (!lock.acquired) {
+        const durationMs = Date.now() - startedAt;
+        const skippedPayload = {
+          status: "SKIPPED",
+          recordsProcessed: 0,
+          details: JSON.stringify({ reason: "LOCK_NOT_ACQUIRED" }),
+          errorMessage: null,
+        };
+        await completeRunRecord(runRecord, skippedPayload);
+        metricsStore?.trackAutomationJob?.({
+          jobName: job.name,
+          status: "SKIPPED",
+          durationMs,
+          recordsProcessed: 0,
+        });
+        state.jobs.set(job.name, {
+          ...next,
+          lastFinishedAt: new Date().toISOString(),
+          lastDurationMs: durationMs,
+          lastStatus: "SKIPPED",
+        });
+        return;
+      }
+
+      let status = "SUCCESS";
+      let result = {};
+      let errorMessage = null;
+
+      try {
+        result = (await job.run()) || {};
+      } catch (error) {
+        status = "FAILED";
+        result = {
+          message: error?.message || "Unknown automation error",
+        };
+        errorMessage = error?.message || "Unknown automation error";
+        logger?.error?.(
+          { err: error, module: "automation", jobName: job.name },
+          "Automation job failed",
+        );
+      } finally {
+        await lock.release();
+      }
+
       const durationMs = Date.now() - startedAt;
-      const skippedPayload = {
-        status: "SKIPPED",
-        recordsProcessed: 0,
-        details: JSON.stringify({ reason: "LOCK_NOT_ACQUIRED" }),
-        errorMessage: null,
-      };
-      await completeRunRecord(runRecord, skippedPayload);
+      const recordsProcessed = coerceProcessedCount(result);
+      await completeRunRecord(runRecord, {
+        status,
+        recordsProcessed,
+        details: toJsonDetails(result),
+        errorMessage,
+      });
+
       metricsStore?.trackAutomationJob?.({
         jobName: job.name,
-        status: "SKIPPED",
+        status,
+        durationMs,
+        recordsProcessed,
+      });
+
+      state.jobs.set(job.name, {
+        ...next,
+        lastFinishedAt: new Date().toISOString(),
+        lastDurationMs: durationMs,
+        lastStatus: status,
+        lastProcessed: recordsProcessed,
+      });
+    } catch (error) {
+      const durationMs = Date.now() - startedAt;
+      logger?.error?.(
+        { err: error, module: "automation", jobName: job.name },
+        "Automation scheduler infrastructure failed",
+      );
+      metricsStore?.trackAutomationJob?.({
+        jobName: job.name,
+        status: "FAILED",
         durationMs,
         recordsProcessed: 0,
       });
@@ -235,54 +300,10 @@ function createAutomationScheduler({
         ...next,
         lastFinishedAt: new Date().toISOString(),
         lastDurationMs: durationMs,
-        lastStatus: "SKIPPED",
+        lastStatus: "FAILED",
+        lastProcessed: 0,
       });
-      return;
     }
-
-    let status = "SUCCESS";
-    let result = {};
-    let errorMessage = null;
-
-    try {
-      result = (await job.run()) || {};
-    } catch (error) {
-      status = "FAILED";
-      result = {
-        message: error?.message || "Unknown automation error",
-      };
-      errorMessage = error?.message || "Unknown automation error";
-      logger?.error?.(
-        { err: error, module: "automation", jobName: job.name },
-        "Automation job failed",
-      );
-    } finally {
-      await lock.release();
-    }
-
-    const durationMs = Date.now() - startedAt;
-    const recordsProcessed = coerceProcessedCount(result);
-    await completeRunRecord(runRecord, {
-      status,
-      recordsProcessed,
-      details: toJsonDetails(result),
-      errorMessage,
-    });
-
-    metricsStore?.trackAutomationJob?.({
-      jobName: job.name,
-      status,
-      durationMs,
-      recordsProcessed,
-    });
-
-    state.jobs.set(job.name, {
-      ...next,
-      lastFinishedAt: new Date().toISOString(),
-      lastDurationMs: durationMs,
-      lastStatus: status,
-      lastProcessed: recordsProcessed,
-    });
   }
 
   function scheduleJob(job, position) {
@@ -293,9 +314,19 @@ function createAutomationScheduler({
     const intervalMs = normalizeIntervalMs(job.intervalMs, 60000);
 
     const timeout = setTimeout(() => {
-      void runJob(job);
+      void runJob(job).catch((error) => {
+        logger?.error?.(
+          { err: error, module: "automation", jobName: job.name },
+          "Automation startup run rejected",
+        );
+      });
       const interval = setInterval(() => {
-        void runJob(job);
+        void runJob(job).catch((error) => {
+          logger?.error?.(
+            { err: error, module: "automation", jobName: job.name },
+            "Automation interval run rejected",
+          );
+        });
       }, intervalMs);
       timers.set(`${job.name}:interval`, interval);
     }, startupDelayMs);

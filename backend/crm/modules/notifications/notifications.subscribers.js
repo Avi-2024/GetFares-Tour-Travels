@@ -1,6 +1,5 @@
 const DOMAIN_EVENT_NAMES = Object.freeze([
-    "auth.registered",
-  "auth.logged_in",
+  "auth.registered",
   "leads.created",
   "leads.updated",
   "leads.assigned",

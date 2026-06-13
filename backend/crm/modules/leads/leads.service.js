@@ -437,6 +437,10 @@ function createLeadsService({ repository, logger, events }) {
     );
   }
 
+  function isAssignableLeadOwnerRole(value) {
+    return isAgentRole(value) || isManagerRole(value);
+  }
+
   function isFullAccessRole(value) {
     const role = normalizeRoleToken(value);
     return isSuperAdminRole(role) || role === "admin" || role === "accounts";
@@ -1797,10 +1801,10 @@ function createLeadsService({ repository, logger, events }) {
       if (!assignee) {
         throw new AppError(404, "Assignee not found", "ASSIGNEE_NOT_FOUND");
       }
-      if (!isAgentRole(assignee.role)) {
+      if (!isAssignableLeadOwnerRole(assignee.role)) {
         throw new AppError(
           400,
-          "Leads can only be assigned to lead agents.",
+          "Leads can only be assigned to lead agents or managers.",
           "ASSIGNEE_ROLE_NOT_ALLOWED",
         );
       }

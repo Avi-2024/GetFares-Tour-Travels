@@ -225,6 +225,8 @@ const REQUIRED_COMPLIANCE = {
 const AGENT_ASSIGNABLE_ROLES = new Set([
   'agent',
   'manager',
+  'department_head',
+  'team_lead',
   'sales_consultant',
   'visa_executive',
   'holiday_consultant'

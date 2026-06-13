@@ -1,0 +1,368 @@
+{
+  "info": {
+    "_postman_id": "b4719af0-84e4-413a-aab6-16196f6560af",
+    "name": "Partner CRM Integration",
+    "description": "Minimal production collection for CRM-1 to CRM-2 webhook synchronization.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "noauth"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000"
+    }
+  ],
+  "item": [
+    {
+      "name": "01 - Connectivity",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Client-Id",
+                "value": "{{clientId}}",
+                "type": "text"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "postman-{{$guid}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/integrations/v1/health",
+            "description": "Validates integration credentials."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "02 - Recovery Change Feed",
+      "item": [
+        {
+          "name": "Get Initial Changes",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Client-Id",
+                "value": "{{clientId}}",
+                "type": "text"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "postman-{{$guid}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/integrations/v1/changes?limit={{limit}}&entities={{entities}}",
+            "description": "Starts recovery synchronization."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Success response', () => pm.expect(json.success).to.eql(true));",
+                  "if (json.data.nextCursor) pm.environment.set('cursor', json.data.nextCursor);",
+                  "const booking = json.data.changes.find(item => item.rootBookingId);",
+                  "if (booking) pm.environment.set('bookingId', booking.rootBookingId);"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Get Next Changes",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Client-Id",
+                "value": "{{clientId}}",
+                "type": "text"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "postman-{{$guid}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/integrations/v1/changes?cursor={{cursor}}&limit={{limit}}&entities={{entities}}",
+            "description": "Continues recovery synchronization."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Success response', () => pm.expect(json.success).to.eql(true));",
+                  "if (json.data.nextCursor) pm.environment.set('cursor', json.data.nextCursor);"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "03 - Booking Aggregate",
+      "item": [
+        {
+          "name": "Get Booking Aggregate",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Client-Id",
+                "value": "{{clientId}}",
+                "type": "text"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "postman-{{$guid}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/integrations/v1/bookings/{{bookingId}}",
+            "description": "Returns customer, lead, quotation, booking, payments, and refunds."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "04 - Webhook Setup",
+      "item": [
+        {
+          "name": "Create Webhook Endpoint",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Client-Id",
+                "value": "{{clientId}}",
+                "type": "text"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "postman-{{$guid}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Client CRM Webhook\",\n  \"webhookUrl\": \"{{webhookUrl}}\",\n  \"subscribedEvents\": [\n    \"lead.created\",\n    \"lead.updated\",\n    \"booking.created\",\n    \"booking.updated\",\n    \"payment.created\",\n    \"payment.updated\",\n    \"refund.created\",\n    \"refund.updated\"\n  ],\n  \"isActive\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/integrations/v1/webhook-endpoints",
+            "description": "Registers CRM-2 receiver. Save signingSecret immediately."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201\", () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.test('Success response', () => pm.expect(json.success).to.eql(true));",
+                  "pm.environment.set('webhookEndpointId', json.data.id);",
+                  "pm.environment.set('webhookSigningSecret', json.data.signingSecret);"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Send Immediate Test",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Client-Id",
+                "value": "{{clientId}}",
+                "type": "text"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "postman-{{$guid}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/integrations/v1/webhook-endpoints/{{webhookEndpointId}}/test",
+            "description": "Directly tests receiver connectivity and response."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "05 - Delivery Recovery",
+      "item": [
+        {
+          "name": "List Failed Deliveries",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Client-Id",
+                "value": "{{clientId}}",
+                "type": "text"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "postman-{{$guid}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/integrations/v1/webhook-deliveries?page=1&limit=25&status=FAILED"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Success response', () => pm.expect(json.success).to.eql(true));",
+                  "const delivery = json.data.data[0];",
+                  "if (delivery) pm.environment.set('webhookDeliveryId', delivery.id);"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Retry Delivery",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Client-Id",
+                "value": "{{clientId}}",
+                "type": "text"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "postman-{{$guid}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/integrations/v1/webhook-deliveries/{{webhookDeliveryId}}/retry"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    }
+  ]
+}

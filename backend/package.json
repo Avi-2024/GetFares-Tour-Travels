@@ -18,6 +18,8 @@
     "cms-seed": "node database/scripts/cms-seed.js",
     "db:seed:rbac": "node scripts/seed-rbac.js",
     "db:seed:accounts": "node database/scripts/seed-accounts-users.js",
+    "integration:create-client": "node scripts/create-integration-client.js",
+    "integration:generate-postman": "node scripts/generate-partner-integration-postman.mjs",
     "db:backup": "node scripts/backup-db.js",
     "db:restore": "node scripts/restore-db.js",
     "test:sprint1": "node scripts/test-sprint1.js",
@@ -29,7 +31,8 @@
     "test:sprint7": "node scripts/test-sprint7.js",
     "test:sprint8": "node scripts/test-sprint8.js",
     "test:quotation-detail": "node scripts/test-quotation-by-id.js",
-    "test:reports": "node scripts/verify-reports-backend.js"
+    "test:reports": "node scripts/verify-reports-backend.js",
+    "test:partner-integration": "node scripts/test-partner-integration.js"
   },
   "dependencies": {
     "@azure/storage-blob": "^12.31.0",
