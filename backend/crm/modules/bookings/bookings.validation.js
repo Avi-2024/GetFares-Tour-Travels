@@ -3,6 +3,46 @@ import { z } from "zod";
 const bookingStatus = z.enum(["PENDING", "CONFIRMED", "CANCELLED"]);
 const paymentStatus = z.enum(["PENDING", "PARTIAL", "FULL", "REFUNDED"]);
 const currencyCode = z.string().trim().min(3).max(10);
+const upperEnum = (values) =>
+  z
+    .string()
+    .trim()
+    .transform((value) => value.toUpperCase())
+    .pipe(z.enum(values));
+const bookingFilterQuery = z.object({
+  page: z.coerce.number().int().positive().optional(),
+  limit: z.coerce.number().int().positive().max(500).optional(),
+  status: upperEnum(["PENDING", "CONFIRMED", "CANCELLED"]).optional(),
+  paymentStatus: upperEnum(["PENDING", "PARTIAL", "FULL", "REFUNDED"]).optional(),
+  payment: upperEnum(["ALL", "PAID", "PARTIAL", "UNPAID", "REFUNDED", "DUE"]).optional(),
+  risk: upperEnum(["ALL", "SAFE", "D2_DUE", "DEADLINE_DUE", "OVERDUE"]).optional(),
+  market: upperEnum(["ALL", "INDIA", "UAE"]).optional(),
+  country: z.string().trim().min(1).max(100).optional(),
+  region: z.string().trim().min(1).max(100).optional(),
+  quotationId: z.string().uuid().optional(),
+  createdBy: z.string().uuid().optional(),
+  bookingId: z.string().trim().min(1).max(150).optional(),
+  customer: z.string().trim().min(1).max(150).optional(),
+  email: z.string().trim().min(1).max(254).optional(),
+  phone: z.string().trim().min(1).max(40).optional(),
+  consultantId: z.string().uuid().optional(),
+  consultant: z.string().trim().min(1).max(150).optional(),
+  destinationId: z.string().uuid().optional(),
+  destination: z.string().trim().min(1).max(200).optional(),
+  fromDate: z.string().date().optional(),
+  toDate: z.string().date().optional(),
+  search: z.string().trim().min(1).max(150).optional(),
+  sortBy: z
+    .enum([
+      "NEWEST_FIRST",
+      "OLDEST_FIRST",
+      "AMOUNT_HIGH_TO_LOW",
+      "AMOUNT_LOW_TO_HIGH",
+      "CUSTOMER_A_Z",
+    ])
+    .optional(),
+  currency: currencyCode.optional(),
+});
 
 const dateTimeString = z
   .string()
@@ -148,23 +188,13 @@ const updatePayload = z
 const list = z.object({
   body: z.object({}).optional(),
   params: z.object({}).optional(),
-  query: z
-    .object({
-      page: z.coerce.number().int().positive().optional(),
-      limit: z.coerce.number().int().positive().optional(),
-      status: bookingStatus.optional(),
-      paymentStatus: paymentStatus.optional(),
-      quotationId: z.string().uuid().optional(),
-      createdBy: z.string().uuid().optional(),
-      search: z.string().trim().min(1).max(150).optional(),
-    })
-    .optional(),
+  query: bookingFilterQuery.optional(),
 });
 
 const stats = z.object({
-  body: z.any().optional(),
-  params: z.any().optional(),
-  query: z.any().optional(),
+  body: z.object({}).optional(),
+  params: z.object({}).optional(),
+  query: bookingFilterQuery.omit({ page: true, limit: true, sortBy: true }).optional(),
 });
 
 const paymentPickerOptions = z.object({

@@ -26,6 +26,16 @@ export interface Booking {
   dmcDetails?: Record<string, any>;
 }
 
+export interface BookingsListResponse {
+  data: Booking[];
+  meta: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
 export interface CreateBookingPayload {
   quotationId?: string;
   customerId: string;
@@ -55,7 +65,7 @@ const toPaymentMode = (method: string) => {
 
 export const bookingsEndpoints = {
   list: (params?: Record<string, any>) =>
-    apiClient.get<{ data: Booking[] }>(withQuery('/api/bookings', params)),
+    apiClient.get<BookingsListResponse>(withQuery('/api/bookings', params)),
 
   create: (payload: CreateBookingPayload) =>
     apiClient.post<{ data: Booking }>('/api/bookings', payload),

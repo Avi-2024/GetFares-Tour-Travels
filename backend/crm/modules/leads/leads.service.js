@@ -450,9 +450,7 @@ function createLeadsService({ repository, logger, events }) {
     if (!userId) return new Set();
     const names = await repository.findUserCountryNames(userId);
     return new Set(
-      names
-        .map((name) => normalizeCategory(name))
-        .filter(Boolean),
+      names.flatMap((name) => [...countryAliases(name)]),
     );
   }
 
@@ -472,32 +470,11 @@ function createLeadsService({ repository, logger, events }) {
     }
 
     if (isManagerRole(userRole)) {
-      const [managedAgentIds, managerCountries] = await Promise.all([
-        repository.findManagedAgentIds(userId),
-        getUserCountrySet(userId),
-      ]);
-      const managedAgentSet = new Set(managedAgentIds);
-      const leadCountry = normalizeCategory(lead.leadCountry ?? lead.country ?? null);
-      const isCountryAllowed =
-        !leadCountry || managerCountries.size === 0 || managerCountries.has(leadCountry);
-
-      if (!isCountryAllowed) {
-        return false;
-      }
-
-      if (lead.assignedTo === userId) {
-        return true;
-      }
-
-      if (lead.assignedTo && managedAgentSet.has(lead.assignedTo)) {
-        return true;
-      }
-
-      if (!lead.assignedTo) {
-        return true;
-      }
-
-      return false;
+      const managerCountries = await getUserCountrySet(userId);
+      const leadCountry = normalizeCountryAlias(
+        lead.leadCountry ?? lead.country ?? null,
+      );
+      return Boolean(leadCountry && managerCountries.has(leadCountry));
     }
 
     return false;
@@ -551,18 +528,12 @@ function createLeadsService({ repository, logger, events }) {
     }
 
     if (isManager && userId) {
-      const [managerCountrySet, managedAgentIds] = await Promise.all([
-        getUserCountrySet(userId),
-        repository.findManagedAgentIds(userId),
-      ]);
-      const visibleAssigneeIds = [userId, ...managedAgentIds].filter(Boolean);
-      if (visibleAssigneeIds.length > 0) {
-        nextFilters.visibleAssigneeIds = [...new Set(visibleAssigneeIds)];
-        nextFilters.includeUnassigned = true;
-      }
-      if (managerCountrySet.size > 0) {
-        nextFilters.allowedCountries = [...managerCountrySet];
-      }
+      const managerCountrySet = await getUserCountrySet(userId);
+      nextFilters.allowedCountries =
+        managerCountrySet.size > 0
+          ? [...managerCountrySet]
+          : ["__no_manager_country_access__"];
+      nextFilters.strictCountryScope = true;
     }
 
     return nextFilters;
@@ -2263,18 +2234,12 @@ function createLeadsService({ repository, logger, events }) {
       }
 
       if (isManager && userId) {
-        const [managerCountrySet, managedAgentIds] = await Promise.all([
-          getUserCountrySet(userId),
-          repository.findManagedAgentIds(userId),
-        ]);
-        const visibleAssigneeIds = [userId, ...managedAgentIds].filter(Boolean);
-        if (visibleAssigneeIds.length > 0) {
-          mappedFilters.visibleAssigneeIds = [...new Set(visibleAssigneeIds)];
-          mappedFilters.includeUnassigned = true;
-        }
-        if (managerCountrySet.size > 0) {
-          mappedFilters.allowedCountries = [...managerCountrySet];
-        }
+        const managerCountrySet = await getUserCountrySet(userId);
+        mappedFilters.allowedCountries =
+          managerCountrySet.size > 0
+            ? [...managerCountrySet]
+            : ["__no_manager_country_access__"];
+        mappedFilters.strictCountryScope = true;
       }
 
       const items = await repository.findDistinctDestinations(mappedFilters);
@@ -2302,18 +2267,12 @@ function createLeadsService({ repository, logger, events }) {
       }
 
       if (isManager && userId) {
-        const [managerCountrySet, managedAgentIds] = await Promise.all([
-          getUserCountrySet(userId),
-          repository.findManagedAgentIds(userId),
-        ]);
-        const visibleAssigneeIds = [userId, ...managedAgentIds].filter(Boolean);
-        if (visibleAssigneeIds.length > 0) {
-          mappedFilters.visibleAssigneeIds = [...new Set(visibleAssigneeIds)];
-          mappedFilters.includeUnassigned = true;
-        }
-        if (managerCountrySet.size > 0) {
-          mappedFilters.allowedCountries = [...managerCountrySet];
-        }
+        const managerCountrySet = await getUserCountrySet(userId);
+        mappedFilters.allowedCountries =
+          managerCountrySet.size > 0
+            ? [...managerCountrySet]
+            : ["__no_manager_country_access__"];
+        mappedFilters.strictCountryScope = true;
       }
 
       const items = await repository.findDistinctLeadSources(mappedFilters);
@@ -2341,18 +2300,12 @@ function createLeadsService({ repository, logger, events }) {
       }
 
       if (isManager && userId) {
-        const [managerCountrySet, managedAgentIds] = await Promise.all([
-          getUserCountrySet(userId),
-          repository.findManagedAgentIds(userId),
-        ]);
-        const visibleAssigneeIds = [userId, ...managedAgentIds].filter(Boolean);
-        if (visibleAssigneeIds.length > 0) {
-          mappedFilters.visibleAssigneeIds = [...new Set(visibleAssigneeIds)];
-          mappedFilters.includeUnassigned = true;
-        }
-        if (managerCountrySet.size > 0) {
-          mappedFilters.allowedCountries = [...managerCountrySet];
-        }
+        const managerCountrySet = await getUserCountrySet(userId);
+        mappedFilters.allowedCountries =
+          managerCountrySet.size > 0
+            ? [...managerCountrySet]
+            : ["__no_manager_country_access__"];
+        mappedFilters.strictCountryScope = true;
       }
 
       const items = await repository.findDistinctPlatforms(mappedFilters);

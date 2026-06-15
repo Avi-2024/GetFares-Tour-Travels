@@ -9,6 +9,11 @@ import {
   type ReactNode,
 } from "react";
 import { authApi, rbacApi } from "../api";
+import {
+  invalidateBookingsFormDropdownCaches,
+  invalidateBookingsPageCache,
+  setBookingsPageCacheScope,
+} from "../lib/bookingsPageCache";
 
 type AuthUser = {
   id: string;
@@ -179,6 +184,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const nextUser = normalizeAuthUser(response?.data);
         if (!nextUser || cancelled) return;
         localStorage.setItem(STORAGE_USER, JSON.stringify(nextUser));
+        setBookingsPageCacheScope(`${nextUser.id}:${nextUser.role || ""}`);
         const storedToken = localStorage.getItem(STORAGE_TOKEN) || SESSION_MARKER;
         localStorage.setItem(STORAGE_TOKEN, storedToken);
         setUser(nextUser);
@@ -201,9 +207,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const setAuthState = (nextUser: AuthUser, accessToken?: string) => {
+    if (user?.id && user.id !== nextUser.id) {
+      invalidateBookingsPageCache();
+      invalidateBookingsFormDropdownCaches();
+    }
     const nextToken = accessToken?.trim() || SESSION_MARKER;
     localStorage.setItem(STORAGE_USER, JSON.stringify(nextUser));
     localStorage.setItem(STORAGE_TOKEN, nextToken);
+    setBookingsPageCacheScope(`${nextUser.id}:${nextUser.role || ""}`);
     setToken(nextToken);
     setUser(nextUser);
   };
@@ -215,6 +226,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     localStorage.removeItem(STORAGE_TOKEN);
     localStorage.removeItem(STORAGE_USER);
     localStorage.removeItem(STORAGE_PERMISSIONS);
+    invalidateBookingsPageCache();
+    invalidateBookingsFormDropdownCaches();
+    setBookingsPageCacheScope("");
     setToken("");
     setUser(null);
     setPermissions([]);

@@ -2,6 +2,7 @@ const BookingsSchema = Object.freeze({
   tableName: "bookings",
   quotationsTable: "quotations",
   leadsTable: "leads",
+  destinationsTable: "destinations",
   paymentsTable: "payments",
   refundsTable: "refunds",
   invoicesTable: "invoices",

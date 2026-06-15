@@ -150,6 +150,7 @@ function createBookingsRepository({ db, logger, schema }) {
     const derivedLeadId =
       row.lead_id ??
       row.leadId ??
+      row.joined_lead_id ??
       leadIdMap.get(quotationId) ??
       null;
 
@@ -168,11 +169,11 @@ function createBookingsRepository({ db, logger, schema }) {
       advanceRequired: toNumber(row.advance_required ?? row.advanceRequired, 0),
       advanceReceived: toNumber(row.advance_received ?? row.advanceReceived, 0),
       clientCurrency:
+        row.joined_client_currency ??
         (derivedLeadId ? leadCurrencyMap.get(derivedLeadId) : null) ??
-        row.client_currency ??
-        row.clientCurrency ??
         null,
       leadCountry:
+        row.joined_lead_country ??
         (derivedLeadId ? leadCountryMap.get(String(derivedLeadId)) : null) ??
         row.lead_country ??
         row.leadCountry ??
@@ -225,6 +226,12 @@ function createBookingsRepository({ db, logger, schema }) {
               email: createdByUser.email ?? null,
             }
           : null,
+      leadName: row.lead_name ?? row.leadName ?? null,
+      leadEmail: row.lead_email ?? row.leadEmail ?? null,
+      leadPhone: row.lead_phone ?? row.leadPhone ?? null,
+      destinationName: row.destination_name ?? row.destinationName ?? null,
+      consultantId: row.consultant_id ?? row.consultantId ?? null,
+      consultantName: row.consultant_name ?? row.consultantName ?? null,
       isApproved: toBoolean(row.is_approved ?? row.isApproved, false),
       isDeleted: toBoolean(row.is_deleted ?? row.isDeleted, false),
       createdAt: toDate(row.created_at ?? row.createdAt),
@@ -346,25 +353,13 @@ function createBookingsRepository({ db, logger, schema }) {
   }
 
   async function buildStatsCurrencyExpression(
-    bookingAlias = "b",
-    quotationAlias = "q",
+    _bookingAlias = "b",
+    _quotationAlias = "q",
     leadAlias = "l",
   ) {
-    let hasBookingClientCurrency = false;
-    let hasBookingCurrency = false;
-    let hasQuotationClientCurrency = false;
     let hasLeadClientCurrency = false;
 
     try {
-      hasBookingClientCurrency = await hasColumn(
-        schema.tableName,
-        "client_currency",
-      );
-      hasBookingCurrency = await hasColumn(schema.tableName, "currency");
-      hasQuotationClientCurrency = await hasColumn(
-        schema.quotationsTable,
-        "client_currency",
-      );
       hasLeadClientCurrency = await hasColumn(
         schema.leadsTable,
         "client_currency",
@@ -380,17 +375,6 @@ function createBookingsRepository({ db, logger, schema }) {
     }
 
     const currencySources = [];
-    if (hasBookingClientCurrency) {
-      currencySources.push(`NULLIF(TRIM(${bookingAlias}.client_currency), '')`);
-    }
-    if (hasBookingCurrency) {
-      currencySources.push(`NULLIF(TRIM(${bookingAlias}.currency), '')`);
-    }
-    if (hasQuotationClientCurrency) {
-      currencySources.push(
-        `NULLIF(TRIM(${quotationAlias}.client_currency), '')`,
-      );
-    }
     if (hasLeadClientCurrency) {
       currencySources.push(`NULLIF(TRIM(${leadAlias}.client_currency), '')`);
     }
@@ -463,13 +447,42 @@ function createBookingsRepository({ db, logger, schema }) {
     const customer = String(filters.customer || "").trim();
     const email = String(filters.email || "").trim();
     const phone = String(filters.phone || "").trim();
+    const consultantId = String(filters.consultantId || "").trim();
     const consultant = String(filters.consultant || "").trim();
+    const destinationId = String(filters.destinationId || "").trim();
     const destination = String(filters.destination || "").trim();
     const countryScope = String(
       filters.country || filters.market || filters.region || "",
     ).trim();
     const fromDate = String(filters.fromDate || "").trim();
     const toDate = String(filters.toDate || "").trim();
+
+    if (filters.denyAll === true) {
+      conditions.push("1 = 0");
+    }
+    if (filters.assignedTo && leadAlias) {
+      conditions.push(`${leadPrefix}assigned_to = ?`);
+      params.push(filters.assignedTo);
+    }
+    if (
+      Array.isArray(filters.allowedCountries) &&
+      filters.allowedCountries.length > 0 &&
+      leadAlias
+    ) {
+      const allowedCountries = [
+        ...new Set(
+          filters.allowedCountries.flatMap((country) =>
+            leadCountryAliases(country),
+          ),
+        ),
+      ];
+      conditions.push(
+        `LOWER(TRIM(COALESCE(${leadPrefix}lead_country, ''))) IN (${allowedCountries
+          .map(() => "?")
+          .join(", ")})`,
+      );
+      params.push(...allowedCountries);
+    }
 
     if (normalizedStatus && normalizedStatus !== "ALL") {
       conditions.push(`${bookingPrefix}status = ?`);
@@ -496,28 +509,22 @@ function createBookingsRepository({ db, logger, schema }) {
     }
 
     if (risk === "OVERDUE") {
-      conditions.push(`(
-        (${bookingPrefix}blocking_deadline_at IS NOT NULL AND ${bookingPrefix}blocking_deadline_at < NOW())
-        OR (${bookingPrefix}supplier_payment_deadline_at IS NOT NULL AND ${bookingPrefix}supplier_payment_deadline_at < NOW())
-        OR (${bookingPrefix}cancellation_deadline_at IS NOT NULL AND ${bookingPrefix}cancellation_deadline_at < NOW())
-      )`);
+      conditions.push(
+        `${bookingPrefix}supplier_payment_deadline_at IS NOT NULL AND ${bookingPrefix}supplier_payment_deadline_at < NOW()`,
+      );
     } else if (risk === "D2_DUE") {
-      conditions.push(`(
-        (${bookingPrefix}blocking_deadline_at IS NOT NULL AND ${bookingPrefix}blocking_deadline_at BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 2 DAY))
-        OR (${bookingPrefix}supplier_payment_deadline_at IS NOT NULL AND ${bookingPrefix}supplier_payment_deadline_at BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 2 DAY))
-        OR (${bookingPrefix}cancellation_deadline_at IS NOT NULL AND ${bookingPrefix}cancellation_deadline_at BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 2 DAY))
-      )`);
+      conditions.push(
+        `${bookingPrefix}supplier_payment_deadline_at > DATE_ADD(NOW(), INTERVAL 1 DAY)
+         AND ${bookingPrefix}supplier_payment_deadline_at <= DATE_ADD(NOW(), INTERVAL 2 DAY)`,
+      );
     } else if (risk === "DEADLINE_DUE") {
-      conditions.push(`(
-        (${bookingPrefix}blocking_deadline_at IS NOT NULL AND ${bookingPrefix}blocking_deadline_at BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 1 DAY))
-        OR (${bookingPrefix}supplier_payment_deadline_at IS NOT NULL AND ${bookingPrefix}supplier_payment_deadline_at BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 1 DAY))
-        OR (${bookingPrefix}cancellation_deadline_at IS NOT NULL AND ${bookingPrefix}cancellation_deadline_at BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 1 DAY))
-      )`);
+      conditions.push(
+        `${bookingPrefix}supplier_payment_deadline_at BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 1 DAY)`,
+      );
     } else if (risk === "SAFE") {
-      conditions.push(`NOT (
-        (${bookingPrefix}blocking_deadline_at IS NOT NULL AND ${bookingPrefix}blocking_deadline_at < NOW())
-        OR (${bookingPrefix}supplier_payment_deadline_at IS NOT NULL AND ${bookingPrefix}supplier_payment_deadline_at < NOW())
-        OR (${bookingPrefix}cancellation_deadline_at IS NOT NULL AND ${bookingPrefix}cancellation_deadline_at < NOW())
+      conditions.push(`(
+        ${bookingPrefix}supplier_payment_deadline_at IS NULL
+        OR ${bookingPrefix}supplier_payment_deadline_at > DATE_ADD(NOW(), INTERVAL 2 DAY)
       )`);
     }
 
@@ -537,16 +544,22 @@ function createBookingsRepository({ db, logger, schema }) {
       conditions.push(`${leadPrefix}phone LIKE ?`);
       params.push(`%${phone}%`);
     }
-    if (consultant && leadAlias) {
+    if (consultantId && leadAlias) {
+      conditions.push(`${leadPrefix}assigned_to = ?`);
+      params.push(consultantId);
+    } else if (consultant && leadAlias) {
       conditions.push(`${leadPrefix}assigned_to IN (
         SELECT id FROM ${schema.usersTable} WHERE full_name LIKE ?
       )`);
       params.push(`%${consultant}%`);
     }
-    if (destination && leadAlias) {
+    if (destinationId && leadAlias) {
+      conditions.push(`${leadPrefix}destination_id = ?`);
+      params.push(destinationId);
+    } else if (destination && leadAlias) {
       conditions.push(`(
         ${leadPrefix}destination_id IN (
-          SELECT id FROM destinations WHERE name = ?
+          SELECT id FROM ${schema.destinationsTable} WHERE name = ?
         )
         OR ${leadPrefix}travel_to = ?
       )`);
@@ -732,7 +745,47 @@ function createBookingsRepository({ db, logger, schema }) {
       loadLeadCurrenciesByIds(leadIds),
       loadLeadCountriesByIds(leadIds),
     ]);
-    return toBooking(row, userMap, leadIdMap, leadCurrencyMap, leadCountryMap);
+    const booking = toBooking(
+      row,
+      userMap,
+      leadIdMap,
+      leadCurrencyMap,
+      leadCountryMap,
+    );
+    if (!booking?.leadId) {
+      return booking;
+    }
+
+    const lead = await db.findById(schema.leadsTable, booking.leadId);
+    if (!lead) {
+      return booking;
+    }
+
+    const consultantId = lead.assigned_to ?? lead.assignedTo ?? null;
+    const destinationId = lead.destination_id ?? lead.destinationId ?? null;
+    const [consultant, destination] = await Promise.all([
+      consultantId ? db.findById(schema.usersTable, consultantId) : null,
+      destinationId ? db.findById(schema.destinationsTable, destinationId) : null,
+    ]);
+
+    return {
+      ...booking,
+      leadName: lead.full_name ?? lead.fullName ?? booking.leadName ?? null,
+      leadEmail: lead.email ?? booking.leadEmail ?? null,
+      leadPhone: lead.phone ?? lead.mobile ?? booking.leadPhone ?? null,
+      destinationName:
+        destination?.name ??
+        lead.travel_to ??
+        lead.travelTo ??
+        booking.destinationName ??
+        null,
+      consultantId,
+      consultantName:
+        consultant?.full_name ??
+        consultant?.fullName ??
+        booking.consultantName ??
+        null,
+    };
   }
 
   function normalizeReminderType(value) {
@@ -1001,7 +1054,7 @@ function createBookingsRepository({ db, logger, schema }) {
           `;
 
         const predicateWithSoftDelete = hasSoftDelete
-          ? "COALESCE(is_deleted, FALSE) = FALSE"
+          ? "COALESCE(b.is_deleted, FALSE) = FALSE"
           : "TRUE";
 
         let result;
@@ -1173,12 +1226,7 @@ function createBookingsRepository({ db, logger, schema }) {
             leadMap.get(quotation?.lead_id ?? quotation?.leadId) || null;
           const currency =
             String(
-              row.client_currency ??
-                row.clientCurrency ??
-                row.currency ??
-                quotation?.client_currency ??
-                quotation?.clientCurrency ??
-                lead?.client_currency ??
+              lead?.client_currency ??
                 lead?.clientCurrency ??
                 "AED",
             )
@@ -1211,6 +1259,79 @@ function createBookingsRepository({ db, logger, schema }) {
     },
 
     async findAll(filters = {}) {
+      if (canIntrospect()) {
+        const statsFilters = buildStatsFilterSql(filters, {
+          booking: "b",
+          lead: "l",
+        });
+        const conditions = [...statsFilters.conditions];
+        if (!filters.includeDeleted && (await hasColumn(schema.tableName, "is_deleted"))) {
+          conditions.unshift("COALESCE(b.is_deleted, FALSE) = FALSE");
+        }
+
+        const page = Math.max(Number.parseInt(String(filters.page || "1"), 10) || 1, 1);
+        const limit = Math.min(
+          Math.max(Number.parseInt(String(filters.limit || "100"), 10) || 100, 1),
+          500,
+        );
+        const offset = (page - 1) * limit;
+        const sortBy = String(filters.sortBy || "NEWEST_FIRST").toUpperCase();
+        const orderBy =
+          sortBy === "OLDEST_FIRST" ? "b.created_at ASC"
+          : sortBy === "AMOUNT_HIGH_TO_LOW" ? "b.total_amount DESC"
+          : sortBy === "AMOUNT_LOW_TO_HIGH" ? "b.total_amount ASC"
+          : sortBy === "CUSTOMER_A_Z" ? "l.full_name ASC, b.created_at DESC"
+          : "b.created_at DESC";
+
+        const whereSql = conditions.length ? conditions.join(" AND ") : "TRUE";
+        const [countResult, result] = await Promise.all([
+          db.query(
+            `
+              SELECT COUNT(*) AS total
+              FROM ${schema.tableName} b
+              LEFT JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
+              LEFT JOIN ${schema.leadsTable} l ON l.id = q.lead_id
+              WHERE ${whereSql}
+            `,
+            statsFilters.params,
+          ),
+          db.query(
+            `
+              SELECT
+                b.*,
+                q.lead_id AS joined_lead_id,
+                l.full_name AS lead_name,
+                l.email AS lead_email,
+                l.phone AS lead_phone,
+                l.client_currency AS joined_client_currency,
+                l.lead_country AS joined_lead_country,
+                l.assigned_to AS consultant_id,
+                u.full_name AS consultant_name,
+                d.name AS destination_name
+              FROM ${schema.tableName} b
+              LEFT JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
+              LEFT JOIN ${schema.leadsTable} l ON l.id = q.lead_id
+              LEFT JOIN ${schema.usersTable} u ON u.id = l.assigned_to
+              LEFT JOIN ${schema.destinationsTable} d ON d.id = l.destination_id
+              WHERE ${whereSql}
+              ORDER BY ${orderBy}
+              LIMIT ? OFFSET ?
+            `,
+            [...statsFilters.params, limit, offset],
+          ),
+        ]);
+        const total = toNumber(countResult.rows?.[0]?.total, 0);
+        return {
+          data: (result.rows || []).map((row) => toBooking(row)).filter(Boolean),
+          meta: {
+            page,
+            limit,
+            total,
+            totalPages: Math.max(1, Math.ceil(total / limit)),
+          },
+        };
+      }
+
       const rows = await db.findMany(schema.tableName, mapListFilters(filters));
       let list = await mapRowsToDomain(rows);
 
@@ -1227,11 +1348,23 @@ function createBookingsRepository({ db, logger, schema }) {
         });
       }
 
-      return list.sort((a, b) => {
+      const sorted = list.sort((a, b) => {
         const left = new Date(a.createdAt || 0).getTime();
         const right = new Date(b.createdAt || 0).getTime();
         return right - left;
       });
+      const page = Math.max(Number.parseInt(String(filters.page || "1"), 10) || 1, 1);
+      const limit = Math.max(Number.parseInt(String(filters.limit || "100"), 10) || 100, 1);
+      const total = sorted.length;
+      return {
+        data: sorted.slice((page - 1) * limit, page * limit),
+        meta: {
+          page,
+          limit,
+          total,
+          totalPages: Math.max(1, Math.ceil(total / limit)),
+        },
+      };
     },
 
     async findById(id) {
@@ -1542,6 +1675,16 @@ function createBookingsRepository({ db, logger, schema }) {
       if (canIntrospect()) {
         const conditions = ["b.status <> 'CANCELLED'"];
         const params = [];
+        const visibilityFilters = buildStatsFilterSql(
+          {
+            denyAll: filters.denyAll,
+            assignedTo: filters.assignedTo,
+            allowedCountries: filters.allowedCountries,
+          },
+          { booking: "b", lead: "l" },
+        );
+        conditions.push(...visibilityFilters.conditions);
+        params.push(...visibilityFilters.params);
 
         if (search.length >= 2) {
           const like = `%${search.replace(/[\\%_]/g, "\\$&")}%`;
@@ -1551,30 +1694,8 @@ function createBookingsRepository({ db, logger, schema }) {
           params.push(like, like);
         }
 
-        let hasClientCurrency = false;
-        let hasCurrencyColumn = false;
-        try {
-          hasClientCurrency = await hasColumn(
-            schema.tableName,
-            "client_currency",
-          );
-          hasCurrencyColumn = await hasColumn(schema.tableName, "currency");
-        } catch (error) {
-          logger?.warn?.(
-            { err: error, table: schema.tableName },
-            "Unable to inspect bookings columns for payment picker options",
-          );
-        }
-
-        const bookingCurrencyExpression =
-          hasClientCurrency && hasCurrencyColumn
-            ? "NULLIF(b.client_currency, ''), NULLIF(b.currency, '')"
-            : hasClientCurrency
-              ? "NULLIF(b.client_currency, '')"
-              : hasCurrencyColumn
-                ? "NULLIF(b.currency, '')"
-                : "";
-        const currencyExpression = `COALESCE(NULLIF(l.client_currency, ''), ${bookingCurrencyExpression ? `${bookingCurrencyExpression}, ` : ""}'INR')`;
+        const currencyExpression =
+          "COALESCE(NULLIF(l.client_currency, ''), 'AED')";
 
         const runPickerQuery = (currencyExpr) =>
           db.query(
@@ -1612,7 +1733,7 @@ function createBookingsRepository({ db, logger, schema }) {
             throw error;
           }
 
-          result = await runPickerQuery("'INR'");
+          result = await runPickerQuery("'AED'");
         }
 
         return (result.rows || []).map((row) => ({
@@ -1622,35 +1743,34 @@ function createBookingsRepository({ db, logger, schema }) {
             typeof row.customer_name === "string" ?
               row.customer_name.trim()
             : "",
-          currency: String(row.currency || "INR").toUpperCase(),
+          currency: String(row.currency || "AED").toUpperCase(),
           totalAmount: toNumber(row.total_amount ?? row.totalAmount, 0),
         }));
       }
 
       const rows = await db.findMany(schema.tableName, {});
+      const bookings = await mapRowsToDomain(rows);
       const searchTerm = search.toLowerCase();
-      return rows
-        .filter((row) => (row.status ?? "PENDING") !== "CANCELLED")
-        .filter((row) => !toBoolean(row.is_deleted ?? row.isDeleted, false))
-        .filter((row) => {
+      return bookings
+        .filter((booking) => booking.status !== "CANCELLED")
+        .filter((booking) => !booking.isDeleted)
+        .filter((booking) => {
           if (search.length < 2) return true;
           const bookingNumber = String(
-            row.booking_number ?? row.bookingNumber ?? "",
+            booking.bookingNumber ?? "",
           ).toLowerCase();
-          const bookingId = String(row.id ?? "").toLowerCase();
+          const bookingId = String(booking.id ?? "").toLowerCase();
           return (
             bookingNumber.includes(searchTerm) || bookingId.includes(searchTerm)
           );
         })
         .slice(0, limit)
-        .map((row) => ({
-          id: row.id,
-          bookingNumber: row.booking_number ?? row.bookingNumber ?? row.id,
-          customer: "",
-          currency: String(
-            row.client_currency ?? row.clientCurrency ?? row.currency ?? "INR",
-          ).toUpperCase(),
-          totalAmount: toNumber(row.total_amount ?? row.totalAmount, 0),
+        .map((booking) => ({
+          id: booking.id,
+          bookingNumber: booking.bookingNumber ?? booking.id,
+          customer: booking.leadName ?? "",
+          currency: String(booking.clientCurrency || "AED").toUpperCase(),
+          totalAmount: toNumber(booking.totalAmount, 0),
         }));
     },
   });

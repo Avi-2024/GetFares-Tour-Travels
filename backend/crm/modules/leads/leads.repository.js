@@ -993,7 +993,9 @@ function createLeadsRepository({ db, logger, schema }) {
         const countryPh = allowedCountries.map(() => "?").join(", ");
         params.push(...allowedCountries);
         where.push(
-          `(NULLIF(TRIM(COALESCE(l.lead_country, '')), '') IS NULL OR LOWER(COALESCE(l.lead_country, '')) IN (${countryPh}))`,
+          filters.strictCountryScope
+            ? `LOWER(COALESCE(l.lead_country, '')) IN (${countryPh})`
+            : `(NULLIF(TRIM(COALESCE(l.lead_country, '')), '') IS NULL OR LOWER(COALESCE(l.lead_country, '')) IN (${countryPh}))`,
         );
       }
     }
@@ -1342,7 +1344,9 @@ function createLeadsRepository({ db, logger, schema }) {
           const country = String(item.leadCountry || item.country || "")
             .trim()
             .toLowerCase();
-          return !country || allowedCountrySet.has(country);
+          return filters.strictCountryScope
+            ? allowedCountrySet.has(country)
+            : !country || allowedCountrySet.has(country);
         });
       }
     }
@@ -1893,7 +1897,9 @@ function createLeadsRepository({ db, logger, schema }) {
             const countryPh = allowedCountries.map(() => "?").join(", ");
             params.push(...allowedCountries);
             where.push(
-              `(NULLIF(TRIM(COALESCE(l.lead_country, '')), '') IS NULL OR LOWER(COALESCE(l.lead_country, '')) IN (${countryPh}))`,
+              filters.strictCountryScope
+                ? `LOWER(COALESCE(l.lead_country, '')) IN (${countryPh})`
+                : `(NULLIF(TRIM(COALESCE(l.lead_country, '')), '') IS NULL OR LOWER(COALESCE(l.lead_country, '')) IN (${countryPh}))`,
             );
           }
         }
@@ -1993,7 +1999,9 @@ function createLeadsRepository({ db, logger, schema }) {
             const countryPh = allowedCountries.map(() => "?").join(", ");
             params.push(...allowedCountries);
             where.push(
-              `(NULLIF(TRIM(COALESCE(l.lead_country, '')), '') IS NULL OR LOWER(COALESCE(l.lead_country, '')) IN (${countryPh}))`,
+              filters.strictCountryScope
+                ? `LOWER(COALESCE(l.lead_country, '')) IN (${countryPh})`
+                : `(NULLIF(TRIM(COALESCE(l.lead_country, '')), '') IS NULL OR LOWER(COALESCE(l.lead_country, '')) IN (${countryPh}))`,
             );
           }
         }
@@ -2090,7 +2098,9 @@ function createLeadsRepository({ db, logger, schema }) {
             const countryPh = allowedCountries.map(() => "?").join(", ");
             params.push(...allowedCountries);
             where.push(
-              `(NULLIF(TRIM(COALESCE(l.lead_country, '')), '') IS NULL OR LOWER(COALESCE(l.lead_country, '')) IN (${countryPh}))`,
+              filters.strictCountryScope
+                ? `LOWER(COALESCE(l.lead_country, '')) IN (${countryPh})`
+                : `(NULLIF(TRIM(COALESCE(l.lead_country, '')), '') IS NULL OR LOWER(COALESCE(l.lead_country, '')) IN (${countryPh}))`,
             );
           }
         }
@@ -2439,9 +2449,12 @@ function createLeadsRepository({ db, logger, schema }) {
             `,
             [userId],
           );
-          return result.rows
+          const countryNames = result.rows
             .map((row) => row.name)
             .filter(Boolean);
+          if (countryNames.length > 0) {
+            return countryNames;
+          }
         }
       }
 

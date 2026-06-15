@@ -29,6 +29,7 @@ import SearchableDropdown from "../../components/ui/SearchableDropdown";
 import { validateBookingTransition } from "../../utils/workflowValidation";
 import { useBookingsService } from "../../hooks/useBookingsService";
 import { useLeadsService } from "../../hooks/useLeadsService";
+import { useUsersService } from "../../hooks/useUsersService";
 import { quotationsApi } from "../../api/quotations";
 import { suppliersApi } from "../../api/suppliers";
 import { reportApiError } from "../../lib/notify";
@@ -37,7 +38,6 @@ import {
   normalizeCurrencyCode,
   pickFirstValidCurrencyCode,
   pickLeadDisplayCurrencyCode,
-  pickQuotationDisplayCurrencyCode,
 } from "../../utils/quotationDisplayCurrency";
 import {
   clearBookingsCreateDraft,
@@ -89,7 +89,9 @@ type BookingFilterState = {
   customer: string
   email: string
   phone: string
+  consultantId: string
   consultant: string
+  destinationId: string
   destination: string
   status: 'ALL' | BookingStatus
   payment: 'ALL' | PaymentStatus
@@ -109,7 +111,9 @@ const defaultFilters: BookingFilterState = {
   customer: '',
   email: '',
   phone: '',
+  consultantId: '',
   consultant: '',
+  destinationId: '',
   destination: '',
   status: 'ALL',
   payment: 'ALL',
@@ -223,11 +227,14 @@ const paymentClasses: Record<PaymentStatus, string> = {
     'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700'
 }
 
-const toIsoDate = (value?: string | null) => {
-  if (!value) return ''
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) return ''
-  return parsed.toISOString().split('T')[0]
+const extractRows = <T,>(response: unknown): T[] => {
+  const payload =
+    (response as any)?.data?.data ??
+    (response as any)?.data?.items ??
+    (response as any)?.data ??
+    response ??
+    []
+  return Array.isArray(payload) ? payload : []
 }
 
 const toAmountNumber = (value: unknown, fallback = 0) => {
@@ -270,25 +277,6 @@ const getPaymentProgress = (paidAmount: number, totalAmount: number) => {
   }
   return Math.max(0, Math.min((paidAmount / totalAmount) * 100, 100));
 };
-
-const matchesQuickFilter = (quickFilter: QuickFilter, booking: Booking) => {
-  switch (quickFilter) {
-    case 'ALL':
-      return true
-    case 'ACTIVE':
-      return booking.status === 'confirmed'
-    case 'PENDING':
-      return booking.status === 'pending'
-    case 'CANCELLED':
-      return booking.status === 'cancelled'
-    case 'PAYMENT_DUE':
-      return booking.payment === 'partial' || booking.payment === 'unpaid'
-    case 'OVERDUE':
-      return booking.deadlineRiskLevel === 'OVERDUE'
-    default:
-      return true
-  }
-}
 
 const getDefaultInvoiceDueDate = () => {
   const dueDate = new Date();
@@ -1727,12 +1715,14 @@ const CancelBookingModal = ({
 const BookingsPage: React.FC = () => {
   const bookingsService = useBookingsService()
   const leadsService = useLeadsService()
+  const usersService = useUsersService()
   const navigate = useNavigate()
   const location = useLocation()
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('ALL')
   const [bookingMarket, setBookingMarket] = useState<BookingMarket>('ALL')
   const bookingStatsCurrency = getBookingMarketCurrency(bookingMarket)
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
   const [error, setError] = useState('')
   const initialPageCache = getBookingsPageCache()
@@ -1755,6 +1745,18 @@ const BookingsPage: React.FC = () => {
   const [bookingItems, setBookingItems] = useState<Booking[]>(
     () => (initialPageCache?.items as Booking[]) ?? [],
   )
+  const [destinationCatalog, setDestinationCatalog] = useState<
+    Array<{ value: string; label: string }>
+  >([])
+  const [consultantOptions, setConsultantOptions] = useState<
+    Array<{ value: string; label: string }>
+  >([])
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 15,
+    total: initialPageCache?.items.length ?? 0,
+    totalPages: 1,
+  })
   const [draftFilters, setDraftFilters] =
     useState<BookingFilterState>(defaultFilters)
   const [appliedFilters, setAppliedFilters] =
@@ -1788,6 +1790,11 @@ const BookingsPage: React.FC = () => {
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
 
   const pageSize = 15
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 300)
+    return () => window.clearTimeout(timer)
+  }, [search])
 
   const normalizeStatus = (value?: string): BookingStatus => {
     switch ((value ?? "").toUpperCase()) {
@@ -1951,8 +1958,9 @@ const BookingsPage: React.FC = () => {
       destinationId ? lookups?.destinationById?.[destinationId] : undefined;
 
     const leadEmail =
-      lead?.email ?? lead?.primaryEmail ?? lead?.contactEmail ?? "";
-    const leadPhone = lead?.phone ?? lead?.mobile ?? lead?.whatsapp ?? "";
+      b.leadEmail ?? lead?.email ?? lead?.primaryEmail ?? lead?.contactEmail ?? "";
+    const leadPhone =
+      b.leadPhone ?? lead?.phone ?? lead?.mobile ?? lead?.whatsapp ?? "";
     const leadCountry = String(
       b.leadCountry ??
         b.lead_country ??
@@ -1969,6 +1977,7 @@ const BookingsPage: React.FC = () => {
         "",
     ).trim();
     const consultantName =
+      b.consultantName ??
       lead?.assignedUser?.fullName ??
       lead?.consultantName ??
       lead?.consultant ??
@@ -1980,14 +1989,10 @@ const BookingsPage: React.FC = () => {
       lead?.created_date
     );
 
-    const quotationCurrency = pickQuotationDisplayCurrencyCode(quotation);
     const leadCurrency = pickLeadDisplayCurrencyCode(lead);
     const storedBookingCurrency = pickFirstValidCurrencyCode(
       b.clientCurrency,
       b.client_currency,
-      b.currency,
-      b.supplierCurrency,
-      b.supplier_currency,
     );
 
     return {
@@ -2007,6 +2012,7 @@ const BookingsPage: React.FC = () => {
       destination:
         b.destination ??
         b.tripDestination ??
+        b.destinationName ??
         destinationName ??
         leadDestination ??
         "N/A",
@@ -2044,14 +2050,14 @@ const BookingsPage: React.FC = () => {
         0,
       ),
       currency: normalizeCurrencyCode(
-        quotationCurrency ?? leadCurrency ?? storedBookingCurrency,
+        storedBookingCurrency ?? leadCurrency,
       ),
       leadCountry: leadCountry || null,
       documentsReady: Number(b.documentsReady ?? b.documents?.ready ?? 0),
       documentsTotal: Number(b.documentsTotal ?? b.documents?.total ?? 0),
-      // deadlineRiskLevel: normalizeDeadlineRisk(
-      //   b.deadlineRiskLevel ?? b.deadline_risk_level ?? "SAFE",
-      // ),
+      deadlineRiskLevel: normalizeDeadlineRisk(
+        b.deadlineRiskLevel ?? b.deadline_risk_level ?? "SAFE",
+      ),
       blockingDeadlineAt,
       balanceDueBy,
       supplierPaymentDeadlineAt,
@@ -2059,17 +2065,17 @@ const BookingsPage: React.FC = () => {
     };
   };
 
-  // const normalizeDeadlineRisk = (value?: string): DeadlineRiskLevel => {
-  //   const normalized = String(value ?? "").toUpperCase();
-  //   if (
-  //     normalized === "D2_DUE" ||
-  //     normalized === "DEADLINE_DUE" ||
-  //     normalized === "OVERDUE"
-  //   ) {
-  //     return normalized;
-  //   }
-  //   return "SAFE";
-  // };
+  const normalizeDeadlineRisk = (value?: string): DeadlineRiskLevel => {
+    const normalized = String(value ?? "").toUpperCase();
+    if (
+      normalized === "D2_DUE" ||
+      normalized === "DEADLINE_DUE" ||
+      normalized === "OVERDUE"
+    ) {
+      return normalized;
+    }
+    return "SAFE";
+  };
 
   // const formatRiskLabel = (value?: DeadlineRiskLevel) => {
   //   const risk = normalizeDeadlineRisk(value);
@@ -2115,15 +2121,15 @@ const BookingsPage: React.FC = () => {
         setStatsLoading(true);
       }
       try {
-        const filters = options?.filters ?? defaultFilters;
+        const filters = options?.filters ?? appliedFilters;
         const params: Record<string, string> = {
           currency: bookingStatsCurrency,
         };
         if (bookingMarket !== "ALL") {
           params.market = bookingMarket;
         }
-        const quick = options?.quickFilter ?? "ALL";
-        const textSearch = String(options?.search || "").trim();
+        const quick = options?.quickFilter ?? quickFilter;
+        const textSearch = String(options?.search ?? debouncedSearch).trim();
         const status =
           filters.status !== "ALL" ? filters.status.toUpperCase()
           : quick === "ACTIVE" ? "CONFIRMED"
@@ -2144,7 +2150,9 @@ const BookingsPage: React.FC = () => {
         if (filters.customer) params.customer = filters.customer;
         if (filters.email) params.email = filters.email;
         if (filters.phone) params.phone = filters.phone;
+        if (filters.consultantId) params.consultantId = filters.consultantId;
         if (filters.consultant) params.consultant = filters.consultant;
+        if (filters.destinationId) params.destinationId = filters.destinationId;
         if (filters.destination) params.destination = filters.destination;
         if (filters.fromDate) params.fromDate = filters.fromDate;
         if (filters.toDate) params.toDate = filters.toDate;
@@ -2166,7 +2174,14 @@ const BookingsPage: React.FC = () => {
         setStatsLoading(false);
       }
     },
-    [bookingMarket, bookingStatsCurrency, bookingsService],
+    [
+      appliedFilters,
+      bookingMarket,
+      bookingStatsCurrency,
+      bookingsService,
+      debouncedSearch,
+      quickFilter,
+    ],
   );
 
   const fetchBookings = useCallback(async (options?: { silent?: boolean }) => {
@@ -2176,20 +2191,39 @@ const BookingsPage: React.FC = () => {
     }
     setError("");
     try {
-      const unwrapList = (response: any) => {
-        const payload =
-          response?.data?.data ??
-          response?.data?.items ??
-          response?.data ??
-          response ??
-          [];
-        return Array.isArray(payload) ? payload : [];
-      };
-
       const params: Record<string, string | number | boolean> = {
-        page: 1,
-        limit: 500
+        page,
+        limit: pageSize,
+        sortBy: appliedFilters.sortBy,
       }
+      if (bookingMarket !== "ALL") params.market = bookingMarket
+      const status =
+        appliedFilters.status !== "ALL" ? appliedFilters.status.toUpperCase()
+        : quickFilter === "ACTIVE" ? "CONFIRMED"
+        : quickFilter === "PENDING" ? "PENDING"
+        : quickFilter === "CANCELLED" ? "CANCELLED"
+        : ""
+      if (status) params.status = status
+      if (appliedFilters.payment !== "ALL") params.payment = appliedFilters.payment
+      if (quickFilter === "PAYMENT_DUE" && appliedFilters.payment === "ALL") {
+        params.payment = "DUE"
+      }
+      if (appliedFilters.risk !== "ALL") params.risk = appliedFilters.risk
+      if (quickFilter === "OVERDUE" && appliedFilters.risk === "ALL") {
+        params.risk = "OVERDUE"
+      }
+      if (appliedFilters.bookingId) params.bookingId = appliedFilters.bookingId
+      if (appliedFilters.customer) params.customer = appliedFilters.customer
+      if (appliedFilters.email) params.email = appliedFilters.email
+      if (appliedFilters.phone) params.phone = appliedFilters.phone
+      if (appliedFilters.consultantId) params.consultantId = appliedFilters.consultantId
+      if (appliedFilters.consultant) params.consultant = appliedFilters.consultant
+      if (appliedFilters.destinationId) params.destinationId = appliedFilters.destinationId
+      if (appliedFilters.destination) params.destination = appliedFilters.destination
+      if (appliedFilters.fromDate) params.fromDate = appliedFilters.fromDate
+      if (appliedFilters.toDate) params.toDate = appliedFilters.toDate
+      if (debouncedSearch) params.search = debouncedSearch
+
       const res = await bookingsService.list(params)
       const raw =
         (res as any)?.data?.data ??
@@ -2198,106 +2232,29 @@ const BookingsPage: React.FC = () => {
         res ??
         [];
       const bookingRows = Array.isArray(raw) ? raw : [];
-      const lookups: BookingLookups = {
-        quotationById: {},
-        leadById: {},
-        destinationById: {},
-      };
-
-      const quotationIds = Array.from(
-        new Set(
-          bookingRows
-            .map((row: any) =>
-              String(
-                row?.quotationId ??
-                  row?.quotation_id ??
-                  row?.quoteId ??
-                  row?.quote_id ??
-                  "",
-              ),
-            )
-            .filter(Boolean),
-        ),
-      );
-
-      if (quotationIds.length) {
-        try {
-          const quotationsRes = await quotationsApi.list({
-            page: 1,
-            limit: 500,
-          });
-          const quotationRows = unwrapList(quotationsRes);
-          quotationRows.forEach((quote: any) => {
-            const quoteId = String(
-              quote?.id ?? quote?.quotationId ?? quote?.quotation_id ?? "",
-            );
-            if (quoteId) {
-              lookups.quotationById[quoteId] = quote;
-            }
-          });
-        } catch (_error) {
-          lookups.quotationById = {};
-        }
-      }
-
-      const leadIds = Array.from(
-        new Set(
-          bookingRows
-            .map((row: any) => String(row?.leadId ?? row?.lead_id ?? ""))
-            .concat(
-              Object.values(lookups.quotationById).map((quote: any) =>
-                String(
-                  quote?.leadId ??
-                    quote?.lead_id ??
-                    quote?.lead?.id ??
-                    quote?.leadSnapshot?.id ??
-                    "",
-                ),
-              ),
-            )
-            .filter(Boolean),
-        ),
-      );
-
-      if (leadIds.length) {
-        try {
-          const leadRows = await leadsService.listLeadsRaw({
-            page: 1,
-            limit: 500,
-          });
-          leadRows.forEach((lead: any) => {
-            const leadId = String(
-              lead?.id ?? lead?.leadId ?? lead?.lead_id ?? "",
-            );
-            if (leadId) {
-              lookups.leadById[leadId] = lead;
-            }
-          });
-        } catch (_error) {
-          lookups.leadById = {};
-        }
-      }
-
-      try {
-        const destinationRows = await leadsService.getDestinations();
-        destinationRows.forEach((destination: any) => {
-          const destinationId = String(destination?.id ?? "");
-          const destinationName = String(
-            destination?.name ?? destination?.label ?? "",
-          );
-          if (destinationId && destinationName) {
-            lookups.destinationById[destinationId] = destinationName;
-          }
-        });
-      } catch (_error) {
-        lookups.destinationById = {};
-      }
-
       const mapped: Booking[] = bookingRows.map((b: any, idx: number) =>
-        mapBooking(b, idx, lookups),
+        mapBooking(b, idx),
       );
       setBookingItems(mapped);
-      patchBookingsPageCache({ items: mapped });
+      const meta =
+        (res as any)?.meta ??
+        (res as any)?.data?.meta ??
+        {};
+      setPagination({
+        page: Number(meta.page ?? page) || page,
+        limit: Number(meta.limit ?? pageSize) || pageSize,
+        total: Number(meta.total ?? mapped.length) || 0,
+        totalPages: Math.max(1, Number(meta.totalPages ?? 1) || 1),
+      })
+      if (
+        page === 1 &&
+        bookingMarket === "ALL" &&
+        quickFilter === "ALL" &&
+        !debouncedSearch &&
+        JSON.stringify(appliedFilters) === JSON.stringify(defaultFilters)
+      ) {
+        patchBookingsPageCache({ items: mapped })
+      }
     } catch (err) {
       console.error("Failed to load bookings:", err);
       reportApiError(err, "Failed to load bookings", setError);
@@ -2308,13 +2265,49 @@ const BookingsPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [bookingsService, leadsService])
+  }, [
+    appliedFilters,
+    bookingMarket,
+    bookingsService,
+    debouncedSearch,
+    page,
+    quickFilter,
+  ])
 
   useEffect(() => {
-    const fresh = isBookingsPageCacheFresh();
-    void fetchBookingStats({ silent: fresh });
-    void fetchBookings({ silent: fresh });
-  }, [fetchBookingStats, fetchBookings]);
+    void leadsService.getDestinations()
+      .then((destinations) => {
+        setDestinationCatalog(
+          destinations
+            .map((destination: any) => ({
+              value: String(destination?.id ?? "").trim(),
+              label: String(destination?.name ?? destination?.label ?? "").trim(),
+            }))
+            .filter((destination) => destination.value)
+            .sort((a, b) => a.label.localeCompare(b.label)),
+        )
+      })
+      .catch(() => setDestinationCatalog([]))
+  }, [leadsService])
+
+  useEffect(() => {
+    void usersService.list({ isActive: true, limit: 500 })
+      .then((response) => {
+        setConsultantOptions([
+          { value: "", label: "All Consultants" },
+          ...extractRows<any>(response)
+            .map((user) => ({
+              value: String(user?.id ?? "").trim(),
+              label: String(
+                user?.fullName ?? user?.full_name ?? user?.name ?? user?.email ?? "",
+              ).trim(),
+            }))
+            .filter((user) => user.value && user.label)
+            .sort((a, b) => a.label.localeCompare(b.label)),
+        ])
+      })
+      .catch(() => setConsultantOptions([{ value: "", label: "All Consultants" }]))
+  }, [usersService])
 
   const showToast = (message: string, type: "success" | "error" | "info") => {
     setToast({ show: true, message, type });
@@ -2496,17 +2489,9 @@ const BookingsPage: React.FC = () => {
   const destinationOptions = useMemo(
     () => [
       { value: '', label: 'All Destinations' },
-      ...Array.from(
-        new Set(
-          bookingItems
-            .map(item => String(item.destination ?? '').trim())
-            .filter(Boolean)
-        )
-      )
-        .sort((a, b) => a.localeCompare(b))
-        .map(name => ({ value: name, label: name }))
+      ...destinationCatalog
     ],
-    [bookingItems]
+    [destinationCatalog]
   )
 
   const statusOptions = useMemo(
@@ -2558,7 +2543,9 @@ const BookingsPage: React.FC = () => {
     if (appliedFilters.customer) count += 1
     if (appliedFilters.email) count += 1
     if (appliedFilters.phone) count += 1
+    if (appliedFilters.consultantId) count += 1
     if (appliedFilters.consultant) count += 1
+    if (appliedFilters.destinationId) count += 1
     if (appliedFilters.destination) count += 1
     if (appliedFilters.status !== 'ALL') count += 1
     if (appliedFilters.payment !== 'ALL') count += 1
@@ -2605,116 +2592,6 @@ const BookingsPage: React.FC = () => {
     return () => window.clearTimeout(timer)
   }, [draftFilters])
 
-  const filtered = useMemo(() => {
-    return bookingItems.filter(booking => {
-      if (!matchesQuickFilter(quickFilter, booking)) return false
-      if (bookingMarket !== 'ALL') {
-        const country = String(booking.leadCountry || '').trim().toLowerCase()
-        const isIndia = ['india', 'in', 'ind'].includes(country)
-        const isUae = [
-          'uae',
-          'u.a.e',
-          'ae',
-          'dubai',
-          'united arab emirates',
-          'emirates'
-        ].includes(country)
-        if (bookingMarket === 'INDIA' && !isIndia) return false
-        if (bookingMarket === 'UAE' && !isUae) return false
-      }
-
-      if (appliedFilters.status !== 'ALL' && booking.status !== appliedFilters.status)
-        return false
-      if (
-        appliedFilters.payment !== 'ALL' &&
-        booking.payment !== appliedFilters.payment
-      ) {
-        return false
-      }
-      if (
-        appliedFilters.risk !== 'ALL' &&
-        (booking.deadlineRiskLevel ?? 'SAFE') !== appliedFilters.risk
-      ) {
-        return false
-      }
-      if (
-        appliedFilters.destination &&
-        booking.destination !== appliedFilters.destination
-      ) {
-        return false
-      }
-
-      const createdAtIso = toIsoDate(booking.createdAt)
-      if (appliedFilters.fromDate && (!createdAtIso || createdAtIso < appliedFilters.fromDate))
-        return false
-      if (appliedFilters.toDate && (!createdAtIso || createdAtIso > appliedFilters.toDate))
-        return false
-
-      if (
-        appliedFilters.bookingId &&
-        !String(booking.bookingId ?? '')
-          .toLowerCase()
-          .includes(appliedFilters.bookingId.toLowerCase())
-      ) {
-        return false
-      }
-      if (
-        appliedFilters.customer &&
-        !String(booking.customer ?? '')
-          .toLowerCase()
-          .includes(appliedFilters.customer.toLowerCase())
-      ) {
-        return false
-      }
-      if (
-        appliedFilters.email &&
-        !String(booking.email ?? '')
-          .toLowerCase()
-          .includes(appliedFilters.email.toLowerCase())
-      ) {
-        return false
-      }
-      if (
-        appliedFilters.phone &&
-        !String(booking.phone ?? '')
-          .toLowerCase()
-          .includes(appliedFilters.phone.toLowerCase())
-      ) {
-        return false
-      }
-      if (
-        appliedFilters.consultant &&
-        !String(booking.consultant ?? '')
-          .toLowerCase()
-          .includes(appliedFilters.consultant.toLowerCase())
-      ) {
-        return false
-      }
-
-      const query = search.toLowerCase().trim()
-      if (!query) return true
-      const createdAtText = booking.createdAt
-        ? new Date(booking.createdAt).toLocaleDateString()
-        : ''
-      const haystack = [
-        booking.bookingId,
-        booking.customer,
-        booking.email ?? "",
-        booking.phone ?? "",
-        booking.consultant ?? "",
-        booking.destination,
-        booking.status,
-        booking.payment,
-        createdAtText,
-        createdAtIso,
-      ]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase()
-      return haystack.includes(query)
-    })
-  }, [search, bookingItems, quickFilter, appliedFilters, bookingMarket])
-
   const displayStats = stats;
   const displayStatsLoading = statsLoading;
   const displayStatsError = statsError;
@@ -2724,42 +2601,22 @@ const BookingsPage: React.FC = () => {
       silent: true,
       filters: appliedFilters,
       quickFilter,
-      search,
+      search: debouncedSearch,
     });
-  }, [appliedFilters, fetchBookingStats, quickFilter, search, bookingMarket]);
+  }, [
+    appliedFilters,
+    bookingMarket,
+    debouncedSearch,
+    fetchBookingStats,
+    quickFilter,
+  ]);
 
-  const toTimestamp = (value?: string | null) => {
-    if (!value) return 0;
-    const parsed = Date.parse(value);
-    return Number.isFinite(parsed) ? parsed : 0;
-  };
+  useEffect(() => {
+    void fetchBookings({ silent: true })
+  }, [fetchBookings])
 
-  const ordered = useMemo(
-    () =>
-      [...filtered].sort((a, b) => {
-        if (appliedFilters.sortBy === 'AMOUNT_HIGH_TO_LOW') {
-          return Number(b.total || 0) - Number(a.total || 0)
-        }
-        if (appliedFilters.sortBy === 'AMOUNT_LOW_TO_HIGH') {
-          return Number(a.total || 0) - Number(b.total || 0)
-        }
-        if (appliedFilters.sortBy === 'CUSTOMER_A_Z') {
-          return String(a.customer || '').localeCompare(String(b.customer || ''))
-        }
-        if (appliedFilters.sortBy === 'OLDEST_FIRST') {
-          const left = toTimestamp(a.createdAt)
-          const right = toTimestamp(b.createdAt)
-          return left - right
-        }
-        const left = toTimestamp(a.createdAt)
-        const right = toTimestamp(b.createdAt)
-        return right - left
-      }),
-    [filtered, appliedFilters.sortBy]
-  )
-
-  const totalPages = Math.max(1, Math.ceil(ordered.length / pageSize))
-  const rows = ordered.slice((page - 1) * pageSize, page * pageSize)
+  const totalPages = pagination.totalPages
+  const rows = bookingItems
 
   const handleResetFilters = () => {
     setFilterError('')
@@ -3139,14 +2996,13 @@ const BookingsPage: React.FC = () => {
                 <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
                   Consultant
                 </label>
-                <input
-                  type='text'
-                  value={draftFilters.consultant}
-                  onChange={event =>
-                    updateDraftFilter('consultant', event.target.value)
-                  }
-                  placeholder='Consultant name'
-                  className='w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-700 dark:bg-gray-900'
+                <SearchableDropdown
+                  className='w-full'
+                  value={draftFilters.consultantId}
+                  options={consultantOptions}
+                  placeholder='All Consultants'
+                  searchPlaceholder='Search consultant...'
+                  onChange={value => updateDraftFilter('consultantId', value)}
                 />
               </div>
             </div>
@@ -3182,11 +3038,11 @@ const BookingsPage: React.FC = () => {
                 </label>
                 <SearchableDropdown
                   className='w-full'
-                  value={draftFilters.destination}
+                  value={draftFilters.destinationId}
                   options={destinationOptions}
                   placeholder='All Destinations'
                   searchPlaceholder='Search destination...'
-                  onChange={value => updateDraftFilter('destination', value)}
+                  onChange={value => updateDraftFilter('destinationId', value)}
                 />
               </div>
               <div>
@@ -3597,9 +3453,9 @@ const BookingsPage: React.FC = () => {
             {/* Pagination */}
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-4 border-t border-gray-200 dark:border-gray-800">
               <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 order-2 sm:order-1">
-                Showing {Math.min(filtered.length, (page - 1) * pageSize + 1)}-
-                {Math.min(filtered.length, page * pageSize)} of{" "}
-                {filtered.length}
+                Showing {pagination.total === 0 ? 0 : (page - 1) * pageSize + 1}-
+                {Math.min(pagination.total, page * pageSize)} of{" "}
+                {pagination.total}
               </p>
               <div className="flex items-center gap-2 order-1 sm:order-2">
                 <button

@@ -18,6 +18,74 @@ const PAYMENT_MODE_ALIASES = Object.freeze({
 });
 
 function createPaymentsService({ repository, bookingsRepository, leadsRepository, logger, events, currencyService }) {
+  function normalizeRoleToken(value) {
+    return String(value || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+  }
+
+  function isManagerRole(value) {
+    const role = normalizeRoleToken(value);
+    return role === "manager" || role === "department_head" || role === "team_lead";
+  }
+
+  function isAgentRole(value) {
+    const role = normalizeRoleToken(value);
+    return ["agent", "sales_consultant", "visa_executive", "holiday_consultant"].includes(role);
+  }
+
+  function isFullAccessRole(value) {
+    const role = normalizeRoleToken(value);
+    return ["super_admin", "superadmin", "admin", "accounts"].includes(role);
+  }
+
+  function countryAliases(value) {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (!normalized) return [];
+    if (["india", "in", "ind"].includes(normalized)) return ["india", "in", "ind"];
+    if (["uae", "u.a.e", "ae", "dubai", "united arab emirates", "emirates"].includes(normalized)) {
+      return ["uae", "u.a.e", "ae", "dubai", "united arab emirates", "emirates"];
+    }
+    return [normalized];
+  }
+
+  async function buildVisibilityScope(context = {}) {
+    const userId = context.user?.id || null;
+    const role = normalizeRoleToken(context.user?.role);
+    if (!userId) return { denyAll: true };
+    if (isFullAccessRole(role)) return {};
+    if (isAgentRole(role)) return { assignedTo: userId };
+    if (isManagerRole(role)) {
+      const names = typeof leadsRepository?.findUserCountryNames === "function"
+        ? await leadsRepository.findUserCountryNames(userId)
+        : [];
+      const allowedCountries = [...new Set(names.flatMap(countryAliases))];
+      return allowedCountries.length ? { allowedCountries, strictCountryScope: true } : { denyAll: true };
+    }
+    return { denyAll: true };
+  }
+
+  async function ensureBookingVisible(booking, context = {}) {
+    const scope = await buildVisibilityScope(context);
+    if (scope.denyAll) {
+      throw new AppError(404, "Booking not found", "PAYMENT_BOOKING_NOT_FOUND");
+    }
+    if (!scope.assignedTo && !scope.allowedCountries) return;
+
+    const leadId = booking?.leadId || null;
+    const lead = leadId && leadsRepository
+      ? await leadsRepository.findById(leadId).catch(() => null)
+      : null;
+    if (scope.assignedTo && lead?.assignedTo !== scope.assignedTo) {
+      throw new AppError(404, "Booking not found", "PAYMENT_BOOKING_NOT_FOUND");
+    }
+    if (scope.allowedCountries) {
+      const leadCountries = new Set(countryAliases(lead?.leadCountry ?? lead?.country));
+      const allowed = scope.allowedCountries.some((country) => leadCountries.has(country));
+      if (!allowed) {
+        throw new AppError(404, "Booking not found", "PAYMENT_BOOKING_NOT_FOUND");
+      }
+    }
+  }
+
   function toNumber(value, fallback = 0) {
     if (value === null || value === undefined) {
       return fallback;
@@ -183,10 +251,15 @@ function createPaymentsService({ repository, bookingsRepository, leadsRepository
       throw new AppError(404, "Payment not found", "PAYMENT_NOT_FOUND");
     }
 
+    const booking = await repository.findBookingById(payment.bookingId);
+    if (!booking || booking.isDeleted) {
+      throw new AppError(404, "Payment not found", "PAYMENT_NOT_FOUND");
+    }
+    await ensureBookingVisible(booking, context);
     return payment;
   }
 
-  async function getBookingById(bookingId) {
+  async function getBookingById(bookingId, context = {}) {
     const booking = await repository.findBookingById(bookingId);
     if (!booking || booking.isDeleted) {
       throw new AppError(404, "Booking not found", "PAYMENT_BOOKING_NOT_FOUND");
@@ -200,6 +273,7 @@ function createPaymentsService({ repository, bookingsRepository, leadsRepository
       );
     }
 
+    await ensureBookingVisible(booking, context);
     return booking;
   }
 
@@ -271,7 +345,8 @@ function createPaymentsService({ repository, bookingsRepository, leadsRepository
         { module: "payments", requestId: context.requestId, filters },
         "Listing payments",
       );
-      return repository.findAll(filters);
+      const visibilityScope = await buildVisibilityScope(context);
+      return repository.findAll({ ...filters, ...visibilityScope });
     },
 
     async stats(filters = {}, context = {}) {
@@ -279,7 +354,9 @@ function createPaymentsService({ repository, bookingsRepository, leadsRepository
         { module: "payments", requestId: context.requestId, filters },
         "Fetching payment stats",
       );
-      const breakdown = await repository.getStatsBreakdown(filters);
+      const visibilityScope = await buildVisibilityScope(context);
+      const scopedFilters = { ...filters, ...visibilityScope };
+      const breakdown = await repository.getStatsBreakdown(scopedFilters);
       const targetCurrency = normalizeCurrency(
         filters?.currency ||
           filters?.targetCurrency ||
@@ -327,7 +404,7 @@ function createPaymentsService({ repository, bookingsRepository, leadsRepository
     getById,
 
     async create(payload, context = {}) {
-      await getBookingById(payload.bookingId);
+      await getBookingById(payload.bookingId, context);
 
       const record = buildCreateRecord(payload, context);
       const created = await repository.create(record);
@@ -348,7 +425,7 @@ function createPaymentsService({ repository, bookingsRepository, leadsRepository
 
     async update(id, payload, context = {}) {
       const existing = await getById(id, context);
-      await getBookingById(existing.bookingId);
+      await getBookingById(existing.bookingId, context);
 
       const patch = {};
 
@@ -416,7 +493,7 @@ function createPaymentsService({ repository, bookingsRepository, leadsRepository
 
     async verify(id, payload = {}, context = {}) {
       const existing = await getById(id, context);
-      await getBookingById(existing.bookingId);
+      await getBookingById(existing.bookingId, context);
 
       const nowIso = new Date().toISOString();
       const patch = {

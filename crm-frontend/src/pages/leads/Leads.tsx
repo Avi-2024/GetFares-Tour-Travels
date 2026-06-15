@@ -78,6 +78,16 @@ type ConsultantUser = {
   active?: boolean | null;
 };
 
+const LEAD_OWNER_ROLES = new Set([
+  "agent",
+  "sales_consultant",
+  "visa_executive",
+  "holiday_consultant",
+  "manager",
+  "department_head",
+  "team_lead",
+]);
+
 const defaultFilters: LeadFilterState = {
   fromDate: "",
   toDate: "",
@@ -402,13 +412,19 @@ const Leads: React.FC = () => {
     const fetchConsultants = async () => {
       try {
         // Fetch a large batch to get all unique consultants
-        const response = await usersService.list()
+        const response = await usersService.list({ isActive: true, limit: 500 })
         const salesConsultants = extractRows<ConsultantUser>(response)
-          .filter(user => String(user.role || '').trim().toLowerCase() === 'sales_consultant')
+          .filter(user => {
+            const role = String(user.role || '')
+              .trim()
+              .toLowerCase()
+              .replace(/[\s-]+/g, '_')
+            return LEAD_OWNER_ROLES.has(role)
+          })
           .filter(user => user.isActive !== false && user.is_active !== false && user.active !== false)
           .map(user => ({
             id: String(user.id || '').trim(),
-            name: String(user.fullName || user.full_name || user.name || user.email || '').trim(),
+            name: `${String(user.fullName || user.full_name || user.name || user.email || '').trim()} `,
           }))
           .filter(user => user.id && user.name)
           .sort((left, right) => left.name.localeCompare(right.name))

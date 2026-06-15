@@ -47,6 +47,17 @@ type PageCache = {
 }
 
 let pageCache: PageCache | null = null
+let pageCacheScope = ""
+
+export function setBookingsPageCacheScope(scope: string | null | undefined) {
+  const normalizedScope = String(scope || "").trim()
+  if (pageCacheScope !== normalizedScope) {
+    pageCache = null
+    quotationOptionsCache = null
+    supplierOptionsCache = null
+    pageCacheScope = normalizedScope
+  }
+}
 
 export function isBookingsPageCacheFresh(): boolean {
   return Boolean(pageCache && Date.now() - pageCache.fetchedAt < CACHE_TTL_MS)

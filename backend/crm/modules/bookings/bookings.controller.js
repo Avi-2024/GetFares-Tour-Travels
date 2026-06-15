@@ -5,7 +5,7 @@ function createBookingsController({ service }) {
         req.validated?.query || req.query,
         req.context,
       );
-      res.status(200).json({ data: result });
+      res.status(200).json({ data: result.data, meta: result.meta });
     },
 
     async paymentPickerOptions(req, res) {

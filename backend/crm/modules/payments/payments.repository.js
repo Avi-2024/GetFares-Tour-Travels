@@ -151,21 +151,37 @@ function createPaymentsRepository({ db, logger, schema }) {
   }
 
   function buildLeadCountryWhere(filters = {}, alias = "l") {
-    const countryScope = String(
+    if (filters.denyAll) return { condition: "1 = 0", params: [] };
+    const conditions = [];
+    const params = [];
+    const requestedAliases = leadCountryAliases(
       filters.country || filters.market || filters.region || "",
-    ).trim();
-    const aliases = leadCountryAliases(countryScope);
-
-    if (!aliases.length) {
-      return { condition: "", params: [] };
+    );
+    if (requestedAliases.length) {
+      conditions.push(`LOWER(TRIM(${alias}.lead_country)) IN (${requestedAliases.map(() => "?").join(", ")})`);
+      params.push(...requestedAliases.map((value) => String(value).toLowerCase()));
     }
+    if (filters.assignedTo) {
+      conditions.push(`${alias}.assigned_to = ?`);
+      params.push(filters.assignedTo);
+    }
+    if (Array.isArray(filters.allowedCountries)) {
+      const allowedAliases = [...new Set(filters.allowedCountries.flatMap(leadCountryAliases))];
+      if (!allowedAliases.length && filters.strictCountryScope) {
+        conditions.push("1 = 0");
+      } else if (allowedAliases.length) {
+        conditions.push(`LOWER(TRIM(${alias}.lead_country)) IN (${allowedAliases.map(() => "?").join(", ")})`);
+        params.push(...allowedAliases.map((value) => String(value).toLowerCase()));
+      }
+    }
+    return { condition: conditions.join(" AND "), params };
+  }
 
-    return {
-      condition: `${alias}.lead_country IN (${aliases
-        .map(() => "?")
-        .join(", ")})`,
-      params: aliases,
-    };
+  async function buildLeadJoinIdExpression(bookingAlias = "b", quotationAlias = "q") {
+    const hasBookingLeadId = await hasColumn(schema.bookingsTable, "lead_id");
+    return hasBookingLeadId
+      ? `COALESCE(${bookingAlias}.lead_id, ${quotationAlias}.lead_id)`
+      : `${quotationAlias}.lead_id`;
   }
 
   function appendWhere(baseSql, condition) {
@@ -223,6 +239,7 @@ function createPaymentsRepository({ db, logger, schema }) {
 
     return {
       id: row.id,
+      leadId: row.lead_id ?? row.leadId ?? null,
       totalAmount: toNumber(row.total_amount ?? row.totalAmount, 0),
       advanceRequired: toNumber(row.advance_required ?? row.advanceRequired, 0),
       advanceReceived: toNumber(row.advance_received ?? row.advanceReceived, 0),
@@ -313,22 +330,15 @@ function createPaymentsRepository({ db, logger, schema }) {
 
   async function buildBookingCurrencyExpression(
     bookingAlias = "b",
-    quotationAlias = "q",
+    _quotationAlias = "q",
     leadAlias = "l",
   ) {
     let hasBookingClientCurrency = false;
-    let hasBookingCurrency = false;
-    let hasQuotationClientCurrency = false;
     let hasLeadClientCurrency = false;
 
     try {
       hasBookingClientCurrency = await hasColumn(
         schema.bookingsTable,
-        "client_currency",
-      );
-      hasBookingCurrency = await hasColumn(schema.bookingsTable, "currency");
-      hasQuotationClientCurrency = await hasColumn(
-        schema.quotationsTable,
         "client_currency",
       );
       hasLeadClientCurrency = await hasColumn(
@@ -346,19 +356,11 @@ function createPaymentsRepository({ db, logger, schema }) {
     }
 
     const currencySources = [];
-    if (hasLeadClientCurrency) {
-      currencySources.push(`NULLIF(TRIM(${leadAlias}.client_currency), '')`);
-    }
-    if (hasQuotationClientCurrency) {
-      currencySources.push(
-        `NULLIF(TRIM(${quotationAlias}.client_currency), '')`,
-      );
-    }
     if (hasBookingClientCurrency) {
       currencySources.push(`NULLIF(TRIM(${bookingAlias}.client_currency), '')`);
     }
-    if (hasBookingCurrency) {
-      currencySources.push(`NULLIF(TRIM(${bookingAlias}.currency), '')`);
+    if (hasLeadClientCurrency) {
+      currencySources.push(`NULLIF(TRIM(${leadAlias}.client_currency), '')`);
     }
     currencySources.push("'AED'");
 
@@ -368,38 +370,16 @@ function createPaymentsRepository({ db, logger, schema }) {
   }
 
   async function buildPaymentCurrencyExpression(
-    paymentAlias = "p",
+    _paymentAlias = "p",
     bookingAlias = "b",
     quotationAlias = "q",
     leadAlias = "l",
   ) {
-    let hasPaymentCurrency = false;
-    try {
-      hasPaymentCurrency = await hasColumn(schema.tableName, "currency");
-    } catch (error) {
-      logger?.warn?.(
-        {
-          err: error,
-          module: "payments",
-        },
-        "Unable to inspect payment currency column for payment stats",
-      );
-    }
-
-    const bookingCurrencyExpression = await buildBookingCurrencyExpression(
+    return buildBookingCurrencyExpression(
       bookingAlias,
       quotationAlias,
       leadAlias,
     );
-
-    if (!hasPaymentCurrency) {
-      return bookingCurrencyExpression;
-    }
-
-    return `UPPER(COALESCE(
-      ${bookingCurrencyExpression.replace(/^UPPER\(/, "").replace(/\)$/, "")},
-      NULLIF(TRIM(${paymentAlias}.currency), '')
-    ))`;
   }
 
   function mapListFilters(filters = {}) {
@@ -432,6 +412,10 @@ function createPaymentsRepository({ db, logger, schema }) {
     if (filters.region) {
       mapped.region = filters.region;
     }
+    if (filters.assignedTo) mapped.assignedTo = filters.assignedTo;
+    if (filters.allowedCountries) mapped.allowedCountries = filters.allowedCountries;
+    if (filters.strictCountryScope) mapped.strictCountryScope = true;
+    if (filters.denyAll) mapped.denyAll = true;
 
     return mapped;
   }
@@ -525,6 +509,9 @@ function createPaymentsRepository({ db, logger, schema }) {
                 ? "DATE(p.paid_at) < CURRENT_DATE"
                 : "FALSE";
         const leadCountryWhere = buildLeadCountryWhere(filters, "l");
+        const leadJoinIdExpression = bookingsTableExists
+          ? await buildLeadJoinIdExpression("b", "q")
+          : "q.lead_id";
         const paymentStatsWhere = bookingsTableExists
           ? appendWhere("", leadCountryWhere.condition)
           : "";
@@ -573,7 +560,7 @@ function createPaymentsRepository({ db, logger, schema }) {
           FROM ${schema.tableName} p
           LEFT JOIN ${schema.bookingsTable} b ON b.id = p.booking_id
           LEFT JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
-          LEFT JOIN ${schema.leadsTable} l ON l.id = q.lead_id
+          LEFT JOIN ${schema.leadsTable} l ON l.id = ${leadJoinIdExpression}
           ${paymentStatsWhere}
           GROUP BY ${paymentCurrencyExpression}
         `
@@ -637,7 +624,7 @@ function createPaymentsRepository({ db, logger, schema }) {
                 FROM ${schema.refundsTable} r
                 LEFT JOIN ${schema.bookingsTable} b ON b.id = r.booking_id
                 LEFT JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
-                LEFT JOIN ${schema.leadsTable} l ON l.id = q.lead_id
+                LEFT JOIN ${schema.leadsTable} l ON l.id = ${leadJoinIdExpression}
                 WHERE r.status = 'PROCESSED'
                   ${leadCountryWhere.condition ? `AND ${leadCountryWhere.condition}` : ""}
                 GROUP BY ${refundsCurrencyExpression}
@@ -763,13 +750,10 @@ function createPaymentsRepository({ db, logger, schema }) {
             return;
           }
           const bookingCurrency =
-            lead?.client_currency ??
-            lead?.clientCurrency ??
-            quotation?.client_currency ??
-            quotation?.clientCurrency ??
             bookingRow?.client_currency ??
             bookingRow?.clientCurrency ??
-            bookingRow?.currency ??
+            lead?.client_currency ??
+            lead?.clientCurrency ??
             "AED";
           addToBreakdown(
             refundsMap,
@@ -803,14 +787,10 @@ function createPaymentsRepository({ db, logger, schema }) {
             return;
           }
           const paymentCurrency =
-            lead?.client_currency ??
-            lead?.clientCurrency ??
-            quotation?.client_currency ??
-            quotation?.clientCurrency ??
             bookingRow?.client_currency ??
             bookingRow?.clientCurrency ??
-            bookingRow?.currency ??
-            row.currency ??
+            lead?.client_currency ??
+            lead?.clientCurrency ??
             "AED";
           addToBreakdown(
             collectedMap,
@@ -841,14 +821,10 @@ function createPaymentsRepository({ db, logger, schema }) {
             return;
           }
           const paymentCurrency =
-            lead?.client_currency ??
-            lead?.clientCurrency ??
-            quotation?.client_currency ??
-            quotation?.clientCurrency ??
             bookingRow?.client_currency ??
             bookingRow?.clientCurrency ??
-            bookingRow?.currency ??
-            row.currency ??
+            lead?.client_currency ??
+            lead?.clientCurrency ??
             "AED";
           const amount = toNumber(row.amount, 0);
           addToBreakdown(
@@ -927,13 +903,14 @@ function createPaymentsRepository({ db, logger, schema }) {
           "q",
           "l",
         );
+        const leadJoinIdExpression = await buildLeadJoinIdExpression("b", "q");
 
         let query = `
           SELECT
             p.*,
             ${derivedCurrencyExpression} AS derived_currency,
             b.booking_number,
-            q.lead_id,
+            ${leadJoinIdExpression} AS lead_id,
             l.full_name AS lead_full_name,
             l.email AS lead_email,
             l.phone AS lead_phone,
@@ -942,7 +919,7 @@ function createPaymentsRepository({ db, logger, schema }) {
           FROM ${schema.tableName} p
           LEFT JOIN ${schema.bookingsTable} b ON b.id = p.booking_id
           LEFT JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
-          LEFT JOIN ${schema.leadsTable} l ON l.id = q.lead_id
+          LEFT JOIN ${schema.leadsTable} l ON l.id = ${leadJoinIdExpression}
           LEFT JOIN ${schema.usersTable} u ON u.id = p.verified_by
           ${whereSql}
           ORDER BY p.created_at DESC
@@ -1012,6 +989,26 @@ function createPaymentsRepository({ db, logger, schema }) {
     },
 
     async findBookingById(id) {
+      if (canUseRawQuery()) {
+        const leadJoinIdExpression = await buildLeadJoinIdExpression("b", "q");
+        const result = await db.query(
+          `
+            SELECT b.*, ${leadJoinIdExpression} AS resolved_lead_id
+            FROM ${schema.bookingsTable} b
+            LEFT JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
+            WHERE b.id = ?
+            LIMIT 1
+          `,
+          [id],
+        );
+        const row = result.rows?.[0] || null;
+        return row
+          ? toBooking({
+              ...row,
+              lead_id: row.resolved_lead_id ?? row.lead_id ?? null,
+            })
+          : null;
+      }
       const row = await db.findById(schema.bookingsTable, id);
       return toBooking(row);
     },

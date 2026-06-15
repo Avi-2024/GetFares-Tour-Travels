@@ -68,6 +68,64 @@ function createBookingsService({
     return isSuperAdminRole(role) || role === "admin" || role === "accounts";
   }
 
+  function countryAliases(value) {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (!normalized) return [];
+    if (["india", "in", "ind"].includes(normalized)) {
+      return ["india", "in", "ind"];
+    }
+    if (
+      [
+        "uae",
+        "u.a.e",
+        "ae",
+        "dubai",
+        "united arab emirates",
+        "emirates",
+      ].includes(normalized)
+    ) {
+      return [
+        "uae",
+        "u.a.e",
+        "ae",
+        "dubai",
+        "united arab emirates",
+        "emirates",
+      ];
+    }
+    return [normalized];
+  }
+
+  async function buildVisibilityScope(context = {}) {
+    const userId = context.user?.id || null;
+    const userRole = normalizeRoleToken(context.user?.role);
+
+    if (!userId) {
+      return { denyAll: true };
+    }
+    if (isFullAccessRole(userRole)) {
+      return {};
+    }
+    if (isAgentRole(userRole)) {
+      return { assignedTo: userId };
+    }
+    if (isManagerRole(userRole)) {
+      const countryNames =
+        typeof leadsRepository?.findUserCountryNames === "function"
+          ? await leadsRepository.findUserCountryNames(userId)
+          : [];
+      const allowedCountries = [
+        ...new Set(countryNames.flatMap((country) => countryAliases(country))),
+      ];
+      return allowedCountries.length > 0
+        ? { allowedCountries, strictCountryScope: true }
+        : { denyAll: true };
+    }
+
+    // Unknown roles never receive booking data by default.
+    return { denyAll: true };
+  }
+
   function toNumber(value, fallback = 0) {
     if (value === null || value === undefined) {
       return fallback;
@@ -319,34 +377,19 @@ function createBookingsService({
     }
   }
 
-  async function canViewBooking(booking, lead, context = {}) {
-    const userId = context.user?.id || null;
-    const userRole = normalizeRoleToken(context.user?.role);
-
-    if (!userId) {
-      return false;
+  async function canViewBooking(booking, lead, context = {}, resolvedScope = null) {
+    const scope = resolvedScope || (await buildVisibilityScope(context));
+    if (scope.denyAll) return false;
+    if (!scope.assignedTo && !scope.allowedCountries) return true;
+    if (scope.assignedTo) {
+      return Boolean(lead?.assignedTo && lead.assignedTo === scope.assignedTo);
     }
-
-    if (isFullAccessRole(userRole)) {
-      return true;
-    }
-
-    if (isAgentRole(userRole)) {
-      return Boolean(lead?.assignedTo && lead.assignedTo === userId);
-    }
-
-    if (isManagerRole(userRole)) {
-      const managedAgentIds = typeof leadsRepository?.findManagedAgentIds === "function"
-        ? await leadsRepository.findManagedAgentIds(userId)
-        : [];
-      const visibleAssigneeIds = new Set([userId, ...managedAgentIds].filter(Boolean));
-      if (!lead?.assignedTo) {
-        return true;
-      }
-      return visibleAssigneeIds.has(lead.assignedTo);
-    }
-
-    return true;
+    const leadCountryAliases = new Set(
+      countryAliases(lead?.leadCountry ?? lead?.country),
+    );
+    return scope.allowedCountries.some((country) =>
+      leadCountryAliases.has(country),
+    );
   }
 
   async function getById(id, context = {}) {
@@ -804,7 +847,6 @@ function createBookingsService({
       payment_status: PAYMENT_STATUS.PENDING,
       advance_required: requestedAdvance,
       advance_received: 0,
-      client_currency: clientCurrency,
       supplier_currency: supplierCurrency,
       exchange_rate: exchangeRate,
       exchange_locked: payload.exchangeLocked ?? false,
@@ -847,20 +889,18 @@ function createBookingsService({
         { module: "bookings", requestId: context.requestId, filters },
         "Listing bookings",
       );
-      const list = await repository.findAll(filters);
-      const withDeadlines = list.map((item) => withDeadlineInsights(item));
-      const enriched = await enrichBookingsWithLeadNames(withDeadlines);
-      const visible = [];
-      for (const booking of enriched) {
-        const accessLead = booking.leadId && leadsRepository
-          ? await leadsRepository.findById(booking.leadId).catch(() => null)
-          : null;
-        const allowed = await canViewBooking(booking, accessLead, context);
-        if (allowed) {
-          visible.push(booking);
-        }
-      }
-      return visible;
+      const visibilityScope = await buildVisibilityScope(context);
+      const result = await repository.findAll({ ...filters, ...visibilityScope });
+      const items = Array.isArray(result) ? result : result.data || [];
+      return {
+        data: items.map((item) => withDeadlineInsights(item)),
+        meta: result.meta || {
+          page: 1,
+          limit: items.length,
+          total: items.length,
+          totalPages: 1,
+        },
+      };
     },
 
     async paymentPickerOptions(filters = {}, context = {}) {
@@ -868,7 +908,11 @@ function createBookingsService({
         { module: "bookings", requestId: context.requestId, filters },
         "Listing booking payment picker options",
       );
-      return repository.findPaymentPickerOptions(filters);
+      const visibilityScope = await buildVisibilityScope(context);
+      return repository.findPaymentPickerOptions({
+        ...filters,
+        ...visibilityScope,
+      });
     },
 
     async stats(filters = {}, context = {}) {
@@ -876,7 +920,9 @@ function createBookingsService({
         { module: "bookings", requestId: context.requestId, filters },
         "Fetching booking stats",
       );
-      const stats = await repository.getStats(filters);
+      const visibilityScope = await buildVisibilityScope(context);
+      const scopedFilters = { ...filters, ...visibilityScope };
+      const stats = await repository.getStats(scopedFilters);
       const reportingCurrency = normalizeCurrency(
         filters.currency || "USD",
       );
@@ -888,7 +934,8 @@ function createBookingsService({
         };
       }
 
-      const moneyRows = await repository.getStatsMoneyByCurrency(filters);
+      const moneyRows =
+        await repository.getStatsMoneyByCurrency(scopedFilters);
       if (!Array.isArray(moneyRows) || !moneyRows.length) {
         return {
           ...stats,
@@ -1040,9 +1087,6 @@ function createBookingsService({
       }
       if (payload.paymentStatus !== undefined) {
         updatePayload.payment_status = payload.paymentStatus;
-      }
-      if (payload.clientCurrency !== undefined) {
-        updatePayload.client_currency = toUpperText(payload.clientCurrency);
       }
       if (payload.supplierCurrency !== undefined) {
         updatePayload.supplier_currency = toUpperText(payload.supplierCurrency);
