@@ -1201,6 +1201,7 @@ const CreateBookingModal = ({
                 }
                 options={currencyOptions}
                 searchPlaceholder="Search currency..."
+                disabled
               />
             </div>
             <div>
@@ -1220,6 +1221,7 @@ const CreateBookingModal = ({
                 placeholder="0.00"
                 min="0"
                 step="0.01"
+                disabled
               />
               {errors.totalAmount && (
                 <p className="text-xs text-red-500 mt-1">
@@ -1244,6 +1246,7 @@ const CreateBookingModal = ({
                 placeholder="0.00"
                 min="0"
                 step="0.01"
+                disabled
               />
               {errors.costAmount && (
                 <p className="text-xs text-red-500 mt-1">{errors.costAmount}</p>
@@ -1405,7 +1408,7 @@ const RecordPaymentModal = ({
 
           <div>
             <label className="field-label">
-              Amount ({normalizeCurrencyCode(booking?.currency)}) *
+              Amount  ({normalizeCurrencyCode(booking?.currency)}) *
             </label>
             <input
               type="number"

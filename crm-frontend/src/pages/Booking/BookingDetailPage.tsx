@@ -1429,7 +1429,7 @@ const AddPaymentModal = ({
                 <p className="text-xs text-red-500 mt-1">{errors.amount}</p>
               ) : (
                 <p className="text-xs text-gray-500 mt-1">
-                  Max payable amount: {maxPayable.toLocaleString()}
+                  Max payable amount: {formatAmount(maxPayable)}
                 </p>
               )}
             </div>

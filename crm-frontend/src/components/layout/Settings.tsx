@@ -125,7 +125,7 @@ const tabs: Array<{ id: Tab; label: string }> = [
   { id: 'user-management', label: 'User Management' },
   { id: 'roles-permissions', label: 'Roles & Permissions' },
   // { id: 'country-management', label: 'Country Management' },
-  { id: 'system-settings', label: 'System Settings' },
+  // { id: 'system-settings', label: 'System Settings' },
   { id: 'currency-rates', label: 'Currency Rates' },
   // { id: 'destinations-pricing', label: 'Destinations & Pricing' },
   // { id: 'pdf-templates', label: 'PDF Templates' }
