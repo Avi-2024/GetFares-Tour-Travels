@@ -26,7 +26,7 @@ import { createCountriesModule } from "./countries/index.js";
 import { createMailModule } from "./mail/index.js";
 import { createHistoryModule } from "./history/index.js";
 import { registerCurrencyModule } from "./currency/index.js";
-import { createPartnerIntegrationModule } from "./partnerIntegration/index.js";
+import { createBreezerIntegrationModule } from "./breezerIntegration/index.js";
 
 function registerModules(app, dependencies) {
   const mountedModules = {};
@@ -171,11 +171,12 @@ function registerModules(app, dependencies) {
   mountedModules.mail = mailModule;
   app.use("/api/mail", mailModule.routes);
 
-  const partnerIntegrationModule = createPartnerIntegrationModule({
+  const breezerIntegrationModule = createBreezerIntegrationModule({
     dependencies: featureDependencies,
+    bookingsService: mountedModules.bookings?.service,
   });
-  mountedModules.partnerIntegration = partnerIntegrationModule;
-  app.use("/api/integrations/v1", partnerIntegrationModule.router);
+  mountedModules.breezerIntegration = breezerIntegrationModule;
+  app.use("/api/breezer-integration", breezerIntegrationModule.router);
 
   return mountedModules;
 }
@@ -208,5 +209,5 @@ export {
   createNotificationsModule,
   createPushModule,
   createDashboardModule,
-  createPartnerIntegrationModule,
+  createBreezerIntegrationModule,
 };

@@ -52,8 +52,8 @@ let shuttingDown = false;
 
 async function closeDependencies({ skipLogger = false } = {}) {
   if (typeof automationRuntime?.stop === "function") automationRuntime.stop();
-  if (typeof modules?.partnerIntegration?.stop === "function") {
-    modules.partnerIntegration.stop();
+  if (typeof modules?.breezerIntegration?.stop === "function") {
+    modules.breezerIntegration.stop();
   }
   if (typeof socketServer?.close === "function") socketServer.close();
   if (typeof container.db?.close === "function") await container.db.close();
