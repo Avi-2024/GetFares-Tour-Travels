@@ -29,6 +29,7 @@ function mapBookingCreatedPayload(booking = {}) {
     booking.consultantName,
     booking.createdByUser?.fullName || null,
   );
+  const leadType = textOrNull(booking.leadType, "Retail");
   const clientCurrency = String(
     booking.clientCurrency || booking.currency || "AED",
   ).toUpperCase();
@@ -38,7 +39,7 @@ function mapBookingCreatedPayload(booking = {}) {
     bookingId: bookingNumber,
     booking: {
       city: textOrNull(booking.city, booking.destinationName || null),
-      client_type: "Retail",
+      client_type: leadType,
       client_name: customerName,
       client_email: textOrNull(booking.leadEmail),
       query_on: toDateOnly(booking.createdAt),

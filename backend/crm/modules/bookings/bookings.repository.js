@@ -229,6 +229,7 @@ function createBookingsRepository({ db, logger, schema }) {
       leadName: row.lead_name ?? row.leadName ?? null,
       leadEmail: row.lead_email ?? row.leadEmail ?? null,
       leadPhone: row.lead_phone ?? row.leadPhone ?? null,
+      leadType: row.lead_type ?? row.leadType ?? null,
       destinationName: row.destination_name ?? row.destinationName ?? null,
       consultantId: row.consultant_id ?? row.consultantId ?? null,
       consultantName: row.consultant_name ?? row.consultantName ?? null,
@@ -773,6 +774,7 @@ function createBookingsRepository({ db, logger, schema }) {
       leadName: lead.full_name ?? lead.fullName ?? booking.leadName ?? null,
       leadEmail: lead.email ?? booking.leadEmail ?? null,
       leadPhone: lead.phone ?? lead.mobile ?? booking.leadPhone ?? null,
+      leadType: lead.lead_type ?? lead.leadType ?? booking.leadType ?? null,
       destinationName:
         destination?.name ??
         lead.travel_to ??
@@ -1303,6 +1305,7 @@ function createBookingsRepository({ db, logger, schema }) {
                 l.full_name AS lead_name,
                 l.email AS lead_email,
                 l.phone AS lead_phone,
+                l.lead_type AS lead_type,
                 l.client_currency AS joined_client_currency,
                 l.lead_country AS joined_lead_country,
                 l.assigned_to AS consultant_id,

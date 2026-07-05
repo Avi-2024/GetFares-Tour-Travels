@@ -50,8 +50,8 @@ const envSchema = z.object({
   MYSQL_USER: z.string().optional(),
   MYSQL_PASSWORD: z.string().optional(),
   MYSQL_DATABASE: z.string().optional(),
-  MYSQL_POOL_MAX: z.coerce.number().int().positive().max(200).default(50),
-  MYSQL_POOL_QUEUE_LIMIT: z.coerce.number().int().min(0).default(0),
+  MYSQL_POOL_MAX: z.coerce.number().int().positive().max(200).default(10),
+  MYSQL_POOL_QUEUE_LIMIT: z.coerce.number().int().min(0).default(100),
   MYSQL_CONNECT_TIMEOUT_MS: z.coerce.number().int().positive().default(15000),
   /** "true" | "false" | omit (auto: SSL on for *.mysql.database.azure.com) */
   MYSQL_SSL: z.string().optional(),
