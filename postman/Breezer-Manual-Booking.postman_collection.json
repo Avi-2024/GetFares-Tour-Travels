@@ -1,0 +1,522 @@
+﻿{
+    "info":  {
+                 "name":  "Get2Vacations - Manual Booking + Breezer Payload",
+                 "description":  "Create a booking manually from Postman and capture the Breezer booking.created payload returned by the backend. The create response includes data.breezerPayload temporarily.",
+                 "schema":  "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+             },
+    "variable":  [
+                     {
+                         "key":  "baseUrl",
+                         "value":  "http://localhost:3000",
+                         "type":  "string"
+                     },
+                     {
+                         "key":  "email",
+                         "value":  "get2vacations@gmail.com",
+                         "type":  "string"
+                     },
+                     {
+                         "key":  "password",
+                         "value":  "12345678",
+                         "type":  "string"
+                     },
+                     {
+                         "key":  "authToken",
+                         "value":  "",
+                         "type":  "string"
+                     },
+                     {
+                         "key":  "quotationId",
+                         "value":  "PUT_APPROVED_QUOTATION_UUID_HERE",
+                         "type":  "string"
+                     },
+                     {
+                         "key":  "bookingId",
+                         "value":  "",
+                         "type":  "string"
+                     },
+                     {
+                         "key":  "bookingNumber",
+                         "value":  "",
+                         "type":  "string"
+                     },
+                     {
+                         "key":  "travelStartDate",
+                         "value":  "2026-07-20",
+                         "type":  "string"
+                     },
+                     {
+                         "key":  "travelEndDate",
+                         "value":  "2026-07-25",
+                         "type":  "string"
+                     },
+                     {
+                         "key":  "totalAmount",
+                         "value":  "1000",
+                         "type":  "string"
+                     },
+                     {
+                         "key":  "costAmount",
+                         "value":  "800",
+                         "type":  "string"
+                     },
+                     {
+                         "key":  "clientCurrency",
+                         "value":  "AED",
+                         "type":  "string"
+                     },
+                     {
+                         "key":  "breezerWebhookUrl",
+                         "value":  "https://devbreezer365.getfares.com/hair_webhook/booking",
+                         "type":  "string"
+                     },
+                     {
+                         "key":  "breezerApiKey",
+                         "value":  "akb_breezer_hair_2026_X9kP7mQa4Tz8Wr2Hn6Lv5Bc3Ys1Df9Je",
+                         "type":  "string"
+                     },
+                     {
+                         "key":  "visaId",
+                         "value":  "VIS1005",
+                         "type":  "string"
+                     },
+                     {
+                         "key":  "visaBookingNumber",
+                         "value":  "BK1005",
+                         "type":  "string"
+                     },
+                     {
+                         "key":  "visaSupplierName",
+                         "value":  "Global Visa Services",
+                         "type":  "string"
+                     },
+                     {
+                         "key":  "visaDate",
+                         "value":  "2026-08-15",
+                         "type":  "string"
+                     },
+                     {
+                         "key":  "visaDescription",
+                         "value":  "Singapore Tourist Visa",
+                         "type":  "string"
+                     },
+                     {
+                         "key":  "visaPax",
+                         "value":  "2",
+                         "type":  "string"
+                     },
+                     {
+                         "key":  "visaSupplierCurrency",
+                         "value":  "SGD",
+                         "type":  "string"
+                     },
+                     {
+                         "key":  "visaSupplierAmount",
+                         "value":  "450",
+                         "type":  "string"
+                     },
+                     {
+                         "key":  "visaSupplierPaymentMode",
+                         "value":  "Credit Card",
+                         "type":  "string"
+                     },
+                     {
+                         "key":  "visaSupplierInvoiceNo",
+                         "value":  "VISA-1002",
+                         "type":  "string"
+                     },
+                     {
+                         "key":  "visaPaymentDueDate",
+                         "value":  "2026-08-10",
+                         "type":  "string"
+                     },
+                     {
+                         "key":  "visaPaymentMadeDate",
+                         "value":  "2026-08-05",
+                         "type":  "string"
+                     },
+                     {
+                         "key":  "roeSupplierToUsd",
+                         "value":  "0.74",
+                         "type":  "string"
+                     },
+                     {
+                         "key":  "roeSupplierToInr",
+                         "value":  "63.25",
+                         "type":  "string"
+                     },
+                     {
+                         "key":  "roeSupplierToClient",
+                         "value":  "1.05",
+                         "type":  "string"
+                     },
+                     {
+                         "key":  "paymentId",
+                         "value":  "PUT_PAYMENT_UUID_HERE",
+                         "type":  "string"
+                     },
+                     {
+                         "key":  "refundId",
+                         "value":  "PUT_REFUND_UUID_HERE",
+                         "type":  "string"
+                     }
+                 ],
+    "item":  [
+                 {
+                     "name":  "1. Login - Save Token",
+                     "request":  {
+                                     "method":  "POST",
+                                     "header":  [
+                                                    {
+                                                        "key":  "Content-Type",
+                                                        "value":  "application/json"
+                                                    }
+                                                ],
+                                     "body":  {
+                                                  "mode":  "raw",
+                                                  "raw":  "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+                                                  "options":  {
+                                                                  "raw":  {
+                                                                              "language":  "json"
+                                                                          }
+                                                              }
+                                              },
+                                     "url":  {
+                                                 "raw":  "{{baseUrl}}/api/auth/login",
+                                                 "host":  [
+                                                              "{{baseUrl}}"
+                                                          ],
+                                                 "path":  [
+                                                              "api",
+                                                              "auth",
+                                                              "login"
+                                                          ]
+                                             },
+                                     "description":  "Logs in and saves access token into authToken. If your login response uses a different token key, adjust the test script."
+                                 },
+                     "event":  [
+                                   {
+                                       "listen":  "test",
+                                       "script":  {
+                                                      "type":  "text/javascript",
+                                                      "exec":  [
+                                                                   "pm.test(\u0027Login succeeded\u0027, function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
+                                                                   "const json = pm.response.json();",
+                                                                   "const token = json?.data?.accessToken || json?.data?.token || json?.accessToken || json?.token;",
+                                                                   "if (token) { pm.collectionVariables.set(\u0027authToken\u0027, token); }",
+                                                                   "console.log(\u0027authToken saved:\u0027, Boolean(token));"
+                                                               ]
+                                                  }
+                                   }
+                               ]
+                 },
+                 {
+                     "name":  "2. Create Booking - Returns Breezer Payload",
+                     "request":  {
+                                     "method":  "POST",
+                                     "header":  [
+                                                    {
+                                                        "key":  "Content-Type",
+                                                        "value":  "application/json"
+                                                    },
+                                                    {
+                                                        "key":  "Authorization",
+                                                        "value":  "Bearer {{authToken}}"
+                                                    }
+                                                ],
+                                     "body":  {
+                                                  "mode":  "raw",
+                                                  "raw":  "{\n  \"quotationId\": \"{{quotationId}}\",\n  \"travelStartDate\": \"{{travelStartDate}}\",\n  \"travelEndDate\": \"{{travelEndDate}}\",\n  \"totalAmount\": {{totalAmount}},\n  \"costAmount\": {{costAmount}},\n  \"advanceRequired\": 0,\n  \"clientCurrency\": \"{{clientCurrency}}\",\n  \"supplierDetails\": {},\n  \"dmcDetails\": {},\n  \"hotelSegments\": [],\n  \"flightSegments\": [],\n  \"insuranceDetails\": {},\n  \"otherServices\": []\n}",
+                                                  "options":  {
+                                                                  "raw":  {
+                                                                              "language":  "json"
+                                                                          }
+                                                              }
+                                              },
+                                     "url":  {
+                                                 "raw":  "{{baseUrl}}/api/bookings",
+                                                 "host":  [
+                                                              "{{baseUrl}}"
+                                                          ],
+                                                 "path":  [
+                                                              "api",
+                                                              "bookings"
+                                                          ]
+                                             },
+                                     "description":  "Creates a booking. Backend currently returns data.breezerPayload temporarily for client sharing. quotationId must be an existing approved quotation UUID."
+                                 },
+                     "event":  [
+                                   {
+                                       "listen":  "test",
+                                       "script":  {
+                                                      "type":  "text/javascript",
+                                                      "exec":  [
+                                                                   "pm.test(\u0027Booking created\u0027, function () { pm.expect(pm.response.code).to.eql(201); });",
+                                                                   "const json = pm.response.json();",
+                                                                   "const data = json?.data || {};",
+                                                                   "if (data.id) pm.collectionVariables.set(\u0027bookingId\u0027, data.id);",
+                                                                   "if (data.bookingNumber) pm.collectionVariables.set(\u0027bookingNumber\u0027, data.bookingNumber);",
+                                                                   "if (data.breezerPayload) {",
+                                                                   "  pm.collectionVariables.set(\u0027lastBreezerPayload\u0027, JSON.stringify(data.breezerPayload, null, 2));",
+                                                                   "  console.log(\u0027BREEZER PAYLOAD:\u0027, JSON.stringify(data.breezerPayload, null, 2));",
+                                                                   "}",
+                                                                   "pm.test(\u0027Breezer payload returned\u0027, function () { pm.expect(data.breezerPayload).to.be.an(\u0027object\u0027); });"
+                                                               ]
+                                                  }
+                                   }
+                               ]
+                 },
+                 {
+                     "name":  "3. Get Booking Breezer Payload Text Only",
+                     "request":  {
+                                     "method":  "GET",
+                                     "header":  [
+                                                    {
+                                                        "key":  "Authorization",
+                                                        "value":  "Bearer {{authToken}}"
+                                                    }
+                                                ],
+                                     "url":  {
+                                                 "raw":  "{{baseUrl}}/api/breezer-integration/bookings/{{bookingId}}/payload",
+                                                 "host":  [
+                                                              "{{baseUrl}}"
+                                                          ],
+                                                 "path":  [
+                                                              "api",
+                                                              "breezer-integration",
+                                                              "bookings",
+                                                              "{{bookingId}}",
+                                                              "payload"
+                                                          ]
+                                             },
+                                     "description":  "Returns only the generated booking.created payload as pretty JSON text. Does not send to Breezer."
+                                 },
+                     "event":  [
+                                   {
+                                       "listen":  "test",
+                                       "script":  {
+                                                      "type":  "text/javascript",
+                                                      "exec":  [
+                                                                   "pm.test(\u0027Payload fetched\u0027, function () { pm.expect(pm.response.code).to.eql(200); });",
+                                                                   "pm.collectionVariables.set(\u0027lastBreezerPayload\u0027, pm.response.text());",
+                                                                   "console.log(\u0027BREEZER PAYLOAD TEXT:\u0027, pm.response.text());"
+                                                               ]
+                                                  }
+                                   }
+                               ]
+                 },
+                 {
+                     "name":  "4. Send Booking Payload To Breezer - Manual Test",
+                     "request":  {
+                                     "method":  "POST",
+                                     "header":  [
+                                                    {
+                                                        "key":  "Authorization",
+                                                        "value":  "Bearer {{authToken}}"
+                                                    }
+                                                ],
+                                     "url":  {
+                                                 "raw":  "{{baseUrl}}/api/breezer-integration/bookings/{{bookingId}}/test",
+                                                 "host":  [
+                                                              "{{baseUrl}}"
+                                                          ],
+                                                 "path":  [
+                                                              "api",
+                                                              "breezer-integration",
+                                                              "bookings",
+                                                              "{{bookingId}}",
+                                                              "test"
+                                                          ]
+                                             },
+                                     "description":  "Sends the booking.created payload to Breezer using backend env BREEZER_WEBHOOK_URL/API_KEY. Use only when you want to test delivery."
+                                 },
+                     "event":  [
+                                   {
+                                       "listen":  "test",
+                                       "script":  {
+                                                      "type":  "text/javascript",
+                                                      "exec":  [
+                                                                   "pm.test(\u0027Manual webhook test completed\u0027, function () { pm.expect(pm.response.code).to.eql(200); });",
+                                                                   "const json = pm.response.json();",
+                                                                   "if (json?.data?.payload) { console.log(\u0027SENT PAYLOAD:\u0027, JSON.stringify(json.data.payload, null, 2)); }",
+                                                                   "console.log(\u0027Breezer result:\u0027, json?.data);"
+                                                               ]
+                                                  }
+                                   }
+                               ]
+                 },
+                 {
+                     "name":  "5. Send Visa Created Payload To Breezer",
+                     "request":  {
+                                     "method":  "POST",
+                                     "header":  [
+                                                    {
+                                                        "key":  "Content-Type",
+                                                        "value":  "application/json"
+                                                    },
+                                                    {
+                                                        "key":  "x-api-key",
+                                                        "value":  "{{breezerApiKey}}"
+                                                    },
+                                                    {
+                                                        "key":  "x-source-system",
+                                                        "value":  "get2vacations-crm"
+                                                    },
+                                                    {
+                                                        "key":  "x-idempotency-key",
+                                                        "value":  "visa.created:{{visaBookingNumber}}:{{visaId}}"
+                                                    }
+                                                ],
+                                     "body":  {
+                                                  "mode":  "raw",
+                                                  "raw":  "{\n  \"eventType\": \"visa.created\",\n  \"bookingId\": \"{{visaBookingNumber}}\",\n  \"visa\": {\n    \"visaId\": \"{{visaId}}\",\n    \"supp_name\": \"{{visaSupplierName}}\",\n    \"visa_date\": \"{{visaDate}}\",\n    \"desc\": \"{{visaDescription}}\",\n    \"noOfPax\": {{visaPax}},\n    \"supplierCurrency\": \"{{visaSupplierCurrency}}\",\n    \"supplierAmount\": {{visaSupplierAmount}},\n    \"supplierPaymentMode\": \"{{visaSupplierPaymentMode}}\",\n    \"supplierInvoiceNo\": \"{{visaSupplierInvoiceNo}}\",\n    \"paymentDueDate\": \"{{visaPaymentDueDate}}\",\n    \"paymentMadeDate\": \"{{visaPaymentMadeDate}}\",\n    \"ROEsupplierToUSD\": {{roeSupplierToUsd}},\n    \"ROEsupplierToINR\": {{roeSupplierToInr}},\n    \"ROEsupplieToClient\": {{roeSupplierToClient}}\n  }\n}",
+                                                  "options":  {
+                                                                  "raw":  {
+                                                                              "language":  "json"
+                                                                          }
+                                                              }
+                                              },
+                                     "url":  {
+                                                 "raw":  "{{breezerWebhookUrl}}",
+                                                 "host":  [
+                                                              "{{breezerWebhookUrl}}"
+                                                          ]
+                                             },
+                                     "description":  "Sends a separate visa.created payload directly to Breezer. Use bookingId as Breezer booking number, not CRM UUID. This is independent of the CRM visa case schema."
+                                 },
+                     "event":  [
+                                   {
+                                       "listen":  "test",
+                                       "script":  {
+                                                      "type":  "text/javascript",
+                                                      "exec":  [
+                                                                   "pm.test(\u0027Breezer visa request completed\u0027, function () { pm.expect(pm.response.code).to.be.oneOf([200, 201, 202]); });",
+                                                                   "console.log(\u0027VISA CREATED PAYLOAD:\u0027, pm.request.body.raw);",
+                                                                   "console.log(\u0027Breezer response:\u0027, pm.response.text());"
+                                                               ]
+                                                  }
+                                   }
+                               ]
+                 },
+                 {
+                     "name":  "6. Get Payment Breezer Payload Text Only",
+                     "request":  {
+                                     "method":  "GET",
+                                     "header":  [
+                                                    {
+                                                        "key":  "Authorization",
+                                                        "value":  "Bearer {{authToken}}",
+                                                        "type":  "text"
+                                                    }
+                                                ],
+                                     "url":  {
+                                                 "raw":  "{{baseUrl}}/api/breezer-integration/payments/{{paymentId}}/payload?eventType=payment.created",
+                                                 "host":  [
+                                                              "{{baseUrl}}"
+                                                          ],
+                                                 "path":  [
+                                                              "api",
+                                                              "breezer-integration",
+                                                              "payments",
+                                                              "{{paymentId}}",
+                                                              "payload"
+                                                          ]
+                                             },
+                                     "description":  "Returns payment.created payload as pretty JSON text. Does not send to Breezer."
+                                 },
+                     "response":  [
+
+                                  ]
+                 },
+                 {
+                     "name":  "7. Send Payment Payload To Breezer - Manual Test",
+                     "request":  {
+                                     "method":  "POST",
+                                     "header":  [
+                                                    {
+                                                        "key":  "Authorization",
+                                                        "value":  "Bearer {{authToken}}",
+                                                        "type":  "text"
+                                                    }
+                                                ],
+                                     "url":  {
+                                                 "raw":  "{{baseUrl}}/api/breezer-integration/payments/{{paymentId}}/test?eventType=payment.created",
+                                                 "host":  [
+                                                              "{{baseUrl}}"
+                                                          ],
+                                                 "path":  [
+                                                              "api",
+                                                              "breezer-integration",
+                                                              "payments",
+                                                              "{{paymentId}}",
+                                                              "test"
+                                                          ]
+                                             },
+                                     "description":  "Sends payment.created payload to Breezer through backend env configuration."
+                                 },
+                     "response":  [
+
+                                  ]
+                 },
+                 {
+                     "name":  "8. Get Refund Breezer Payload Text Only",
+                     "request":  {
+                                     "method":  "GET",
+                                     "header":  [
+                                                    {
+                                                        "key":  "Authorization",
+                                                        "value":  "Bearer {{authToken}}",
+                                                        "type":  "text"
+                                                    }
+                                                ],
+                                     "url":  {
+                                                 "raw":  "{{baseUrl}}/api/breezer-integration/refunds/{{refundId}}/payload?eventType=refund.created",
+                                                 "host":  [
+                                                              "{{baseUrl}}"
+                                                          ],
+                                                 "path":  [
+                                                              "api",
+                                                              "breezer-integration",
+                                                              "refunds",
+                                                              "{{refundId}}",
+                                                              "payload"
+                                                          ]
+                                             },
+                                     "description":  "Returns refund.created payload as pretty JSON text. Does not send to Breezer. Refund shape is pending client confirmation."
+                                 },
+                     "response":  [
+
+                                  ]
+                 },
+                 {
+                     "name":  "9. Send Refund Payload To Breezer - Manual Test",
+                     "request":  {
+                                     "method":  "POST",
+                                     "header":  [
+                                                    {
+                                                        "key":  "Authorization",
+                                                        "value":  "Bearer {{authToken}}",
+                                                        "type":  "text"
+                                                    }
+                                                ],
+                                     "url":  {
+                                                 "raw":  "{{baseUrl}}/api/breezer-integration/refunds/{{refundId}}/test?eventType=refund.created",
+                                                 "host":  [
+                                                              "{{baseUrl}}"
+                                                          ],
+                                                 "path":  [
+                                                              "api",
+                                                              "breezer-integration",
+                                                              "refunds",
+                                                              "{{refundId}}",
+                                                              "test"
+                                                          ]
+                                             },
+                                     "description":  "Sends refund.created payload to Breezer through backend env configuration. Refund shape is pending client confirmation."
+                                 },
+                     "response":  [
+
+                                  ]
+                 }
+             ]
+}

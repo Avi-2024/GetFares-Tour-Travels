@@ -59,6 +59,76 @@ const optionalDateFormat = z
       "dateFormat must be one of DD/MM/YYYY, MM/DD/YYYY, YYYY-MM-DD, DD-MM-YYYY",
   });
 
+const canonicalLeadStatus = z.enum([
+  "OPEN",
+  "CONTACTED",
+  "WIP",
+  "QUOTED",
+  "FOLLOW_UP",
+  "CONVERTED",
+  "LOST",
+  "NON_RESPONSIVE",
+]);
+
+const colorValue = z
+  .preprocess(emptyToUndefined, z.string().trim().min(3).max(24).optional());
+
+const statusMainCreatePayload = z.object({
+  code: optionalText(2, 80),
+  label: z.string().trim().min(2).max(120),
+  canonicalStatus: canonicalLeadStatus,
+  sortOrder: z.coerce.number().int().min(0).max(10000).optional(),
+  color: colorValue,
+  isActive: z.boolean().optional(),
+  isTerminal: z.boolean().optional(),
+  requiresSubStatus: z.boolean().optional(),
+  requiresQuotation: z.boolean().optional(),
+  createsBooking: z.boolean().optional(),
+  isBookingControlled: z.boolean().optional(),
+});
+
+const statusMainUpdatePayload = statusMainCreatePayload
+  .partial()
+  .refine(
+    (value) => Object.keys(value).length > 0,
+    "At least one lead status main field is required",
+  );
+
+const statusSubCreatePayload = z.object({
+  mainStatusId: z.string().trim().min(1).max(80),
+  code: optionalText(2, 80),
+  label: z.string().trim().min(2).max(120),
+  sortOrder: z.coerce.number().int().min(0).max(10000).optional(),
+  isActive: z.boolean().optional(),
+  isTerminal: z.boolean().optional(),
+});
+
+const statusSubUpdatePayload = statusSubCreatePayload
+  .partial()
+  .refine(
+    (value) => Object.keys(value).length > 0,
+    "At least one lead status sub field is required",
+  );
+
+const reorderPayload = z.object({
+  mainStatuses: z
+    .array(
+      z.object({
+        id: z.string().trim().min(1).max(80),
+        sortOrder: z.coerce.number().int().min(0).max(10000),
+      }),
+    )
+    .optional(),
+  subStatuses: z
+    .array(
+      z.object({
+        id: z.string().trim().min(1).max(80),
+        sortOrder: z.coerce.number().int().min(0).max(10000),
+      }),
+    )
+    .optional(),
+});
+
 const systemPayload = z
   .object({
     companyName: optionalText(2, 160),
@@ -112,6 +182,42 @@ const updateIntegrations = z.object({
   query: z.object({}).optional(),
 });
 
+const byWorkflowId = z.object({
+  body: z.object({}).optional(),
+  params: z.object({ id: z.string().trim().min(1).max(80) }),
+  query: z.object({}).optional(),
+});
+
+const createLeadStatusMain = z.object({
+  body: statusMainCreatePayload,
+  params: z.object({}).optional(),
+  query: z.object({}).optional(),
+});
+
+const updateLeadStatusMain = z.object({
+  body: statusMainUpdatePayload,
+  params: byWorkflowId.shape.params,
+  query: z.object({}).optional(),
+});
+
+const createLeadStatusSub = z.object({
+  body: statusSubCreatePayload,
+  params: z.object({}).optional(),
+  query: z.object({}).optional(),
+});
+
+const updateLeadStatusSub = z.object({
+  body: statusSubUpdatePayload,
+  params: byWorkflowId.shape.params,
+  query: z.object({}).optional(),
+});
+
+const reorderLeadStatusWorkflow = z.object({
+  body: reorderPayload,
+  params: z.object({}).optional(),
+  query: z.object({}).optional(),
+});
+
 const SettingsValidation = {
   getAll: readShape,
   getSystem: readShape,
@@ -119,6 +225,12 @@ const SettingsValidation = {
   getIntegrations: readShape,
   updateSystem,
   updateIntegrations,
+  getLeadStatusWorkflow: readShape,
+  createLeadStatusMain,
+  updateLeadStatusMain,
+  createLeadStatusSub,
+  updateLeadStatusSub,
+  reorderLeadStatusWorkflow,
 };
 
 export { SettingsValidation };

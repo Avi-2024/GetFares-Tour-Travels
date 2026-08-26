@@ -19,16 +19,12 @@ import {
 import { useAuth } from '../../context/AuthContext'
 import { useDateTimePreferences } from '../../context/DateTimePreferencesContext'
 import {
-  SOP_STATUS_LABELS,
-  decodeCustomStatusComboValue,
-  deriveSopStatusLabel,
-  encodeCustomStatusComboValue,
-  isEncodedCustomStatusValue,
-  normalizeStatusToken,
+  deriveCanonicalFromWorkflow,
+  getWorkflowSubStatuses,
+  normalizeWorkflow,
   resolveLeadDisplayedStatus,
-  sopLabelToCanonical,
-  toStatusLabelText,
-  type SopStatusLabel
+  resolveWorkflowSelection,
+  type LeadStatusWorkflow
 } from '../../utils/leadStatus'
 import { Country } from 'country-state-city'
 import { getCurrencyOptions } from '../../utils/currency'
@@ -121,6 +117,21 @@ function normalizeLeadTimeZone(rawValue: unknown): string | null {
   if (!raw) return null
   if (raw === 'Asia/Calcutta') return 'Asia/Kolkata'
   return raw
+}
+
+function normalizeWhatsAppPhone(rawValue: unknown): string | null {
+  const digits = String(rawValue ?? '').replace(/\D/g, '')
+  if (digits.length < 8 || digits.length > 15) return null
+  return digits
+}
+
+function getLeadWhatsAppPhone(lead: any): string | null {
+  return (
+    normalizeWhatsAppPhone(lead?.phoneNormalized) ||
+    normalizeWhatsAppPhone(lead?.phone_normalized) ||
+    normalizeWhatsAppPhone(lead?.whatsapp) ||
+    normalizeWhatsAppPhone(lead?.phone)
+  )
 }
 
 type QualificationForm = {
@@ -271,11 +282,15 @@ const LeadDetails: React.FC = () => {
   const [error, setError] = useState('')
   const [statusError, setStatusError] = useState('')
   const [statusSaving, setStatusSaving] = useState(false)
-  const [statusComboValue, setStatusComboValue] = useState<string>('NEW')
-  const [globalStatusPresets, setGlobalStatusPresets] = useState<string[]>([])
+  const [statusWorkflow, setStatusWorkflow] = useState<LeadStatusWorkflow>(
+    normalizeWorkflow(null)
+  )
+  const [statusWorkflowLoading, setStatusWorkflowLoading] = useState(false)
+  const [mainStatusValue, setMainStatusValue] = useState<string>('NEW')
+  const [subStatusValue, setSubStatusValue] = useState<string>('')
   const [workflowFollowupType, setWorkflowFollowupType] = useState<
-    'CALL' | 'WHATSAPP' | 'FINAL_REMINDER'
-  >('CALL')
+    'NONE' | 'EMAIL' | 'CALL' | 'WHATSAPP'
+  >('NONE')
   const [leadTemperature, setLeadTemperature] = useState<'HOT' | 'WARM' | 'COLD'>('COLD')
   const [statusNotes, setStatusNotes] = useState('')
   const [closedReason, setClosedReason] = useState('')
@@ -304,7 +319,6 @@ const LeadDetails: React.FC = () => {
   const [quotationActionError, setQuotationActionError] = useState('')
   const [quotationActionMessage, setQuotationActionMessage] = useState('')
   const [quotationActionLoadingKey, setQuotationActionLoadingKey] = useState('')
-  const [waQuickLine, setWaQuickLine] = useState<'all' | 'in' | 'uae'>('all')
   const [quotationPdfData, setQuotationPdfData] = useState<any | null>(null)
   const pdfTemplateRef = useRef<HTMLDivElement | null>(null)
   const [conversionFollowUpMessage, setConversionFollowUpMessage] = useState('')
@@ -579,12 +593,30 @@ const LeadDetails: React.FC = () => {
     )
   }, [])
 
-  const loadGlobalStatusPresets = useCallback(async () => {
+  const openLeadWhatsApp = useCallback(() => {
+    if (!lead) return
+    const phone = getLeadWhatsAppPhone(lead)
+    if (!phone) {
+      toast.error('Lead phone number is missing or invalid.')
+      return
+    }
+
+    const leadRef = String(lead.leadCode ?? lead.lead_code ?? id ?? '').trim()
+    const defaultMessage = leadRef
+      ? `Hi, this is Get2Vacations regarding your enquiry ${leadRef}.`
+      : 'Hi, this is Get2Vacations regarding your enquiry.'
+    const url = `https://wa.me/${phone}?text=${encodeURIComponent(defaultMessage)}`
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }, [id, lead])
+
+  const loadStatusWorkflow = useCallback(async () => {
+    setStatusWorkflowLoading(true)
     try {
-      const items = await leadsService.listCustomStatusPresets()
-      setGlobalStatusPresets(items)
+      setStatusWorkflow(normalizeWorkflow(await leadsService.getStatusWorkflowOptions()))
     } catch {
-      setGlobalStatusPresets([])
+      setStatusWorkflow(normalizeWorkflow(null))
+    } finally {
+      setStatusWorkflowLoading(false)
     }
   }, [leadsService])
 
@@ -601,21 +633,9 @@ const LeadDetails: React.FC = () => {
       setLead(data)
       setCallsButtonDisabled(false)
       if (data) {
-        const rawCustom =
-          data.customStatusLabel ?? data.custom_status_label
-        const custom =
-          typeof rawCustom === 'string' && rawCustom.trim()
-            ? rawCustom.trim()
-            : null
-        setStatusComboValue(
-          custom
-            ? encodeCustomStatusComboValue(custom)
-            : deriveSopStatusLabel(
-                data.status,
-                data.subStatus,
-                data.statusLabel
-              )
-        )
+        const selection = resolveWorkflowSelection(data, normalizeWorkflow(null))
+        setMainStatusValue(selection.mainStatus)
+        setSubStatusValue(selection.subStatus)
         const rawTemperature = String(data.temperature || '').toUpperCase()
         setLeadTemperature(
           rawTemperature === 'HOT' || rawTemperature === 'WARM' || rawTemperature === 'COLD'
@@ -629,9 +649,8 @@ const LeadDetails: React.FC = () => {
       setLead(null)
     } finally {
       setLoading(false)
-      void loadGlobalStatusPresets()
     }
-  }, [hydrateQualification, id, leadsService, loadGlobalStatusPresets])
+  }, [hydrateQualification, id, leadsService])
 
   const loadFollowups = useCallback(async () => {
     if (!id) return
@@ -765,23 +784,57 @@ const LeadDetails: React.FC = () => {
     void loadLead()
     void loadFollowups()
     void loadLeadQuotationsForLead()
-    void loadGlobalStatusPresets()
-  }, [loadFollowups, loadLead, loadLeadQuotationsForLead, loadGlobalStatusPresets])
+    void loadStatusWorkflow()
+  }, [loadFollowups, loadLead, loadLeadQuotationsForLead, loadStatusWorkflow])
 
-  const pipelineSop = useMemo((): SopStatusLabel | null => {
-    if (decodeCustomStatusComboValue(statusComboValue)) return null
-    const v = statusComboValue as SopStatusLabel
-    return SOP_STATUS_LABELS.includes(v) ? v : null
-  }, [statusComboValue])
+  React.useEffect(() => {
+    if (!lead) return
+    const selection = resolveWorkflowSelection(lead, statusWorkflow)
+    setMainStatusValue(selection.mainStatus)
+    setSubStatusValue(selection.subStatus)
+  }, [
+    lead?.id,
+    lead?.mainStatus,
+    lead?.main_status,
+    lead?.status,
+    lead?.subStatus,
+    lead?.sub_status,
+    statusWorkflow
+  ])
+
+  const selectedMainStatus = useMemo(
+    () =>
+      statusWorkflow.mainStatuses.find(item => item.code === mainStatusValue) ||
+      null,
+    [mainStatusValue, statusWorkflow.mainStatuses]
+  )
+
+  const selectedSubStatus = useMemo(
+    () =>
+      getWorkflowSubStatuses(statusWorkflow, mainStatusValue).find(
+        item => item.code === subStatusValue
+      ) || null,
+    [mainStatusValue, statusWorkflow, subStatusValue]
+  )
+
+  const selectedCanonicalStatus = useMemo(
+    () =>
+      deriveCanonicalFromWorkflow(
+        mainStatusValue,
+        subStatusValue || null,
+        statusWorkflow
+      ),
+    [mainStatusValue, statusWorkflow, subStatusValue]
+  )
 
   React.useEffect(() => {
     setConversionFollowUpMessage('')
-    if (pipelineSop !== 'CONVERTED') {
+    if (selectedCanonicalStatus !== 'CONVERTED') {
       setSelectedConversionQuotationId('')
       return
     }
     void loadLeadQuotationsForLead()
-  }, [pipelineSop, loadLeadQuotationsForLead])
+  }, [selectedCanonicalStatus, loadLeadQuotationsForLead])
 
   React.useEffect(() => {
     void loadAssigneeOptions()
@@ -848,48 +901,28 @@ const LeadDetails: React.FC = () => {
     return summary
   }, [followupsForCompliance])
 
-  const statusOptions = useMemo(() => {
-    const base = SOP_STATUS_LABELS.map(label => ({
-      value: label,
-      label: toStatusLabelText(label)
-    }))
-    const sopTokenSet = new Set(
-      SOP_STATUS_LABELS.map(l =>
-        normalizeStatusToken(l)
-      ).filter(Boolean)
-    )
-    const uniquePresets = [
-      ...new Set(
-        globalStatusPresets.map(s => String(s).trim()).filter(Boolean)
-      )
-    ].filter(
-      txt =>
-        !sopTokenSet.has(normalizeStatusToken(txt))
-    )
-    const presetRows = [...uniquePresets]
-      .sort((a, b) => a.localeCompare(b))
-      .map(txt => ({
-        value: encodeCustomStatusComboValue(txt),
-        label: txt
-      }))
-    const usedLower = new Set(presetRows.map(r => r.label.toLowerCase()))
-    const extraLeadOnly: Array<{ value: string; label: string }> = []
-    if (isEncodedCustomStatusValue(statusComboValue)) {
-      const lone = decodeCustomStatusComboValue(statusComboValue)?.trim()
-      if (
-        lone &&
-        !usedLower.has(lone.toLowerCase()) &&
-        !sopTokenSet.has(normalizeStatusToken(lone))
-      ) {
-        usedLower.add(lone.toLowerCase())
-        extraLeadOnly.push({
-          value: statusComboValue,
-          label: lone
-        })
-      }
-    }
-    return [...extraLeadOnly, ...presetRows, ...base]
-  }, [statusComboValue, globalStatusPresets])
+  const mainStatusOptions = useMemo(
+    () =>
+      statusWorkflow.mainStatuses
+        .filter(item => item.isActive || item.code === mainStatusValue)
+        .map(item => ({
+          value: item.code,
+          label: item.label,
+          rightLabel: item.canonicalStatus,
+          searchText: `${item.label} ${item.code} ${item.canonicalStatus}`
+        })),
+    [mainStatusValue, statusWorkflow.mainStatuses]
+  )
+
+  const subStatusOptions = useMemo(
+    () =>
+      getWorkflowSubStatuses(statusWorkflow, mainStatusValue).map(item => ({
+        value: item.code,
+        label: item.label,
+        searchText: `${item.label} ${item.code}`
+      })),
+    [mainStatusValue, statusWorkflow]
+  )
 
   const eligibleConversionQuotations = useMemo(
     () =>
@@ -1226,14 +1259,9 @@ const LeadDetails: React.FC = () => {
   }, [isCallsDisabled])
 
   const workflowFollowupTypeOptions = useMemo(() => {
-    if (pipelineSop === null) {
-      return []
-    }
-    if (pipelineSop === 'FINAL_REMINDER') {
-      return [{ value: 'FINAL_REMINDER', label: 'Final Reminder' }]
-    }
-
     const options = [
+      { value: 'NONE', label: 'None' },
+      { value: 'EMAIL', label: 'Email' },
       { value: 'CALL', label: 'Call' },
       { value: 'WHATSAPP', label: 'WhatsApp' }
     ]
@@ -1243,7 +1271,7 @@ const LeadDetails: React.FC = () => {
     }
 
     return options
-  }, [isCallsDisabled, pipelineSop])
+  }, [isCallsDisabled])
 
   const leadTemperatureOptions = useMemo(
     () => [
@@ -1254,32 +1282,17 @@ const LeadDetails: React.FC = () => {
     []
   )
 
-  const selectedWorkflowFollowupType =
-    pipelineSop === 'FINAL_REMINDER'
-      ? 'FINAL_REMINDER'
-      : workflowFollowupType
+  const selectedWorkflowFollowupType = workflowFollowupType
 
   React.useEffect(() => {
-    if (pipelineSop === null) {
-      return
-    }
-    if (pipelineSop === 'FINAL_REMINDER') {
-      setWorkflowFollowupType('FINAL_REMINDER')
-      return
-    }
-
     setWorkflowFollowupType(current => {
-      if (current === 'FINAL_REMINDER') {
-        return isCallsDisabled ? 'WHATSAPP' : 'CALL'
-      }
-
       if (isCallsDisabled && current === 'CALL') {
         return 'WHATSAPP'
       }
 
       return current
     })
-  }, [isCallsDisabled, pipelineSop])
+  }, [isCallsDisabled])
 
   const qualificationMissing = useMemo(() => {
     const missing: string[] = []
@@ -1402,66 +1415,56 @@ const LeadDetails: React.FC = () => {
     setStatusError('')
     setConversionFollowUpMessage('')
 
-    const customLabelTrimmed =
-      decodeCustomStatusComboValue(statusComboValue)?.trim() ?? ''
-    if (customLabelTrimmed) {
-      try {
-        await leadsService.updateLead(id, {
-          customStatusLabel: customLabelTrimmed,
-          temperature: leadTemperature,
-          notes: statusNotes.trim() || undefined,
-          activityCreatedAt: nowWallClockString(),
-          activityTimezone: getBrowserTimeZone()
-        })
-        await Promise.all([loadLead(), loadFollowups()])
-        setStatusNotes('')
-        toast.success('Custom status saved. Pipeline unchanged.')
-      } catch (err) {
-        reportApiError(err, 'Could not save custom status.', setStatusError)
-      } finally {
-        setStatusSaving(false)
-      }
+    if (!selectedMainStatus) {
+      setStatusSaving(false)
+      toast.error('Choose a main status.')
       return
     }
 
-    if (pipelineSop === null) {
+    if (selectedMainStatus.requiresSubStatus && !selectedSubStatus) {
       setStatusSaving(false)
-      toast.error('Choose a standard status.')
+      toast.error('Choose a sub-status.')
       return
     }
 
-    const conversion = sopLabelToCanonical(pipelineSop)
-
-    if (conversion.canonical === 'LOST' && !closedReason.trim()) {
+    if (selectedCanonicalStatus === 'LOST' && !closedReason.trim() && !selectedSubStatus?.label) {
       setStatusSaving(false)
-      toast.error('Closed reason is required for LOST.')
+      toast.error('Closed reason is required.')
       return
     }
 
     try {
+      const workflowFollowupTypeForPayload =
+        selectedWorkflowFollowupType === 'NONE'
+          ? undefined
+          : selectedWorkflowFollowupType
+
       await leadsService.updateLead(id, {
         temperature: leadTemperature,
-        status: conversion.canonical,
-        subStatus: conversion.subStatus,
+        mainStatus: selectedMainStatus.code,
+        ...(selectedSubStatus?.code ? { subStatus: selectedSubStatus.code } : {}),
+        status: selectedCanonicalStatus,
         customStatusLabel: null,
-        followupType: selectedWorkflowFollowupType,
+        ...(workflowFollowupTypeForPayload
+          ? { followupType: workflowFollowupTypeForPayload }
+          : {}),
         notes: statusNotes.trim() || undefined,
         activityCreatedAt: nowWallClockString(),
         activityTimezone: getBrowserTimeZone(),
         closedReason:
-          conversion.canonical === 'LOST' || conversion.canonical === 'NON_RESPONSIVE'
-            ? closedReason.trim() || undefined
+          selectedCanonicalStatus === 'LOST' || selectedCanonicalStatus === 'NON_RESPONSIVE'
+            ? closedReason.trim() || selectedSubStatus?.label || undefined
             : undefined
       })
       console.log('Status updated successfully')
 
-      if (conversion.canonical === 'CONVERTED' && !selectedConversionQuotationId) {
+      if (selectedCanonicalStatus === 'CONVERTED' && !selectedConversionQuotationId) {
         setConversionFollowUpMessage(
           'Lead converted without quotation. Create booking manually when quotation is not available.'
         )
       }
 
-      if (conversion.canonical === 'CONVERTED' && selectedConversionQuotationId) {
+      if (selectedCanonicalStatus === 'CONVERTED' && selectedConversionQuotationId) {
         let followUp = ''
 
         const quoteRes = await quotationsApi.getById(
@@ -1565,12 +1568,33 @@ const LeadDetails: React.FC = () => {
         setConversionFollowUpMessage(followUp)
       }
 
+      setLead((prev: any) =>
+        prev
+          ? {
+              ...prev,
+              status: selectedCanonicalStatus,
+              statusLabel: selectedMainStatus.label,
+              mainStatus: selectedMainStatus.code,
+              main_status: selectedMainStatus.code,
+              subStatus: selectedSubStatus?.code || null,
+              sub_status: selectedSubStatus?.code || null,
+              customStatusLabel: null,
+              custom_status_label: null,
+              temperature: leadTemperature,
+              closedReason:
+                selectedCanonicalStatus === 'LOST' ||
+                selectedCanonicalStatus === 'NON_RESPONSIVE'
+                  ? closedReason.trim() || selectedSubStatus?.label || prev.closedReason
+                  : prev.closedReason
+            }
+          : prev
+      )
       await Promise.all([
-        loadLead(),
         loadFollowups(),
-        conversion.canonical === 'CONVERTED' ? loadLeadQuotationsForLead() : Promise.resolve()
+        selectedCanonicalStatus === 'CONVERTED' ? loadLead() : Promise.resolve(),
+        selectedCanonicalStatus === 'CONVERTED' ? loadLeadQuotationsForLead() : Promise.resolve()
       ])
-      console.log('Data reloaded after status update')
+      console.log('Status update refreshed')
       setStatusNotes('')
       setClosedReason('')
     } catch (err) {
@@ -1991,32 +2015,13 @@ const LeadDetails: React.FC = () => {
         </div>
         {lead && id ? (
           <div className='flex flex-wrap items-center gap-2 shrink-0'>
-            <label className='sr-only' htmlFor='wa-line-quick'>
-              WhatsApp business line
-            </label>
-            <select
-              id='wa-line-quick'
-              value={waQuickLine}
-              onChange={e =>
-                setWaQuickLine(e.target.value as 'all' | 'in' | 'uae')
-              }
-              className='rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs font-medium text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200'
-            >
-              <option value='all'>WA: All numbers</option>
-              <option value='in'>WA: India</option>
-              <option value='uae'>WA: UAE</option>
-            </select>
             <button
               type='button'
-              onClick={() =>
-                navigate(
-                  `/whatsapp?leadId=${encodeURIComponent(id)}&region=${encodeURIComponent(waQuickLine)}`
-                )
-              }
+              onClick={openLeadWhatsApp}
               className='inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700'
             >
               <FaWhatsapp className='text-sm' />
-              WhatsApp
+              Open WhatsApp
             </button>
            
             {lead.email && String(lead.email).includes('@') ? (
@@ -2123,7 +2128,9 @@ const LeadDetails: React.FC = () => {
                       lead.customStatusLabel ?? lead.custom_status_label,
                     canonicalStatus: lead.status,
                     subStatus: lead.subStatus,
-                    providedStatusLabel: lead.statusLabel
+                    providedStatusLabel: lead.statusLabel,
+                    mainStatus: lead.mainStatus ?? lead.main_status,
+                    workflow: statusWorkflow
                   })}
                 />
               </div>
@@ -2549,31 +2556,41 @@ const LeadDetails: React.FC = () => {
 
           <div className='mt-4 rounded-xl border border-gray-200 p-3 dark:border-gray-700'>
             <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>
-              Status Transition
+              Main Status
             </p>
             <SearchableDropdown
               className='mt-2'
-              value={statusComboValue}
-              options={statusOptions}
-              searchPlaceholder='Search / Add status...'
-              creatable
-              onCreatePick={text => {
-                const t = String(text ?? '').trim()
-                if (!t) return
-                setStatusComboValue(encodeCustomStatusComboValue(t))
-                setGlobalStatusPresets(prev =>
-                  prev.some(x => x.toLowerCase() === t.toLowerCase())
-                    ? prev
-                    : [...prev, t].sort((a, b) => a.localeCompare(b))
-                )
-                void leadsService.addCustomStatusPreset(t).catch(() => {})
+              value={mainStatusValue}
+              options={mainStatusOptions}
+              searchPlaceholder='Search main status...'
+              disabled={statusWorkflowLoading}
+              onChange={value => {
+                setMainStatusValue(value)
+                setSubStatusValue('')
               }}
-              onChange={value => setStatusComboValue(value)}
             />
-            <p className='mt-1 text-[11px] text-gray-500 dark:text-gray-400'>
-               </p>
+           
+            {selectedMainStatus?.requiresSubStatus || subStatusOptions.length ? (
+              <>
+                <label className='mt-2 block text-xs font-medium text-gray-700 dark:text-gray-300'>
+                  Sub Status
+                </label>
+                <SearchableDropdown
+                  className='mt-1'
+                  value={subStatusValue}
+                  options={[
+                    { value: '', label: 'No sub-status' },
+                    ...subStatusOptions
+                  ]}
+                  searchPlaceholder='Search sub-status...'
+                  disabled={statusWorkflowLoading}
+                  onChange={value => setSubStatusValue(value)}
+                />
+               
+              </>
+            ) : null}
             <label className='mt-2 block text-xs font-medium text-gray-700 dark:text-gray-300'>
-              Lead Temperature
+              Lead Type
             </label>
             <SearchableDropdown
               className='mt-1'
@@ -2584,37 +2601,22 @@ const LeadDetails: React.FC = () => {
                 setLeadTemperature(value as 'HOT' | 'WARM' | 'COLD')
               }
             />
-            <p className='mt-1 text-[11px] text-gray-500 dark:text-gray-400'>
-              Manual choice only. Backend will not auto calculate when saved.
-            </p>
+           
             <label className='mt-2 block text-xs font-medium text-gray-700 dark:text-gray-300'>
               Follow-up Type
             </label>
-            {pipelineSop !== null ? (
-              <>
-                <SearchableDropdown
-                  className='mt-1'
-                  value={selectedWorkflowFollowupType}
-                  options={workflowFollowupTypeOptions}
-                  searchPlaceholder='Search follow-up type...'
-                  onChange={value =>
-                    setWorkflowFollowupType(
-                      value as 'CALL' | 'WHATSAPP' | 'FINAL_REMINDER'
-                    )
-                  }
-                />
-                <p className='mt-1 text-[11px] text-gray-500 dark:text-gray-400'>
-                  Workflow Action history uses this type for status changes.
-                  Schedule Follow-up also logs below with the same scheduled date
-                  and time.
-                </p>
-              </>
-            ) : (
-              <p className='mt-1 text-[11px] text-gray-500 dark:text-gray-400'>
-                Custom status keeps the current pipeline stage. Pick a standard
-                status above to log call / WhatsApp on transition.
-              </p>
-            )}
+            <SearchableDropdown
+              className='mt-1'
+              value={selectedWorkflowFollowupType}
+              options={workflowFollowupTypeOptions}
+              searchPlaceholder='Search follow-up type...'
+              onChange={value =>
+                setWorkflowFollowupType(
+                  value as 'NONE' | 'EMAIL' | 'CALL' | 'WHATSAPP'
+                )
+              }
+            />
+          
             {latestScheduleForWorkflow?.followupDate ||
             latestScheduleForWorkflow?.followupLocalAt ||
             latestScheduleForWorkflow?.followup_local_at ? (
@@ -2623,7 +2625,7 @@ const LeadDetails: React.FC = () => {
                 {formatFollowupDisplay(latestScheduleForWorkflow)}
               </p>
             ) : null}
-            {pipelineSop === 'CONVERTED' ? (
+            {selectedCanonicalStatus === 'CONVERTED' ? (
               <div className='mt-3 rounded-lg border border-gray-200 bg-gray-50/80 p-3 text-sm dark:border-gray-600 dark:bg-gray-800/40'>
                 <p className='font-medium text-gray-900 dark:text-gray-100'>
                   Conversion quotation
@@ -2697,7 +2699,7 @@ const LeadDetails: React.FC = () => {
               value={statusNotes}
               onChange={event => setStatusNotes(event.target.value)}
             />
-            {(pipelineSop === 'LOST' || pipelineSop === 'NON_RESPONSIVE') ? (
+            {(selectedCanonicalStatus === 'LOST' || selectedCanonicalStatus === 'NON_RESPONSIVE') ? (
               <>
                 <label className='mt-2 block text-xs font-medium text-gray-700 dark:text-gray-300'>
                   Closed Reason (required for LOST/NON_RESPONSIVE)
@@ -2715,7 +2717,7 @@ const LeadDetails: React.FC = () => {
               onClick={() => void updateStatus()}
               disabled={
                 statusSaving ||
-                (pipelineSop === 'CONVERTED' && loadingSentQuotations)
+                (selectedCanonicalStatus === 'CONVERTED' && loadingSentQuotations)
               }
               className='mt-2 inline-flex items-center gap-2 rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-60'
             >
@@ -3170,51 +3172,57 @@ const LeadDetails: React.FC = () => {
                   const right = resolveFollowupActionDate(b)?.getTime() || 0
                   return right - left
                 })
-                .map(item => (
-                  <div
-                    key={item.id}
-                    className='rounded-xl border border-gray-200 p-3 text-sm dark:border-gray-700'
-                  >
-                    <div className='flex flex-wrap items-center justify-between gap-2'>
-                      <div className='inline-flex items-center gap-2'>
-                        <StatusBadge
-                          status={String(
-                            item.statusSnapshot || item.followupType || 'CALL'
-                          )}
-                        />
-                        {item.statusSnapshot && item.followupType ? (
-                          <span className='rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300'>
-                            {String(item.followupType).replace(/_/g, ' ')}
-                          </span>
-                        ) : null}
-                        {item.cadenceCode ? (
-                          <span className='rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-300'>
-                            {item.cadenceCode}
-                          </span>
-                        ) : null}
+                .map(item => {
+                  const isStatusOnlyHistory =
+                    String(item.cadenceCode || '').toUpperCase() === 'STATUS_ONLY'
+                  const cadenceLabel = String(item.cadenceCode || '').replace(/_/g, ' ')
+
+                  return (
+                    <div
+                      key={item.id}
+                      className='rounded-xl border border-gray-200 p-3 text-sm dark:border-gray-700'
+                    >
+                      <div className='flex flex-wrap items-center justify-between gap-2'>
+                        <div className='inline-flex items-center gap-2'>
+                          <StatusBadge
+                            status={String(
+                              item.statusSnapshot || item.followupType || 'CALL'
+                            )}
+                          />
+                          {item.statusSnapshot && item.followupType && !isStatusOnlyHistory ? (
+                            <span className='rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300'>
+                              {String(item.followupType).replace(/_/g, ' ')}
+                            </span>
+                          ) : null}
+                          {item.cadenceCode && !isStatusOnlyHistory ? (
+                            <span className='rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-300'>
+                              {cadenceLabel}
+                            </span>
+                          ) : null}
+                        </div>
+                        <span className='inline-flex items-center gap-1 text-xs text-gray-500'>
+                          <FaClock />
+                          {formatFollowupDisplay(item)}
+                        </span>
                       </div>
-                      <span className='inline-flex items-center gap-1 text-xs text-gray-500'>
-                        <FaClock />
-                        {formatFollowupDisplay(item)}
-                      </span>
+                      <p className='mt-2 text-xs text-gray-500 dark:text-gray-400'>
+                        Action by:{' '}
+                        <span className='font-medium text-gray-700 dark:text-gray-200'>
+                          {resolveFollowupActorName(item)}
+                        </span>
+                      </p>
+                      {item.notes ? (
+                        <p className='mt-2 whitespace-pre-wrap text-xs text-gray-600 dark:text-gray-300'>
+                          {item.notes}
+                        </p>
+                      ) : (
+                        <p className='mt-2 text-xs text-gray-400 dark:text-gray-500'>
+                          No notes
+                        </p>
+                      )}
                     </div>
-                    <p className='mt-2 text-xs text-gray-500 dark:text-gray-400'>
-                      Action by:{' '}
-                      <span className='font-medium text-gray-700 dark:text-gray-200'>
-                        {resolveFollowupActorName(item)}
-                      </span>
-                    </p>
-                    {item.notes ? (
-                      <p className='mt-2 whitespace-pre-wrap text-xs text-gray-600 dark:text-gray-300'>
-                        {item.notes}
-                      </p>
-                    ) : (
-                      <p className='mt-2 text-xs text-gray-400 dark:text-gray-500'>
-                        No notes
-                      </p>
-                    )}
-                  </div>
-                ))}
+                  )
+                })}
             </div>
           )}
         </SurfaceCard>

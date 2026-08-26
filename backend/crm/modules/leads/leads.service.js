@@ -9,6 +9,14 @@ import {
   WALL_CLOCK_REGEX,
 } from "../../core/datetime/timezone.js";
 import { isWebhookInboundLead } from "../../core/utils/phone-validation.js";
+import {
+  buildWorkflowIndex,
+  defaultLeadStatusWorkflow,
+  deriveCanonicalStatusFromWorkflow,
+  deriveMainStatusFromLegacy,
+  deriveSubStatusFromLegacy,
+  normalizeStatusCode,
+} from "./leadStatusWorkflow.config.js";
 
 const LEAD_TEMPERATURE = Object.freeze({
   HOT: "HOT",
@@ -651,6 +659,89 @@ function createLeadsService({ repository, logger, events }) {
     return status;
   }
 
+  async function loadLeadStatusWorkflow(activeOnly = false) {
+    if (typeof repository.listLeadStatusWorkflow !== "function") {
+      return defaultLeadStatusWorkflow();
+    }
+    return repository.listLeadStatusWorkflow({ activeOnly });
+  }
+
+  function deriveStatusLabelFromWorkflow(lead, workflow = defaultLeadStatusWorkflow()) {
+    const index = buildWorkflowIndex(workflow);
+    const mainCode =
+      normalizeStatusCode(lead?.mainStatus) ||
+      deriveMainStatusFromLegacy(lead?.status, lead?.subStatus);
+    const subCode =
+      normalizeStatusCode(lead?.subStatus) ||
+      deriveSubStatusFromLegacy(lead?.status, lead?.subStatus);
+    const main = index.mainByCode.get(mainCode);
+    const sub = subCode ? index.subByMainAndCode.get(`${mainCode}:${subCode}`) : null;
+    if (main && sub) return `${main.label} - ${sub.label}`;
+    if (main) return main.label;
+    return deriveDocStatus(lead?.status, lead?.subStatus);
+  }
+
+  async function applyLeadWorkflowSelection(payload = {}, existing = null) {
+    const hasMainStatus = payload.mainStatus !== undefined;
+    if (!hasMainStatus) {
+      if (!payload.status && !existing) {
+        payload.mainStatus = "NEW";
+        payload.subStatus = payload.subStatus ?? null;
+        payload.status = "OPEN";
+      } else if (payload.status && payload.mainStatus === undefined) {
+        const canonical = normalizeLeadStatus(payload.status);
+        payload.mainStatus = deriveMainStatusFromLegacy(canonical, payload.subStatus);
+      }
+      return payload;
+    }
+
+    const workflow = await loadLeadStatusWorkflow(true);
+    const index = buildWorkflowIndex(workflow);
+    const mainCode = normalizeStatusCode(payload.mainStatus, "NEW");
+    const main = index.mainByCode.get(mainCode);
+    if (!main) {
+      throw new AppError(
+        400,
+        "Selected main status does not exist or is inactive",
+        "LEAD_MAIN_STATUS_INVALID",
+      );
+    }
+    const subCode = normalizeStatusCode(payload.subStatus);
+    const sub = subCode ? index.subByMainAndCode.get(`${mainCode}:${subCode}`) : null;
+    if (main.requiresSubStatus && !sub) {
+      throw new AppError(
+        400,
+        "Selected sub-status is required for this main status",
+        "LEAD_SUB_STATUS_REQUIRED",
+      );
+    }
+    if (subCode && !sub) {
+      throw new AppError(
+        400,
+        "Selected sub-status does not belong to the selected main status",
+        "LEAD_SUB_STATUS_INVALID",
+      );
+    }
+
+    payload.mainStatus = main.code;
+    payload.subStatus = sub?.code || null;
+    payload.status = deriveCanonicalStatusFromWorkflow(
+      main.code,
+      sub?.code || null,
+      workflow,
+    );
+
+    if (payload.status === "LOST" || payload.status === "NON_RESPONSIVE") {
+      payload.closedReason =
+        payload.closedReason ||
+        sub?.label ||
+        existing?.closedReason ||
+        main.label;
+    }
+
+    return payload;
+  }
+
   function normalizeHotelCategory(value) {
     if (value === undefined || value === null) {
       return null;
@@ -750,6 +841,8 @@ function createLeadsService({ repository, logger, events }) {
       ...lead,
       temperature: lead.temperature || derivedTemperature,
       statusLabel: deriveDocStatus(lead.status, lead.subStatus),
+      mainStatus:
+        lead.mainStatus || deriveMainStatusFromLegacy(lead.status, lead.subStatus),
     };
   }
 
@@ -927,8 +1020,6 @@ function createLeadsService({ repository, logger, events }) {
 
   function deriveWorkflowFollowupType({
     requestedFollowupType = null,
-    scheduledFollowup = null,
-    compliance = {},
     policy = {},
     subStatus = null,
   } = {}) {
@@ -938,6 +1029,14 @@ function createLeadsService({ repository, logger, events }) {
     const normalizedSubStatus = String(subStatus || "").trim().toUpperCase();
     if (normalizedSubStatus === "FINAL_REMINDER") {
       return "FINAL_REMINDER";
+    }
+
+    if (!normalizedRequestedType || normalizedRequestedType === "NONE") {
+      return null;
+    }
+
+    if (normalizedRequestedType === "EMAIL") {
+      return "EMAIL";
     }
 
     if (normalizedRequestedType === "CALL") {
@@ -952,29 +1051,7 @@ function createLeadsService({ repository, logger, events }) {
       return "FINAL_REMINDER";
     }
 
-    const scheduledType = String(scheduledFollowup?.followupType || "")
-      .trim()
-      .toUpperCase();
-    if (scheduledType) {
-      if (policy.callsDisabled && scheduledType === "CALL") {
-        return "WHATSAPP";
-      }
-      return scheduledType;
-    }
-
-    if (!policy.callsDisabled && (compliance.calls || 0) < (policy.requiredCalls || 0)) {
-      return "CALL";
-    }
-
-    if ((compliance.whatsapp || 0) < (policy.requiredWhatsapp || 0)) {
-      return "WHATSAPP";
-    }
-
-    if ((compliance.finalReminders || 0) < (policy.requiredFinalReminders || 0)) {
-      return "FINAL_REMINDER";
-    }
-
-    return policy.callsDisabled ? "WHATSAPP" : "CALL";
+    return null;
   }
 
   function normalizeWorkflowHistoryFollowupType(value, policy = {}) {
@@ -1113,6 +1190,7 @@ function createLeadsService({ repository, logger, events }) {
         payload.preferredHotelCategory,
       ),
       travel_purpose: payload.travelPurpose || null,
+      main_status: payload.mainStatus || "NEW",
       sub_status: payload.subStatus || null,
       temperature,
       source: payload.source || "Manual",
@@ -1306,6 +1384,9 @@ function createLeadsService({ repository, logger, events }) {
     }
     if (payload.travelPurpose !== undefined) {
       mapped.travel_purpose = payload.travelPurpose;
+    }
+    if (payload.mainStatus !== undefined) {
+      mapped.main_status = payload.mainStatus || null;
     }
     if (payload.subStatus !== undefined) {
       mapped.sub_status = payload.subStatus;
@@ -1980,6 +2061,7 @@ function createLeadsService({ repository, logger, events }) {
   }
 
   async function create(payload, context = {}) {
+    await applyLeadWorkflowSelection(payload);
     const normalizedStatus = normalizeLeadStatus(payload.status);
     payload.status = normalizedStatus;
 
@@ -2152,6 +2234,8 @@ function createLeadsService({ repository, logger, events }) {
         quickFilter: normalizeQuickFilter(filters.quickFilter),
         status:
           filters.status ? normalizeLeadStatus(filters.status) : undefined,
+        mainStatus:
+          filters.mainStatus ? normalizeStatusCode(filters.mainStatus) : undefined,
         email: filters.email ? String(filters.email).trim() : undefined,
         phone: filters.phone ? String(filters.phone).trim() : undefined,
         leadId: filters.leadId ? String(filters.leadId).trim() : undefined,
@@ -2315,6 +2399,10 @@ function createLeadsService({ repository, logger, events }) {
     getById,
     async listCustomStatusPresets() {
       return repository.listCustomStatusPresets();
+    },
+
+    async listStatusWorkflowOptions() {
+      return loadLeadStatusWorkflow(true);
     },
     async addCustomStatusPreset(label, context = {}) {
       const trimmed = String(label ?? "").trim().slice(0, 191);
@@ -3154,7 +3242,9 @@ function createLeadsService({ repository, logger, events }) {
 
     async update(id, payload, context = {}) {
       const existing = await getById(id, context);
-      const hasExplicitStatus = payload.status !== undefined;
+      const hasExplicitStatus =
+        payload.status !== undefined || payload.mainStatus !== undefined;
+      await applyLeadWorkflowSelection(payload, existing);
       const nextStatus =
         hasExplicitStatus ? normalizeLeadStatus(payload.status) : existing.status;
       payload.status = nextStatus;
@@ -3223,13 +3313,15 @@ function createLeadsService({ repository, logger, events }) {
       });
 
       const shouldCreateWorkflowHistory = hasExplicitStatus;
-      const shouldTrackWorkflowFollowup =
+      const canTrackWorkflowFollowup =
         shouldCreateWorkflowHistory && WORKFLOW_COMPLIANCE_STATUSES.has(nextStatus);
+      let shouldTrackWorkflowFollowup = false;
       let workflowFollowupType = null;
       let workflowRecordedAt = null;
       let workflowActionTimezone = null;
       let scheduledReminder = null;
       let workflowStatusSnapshot = null;
+      let workflowIsStatusOnlyHistory = false;
       if (shouldCreateWorkflowHistory) {
         const workflowActionStamp = resolveActivityStamp(payload);
         scheduledReminder = await repository.findPendingScheduleOnlyFollowupByLeadId(
@@ -3238,38 +3330,61 @@ function createLeadsService({ repository, logger, events }) {
         );
         workflowRecordedAt = workflowActionStamp?.createdAt || null;
         workflowActionTimezone = workflowActionStamp?.timezone || null;
-        if (shouldTrackWorkflowFollowup) {
+        if (canTrackWorkflowFollowup) {
           const compliance = await repository.getFollowupComplianceStats(id);
           const nextAttempt = compliance.total + 1;
           const policy = getFollowupPolicy(existing);
           workflowFollowupType = deriveWorkflowFollowupType({
             requestedFollowupType: payload.followupType,
-            scheduledFollowup: scheduledReminder,
-            compliance,
             policy,
             subStatus: payload.subStatus,
           });
-          mapped.followup_attempts = nextAttempt;
-          if (!payload.subStatus && nextStatus === "FOLLOW_UP") {
-            mapped.sub_status =
-              workflowFollowupType === "FINAL_REMINDER" ?
-                "FINAL_REMINDER"
-              : `FOLLOW_UP_${Math.min(nextAttempt, 4)}`;
-          }
-          if (workflowFollowupType === "FINAL_REMINDER" && workflowRecordedAt) {
-            mapped.final_reminder_at = workflowRecordedAt;
+          shouldTrackWorkflowFollowup =
+            workflowFollowupType === "CALL" ||
+            workflowFollowupType === "WHATSAPP" ||
+            workflowFollowupType === "FINAL_REMINDER";
+          workflowIsStatusOnlyHistory = !workflowFollowupType;
+
+          if (shouldTrackWorkflowFollowup) {
+            mapped.followup_attempts = nextAttempt;
+            if (!payload.subStatus && nextStatus === "FOLLOW_UP") {
+              mapped.sub_status =
+                workflowFollowupType === "FINAL_REMINDER" ?
+                  "FINAL_REMINDER"
+                : `FOLLOW_UP_${Math.min(nextAttempt, 4)}`;
+            }
+            if (workflowFollowupType === "FINAL_REMINDER" && workflowRecordedAt) {
+              mapped.final_reminder_at = workflowRecordedAt;
+            }
           }
         } else {
           const policy = getFollowupPolicy(existing);
+          const normalizedHistoryFollowupType = normalizeWorkflowHistoryFollowupType(
+            payload.followupType,
+            policy,
+          );
+          const scheduledHistoryFollowupType = String(scheduledReminder?.followupType || "")
+            .trim()
+            .toUpperCase();
+          workflowIsStatusOnlyHistory =
+            !normalizedHistoryFollowupType && !scheduledHistoryFollowupType;
           workflowFollowupType =
-            normalizeWorkflowHistoryFollowupType(payload.followupType, policy) ||
-            String(scheduledReminder?.followupType || "").trim().toUpperCase() ||
+            normalizedHistoryFollowupType ||
+            scheduledHistoryFollowupType ||
             "EMAIL";
         }
-        workflowStatusSnapshot = deriveDocStatus(
-          nextStatus,
-          payload.subStatus ?? mapped.sub_status ?? existing.subStatus,
-        );
+        workflowFollowupType ||= "EMAIL";
+        const snapshotCandidate =
+          payload.subStatus ??
+          mapped.sub_status ??
+          payload.mainStatus ??
+          mapped.main_status ??
+          existing.mainStatus ??
+          deriveDocStatus(nextStatus, existing.subStatus);
+        workflowStatusSnapshot = String(snapshotCandidate || "")
+          .trim()
+          .toUpperCase()
+          .slice(0, 60);
       }
 
       const updated =
@@ -3312,6 +3427,21 @@ function createLeadsService({ repository, logger, events }) {
             workflowActionTimezone || scheduledReminder?.clientTimezone || null,
           ) || DEFAULT_SYSTEM_DATE_TIME_PREFERENCES.timezone;
 
+        const workflowMainLabel = deriveStatusLabelFromWorkflow(
+          {
+            ...existing,
+            status: nextStatus,
+            mainStatus: payload.mainStatus ?? mapped.main_status ?? existing.mainStatus,
+            subStatus: payload.subStatus ?? mapped.sub_status ?? existing.subStatus,
+          },
+          await loadLeadStatusWorkflow(true),
+        );
+        const workflowNotes = [
+          payload.notes ? String(payload.notes).trim() : "",
+        ]
+          .filter(Boolean)
+          .join("\n\n");
+
         await repository.createFollowup(
           normalizeFollowupStoragePayload(
             {
@@ -3320,10 +3450,11 @@ function createLeadsService({ repository, logger, events }) {
                 context.user?.id || updated?.assignedTo || existing.assignedTo || null,
               followupType: workflowFollowupType,
               followupDate: wall,
+              cadenceCode: workflowIsStatusOnlyHistory ? "STATUS_ONLY" : undefined,
               clientTimezone: wfTz,
               followupLocalAt: wall,
-              statusSnapshot: workflowStatusSnapshot,
-              notes: payload.notes || null,
+              statusSnapshot: workflowMainLabel || workflowStatusSnapshot,
+              notes: workflowNotes || null,
               isCompleted: true,
               isScheduleOnly: false,
               countsTowardCompliance: shouldTrackWorkflowFollowup,

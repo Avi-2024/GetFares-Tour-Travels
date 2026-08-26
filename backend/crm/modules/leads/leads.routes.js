@@ -53,6 +53,13 @@ function createLeadsRoutes({
     validateRequest(validation.listCustomStatusPresets),
     asyncHandler(controller.listCustomStatusPresets),
   );
+  router.get(
+    "/status-workflow/options",
+    requireAuth,
+    authorize("leads:read"),
+    validateRequest(validation.listStatusWorkflowOptions),
+    asyncHandler(controller.listStatusWorkflowOptions),
+  );
   router.post(
     "/custom-status-presets",
     requireAuth,

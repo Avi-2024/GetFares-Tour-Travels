@@ -101,14 +101,15 @@ const basePayload = z.object({
   type: z.string().min(2).max(40).optional(),
   preferredHotelCategory: hotelCategory,
   travelPurpose: z.string().max(50).optional(),
-  subStatus: z.string().max(60).optional(),
+  mainStatus: z.string().max(80).optional(),
+  subStatus: z.union([z.string().max(60), z.null()]).optional(),
   respondedPositively: z.boolean().optional(),
   temperature: z.enum(["HOT", "WARM", "COLD"]).optional(),
   priorityLevel: z.coerce.number().int().nonnegative().optional(),
   isVip: z.boolean().optional(),
   callsDisabled: z.boolean().optional(),
   followupType: z
-    .enum(["CALL", "WHATSAPP", "EMAIL", "FINAL_REMINDER", "TASK"])
+    .enum(["NONE", "CALL", "WHATSAPP", "EMAIL", "FINAL_REMINDER", "TASK"])
     .optional(),
   status: leadStatus.optional(),
   assignedTo: z.string().uuid().optional(),
@@ -184,6 +185,7 @@ const list = z.object({
         ])
         .optional(),
       status: leadStatus.optional(),
+      mainStatus: z.string().max(80).optional(),
       source: z.string().trim().max(120).optional(),
       platform: z.string().trim().max(40).optional(),
       temperature: z.enum(["HOT", "WARM", "COLD"]).optional(),
@@ -418,6 +420,12 @@ const listCustomStatusPresets = z.object({
   query: z.object({}).optional(),
 });
 
+const listStatusWorkflowOptions = z.object({
+  body: z.object({}).optional(),
+  params: z.object({}).optional(),
+  query: z.object({}).optional(),
+});
+
 const addCustomStatusPreset = z.object({
   body: z.object({
     label: z.string().trim().min(1).max(191),
@@ -449,6 +457,7 @@ const LeadsValidation = {
   createLeadActivity,
   listLeadActivities,
   listCustomStatusPresets,
+  listStatusWorkflowOptions,
   addCustomStatusPreset,
 };
 

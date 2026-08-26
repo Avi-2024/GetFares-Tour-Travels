@@ -56,8 +56,9 @@ export interface UpdateLeadPayload {
   campaignId?: string;
   notes?: string;
   status?: string;
-  subStatus?: string;
-  followupType?: 'CALL' | 'WHATSAPP' | 'EMAIL' | 'FINAL_REMINDER' | 'TASK';
+  mainStatus?: string;
+  subStatus?: string | null;
+  followupType?: 'NONE' | 'CALL' | 'WHATSAPP' | 'EMAIL' | 'FINAL_REMINDER' | 'TASK';
   temperature?: string;
   closedReason?: string;
 }

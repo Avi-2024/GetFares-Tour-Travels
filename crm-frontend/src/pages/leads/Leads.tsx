@@ -24,7 +24,13 @@ import { useUsersService } from "../../hooks/useUsersService";
 import { metaConnectionApi } from "../../api/metaConnection";
 
 import type { LeadListItem, LeadsPagination } from "../../services/leadsService";
-import { sopLabelToCanonical } from "../../utils/leadStatus";
+import {
+  formatWorkflowStatus,
+  getWorkflowSubStatuses,
+  normalizeWorkflow,
+  sopLabelToCanonical,
+  type LeadStatusWorkflow,
+} from "../../utils/leadStatus";
 
 interface LeadStats {
   totalLeads: number;
@@ -61,6 +67,8 @@ type LeadFilterState = {
   phone: string;
   leadId: string;
   consultant: string;
+  mainStatus: string;
+  subStatus: string;
   status: "ALL" | "NEW" | "CONTACTED" | "NEGOTIATION" | "QUOTED" | "FOLLOW_UP_1" | "FOLLOW_UP_2" | "FOLLOW_UP_3" | "FOLLOW_UP_4" | "FINAL_REMINDER" | "CONVERTED" | "LOST" | "NON_RESPONSIVE";
   sla: "ALL" | "OVERDUE" | "WITHIN_SLA" | "PENDING";
   sortBy: "CREATED_AT_DESC" | "CREATED_AT_ASC" | "NAME_ASC" | "STATUS_ASC" | "COUNTRY_ASC";
@@ -98,6 +106,8 @@ const defaultFilters: LeadFilterState = {
   phone: "",
   leadId: "",
   consultant: "",
+  mainStatus: "",
+  subStatus: "",
   status: "ALL",
   sla: "ALL" as const,
   sortBy: "CREATED_AT_DESC",
@@ -222,6 +232,9 @@ const Leads: React.FC = () => {
   const leadSourcesFetchedRef = React.useRef(false);
   const [consultantUsers, setConsultantUsers] = useState<Array<{ id: string; name: string }>>([]);
   const consultantsFetchedRef = React.useRef(false);
+  const [statusWorkflow, setStatusWorkflow] = useState<LeadStatusWorkflow>(
+    normalizeWorkflow(null),
+  );
   const [pageSize, setPageSize] = useState(initialViewState?.pageSize ?? 25);
   const [draftFilters, setDraftFilters] = useState<LeadFilterState>(
     initialViewState?.draftFilters ?? defaultFilters,
@@ -248,23 +261,31 @@ const Leads: React.FC = () => {
     [],
   );
 
-  const statusOptions = useMemo(
+  const mainStatusOptions = useMemo(
     () => [
-      { value: "ALL", label: "All " },
-      { value: "NEW", label: "New" },
-      { value: "CONTACTED", label: "Contacted" },
-      { value: "NEGOTIATION", label: "Negotiation" },
-      { value: "QUOTED", label: "Quoted" },
-      { value: "FOLLOW_UP_1", label: "Follow Up 1" },
-      { value: "FOLLOW_UP_2", label: "Follow Up 2" },
-      { value: "FOLLOW_UP_3", label: "Follow Up 3" },
-      { value: "FOLLOW_UP_4", label: "Follow Up 4" },
-      { value: "FINAL_REMINDER", label: "Final Reminder" },
-      { value: "CONVERTED", label: "Converted" },
-      { value: "LOST", label: "Lost" },
-      { value: "NON_RESPONSIVE", label: "Non Responsive" },
+      { value: "", label: "All Main Statuses" },
+      ...statusWorkflow.mainStatuses
+        .filter((item) => item.isActive || item.code === draftFilters.mainStatus)
+        .map((item) => ({
+          value: item.code,
+          label: item.label,
+          rightLabel: item.canonicalStatus,
+          searchText: `${item.label} ${item.code} ${item.canonicalStatus}`,
+        })),
     ],
-    [],
+    [draftFilters.mainStatus, statusWorkflow.mainStatuses],
+  );
+
+  const subStatusOptions = useMemo(
+    () => [
+      { value: "", label: "All Sub Statuses" },
+      ...getWorkflowSubStatuses(statusWorkflow, draftFilters.mainStatus).map((item) => ({
+        value: item.code,
+        label: item.label,
+        searchText: `${item.label} ${item.code}`,
+      })),
+    ],
+    [draftFilters.mainStatus, statusWorkflow],
   );
 
   const slaOptions = useMemo(
@@ -331,13 +352,11 @@ const Leads: React.FC = () => {
         chipSourceValue
       : dropdownSource || undefined;
 
-    // Resolve canonical status + subStatus from SOP label
+    // Legacy fallback for older saved filter state before configurable workflow.
     let canonicalStatus: string | undefined
-    let subStatus: string | undefined
     if (appliedFilters.status !== 'ALL') {
       const conversion = sopLabelToCanonical(appliedFilters.status as any)
       canonicalStatus = conversion.canonical
-      subStatus = conversion.subStatus
     }
 
     // Common filters applied in both modes
@@ -347,8 +366,9 @@ const Leads: React.FC = () => {
       ...(chipCountryValue || appliedFilters.country
         ? { country: chipCountryValue || appliedFilters.country }
         : {}),
+      ...(appliedFilters.mainStatus ? { mainStatus: appliedFilters.mainStatus } : {}),
       ...(canonicalStatus ? { status: canonicalStatus } : {}),
-      ...(subStatus ? { subStatus } : {}),
+      ...(appliedFilters.subStatus ? { subStatus: appliedFilters.subStatus } : {}),
       ...(appliedFilters.fromDate ? { fromDate: appliedFilters.fromDate } : {}),
       ...(appliedFilters.toDate ? { toDate: appliedFilters.toDate } : {}),
       ...(appliedFilters.destination ? { destination: appliedFilters.destination } : {}),
@@ -405,6 +425,16 @@ const Leads: React.FC = () => {
     void run()
   }, [leadsService])
 
+  useEffect(() => {
+    const run = async () => {
+      try {
+        setStatusWorkflow(normalizeWorkflow(await leadsService.getStatusWorkflowOptions()))
+      } catch {
+        setStatusWorkflow(normalizeWorkflow(null))
+      }
+    }
+    void run()
+  }, [leadsService])
   // Load all unique consultants once on mount — fetch from all leads
   useEffect(() => {
     if (consultantsFetchedRef.current) return
@@ -511,12 +541,19 @@ const Leads: React.FC = () => {
     if (appliedFilters.phone) count += 1;
     if (appliedFilters.leadId) count += 1;
     if (appliedFilters.consultant) count += 1;
+    if (appliedFilters.mainStatus) count += 1;
+    if (appliedFilters.subStatus) count += 1;
     if (appliedFilters.status !== "ALL") count += 1;
     if (appliedFilters.sla !== "ALL") count += 1;
     if (appliedFilters.sortBy !== "CREATED_AT_DESC") count += 1;
     if (leadSourceFilter !== "ALL") count += 1;
     return count;
   }, [appliedFilters, leadSourceFilter]);
+
+  const getLeadStatusDisplay = (lead: LeadListItem) =>
+    lead.mainStatus
+      ? formatWorkflowStatus(lead.mainStatus, lead.subStatus, statusWorkflow)
+      : lead.statusDisplay;
 
   const updateDraftFilter = <K extends keyof LeadFilterState>(
     key: K,
@@ -646,7 +683,7 @@ const Leads: React.FC = () => {
         getVisaHolidayLabel(lead),
         lead.consultant && lead.consultant !== "Unassigned" ? lead.consultant : "-",
         lead.assignedBy ?? "-",
-        lead.statusDisplay,
+        getLeadStatusDisplay(lead),
         lead.slaBreached ? "Breached" : (lead.sla ?? ""),
       ]);
 
@@ -678,7 +715,7 @@ const Leads: React.FC = () => {
     if (leadType === 'HOLIDAY') return 'Holidays';
     
     // Fallback: check packageName and statusLabel
-    const source = `${lead.packageName ?? ""} ${lead.statusDisplay ?? ""}`
+    const source = `${lead.packageName ?? ""} ${getLeadStatusDisplay(lead) ?? ""}`
       .trim()
       .toLowerCase();
     return source.includes("visa") ? "Visa" : "Holidays";
@@ -813,7 +850,7 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
           {lead.leadCountry || "-"}
         </div>
         <div className="flex items-center justify-center px-3 py-4">
-          <StatusBadge status={lead.statusDisplay} />
+          <StatusBadge status={getLeadStatusDisplay(lead)} />
         </div>
         <div className={`px-3 py-4 text-center text-sm font-medium ${lead.slaBreached ? "text-red-600" : "text-gray-700 dark:text-gray-200"}`}>
           {lead.slaBreached ? "Breached" : lead.sla}
@@ -1109,20 +1146,36 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
                 </div>
                 <div>
                   <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
-                    Status
+                    Main Status
                   </label>
                   <SearchableDropdown
                     className="w-full"
-                    value={draftFilters.status}
-                    options={statusOptions}
-                    placeholder="All "
-                    searchPlaceholder="Search status..."
-                    onChange={(value) =>
-                      updateDraftFilter(
-                        "status",
-                        value as LeadFilterState["status"],
-                      )
-                    }
+                    value={draftFilters.mainStatus}
+                    options={mainStatusOptions}
+                    placeholder="All Main Statuses"
+                    searchPlaceholder="Search main status..."
+                    onChange={(value) => {
+                      setDraftFilters((previous) => ({
+                        ...previous,
+                        mainStatus: value,
+                        subStatus: "",
+                        status: "ALL",
+                      }))
+                    }}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
+                    Sub Status
+                  </label>
+                  <SearchableDropdown
+                    className="w-full"
+                    value={draftFilters.subStatus}
+                    options={subStatusOptions}
+                    placeholder="All Sub Statuses"
+                    searchPlaceholder="Search sub-status..."
+                    disabled={!draftFilters.mainStatus}
+                    onChange={(value) => updateDraftFilter("subStatus", value)}
                   />
                 </div>
                 <div>
@@ -1402,7 +1455,7 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
                         </td>
                         <td className="min-w-[140px] px-3 py-4 text-center align-middle">
                           <div className="flex justify-center">
-                            <StatusBadge status={lead.statusDisplay} />
+                            <StatusBadge status={getLeadStatusDisplay(lead)} />
                           </div>
                         </td>
                         <td className="px-3 py-4 text-center align-middle whitespace-nowrap">

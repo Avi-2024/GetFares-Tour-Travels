@@ -174,6 +174,8 @@ function registerModules(app, dependencies) {
   const breezerIntegrationModule = createBreezerIntegrationModule({
     dependencies: featureDependencies,
     bookingsService: mountedModules.bookings?.service,
+    paymentsService: mountedModules.payments?.service,
+    refundsService: mountedModules.refunds?.service,
   });
   mountedModules.breezerIntegration = breezerIntegrationModule;
   app.use("/api/breezer-integration", breezerIntegrationModule.router);

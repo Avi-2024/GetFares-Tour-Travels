@@ -37,6 +37,53 @@ function createSettingsController({ service }) {
     res.status(200).json({ data: result });
   }
 
+  async function getLeadStatusWorkflow(req, res) {
+    const result = await service.getLeadStatusWorkflow(req.context);
+    res.status(200).json({ data: result });
+  }
+
+  async function createLeadStatusMain(req, res) {
+    const result = await service.createLeadStatusMain(
+      req.validated.body,
+      req.context,
+    );
+    res.status(201).json({ data: result });
+  }
+
+  async function updateLeadStatusMain(req, res) {
+    const result = await service.updateLeadStatusMain(
+      req.validated.params.id,
+      req.validated.body,
+      req.context,
+    );
+    res.status(200).json({ data: result });
+  }
+
+  async function createLeadStatusSub(req, res) {
+    const result = await service.createLeadStatusSub(
+      req.validated.body,
+      req.context,
+    );
+    res.status(201).json({ data: result });
+  }
+
+  async function updateLeadStatusSub(req, res) {
+    const result = await service.updateLeadStatusSub(
+      req.validated.params.id,
+      req.validated.body,
+      req.context,
+    );
+    res.status(200).json({ data: result });
+  }
+
+  async function reorderLeadStatusWorkflow(req, res) {
+    const result = await service.reorderLeadStatusWorkflow(
+      req.validated.body,
+      req.context,
+    );
+    res.status(200).json({ data: result });
+  }
+
   return Object.freeze({
     getAll,
     getSystem,
@@ -44,6 +91,12 @@ function createSettingsController({ service }) {
     updateSystem,
     getIntegrations,
     updateIntegrations,
+    getLeadStatusWorkflow,
+    createLeadStatusMain,
+    updateLeadStatusMain,
+    createLeadStatusSub,
+    updateLeadStatusSub,
+    reorderLeadStatusWorkflow,
   });
 }
 

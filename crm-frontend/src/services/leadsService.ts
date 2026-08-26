@@ -10,9 +10,11 @@ import type {
 } from "../datasource/leadsDatasource";
 import {
   deriveSopStatusLabel,
+  normalizeWorkflow,
   normalizeStatusToken,
   resolveLeadDisplayedStatus,
   type CanonicalLeadStatus,
+  type LeadStatusWorkflow,
   type SopStatusLabel,
 } from "../utils/leadStatus";
 
@@ -38,6 +40,7 @@ export type LeadListItem = {
   budget?: number | null;
   salary?: number | null;
   status: CanonicalLeadStatus;
+  mainStatus: string | null;
   statusLabel: SopStatusLabel;
   /** Pipeline SOP plus custom_status_label when set (badges, export). */
   statusDisplay: string;
@@ -411,6 +414,7 @@ const toListItem = (lead: LeadApiRecord, index: number): LeadListItem => {
           ? Number((lead as any).salary)
           : null,
     status,
+    mainStatus: lead.mainStatus ?? lead.main_status ?? null,
     statusLabel,
     statusDisplay,
     subStatus: lead.subStatus ?? null,
@@ -485,6 +489,10 @@ export const createLeadsService = (datasource: LeadsDatasource) => ({
   getLeadSources: async (params?: LeadsQuery) => {
     const response = await datasource.getLeadSources(params);
     return extractStringList(response);
+  },
+  getStatusWorkflowOptions: async (): Promise<LeadStatusWorkflow> => {
+    const response = await datasource.getStatusWorkflowOptions();
+    return normalizeWorkflow((response as { data?: LeadStatusWorkflow })?.data);
   },
   distributeLeads: (payload?: { limit?: number; reason?: string }) =>
     datasource.distribute(payload),

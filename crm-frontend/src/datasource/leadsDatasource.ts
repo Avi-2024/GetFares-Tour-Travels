@@ -1,4 +1,5 @@
 import type { HttpClient } from "../api/apiClient";
+import type { LeadStatusWorkflow } from "../utils/leadStatus";
 
 export type LeadsQuery = Record<string, string | number | boolean | undefined>;
 export type LeadDestinationListResponse =
@@ -66,6 +67,8 @@ export type LeadApiRecord = {
   package?: string | null;
   status?: string | null;
   statusLabel?: string | null;
+  mainStatus?: string | null;
+  main_status?: string | null;
   customStatusLabel?: string | null;
   custom_status_label?: string | null;
   subStatus?: string | null;
@@ -221,6 +224,8 @@ export const createLeadsDatasource = (client: HttpClient) => ({
     client.get<unknown>("/api/leads/custom-status-presets"),
   addCustomStatusPreset: (label: string) =>
     client.post<unknown>("/api/leads/custom-status-presets", { label }),
+  getStatusWorkflowOptions: () =>
+    client.get<{ data?: LeadStatusWorkflow }>("/api/leads/status-workflow/options"),
 });
 
 export type LeadsDatasource = ReturnType<typeof createLeadsDatasource>;

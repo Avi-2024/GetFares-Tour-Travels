@@ -1,3 +1,7 @@
+import {
+  mapBookingCreatedPayload,
+} from "../breezerIntegration/breezerIntegration.mapper.js";
+
 function createBookingsController({ service }) {
   return Object.freeze({
     async list(req, res) {
@@ -50,7 +54,13 @@ function createBookingsController({ service }) {
 
     async create(req, res) {
       const result = await service.create(req.validated.body, req.context);
-      res.status(201).json({ data: result });
+      res.status(201).json({
+        data: {
+          ...result,
+          booking: result,
+          breezerPayload: mapBookingCreatedPayload(result),
+        },
+      });
     },
 
     async update(req, res) {

@@ -29,6 +29,17 @@ const DEFAULT_SYSTEM_PREFERENCES = Object.freeze({
   dateFormat: DEFAULT_SYSTEM_SETTINGS.dateFormat,
 });
 
+const CANONICAL_STATUSES = new Set([
+  "OPEN",
+  "CONTACTED",
+  "WIP",
+  "QUOTED",
+  "FOLLOW_UP",
+  "CONVERTED",
+  "LOST",
+  "NON_RESPONSIVE",
+]);
+
 function toPlainObject(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return {};
@@ -115,11 +126,59 @@ function createSettingsService({ repository, logger, events, schema }) {
     return next;
   }
 
+  async function getLeadStatusWorkflow(context = {}, options = {}) {
+    logger.debug(
+      { module: "settings", requestId: context.requestId },
+      "Getting lead status workflow",
+    );
+    return repository.listLeadStatusWorkflow(options);
+  }
+
+  function assertCanonicalStatus(value) {
+    if (!CANONICAL_STATUSES.has(String(value || "").toUpperCase())) {
+      throw new AppError(
+        400,
+        "canonicalStatus is invalid",
+        "LEAD_STATUS_CANONICAL_INVALID",
+      );
+    }
+  }
+
+  async function createLeadStatusMain(payload = {}, context = {}) {
+    assertCanonicalStatus(payload.canonicalStatus);
+    return repository.createLeadStatusMain(payload, context.user?.id || null);
+  }
+
+  async function updateLeadStatusMain(id, payload = {}, context = {}) {
+    if (payload.canonicalStatus !== undefined) {
+      assertCanonicalStatus(payload.canonicalStatus);
+    }
+    return repository.updateLeadStatusMain(id, payload, context.user?.id || null);
+  }
+
+  async function createLeadStatusSub(payload = {}, context = {}) {
+    return repository.createLeadStatusSub(payload, context.user?.id || null);
+  }
+
+  async function updateLeadStatusSub(id, payload = {}, context = {}) {
+    return repository.updateLeadStatusSub(id, payload, context.user?.id || null);
+  }
+
+  async function reorderLeadStatusWorkflow(payload = {}, context = {}) {
+    return repository.reorderLeadStatusWorkflow(payload, context.user?.id || null);
+  }
+
   return Object.freeze({
     getAll,
     getSection,
     getSystemPreferences,
     updateSection,
+    getLeadStatusWorkflow,
+    createLeadStatusMain,
+    updateLeadStatusMain,
+    createLeadStatusSub,
+    updateLeadStatusSub,
+    reorderLeadStatusWorkflow,
   });
 }
 

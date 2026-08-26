@@ -28,6 +28,7 @@ import SearchableDropdown from "../ui/SearchableDropdown";
 import DestinationPricingManager from "../settings/DestinationPricingManager";
 import CountryManagementPanel from "../settings/CountryManagementPanel";
 import CurrencyRatesPanel from "../settings/CurrencyRatesPanel";
+import LeadStatusWorkflowPanel from "../settings/LeadStatusWorkflowPanel";
 import { buildAdminCountryOptions, type CountryOption } from "../../utils/countries";
 
 import UsersPage from "../../pages/users/UsersPage";
@@ -45,6 +46,7 @@ type Tab =
   | 'roles-permissions'
   | 'system-settings'
   | 'currency-rates'
+  | 'lead-status-workflow'
   | 'country-management'
   | 'destinations-pricing'
   | 'pdf-templates'
@@ -127,6 +129,7 @@ const tabs: Array<{ id: Tab; label: string }> = [
   // { id: 'country-management', label: 'Country Management' },
   // { id: 'system-settings', label: 'System Settings' },
   { id: 'currency-rates', label: 'Currency Rates' },
+  // { id: 'lead-status-workflow', label: 'Lead Status Workflow' },
   // { id: 'destinations-pricing', label: 'Destinations & Pricing' },
   // { id: 'pdf-templates', label: 'PDF Templates' }
   // { id: "integrations", label: "Integrations" },
@@ -2161,6 +2164,15 @@ const Settings: React.FC = () => {
         {activeTab === 'currency-rates' ? (
           <SurfaceCard>
             <CurrencyRatesPanel canManage={isSuperAdmin} />
+          </SurfaceCard>
+        ) : null}
+
+        {activeTab === 'lead-status-workflow' ? (
+          <SurfaceCard>
+            <LeadStatusWorkflowPanel
+              canReadSettings={canReadSettings}
+              canUpdateSettings={canUpdateSettings}
+            />
           </SurfaceCard>
         ) : null}
 

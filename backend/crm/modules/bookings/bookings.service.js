@@ -1049,7 +1049,7 @@ function createBookingsService({
 
       const hydrated = withDeadlineInsights(created);
       events.emitCreated(hydrated);
-      return hydrated;
+      return getById(created.id, context).catch(() => hydrated);
     },
 
     async update(id, payload, context = {}) {

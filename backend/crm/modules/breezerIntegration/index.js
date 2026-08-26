@@ -5,9 +5,16 @@ import { registerBreezerIntegrationSubscribers } from "./breezerIntegration.subs
 import { BreezerIntegrationValidation } from "./breezerIntegration.validation.js";
 
 // Creates the Breezer integration module.
-function createBreezerIntegrationModule({ dependencies, bookingsService }) {
+function createBreezerIntegrationModule({
+  dependencies,
+  bookingsService,
+  paymentsService,
+  refundsService,
+}) {
   const service = createBreezerIntegrationService({
     bookingsService,
+    paymentsService,
+    refundsService,
     logger: dependencies.logger,
   });
   const controller = createBreezerIntegrationController({ service });

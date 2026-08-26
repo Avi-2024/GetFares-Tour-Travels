@@ -8,6 +8,11 @@ import {
   utcInstantFromLocalWallClock,
   WALL_CLOCK_REGEX,
 } from "../../core/datetime/timezone.js";
+import {
+  defaultLeadStatusWorkflow,
+  toApiMainStatus,
+  toApiSubStatus,
+} from "./leadStatusWorkflow.config.js";
 
 function createLeadsRepository({ db, logger, schema }) {
   const ASSIGNABLE_ROLES = new Set([
@@ -428,6 +433,7 @@ function createLeadsRepository({ db, logger, schema }) {
       priorityLevel: row.priority_level ?? row.priorityLevel ?? 0,
       isVip: row.is_vip ?? row.isVip ?? false,
       status: row.status,
+      mainStatus: row.main_status ?? row.mainStatus ?? null,
       assignedTo,
       assignedUser:
         assignee ?
@@ -747,6 +753,10 @@ function createLeadsRepository({ db, logger, schema }) {
       mapped.sub_status = filters.subStatus;
     }
 
+    if (filters.mainStatus) {
+      mapped.main_status = filters.mainStatus;
+    }
+
     if (filters.leadType) {
       mapped.lead_type = filters.leadType;
     }
@@ -876,6 +886,10 @@ function createLeadsRepository({ db, logger, schema }) {
       schema.tableName,
       "platform",
     );
+    const hasMainStatusColumn = await mysqlColumnExists(
+      schema.tableName,
+      "main_status",
+    );
     const quickFilter = String(filters.quickFilter || "")
       .trim()
       .toUpperCase();
@@ -885,6 +899,11 @@ function createLeadsRepository({ db, logger, schema }) {
     if (filters.status) {
       params.push(filters.status);
       where.push(`l.status = ?`);
+    }
+
+    if (filters.mainStatus && hasMainStatusColumn) {
+      params.push(filters.mainStatus);
+      where.push(`l.main_status = ?`);
     }
 
     if (filters.source && hasLeadSourceColumn) {
@@ -2180,6 +2199,50 @@ function createLeadsRepository({ db, logger, schema }) {
           .sort((a, b) => a.localeCompare(b));
       } catch (_e) {
         return [];
+      }
+    },
+
+    async listLeadStatusWorkflow({ activeOnly = false } = {}) {
+      if (typeof db.query !== "function" || !["mysql", "mssql"].includes(db.adapter)) {
+        return defaultLeadStatusWorkflow();
+      }
+
+      try {
+        const activeMainWhere = activeOnly ? "WHERE is_active = 1" : "";
+        const activeSubWhere = activeOnly ? "WHERE s.is_active = 1 AND m.is_active = 1" : "";
+        const mainResult = await db.query(
+          `
+            SELECT id, code, label, canonical_status, sort_order, color,
+                   is_active, is_system, is_terminal, requires_sub_status,
+                   requires_quotation, creates_booking, is_booking_controlled
+            FROM \`${schema.leadStatusMainTable}\`
+            ${activeMainWhere}
+            ORDER BY sort_order ASC, label ASC
+          `,
+        );
+        const subResult = await db.query(
+          `
+            SELECT s.id, s.main_status_id, m.code AS main_status_code, s.code,
+                   s.label, s.sort_order, s.is_active, s.is_system, s.is_terminal
+            FROM \`${schema.leadStatusSubTable}\` s
+            JOIN \`${schema.leadStatusMainTable}\` m ON m.id = s.main_status_id
+            ${activeSubWhere}
+            ORDER BY m.sort_order ASC, s.sort_order ASC, s.label ASC
+          `,
+        );
+        return {
+          mainStatuses: (mainResult.rows || []).map(toApiMainStatus),
+          subStatuses: (subResult.rows || []).map(toApiSubStatus),
+        };
+      } catch (err) {
+        if (/doesn't exist|Unknown table|Invalid object name/i.test(String(err.message || ""))) {
+          logger?.warn?.(
+            { err },
+            "lead status workflow tables missing; returning default workflow",
+          );
+          return defaultLeadStatusWorkflow();
+        }
+        throw err;
       }
     },
 

@@ -51,6 +51,48 @@ function createSettingsRoutes({
     validateRequest(validation.updateIntegrations),
     asyncHandler(controller.updateIntegrations),
   );
+  router.get(
+    "/lead-status-workflow",
+    requireAuth,
+    authorize("settings:read"),
+    validateRequest(validation.getLeadStatusWorkflow),
+    asyncHandler(controller.getLeadStatusWorkflow),
+  );
+  router.post(
+    "/lead-status-workflow/main",
+    requireAuth,
+    authorize("settings:update"),
+    validateRequest(validation.createLeadStatusMain),
+    asyncHandler(controller.createLeadStatusMain),
+  );
+  router.patch(
+    "/lead-status-workflow/main/:id",
+    requireAuth,
+    authorize("settings:update"),
+    validateRequest(validation.updateLeadStatusMain),
+    asyncHandler(controller.updateLeadStatusMain),
+  );
+  router.post(
+    "/lead-status-workflow/sub",
+    requireAuth,
+    authorize("settings:update"),
+    validateRequest(validation.createLeadStatusSub),
+    asyncHandler(controller.createLeadStatusSub),
+  );
+  router.patch(
+    "/lead-status-workflow/sub/:id",
+    requireAuth,
+    authorize("settings:update"),
+    validateRequest(validation.updateLeadStatusSub),
+    asyncHandler(controller.updateLeadStatusSub),
+  );
+  router.patch(
+    "/lead-status-workflow/reorder",
+    requireAuth,
+    authorize("settings:update"),
+    validateRequest(validation.reorderLeadStatusWorkflow),
+    asyncHandler(controller.reorderLeadStatusWorkflow),
+  );
 
   return router;
 }

@@ -49,6 +49,11 @@ function createLeadsController({ service }) {
       res.status(200).json({ data: { items } });
     },
 
+    async listStatusWorkflowOptions(req, res) {
+      const result = await service.listStatusWorkflowOptions(req.context);
+      res.status(200).json({ data: result });
+    },
+
     async addCustomStatusPreset(req, res) {
       const items = await service.addCustomStatusPreset(
         req.validated.body.label,
